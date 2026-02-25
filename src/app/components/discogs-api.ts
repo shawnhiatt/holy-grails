@@ -604,48 +604,47 @@ export function getCachedCollectionValue(): CollectionValue | null {
  * Fetch collection value from Discogs API.
  * GET /users/{username}/collection/value
  * Returns minimum, median, maximum as float-strings. Parse as floats, never integers.
+ *
+ * Throws if the expected numeric fields are missing or unparseable — callers treat that
+ * as "unavailable" rather than silently displaying $0.
  */
 export async function fetchCollectionValue(
   username: string,
   token: string
 ): Promise<CollectionValue> {
-  const url = `${BASE}/users/${encodeURIComponent(username)}/collection/value`;
-  console.log("[CollectionValue] GET", url);
-
-  const res = await discogsFetch(url, { headers: headers(token) });
-  console.log("[CollectionValue] HTTP", res.status, res.statusText);
-
-  // Read body as text first so we can log it before attempting JSON parse
-  const rawBody = await res.text().catch(() => "");
+  const res = await discogsFetch(
+    `${BASE}/users/${encodeURIComponent(username)}/collection/value`,
+    { headers: headers(token) }
+  );
 
   if (!res.ok) {
-    console.error("[CollectionValue] Error body:", rawBody);
-    throw new Error(`Failed to fetch collection value (${res.status})${rawBody ? ": " + rawBody : ""}`);
+    const body = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch collection value (${res.status})${body ? ": " + body : ""}`);
   }
 
-  console.log("[CollectionValue] Raw body:", rawBody);
+  const data = await res.json();
 
-  let data: any;
-  try {
-    data = JSON.parse(rawBody);
-  } catch (e) {
-    console.error("[CollectionValue] JSON parse error:", e, "body was:", rawBody);
-    throw new Error("Collection value response was not valid JSON");
+  const minimum = parseFloat(data.minimum);
+  const median = parseFloat(data.median);
+  const maximum = parseFloat(data.maximum);
+
+  // Guard against a missing or non-numeric response (e.g. wrong shape, unexpected API change).
+  // isFinite returns false for NaN and Infinity, but true for 0 — so a genuine $0 collection
+  // value still displays correctly, while a missing field throws rather than silently showing $0.
+  if (!isFinite(minimum) || !isFinite(median) || !isFinite(maximum)) {
+    throw new Error(
+      `Collection value fields are not finite numbers — response may have changed shape. ` +
+      `minimum=${JSON.stringify(data.minimum)} median=${JSON.stringify(data.median)} maximum=${JSON.stringify(data.maximum)}`
+    );
   }
-
-  console.log("[CollectionValue] Parsed data keys:", Object.keys(data));
-  console.log("[CollectionValue] Parsed data:", JSON.stringify(data));
 
   const value: CollectionValue = {
-    minimum: parseFloat(data.minimum) || 0,
-    median: parseFloat(data.median) || 0,
-    maximum: parseFloat(data.maximum) || 0,
+    minimum,
+    median,
+    maximum,
     currency: (data.currency as string) || "USD",
     fetchedAt: Date.now(),
   };
-
-  console.log("[CollectionValue] Parsed value:", value);
-
   _collectionValue = value;
   return value;
 }
