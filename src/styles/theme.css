@@ -1,0 +1,276 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ─── Animation tokens ─── */
+  --ease-out:     cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out:  cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-in:      cubic-bezier(0.5, 0, 0.75, 0);
+  --duration-micro:   100ms;
+  --duration-fast:    175ms;
+  --duration-normal:  225ms;
+  --duration-slow:    300ms;
+
+  --font-size: 16px;
+  --background: #F9F9FA;
+  --foreground: #0C284A;
+  --card: #FFFFFF;
+  --card-foreground: #0C284A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0C284A;
+  --primary: #0078B4;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EFF1F3;
+  --secondary-foreground: #0C284A;
+  --muted: #EFF1F3;
+  --muted-foreground: #617489;
+  --accent: #EBFD00;
+  --accent-foreground: #242A13;
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --border: #D2D8DE;
+  --input: transparent;
+  --input-background: #FFFFFF;
+  --switch-background: #BAC2CB;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #0078B4;
+  --chart-1: #0078B4;
+  --chart-2: #3E9842;
+  --chart-3: #DC2626;
+  --chart-4: #D1E21A;
+  --chart-5: #B8CB1F;
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --font-family-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-family-display: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    outline-color: color-mix(in srgb, var(--color-ring) 50%, transparent);
+  }
+
+  /* Text selection — ensure white text on blue highlight for readability */
+  ::selection {
+    background-color: #0078B4;
+    color: #FFFFFF;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+    font-size: var(--text-2xl);
+    font-weight: 600;
+    line-height: 1.2;
+    color: #0C284A;
+  }
+
+  h2 {
+    font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+    font-size: var(--text-xl);
+    font-weight: 600;
+    line-height: 1.2;
+    color: #0C284A;
+  }
+
+  h3 {
+    font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+    font-size: var(--text-lg);
+    font-weight: 600;
+    line-height: 1.2;
+    color: #0C284A;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+
+/* ─── Text wrapping ─── */
+/* pretty: avoids orphaned words on small UI text (inherited by all elements) */
+/* balance: even line distribution for short display headings               */
+body, div, p, span, li, td, th, dd, dt, figcaption, blockquote, small, label, button, a {
+  text-wrap: pretty;
+}
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Overlay scrollbar — sits on top of content instead of taking layout space */
+.overlay-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+}
+.overlay-scroll::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+.overlay-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overlay-scroll::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.25);
+  border-radius: 3px;
+}
+.overlay-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.4);
+}
+/* Make the scrollbar overlay the content (Chromium) */
+@supports (overflow: overlay) {
+  .overlay-scroll {
+    overflow-y: overlay !important;
+  }
+}
+
+/* ─── Tappable press feedback ─── */
+.tappable {
+  transition: transform var(--duration-micro) var(--ease-out);
+}
+.tappable:active {
+  transform: scale(0.97);
+}
+
+/* ─── iOS Safari auto-zoom prevention ─── */
+/* Safari zooms into inputs with font-size < 16px; max() ensures the
+   rendered size never drops below the 16px threshold while still
+   respecting larger inherited sizes via 1em. */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
+/* ─── Reduced motion accessibility ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Sonner toast palette overrides ─── */
+
+/* Light mode */
+[data-sonner-toaster][data-sonner-theme="light"] {
+  --normal-bg: #FFFFFF;
+  --normal-border: #D2D8DE;
+  --normal-text: #0C284A;
+
+  --success-bg: #EEFAEE;
+  --success-border: #93D095;
+  --success-text: #256B28;
+
+  --error-bg: #FDE8F4;
+  --error-border: #F5A3D7;
+  --error-text: #A31D72;
+
+  --warning-bg: #FEFCE8;
+  --warning-border: #DDD97A;
+  --warning-text: #5C5E00;
+
+  --info-bg: #E6F4FA;
+  --info-border: #8CCDE8;
+  --info-text: #005F8E;
+}
+
+[data-sonner-toaster][data-sonner-theme="light"] [data-sonner-toast][data-styled="true"] {
+  box-shadow: 0 4px 16px rgba(12, 40, 74, 0.08);
+}
+
+/* Dark mode */
+[data-sonner-toaster][data-sonner-theme="dark"] {
+  --normal-bg: #132B44;
+  --normal-border: #2D4A66;
+  --normal-text: #E2E8F0;
+
+  --success-bg: #0D2B14;
+  --success-border: #1E5427;
+  --success-text: #5CC760;
+
+  --error-bg: #2D0F22;
+  --error-border: #55213E;
+  --error-text: #FF6EC7;
+
+  --warning-bg: #25250A;
+  --warning-border: #494910;
+  --warning-text: #EBFD00;
+
+  --info-bg: #0D1F31;
+  --info-border: #1E3F5C;
+  --info-text: #79CBEA;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast][data-styled="true"] {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* Shared toast shape + typography overrides */
+[data-sonner-toast][data-styled="true"] {
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+}

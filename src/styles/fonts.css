@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+/* Vinyl disc spinner — 33⅓ RPM (1.8s per rotation) */
+@keyframes spin-record {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.disc-spinner {
+  animation: spin-record 1.8s linear infinite;
+  transform-origin: center center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disc-spinner {
+    animation: none;
+  }
+}
+
+/* Screen title — 36px mobile, 48px desktop */
+@media (min-width: 1024px) {
+  .screen-title {
+    font-size: 48px !important;
+  }
+}
