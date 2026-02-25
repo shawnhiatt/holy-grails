@@ -3,14 +3,8 @@ node_modules/
 
 # Build output
 dist/
-dist-ssr/
 
-# Lock files (generated)
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
-# Environment
+# Local env files
 .env
 .env.local
 .env.*.local
@@ -18,18 +12,7 @@ pnpm-lock.yaml
 # Editor
 .vscode/
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Vite
-*.local
-
-# Convex
-.convex/

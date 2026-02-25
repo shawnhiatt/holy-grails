@@ -17,6 +17,11 @@ function headers(token: string): HeadersInit {
   };
 }
 
+/** Pause between paginated requests to stay under the 60 req/min rate limit. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Wrapper around fetch that converts browser-level network errors
  * (CORS preflight rejections, offline, sandbox restrictions) into
@@ -307,6 +312,7 @@ export async function fetchCollection(
   let totalPages = 1;
 
   while (page <= totalPages) {
+    if (page > 1) await sleep(1000); // ~1 req/sec between pages; Discogs allows 60/min
     const res = await discogsFetch(
       `${BASE}/users/${username}/collection/folders/0/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`,
       { headers: headers(token) }
@@ -369,6 +375,7 @@ export async function fetchWantlist(
   let totalPages = 1;
 
   while (page <= totalPages) {
+    if (page > 1) await sleep(1000); // ~1 req/sec between pages; Discogs allows 60/min
     const res = await discogsFetch(
       `${BASE}/users/${username}/wants?per_page=100&page=${page}`,
       { headers: headers(token) }
@@ -602,24 +609,24 @@ export async function fetchCollectionValue(
   username: string,
   token: string
 ): Promise<CollectionValue> {
-  // ── QA PLACEHOLDER: hardcoded collection value ──
-  // TODO: Replace with live API call when wired to production
-  // Original endpoint: GET ${BASE}/users/${username}/collection/value
-  try {
-    const value: CollectionValue = {
-      minimum: 4762.24,
-      median: 9391.31,
-      maximum: 21583.88,
-      currency: "USD",
-      fetchedAt: Date.now(),
-    };
-
-    _collectionValue = value;
-    return value;
-  } catch (err: any) {
-    console.warn(`[Discogs] Collection value failed:`, err);
-    throw new Error(`Failed to fetch collection value: ${err?.message || "Unknown error"}`);
+  const res = await discogsFetch(
+    `${BASE}/users/${encodeURIComponent(username)}/collection/value`,
+    { headers: headers(token) }
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch collection value (${res.status})${body ? ": " + body : ""}`);
   }
+  const data = await res.json();
+  const value: CollectionValue = {
+    minimum: parseFloat(data.minimum) || 0,
+    median: parseFloat(data.median) || 0,
+    maximum: parseFloat(data.maximum) || 0,
+    currency: (data.currency as string) || "USD",
+    fetchedAt: Date.now(),
+  };
+  _collectionValue = value;
+  return value;
 }
 
 /** Clear the cached collection value entirely (returns getCachedCollectionValue → null) */
