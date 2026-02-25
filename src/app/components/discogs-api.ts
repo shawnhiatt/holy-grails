@@ -609,15 +609,33 @@ export async function fetchCollectionValue(
   username: string,
   token: string
 ): Promise<CollectionValue> {
-  const res = await discogsFetch(
-    `${BASE}/users/${encodeURIComponent(username)}/collection/value`,
-    { headers: headers(token) }
-  );
+  const url = `${BASE}/users/${encodeURIComponent(username)}/collection/value`;
+  console.log("[CollectionValue] GET", url);
+
+  const res = await discogsFetch(url, { headers: headers(token) });
+  console.log("[CollectionValue] HTTP", res.status, res.statusText);
+
+  // Read body as text first so we can log it before attempting JSON parse
+  const rawBody = await res.text().catch(() => "");
+
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Failed to fetch collection value (${res.status})${body ? ": " + body : ""}`);
+    console.error("[CollectionValue] Error body:", rawBody);
+    throw new Error(`Failed to fetch collection value (${res.status})${rawBody ? ": " + rawBody : ""}`);
   }
-  const data = await res.json();
+
+  console.log("[CollectionValue] Raw body:", rawBody);
+
+  let data: any;
+  try {
+    data = JSON.parse(rawBody);
+  } catch (e) {
+    console.error("[CollectionValue] JSON parse error:", e, "body was:", rawBody);
+    throw new Error("Collection value response was not valid JSON");
+  }
+
+  console.log("[CollectionValue] Parsed data keys:", Object.keys(data));
+  console.log("[CollectionValue] Parsed data:", JSON.stringify(data));
+
   const value: CollectionValue = {
     minimum: parseFloat(data.minimum) || 0,
     median: parseFloat(data.median) || 0,
@@ -625,6 +643,9 @@ export async function fetchCollectionValue(
     currency: (data.currency as string) || "USD",
     fetchedAt: Date.now(),
   };
+
+  console.log("[CollectionValue] Parsed value:", value);
+
   _collectionValue = value;
   return value;
 }
