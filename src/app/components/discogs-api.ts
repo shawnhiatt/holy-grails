@@ -436,7 +436,7 @@ export interface MarketData {
   fetchedAt: number;
 }
 
-// In-memory cache keyed by release_id, hydrated from localStorage on startup
+// In-memory cache keyed by release_id
 const marketCache = new Map<number, MarketData>();
 
 /** Condition grades in order from best to worst */
@@ -492,46 +492,8 @@ export function getCachedMarketData(releaseId: number): MarketData | null {
   return marketCache.get(releaseId) || null;
 }
 
-/** LocalStorage key for persisting per-album market data */
-const MARKET_CACHE_LS_KEY = "hg-market-cache";
-
 /** 30-day cache TTL for per-album market data */
 const MARKET_CACHE_TTL = 30 * 24 * 3600000; // 30 days in ms
-
-/** Hydrate the in-memory cache from localStorage (runs once at module load) */
-function hydrateMarketCache(): void {
-  try {
-    const raw = localStorage.getItem(MARKET_CACHE_LS_KEY);
-    if (!raw) return;
-    const parsed: Record<string, MarketData> = JSON.parse(raw);
-    const now = Date.now();
-    for (const [key, data] of Object.entries(parsed)) {
-      // Only restore entries that are still within the 30-day TTL
-      if (now - data.fetchedAt < MARKET_CACHE_TTL) {
-        marketCache.set(Number(key), data);
-      }
-    }
-    console.log(`[MarketCache] Hydrated ${marketCache.size} entries from localStorage`);
-  } catch (e) {
-    console.warn("[MarketCache] Failed to hydrate from localStorage:", e);
-  }
-}
-
-/** Persist the full in-memory cache to localStorage */
-function persistMarketCache(): void {
-  try {
-    const obj: Record<string, MarketData> = {};
-    for (const [key, data] of marketCache) {
-      obj[String(key)] = data;
-    }
-    localStorage.setItem(MARKET_CACHE_LS_KEY, JSON.stringify(obj));
-  } catch (e) {
-    console.warn("[MarketCache] Failed to persist to localStorage:", e);
-  }
-}
-
-// Hydrate on module load
-hydrateMarketCache();
 
 export async function fetchMarketData(
   releaseId: number,
@@ -587,7 +549,6 @@ export async function fetchMarketData(
 
   const result: MarketData = { prices, stats, fetchedAt: Date.now() };
   marketCache.set(releaseId, result);
-  persistMarketCache();
   return result;
 }
 
@@ -668,12 +629,7 @@ export function setDemoCollectionValue(): void {
   _collectionValue = { ...DEMO_COLLECTION_VALUE };
 }
 
-/** Clear all per-album market data from in-memory cache and localStorage */
+/** Clear all per-album market data from the in-memory cache */
 export function clearAllMarketData(): void {
   marketCache.clear();
-  try {
-    localStorage.removeItem(MARKET_CACHE_LS_KEY);
-  } catch (e) {
-    console.warn("[MarketCache] Failed to clear localStorage:", e);
-  }
 }
