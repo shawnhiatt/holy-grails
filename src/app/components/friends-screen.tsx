@@ -768,7 +768,7 @@ function FriendGridView({ items, viewMode, filter, userCutIds, userWantIds, user
           <div key={item.id} className="relative rounded-[10px] overflow-hidden group"
             style={{
               backgroundColor: "var(--c-surface)",
-              border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D1D8DF"}`,
+              border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
               boxShadow: "var(--c-card-shadow)",
             }}>
             <div className="relative aspect-square overflow-hidden">

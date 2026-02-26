@@ -68,13 +68,7 @@ export function DepthsAlbumCard({
           <img
             src={album.cover}
             alt={`${album.title} by ${album.artist}`}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              objectPosition: "center",
-              display: "block",
-            }}
+            className="w-full h-full object-cover object-center block"
           />
         </div>
       </div>

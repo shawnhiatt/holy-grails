@@ -17,7 +17,7 @@ export function NoDiscogsCard({
   const { isDarkMode, requestConnectDiscogs } = useApp();
 
   const cardBg = "var(--c-surface)";
-  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D1D8DF";
+  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
 
   return (
     <div className="flex-1 flex items-center justify-center px-[16px] lg:px-[24px]">

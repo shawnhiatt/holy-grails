@@ -56,3 +56,19 @@ others use raw template literal interpolation. Discogs usernames are
 alphanumeric + `_`, `-`, `.` only, so there is no current user impact —
 but the inconsistency should be normalized. All URL interpolations of
 `username` should use `encodeURIComponent(username)`.
+
+## Refactor when safe (requires visual QA)
+
+**`.screen-title` font-size contradiction**
+
+6 elements across `friends-screen.tsx`, `purge-tracker.tsx`, `sessions.tsx`,
+`settings-screen.tsx`, `reports-screen.tsx` apply both the `.screen-title`
+class and `style={{ fontSize: "36px" }}` to the same element. The class
+uses `font-size: 48px !important` at desktop breakpoints — the `!important`
+is required precisely because the inline style would otherwise win.
+
+The correct fix is to remove the inline `fontSize: "36px"` from all 6
+elements and let `.screen-title` handle both sizes. This requires visual
+QA at mobile and desktop breakpoints on all 5 screens before committing.
+
+Do not attempt this fix without explicit instruction from Shawn.

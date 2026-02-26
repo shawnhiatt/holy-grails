@@ -692,7 +692,7 @@ function WantGridCard({ item, togglePriority, isDarkMode, token }: {
       onMouseEnter={handleMouseEnter}
       style={{
         backgroundColor: "var(--c-surface)",
-        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D1D8DF"}`,
+        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
         boxShadow: "var(--c-card-shadow)",
       }}
     >
