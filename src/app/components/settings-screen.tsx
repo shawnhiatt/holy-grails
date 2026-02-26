@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, Disc3, Upload, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, Bomb, SquareArrowOutUpRight, LogOut } from "lucide-react";
+import { Eye, EyeOff, Disc3, Upload, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -25,8 +25,6 @@ export function SettingsScreen() {
     setHidePurgeIndicators,
     hideGalleryMeta,
     setHideGalleryMeta,
-    resetToDemo,
-    wipeAllData,
     signOut,
     isAuthenticated,
     userAvatar,
@@ -62,15 +60,7 @@ export function SettingsScreen() {
 
   const handleConfirmClear = () => {
     if (!confirmAction) return;
-    if (confirmAction === "reset-demo") {
-      resetToDemo();
-      toast.success("Loaded 30 placeholder records.");
-    } else if (confirmAction === "wipe-all") {
-      wipeAllData();
-      toast.success("All data cleared.");
-    } else {
-      toast.success(`${confirmAction} cleared successfully`);
-    }
+    toast.success(`${confirmAction} cleared successfully`);
     setConfirmAction(null);
   };
 
@@ -81,66 +71,7 @@ export function SettingsScreen() {
       </div>
 
       <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
-        {/* Developer / QA section — remove before production release */}
         <section className="mt-4">
-          <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{
-            backgroundColor: isDarkMode ? "#0F2A3E" : "#E0F0F9",
-            border: `1px dashed ${isDarkMode ? "#1E4A65" : "#9CC8DD"}`,
-          }}>
-            <div className="flex items-center gap-2">
-              <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: isDarkMode ? "#ACDEF2" : "#00527A" }}>Developer / QA</h3>
-              <span className="px-2 py-0.5 rounded-full" style={{
-                fontSize: "10px",
-                fontWeight: 600,
-                letterSpacing: "0.5px",
-                textTransform: "uppercase" as const,
-                backgroundColor: isDarkMode ? "#1A3F58" : "#C0DEF0",
-                color: isDarkMode ? "#ACDEF2" : "#00527A",
-              }}>
-                Dev Only
-              </span>
-            </div>
-            <p style={{ fontSize: "12px", fontWeight: 400, color: isDarkMode ? "#7FB5D0" : "#2A6D8F", lineHeight: 1.5 }}>
-              These controls are for testing and QA. They will not appear in the production build.
-            </p>
-            <button
-              onClick={() => setConfirmAction("reset-demo")}
-              className="w-full flex items-center gap-2.5 py-2.5 px-3 rounded-[8px] transition-colors text-left"
-              style={{
-                fontSize: "14px",
-                fontWeight: 500,
-                color: isDarkMode ? "#ACDEF2" : "#00527A",
-                backgroundColor: isDarkMode ? "#153448" : "#C8E4F2",
-                border: `1px solid ${isDarkMode ? "#1E4A65" : "#9CC8DD"}`,
-              }}
-            >
-              <RotateCcw size={15} />
-              <div>
-                <span>Load Placeholder Data</span>
-                <p style={{ fontSize: "11px", fontWeight: 400, color: isDarkMode ? "#7FB5D0" : "#2A6D8F", marginTop: "2px" }}>Import 30 placeholder albums, wants, and folders to explore the app</p>
-              </div>
-            </button>
-            <button
-              onClick={() => setConfirmAction("wipe-all")}
-              className="w-full flex items-center gap-2.5 py-2.5 px-3 rounded-[8px] transition-colors text-left"
-              style={{
-                fontSize: "14px",
-                fontWeight: 500,
-                color: "#FF33B6",
-                backgroundColor: isDarkMode ? "rgba(255, 51, 182, 0.1)" : "rgba(255, 51, 182, 0.08)",
-                border: `1px solid ${isDarkMode ? "rgba(255, 51, 182, 0.2)" : "rgba(255, 51, 182, 0.18)"}`,
-              }}
-            >
-              <Bomb size={15} />
-              <div>
-                <span>Wipe All Data</span>
-                <p style={{ fontSize: "11px", fontWeight: 400, color: isDarkMode ? "#7FB5D0" : "#2A6D8F", marginTop: "2px" }}>Empty app, no albums, no credentials — like a fresh install</p>
-              </div>
-            </button>
-          </div>
-        </section>
-
-        <section className="mt-6">
           <div className="rounded-[12px] p-4 flex flex-col gap-4" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Discogs</h3>
 
@@ -361,25 +292,15 @@ export function SettingsScreen() {
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[90] w-[320px] rounded-[16px] p-5"
               style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", boxShadow: "0 16px 48px rgba(12,40,74,0.15)" }}>
               <div className="flex items-center gap-3 mb-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  confirmAction === "reset-demo" ? "bg-[rgba(255,179,71,0.12)]" : "bg-[rgba(255,51,182,0.08)]"
-                }`}>
-                  <AlertTriangle size={20} className={confirmAction === "reset-demo" ? "text-[#FFB347]" : "text-[#FF33B6]"} />
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[rgba(255,51,182,0.08)]">
+                  <AlertTriangle size={20} className="text-[#FF33B6]" />
                 </div>
                 <div>
                   <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-                    {confirmAction === "reset-demo"
-                      ? "Load placeholder data?"
-                      : confirmAction === "wipe-all"
-                      ? "Wipe everything?"
-                      : `Clear ${confirmAction}?`}
+                    {`Clear ${confirmAction}?`}
                   </p>
                   <p className="mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>
-                    {confirmAction === "reset-demo"
-                      ? "This will replace your current data with 30 placeholder records. Any existing data will be overwritten."
-                      : confirmAction === "wipe-all"
-                      ? "Wipe everything? This cannot be undone."
-                      : confirmAction === "Purge data"
+                    {confirmAction === "Purge data"
                       ? "This removes all Keep, Cut, and Maybe tags from your collection. This cannot be undone."
                       : confirmAction === "Sessions"
                       ? "This deletes all saved sessions. This cannot be undone."
@@ -389,10 +310,8 @@ export function SettingsScreen() {
               </div>
               <div className="flex gap-2 mt-4">
                 <button onClick={() => setConfirmAction(null)} className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer" style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>Cancel</button>
-                <button onClick={handleConfirmClear} className={`flex-1 py-2.5 rounded-[10px] text-white transition-colors cursor-pointer ${
-                  confirmAction === "reset-demo" ? "bg-[#E89B00] hover:bg-[#CC8800]" : "bg-[#FF33B6] hover:bg-[#E6009E]"
-                }`} style={{ fontSize: "14px", fontWeight: 600 }}>
-                  {confirmAction === "reset-demo" ? "Load" : confirmAction === "wipe-all" ? "Wipe" : "Clear"}
+                <button onClick={handleConfirmClear} className="flex-1 py-2.5 rounded-[10px] text-white bg-[#FF33B6] hover:bg-[#E6009E] transition-colors cursor-pointer" style={{ fontSize: "14px", fontWeight: 600 }}>
+                  Clear
                 </button>
               </div>
             </motion.div>

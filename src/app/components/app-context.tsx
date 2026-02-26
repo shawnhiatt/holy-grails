@@ -3,24 +3,17 @@ import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
 import {
-  type Album,
-  type WantItem,
-  type Session,
-  type PurgeTag,
-  type Friend,
-  MOCK_ALBUMS,
-  MOCK_WANTS,
-  MOCK_FRIENDS,
-  FOLDERS,
-} from "./mock-data";
-import {
   fetchIdentity,
   fetchCollection,
   fetchWantlist,
   fetchUserProfile,
   fetchCollectionValue,
   type DiscogsAuth,
-  setDemoCollectionValue,
+  type Album,
+  type WantItem,
+  type Session,
+  type PurgeTag,
+  type Friend,
   clearCollectionValue,
   clearAllMarketData,
 } from "./discogs-api";
@@ -123,9 +116,7 @@ interface AppState {
   // User profile
   userAvatar: string;
   // Developer / QA resets
-  resetToDemo: () => void;
   wipeAllData: () => void;
-  devSyncUser: (username: string, token: string) => Promise<void>;
   // Connect Discogs flow trigger (from within the main app)
   connectDiscogsRequested: boolean;
   requestConnectDiscogs: () => void;
@@ -872,39 +863,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Developer / QA resets ──
 
-  const resetToDemo = useCallback(() => {
-    setAlbums(MOCK_ALBUMS.map(a => ({ ...a, purgeTag: null })));
-    setWants(MOCK_WANTS.map(w => ({ ...w, priority: false })));
-    setSessions([]);
-    setFriends(MOCK_FRIENDS);
-    setFolders(FOLDERS);
-    setSelectedAlbumId(null);
-    setSearchQuery("");
-    setActiveFolder("All");
-    setSortOption("artist-az");
-    setPurgeFilter("unrated");
-    setWantFilter("all");
-    setWantSearchQuery("");
-    setLastSynced("");
-    setSyncStats(null);
-    setSyncProgress("");
-    setLastPlayed({});
-    setNeverPlayedFilter(false);
-    setRediscoverMode(false);
-    setShowAlbumDetail(false);
-    setShowFilterDrawer(false);
-    setSessionPickerAlbumId(null);
-    setFirstSessionJustCreated(false);
-    setSyncFailed(false);
-    setUserAvatar("https://images.unsplash.com/photo-1758295040962-18a6812be713?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx2aW55bCUyMHJlY29yZCUyMGNvbGxlY3RvciUyMG1hbGUlMjBwb3J0cmFpdCUyMGNhc3VhbHxlbnwxfHx8fDE3NzE1Njc4MzZ8MA&ixlib=rb-4.1.0&q=80&w=1080");
-    setDemoCollectionValue();
-    clearAllMarketData();
-    // Clear auth (demo mode has no authentication)
-    setDiscogsToken("");
-    setOauthCredentials(null);
-    setDiscogsUsernameRaw("");
-  }, [setDiscogsToken]);
-
   const wipeAllData = useCallback(() => {
     setAlbums([]);
     setWants([]);
@@ -947,119 +905,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     initialSyncDoneRef.current = false;
   }, [setDiscogsToken, setDiscogsUsername]);
-
-  const devSyncUser = useCallback(async (username: string, token: string) => {
-    // Wipe all existing data before loading new user
-    setAlbums([]);
-    setWants([]);
-    setSessions([]);
-    setFriends([]);
-    setFolders([]);
-    setSelectedAlbumId(null);
-    setSearchQuery("");
-    setActiveFolder("All");
-    setSortOption("artist-az");
-    setPurgeFilter("unrated");
-    setWantFilter("all");
-    setWantSearchQuery("");
-    setLastSynced("");
-    setSyncStats(null);
-    setSyncProgress("");
-    setLastPlayed({});
-    setNeverPlayedFilter(false);
-    setRediscoverMode(false);
-    setShowAlbumDetail(false);
-    setShowFilterDrawer(false);
-    setUserAvatar("");
-    setSessionPickerAlbumId(null);
-    setFirstSessionJustCreated(false);
-    setOauthCredentials(null);
-    // Don't set discogsToken yet — setting it would flip showSplash to false
-    // and unmount the splash screen mid-sync. We set it at the very end.
-    setDiscogsTokenRaw("");
-    setDiscogsUsernameRaw("");
-    clearCollectionValue();
-    clearAllMarketData();
-
-    // Reset hydration flags for new user
-    hydratedRef.current = {
-      purgeTags: false,
-      sessions: false,
-      lastPlayed: false,
-      wantPriorities: false,
-      preferences: false,
-    };
-    initialSyncDoneRef.current = true; // Prevent auto-sync from competing
-
-    // Now sync the new user
-    setIsSyncing(true);
-    setSyncProgress("Authenticating...");
-    try {
-      const fetchedUsername = await fetchIdentity(token);
-      setDiscogsUsernameRaw(fetchedUsername);
-
-      // Fetch user profile (avatar)
-      try {
-        const profile = await fetchUserProfile(fetchedUsername, token);
-        setUserAvatar(profile.avatar);
-      } catch (e) {
-        console.warn("[Discogs] Profile fetch failed:", e);
-      }
-
-      // Fetch collection
-      setSyncProgress("Fetching collection...");
-      const { albums: newAlbums, folders: newFolders } = await fetchCollection(
-        fetchedUsername,
-        token,
-        (loaded, total) => setSyncProgress(`Fetching collection... ${loaded}/${total}`)
-      );
-
-      // Fresh load — no purge tag preservation
-      setAlbums(newAlbums.map((a) => ({ ...a, purgeTag: null })));
-      setFolders(newFolders);
-
-      // Fetch want list
-      setSyncProgress("Fetching want list...");
-      const newWants = await fetchWantlist(
-        fetchedUsername,
-        token,
-        (loaded, total) => setSyncProgress(`Fetching wants... ${loaded}/${total}`)
-      );
-
-      // Fresh load — no priority preservation
-      setWants(newWants.map((w) => ({ ...w, priority: false })));
-
-      // Update sync metadata
-      const now = new Date();
-      const formatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        + " \u00b7 " + now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      setLastSynced(formatted);
-      setSyncStats({
-        albums: newAlbums.length,
-        folders: newFolders.filter((f) => f !== "All").length,
-        wants: newWants.length,
-      });
-      setSyncProgress("");
-
-      // Fetch collection value
-      setSyncProgress("Fetching collection value...");
-      try {
-        await fetchCollectionValue(fetchedUsername, token);
-      } catch (e) {
-        console.warn("[Discogs] Collection value fetch failed:", e);
-      }
-
-      // Set token last — this flips showSplash to false in App.tsx
-      setDiscogsTokenRaw(token);
-
-      setSyncProgress("");
-    } catch (err: any) {
-      setSyncProgress("");
-      throw err;
-    } finally {
-      setIsSyncing(false);
-    }
-  }, []);
 
   // ── Connect Discogs flow trigger ──
 
@@ -1260,9 +1105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // User profile
       userAvatar,
       // Developer / QA resets
-      resetToDemo,
       wipeAllData,
-      devSyncUser,
       // Connect Discogs flow trigger (from within the main app)
       connectDiscogsRequested,
       requestConnectDiscogs,
@@ -1307,7 +1150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSyncing, syncProgress, lastSynced,
       syncFromDiscogs, syncStats,
       userAvatar,
-      resetToDemo, wipeAllData, devSyncUser,
+      wipeAllData,
       connectDiscogsRequested, requestConnectDiscogs, clearConnectDiscogsRequest,
       sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
       isInSession, toggleAlbumInSession, createSessionDirect,

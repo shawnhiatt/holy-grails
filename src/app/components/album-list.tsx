@@ -1,7 +1,7 @@
 import { Bookmark } from "lucide-react";
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useApp } from "./app-context";
-import type { Album } from "./mock-data";
+import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { formatRelativeDate } from "./last-played-utils";
 import { useHideHeaderOnScroll } from "./use-hide-header";

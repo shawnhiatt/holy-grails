@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform, type PanInfo } f
 import { toast } from "sonner";
 import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
-import type { WantItem } from "./mock-data";
+import type { WantItem } from "./discogs-api";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { fetchMarketData, getCachedMarketData } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";

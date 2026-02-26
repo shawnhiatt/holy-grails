@@ -7,9 +7,63 @@
  * may reject. The browser's built-in User-Agent satisfies the API requirement.
  */
 
-import type { Album, WantItem } from "./mock-data";
-
 const BASE = "https://api.discogs.com";
+
+// ─── Domain types ───
+
+export type PurgeTag = "keep" | "cut" | "maybe" | null;
+
+export interface Album {
+  id: string;
+  release_id: number;
+  title: string;
+  artist: string;
+  year: number;
+  cover: string;
+  folder: string;
+  label: string;
+  catalogNumber: string;
+  format: string;
+  mediaCondition: string;
+  sleeveCondition: string;
+  pricePaid: string;
+  notes: string;
+  /** Arbitrary user-defined Discogs custom fields (e.g. "Acquired From", "Last Cleaned") */
+  customFields?: { name: string; value: string }[];
+  dateAdded: string;
+  discogsUrl: string;
+  purgeTag: PurgeTag;
+}
+
+export interface WantItem {
+  id: string;
+  release_id: number;
+  title: string;
+  artist: string;
+  year: number;
+  cover: string;
+  label: string;
+  priority: boolean;
+}
+
+export interface Session {
+  id: string;
+  name: string;
+  albumIds: string[];
+  createdAt: string;
+  lastModified: string;
+}
+
+export interface Friend {
+  id: string;
+  username: string;
+  avatar: string;
+  isPrivate: boolean;
+  collection: Album[];
+  wants: WantItem[];
+  folders: string[];
+  lastSynced: string;
+}
 
 /**
  * Auth can be a personal access token (string) or OAuth credentials.

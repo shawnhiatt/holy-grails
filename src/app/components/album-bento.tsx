@@ -1,6 +1,6 @@
 import { Bookmark } from "lucide-react";
 import { useApp } from "./app-context";
-import type { Album } from "./mock-data";
+import type { Album } from "./discogs-api";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 
 interface AlbumArtworkProps {

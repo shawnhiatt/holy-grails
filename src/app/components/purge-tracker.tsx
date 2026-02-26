@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Check, Minus, HelpCircle, Loader2 } from "lucide-react";
 import { motion, useMotionValue, useTransform } from "motion/react";
 import { useApp } from "./app-context";
-import type { Album, PurgeTag } from "./mock-data";
+import type { Album, PurgeTag } from "./discogs-api";
 import { getCachedMarketData, fetchMarketData } from "./discogs-api";
 import { getPriceAtCondition } from "./market-value";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeTagTint, purgeIndicatorColor, purgeToast } from "./purge-colors";
