@@ -24,8 +24,11 @@ function headers(auth: DiscogsAuth): HeadersInit {
     return { Authorization: `Discogs token=${auth}` };
   }
   // OAuth 1.0a PLAINTEXT — browser-side (no User-Agent header)
-  const ck = import.meta.env.VITE_DISCOGS_CONSUMER_KEY || "";
-  const cs = import.meta.env.VITE_DISCOGS_CONSUMER_SECRET || "";
+  const ck = import.meta.env.VITE_DISCOGS_CONSUMER_KEY;
+  const cs = import.meta.env.VITE_DISCOGS_CONSUMER_SECRET;
+  if (!ck || !cs) {
+    throw new Error("Missing VITE_DISCOGS_CONSUMER_KEY or VITE_DISCOGS_CONSUMER_SECRET env vars");
+  }
   const nonce = Math.random().toString(36).substring(2) + Date.now().toString(36);
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const sig = encodeURIComponent(`${cs}&${auth.tokenSecret}`);
