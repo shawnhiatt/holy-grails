@@ -92,7 +92,6 @@ src/
       friends-screen.tsx
       last-played-utils.ts
       market-value.tsx
-      mock-data.ts
       motion-tokens.ts
       navigation.tsx
       no-discogs-card.tsx
@@ -339,13 +338,10 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - All UI interactions and animations
 - Navigation structure
 - Four view modes (Grid, Artwork, List, Swiper/Crate Flip)
-
-### What's Mocked / Simulated
-- Collection data comes from `mock-data.ts` — not a live Discogs API
-- Authentication is simulated (no real OAuth or token validation)
-- Discogs sync is stubbed — `discogs-api.ts` may have partial implementation
-- Pricing / market data is not live
-- The dev QA section in Settings (hardcoded credentials, Load Placeholder Data button) is intentional and should remain until production
+- Discogs OAuth 1.0a authentication (real login via Discogs)
+- Live Discogs API sync (collection, folders, wantlist, collection value)
+- All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
+- Deployed to Vercel at holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope
 - Listening logs — do not add any listen tracking beyond last-played timestamp
@@ -371,7 +367,12 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 7. **Commit after each working phase.** Don't let sessions pile up uncommitted.
 
-8. **Flag before refactoring.** `app-context.tsx` and `discogs-api.ts` are load-bearing files. Do not refactor their APIs without explicit instruction.
+8. **Flag before refactoring.** The following files are load-bearing. Do not refactor their APIs without explicit instruction:
+   - `app-context.tsx` — global state and Convex wiring
+   - `discogs-api.ts` — all Discogs API calls
+   - `convex/schema.ts` — database schema
+   - `auth-callback.tsx` — OAuth callback handler
+   - `App.tsx` — root layout and auth state routing
 
 ---
 
@@ -390,10 +391,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 **Base URL**: `https://api.discogs.com`
 
-**Auth header** (OAuth access token):
-```
-Authorization: OAuth oauth_token="{token}", oauth_signature="{sig}", ...
-```
+**Auth method**: OAuth 1.0a. Access token and token secret are stored in the Convex `users` table and passed to all authenticated API calls via the `DiscogsAuth` type in `discogs-api.ts`. Personal access token auth is still supported as a fallback for development — pass a token string directly to any function that accepts `DiscogsAuth`.
 
 Do NOT set a custom `User-Agent` header — browsers block it as a forbidden header and it causes CORS preflight failures.
 
