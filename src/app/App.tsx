@@ -225,11 +225,11 @@ function AppContent() {
     );
   }
 
-  // Animated dot count for auth loading label (cycles 1→2→3→1…)
-  const [syncDots, setSyncDots] = useState(1);
+  // Animated dot count for auth loading label (cycles 0→1→2→3→0…)
+  const [syncDots, setSyncDots] = useState(0);
   useEffect(() => {
     if (!isAuthLoading) return;
-    const id = setInterval(() => setSyncDots((d) => (d % 3) + 1), 600);
+    const id = setInterval(() => setSyncDots((d) => (d + 1) % 4), 600);
     return () => clearInterval(id);
   }, [isAuthLoading]);
 
@@ -241,19 +241,38 @@ function AppContent() {
         style={{ backgroundColor: "#01294D" }}
       >
         <Disc3 size={32} className="disc-spinner" style={{ color: "#ACDEF2" }} />
-        <p
-          style={{
-            marginTop: 12,
-            fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-            fontSize: 14,
-            fontWeight: 400,
-            color: "#D1D8DF",
-            minWidth: 160,
-            textAlign: "center",
-          }}
-        >
-          Syncing collection{".".repeat(syncDots)}
-        </p>
+        {/* Wrapper locked to longest state width ("Syncing collection...").
+            Hidden spacer holds the size; real label overlays from the left
+            so dots grow rightward with no horizontal shift. */}
+        <div style={{ marginTop: 12, position: "relative", display: "inline-block" }}>
+          <span
+            aria-hidden
+            style={{
+              visibility: "hidden",
+              fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+              fontSize: 14,
+              fontWeight: 400,
+            }}
+          >
+            Syncing collection...
+          </span>
+          <p
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              margin: 0,
+              fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+              fontSize: 14,
+              fontWeight: 400,
+              color: "#D1D8DF",
+              textAlign: "left",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Syncing collection{".".repeat(syncDots)}
+          </p>
+        </div>
       </div>
     );
   }
