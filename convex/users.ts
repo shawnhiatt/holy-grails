@@ -13,6 +13,14 @@ export const getByUsername = query({
   },
 });
 
+// Returns the most recently created user record — used on cold load to restore
+// a session without needing to know the username upfront.
+export const getLatestUser = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("users").order("desc").first();
+  },
+});
 
 export const upsert = mutation({
   args: {
