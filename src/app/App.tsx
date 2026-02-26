@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Toaster, toast } from "sonner";
-import { Disc3 } from "lucide-react";
 import { AppProvider, useApp } from "./components/app-context";
 import { BottomTabBar, DesktopTopNav, MobileHeader } from "./components/navigation";
 import { CrateBrowser } from "./components/crate-browser";
@@ -18,6 +17,7 @@ import { ReportsScreen } from "./components/reports-screen";
 import { FeedScreen } from "./components/feed-screen";
 import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
+import { LoadingScreen } from "./components/loading-screen";
 import { SessionPickerSheet } from "./components/session-picker-sheet";
 import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth } from "./components/oauth-helpers";
@@ -202,14 +202,6 @@ function AppContent() {
     toast.error(error || "Login failed", { duration: 3000 });
   }, []);
 
-  // Animated dot count for auth loading label (cycles 0→1→2→3→0…)
-  const [syncDots, setSyncDots] = useState(0);
-  useEffect(() => {
-    if (!isAuthLoading) return;
-    const id = setInterval(() => setSyncDots((d) => (d + 1) % 4), 600);
-    return () => clearInterval(id);
-  }, [isAuthLoading]);
-
   // Handle OAuth callback
   if (isAuthCallback) {
     return (
@@ -222,46 +214,7 @@ function AppContent() {
 
   // Show loading spinner while restoring a returning user's session
   if (isAuthLoading) {
-    return (
-      <div
-        className="h-screen w-screen flex flex-col items-center justify-center"
-        style={{ backgroundColor: "#01294D" }}
-      >
-        <Disc3 size={32} className="disc-spinner" style={{ color: "#ACDEF2" }} />
-        {/* Wrapper locked to longest state width ("Syncing collection...").
-            Hidden spacer holds the size; real label overlays from the left
-            so dots grow rightward with no horizontal shift. */}
-        <div style={{ marginTop: 12, position: "relative", display: "inline-block" }}>
-          <span
-            aria-hidden
-            style={{
-              visibility: "hidden",
-              fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-              fontSize: 14,
-              fontWeight: 400,
-            }}
-          >
-            Syncing collection...
-          </span>
-          <p
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              margin: 0,
-              fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-              fontSize: 14,
-              fontWeight: 400,
-              color: "#D1D8DF",
-              textAlign: "left",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Syncing collection{".".repeat(syncDots)}
-          </p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Syncing collection" />;
   }
 
   if (showSplash) {

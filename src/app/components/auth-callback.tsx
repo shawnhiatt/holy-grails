@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Disc3 } from "lucide-react";
-import { SplashVideo } from "./splash-video";
+import { LoadingScreen } from "./loading-screen";
 
 interface AuthCallbackProps {
   onSuccess: (user: {
@@ -122,45 +121,10 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
 
   const statusText =
     status === "exchanging"
-      ? "Authenticating..."
+      ? "Authenticating"
       : status === "identifying"
-        ? "Fetching your profile..."
-        : "Saving credentials...";
+        ? "Fetching your profile"
+        : "Saving credentials";
 
-  return (
-    <div
-      className="h-screen w-screen flex flex-col items-center justify-center overflow-hidden"
-      style={{
-        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-        backgroundColor: "#0C1A2E",
-        background:
-          "radial-gradient(ellipse 120% 60% at 50% 0%, #132B44 0%, #0C1A2E 100%)",
-        position: "relative",
-      }}
-    >
-      <SplashVideo />
-
-      <div
-        className="flex flex-col items-center gap-4"
-        style={{ position: "relative", zIndex: 1 }}
-      >
-        <Disc3
-          size={32}
-          className="disc-spinner"
-          style={{ color: "#ACDEF2" }}
-        />
-        <p
-          style={{
-            fontSize: "15px",
-            fontWeight: 500,
-            color: "#9EAFC2",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-            lineHeight: 1.5,
-          }}
-        >
-          {statusText}
-        </p>
-      </div>
-    </div>
-  );
+  return <LoadingScreen message={statusText} />;
 }
