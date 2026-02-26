@@ -206,7 +206,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
 
-  // ── Convex queries (skipped when no username) ──
+  // ── Convex queries ──
+
+  // Always-on query: used on cold load to restore a session after force close,
+  // before discogsUsername is populated in memory.
+  const convexLatestUser = useQuery(api.users.getLatestUser);
+
   const convexUser = useQuery(
     api.users.getByUsername,
     discogsUsername ? { discogs_username: discogsUsername } : "skip"
@@ -239,8 +244,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
   // Prevents flashing the empty Feed before collection loads.
+  //
+  // isRestoringSession: true on cold load while we're checking Convex for an
+  // existing user — before discogsUsername is known.
+  const isRestoringSession = !discogsUsername && convexLatestUser === undefined;
   const isConvexUserGone = !discogsToken && convexUser === null;
-  const isAuthLoading = !!discogsUsername && albums.length === 0 && !isConvexUserGone && !syncFailed;
+  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
@@ -276,6 +285,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const initialSyncDoneRef = useRef(false);
 
   // ── Effects: Convex → local state hydration (one-time per session) ──
+
+  // Session restore on force close: when discogsUsername is empty on mount and
+  // Convex has an existing user record, hydrate the username so the rest of the
+  // auth flow (credential load → auto-sync) proceeds as normal.
+  useEffect(() => {
+    if (!discogsUsername && convexLatestUser) {
+      setDiscogsUsernameRaw(convexLatestUser.discogs_username);
+    }
+  }, [convexLatestUser, discogsUsername]);
 
   // Load OAuth credentials from Convex user record
   useEffect(() => {
