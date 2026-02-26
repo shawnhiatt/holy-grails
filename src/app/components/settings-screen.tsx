@@ -166,7 +166,7 @@ export function SettingsScreen() {
                     placeholder="Auto-detected from token"
                     readOnly={!!discogsToken}
                     className="w-full rounded-[8px] px-3 py-2.5 outline-none transition-colors"
-                    style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: discogsToken ? "var(--c-text-muted)" : "var(--c-text)", border: "1px solid var(--c-border-strong)", cursor: discogsToken ? "default" : undefined, opacity: discogsToken ? 0.7 : 1 }} />
+                    style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: discogsToken ? "var(--c-text-muted)" : "var(--c-text)", border: "1px solid var(--c-border-strong)", cursor: discogsToken ? "default" : undefined, opacity: discogsToken ? 0.7 : 1 }} />
                 </div>
                 <div>
                   <label className="block mb-1.5" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>Personal Access Token</label>
@@ -174,7 +174,7 @@ export function SettingsScreen() {
                     <input type={showToken ? "text" : "password"} value={discogsToken} onChange={(e) => setDiscogsToken(e.target.value)}
                       placeholder="Paste your token here"
                       className="w-full rounded-[8px] px-3 py-2.5 pr-10 outline-none transition-colors"
-                      style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }} />
+                      style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }} />
                     <button onClick={() => setShowToken(!showToken)} className="absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors cursor-pointer" style={{ color: "var(--c-text-muted)" }}>
                       {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>

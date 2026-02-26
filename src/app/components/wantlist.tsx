@@ -202,7 +202,7 @@ export function Wantlist() {
           <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
           <input type="text" placeholder="Search wants..." value={wantSearchQuery} onChange={(e) => setWantSearchQuery(e.target.value)}
             className="flex-1 bg-transparent outline-none border-none min-w-0"
-            style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
+            style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
           {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
         </div>
         {/* Filter chips — flex-1 */}
@@ -241,7 +241,7 @@ export function Wantlist() {
             <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
             <input type="text" placeholder="Search..." value={wantSearchQuery} onChange={(e) => setWantSearchQuery(e.target.value)}
               className="flex-1 bg-transparent outline-none border-none min-w-0"
-              style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
+              style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
             {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
           </div>
           <button onClick={() => setWantFilter(wantFilter === "all" ? "priority" : "all")}

@@ -93,7 +93,7 @@ export function Sessions() {
                 type="text" placeholder="Name this session..." value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)}
                 maxLength={100}
                 className="w-full rounded-[8px] px-3 py-2 outline-none transition-colors"
-                style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }}
+                style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }}
                 onKeyDown={(e) => e.key === "Enter" && handleCreateSession()} autoFocus
               />
               <div className="flex gap-2 mt-3">

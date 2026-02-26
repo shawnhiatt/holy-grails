@@ -325,7 +325,7 @@ function DrawerContent({
                 placeholder="Search artist, title, label..."
                 className="w-full rounded-full pl-9 pr-4 py-2 outline-none"
                 style={{
-                  fontSize: "14px",
+                  fontSize: "16px",
                   fontWeight: 400,
                   color: "var(--c-text)",
                   backgroundColor: "var(--c-input-bg)",
