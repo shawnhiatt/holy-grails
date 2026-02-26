@@ -46,3 +46,35 @@ export const upsert = mutation({
     });
   },
 });
+
+export const updateLastSynced = mutation({
+  args: { discogs_username: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", args.discogs_username)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { last_synced_at: Date.now() });
+    }
+  },
+});
+
+export const clearSession = mutation({
+  args: { discogs_username: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", args.discogs_username)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
+  },
+});

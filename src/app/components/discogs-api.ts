@@ -11,9 +11,26 @@ import type { Album, WantItem } from "./mock-data";
 
 const BASE = "https://api.discogs.com";
 
-function headers(token: string): HeadersInit {
+/**
+ * Auth can be a personal access token (string) or OAuth credentials.
+ * All fetch functions in this module accept either form.
+ */
+export type DiscogsAuth =
+  | string
+  | { accessToken: string; tokenSecret: string };
+
+function headers(auth: DiscogsAuth): HeadersInit {
+  if (typeof auth === "string") {
+    return { Authorization: `Discogs token=${auth}` };
+  }
+  // OAuth 1.0a PLAINTEXT — browser-side (no User-Agent header)
+  const ck = import.meta.env.VITE_DISCOGS_CONSUMER_KEY || "";
+  const cs = import.meta.env.VITE_DISCOGS_CONSUMER_SECRET || "";
+  const nonce = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const sig = encodeURIComponent(`${cs}&${auth.tokenSecret}`);
   return {
-    Authorization: `Discogs token=${token}`,
+    Authorization: `OAuth oauth_consumer_key="${ck}", oauth_nonce="${nonce}", oauth_token="${auth.accessToken}", oauth_signature="${sig}", oauth_signature_method="PLAINTEXT", oauth_timestamp="${timestamp}"`,
   };
 }
 
@@ -42,10 +59,10 @@ async function discogsFetch(url: string, init?: RequestInit): Promise<Response> 
 
 /* ─── Identity ─── */
 
-export async function fetchIdentity(token: string): Promise<string> {
+export async function fetchIdentity(auth: DiscogsAuth): Promise<string> {
   const url = `${BASE}/oauth/identity`;
   console.log("[Discogs] Fetching identity...", url);
-  const res = await discogsFetch(url, { headers: headers(token) });
+  const res = await discogsFetch(url, { headers: headers(auth) });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     console.error("[Discogs] Auth failed:", res.status, body);
@@ -60,11 +77,11 @@ export async function fetchIdentity(token: string): Promise<string> {
 
 export async function fetchUserProfile(
   username: string,
-  token: string
+  auth: DiscogsAuth
 ): Promise<{ username: string; avatar: string }> {
   const url = `${BASE}/users/${encodeURIComponent(username)}`;
   try {
-    const res = await discogsFetch(url, { headers: headers(token) });
+    const res = await discogsFetch(url, { headers: headers(auth) });
     if (res.status === 404) {
       throw new Error(`User "${username}" not found on Discogs.`);
     }
@@ -107,11 +124,11 @@ export interface DiscogsCustomField {
  */
 export async function fetchCustomFields(
   username: string,
-  token: string
+  auth: DiscogsAuth
 ): Promise<DiscogsCustomField[]> {
   const res = await discogsFetch(
     `${BASE}/users/${username}/collection/fields`,
-    { headers: headers(token) }
+    { headers: headers(auth) }
   );
   if (!res.ok) {
     console.warn(`[Discogs] Failed to fetch custom fields (${res.status})`);
@@ -207,10 +224,10 @@ function folderName(
 
 async function fetchFolderMap(
   username: string,
-  token: string
+  auth: DiscogsAuth
 ): Promise<Map<number, string>> {
   const res = await discogsFetch(`${BASE}/users/${username}/collection/folders`, {
-    headers: headers(token),
+    headers: headers(auth),
   });
   if (!res.ok) throw new Error(`Failed to fetch folders (${res.status})`);
   const data = await res.json();
@@ -300,11 +317,11 @@ function mapRelease(
 
 export async function fetchCollection(
   username: string,
-  token: string,
+  auth: DiscogsAuth,
   onProgress?: (loaded: number, total: number) => void
 ): Promise<{ albums: Album[]; folders: string[] }> {
-  const folderMap = await fetchFolderMap(username, token);
-  const fields = await fetchCustomFields(username, token);
+  const folderMap = await fetchFolderMap(username, auth);
+  const fields = await fetchCustomFields(username, auth);
   const fieldMap = buildFieldMap(fields);
 
   const albums: Album[] = [];
@@ -315,7 +332,7 @@ export async function fetchCollection(
     if (page > 1) await sleep(1000); // ~1 req/sec between pages; Discogs allows 60/min
     const res = await discogsFetch(
       `${BASE}/users/${username}/collection/folders/0/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`,
-      { headers: headers(token) }
+      { headers: headers(auth) }
     );
     if (!res.ok) throw new Error(`Failed to fetch collection page ${page} (${res.status})`);
     const data: CollectionPage = await res.json();
@@ -367,7 +384,7 @@ interface WantPage {
 
 export async function fetchWantlist(
   username: string,
-  token: string,
+  auth: DiscogsAuth,
   onProgress?: (loaded: number, total: number) => void
 ): Promise<WantItem[]> {
   const wants: WantItem[] = [];
@@ -378,7 +395,7 @@ export async function fetchWantlist(
     if (page > 1) await sleep(1000); // ~1 req/sec between pages; Discogs allows 60/min
     const res = await discogsFetch(
       `${BASE}/users/${username}/wants?per_page=100&page=${page}`,
-      { headers: headers(token) }
+      { headers: headers(auth) }
     );
     if (!res.ok) throw new Error(`Failed to fetch want list page ${page} (${res.status})`);
     const data: WantPage = await res.json();
@@ -497,7 +514,7 @@ const MARKET_CACHE_TTL = 30 * 24 * 3600000; // 30 days in ms
 
 export async function fetchMarketData(
   releaseId: number,
-  token: string,
+  _auth: DiscogsAuth,
   forceRefresh = false
 ): Promise<MarketData> {
   // Return cached if fresh (< 30 days) and not forcing refresh
@@ -581,11 +598,11 @@ function parseCurrencyString(raw: unknown): number {
  */
 export async function fetchCollectionValue(
   username: string,
-  token: string
+  auth: DiscogsAuth
 ): Promise<CollectionValue> {
   const res = await discogsFetch(
     `${BASE}/users/${encodeURIComponent(username)}/collection/value`,
-    { headers: headers(token) }
+    { headers: headers(auth) }
   );
 
   if (!res.ok) {

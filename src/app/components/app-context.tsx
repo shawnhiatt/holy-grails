@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import {
   type Album,
   type WantItem,
@@ -7,7 +9,6 @@ import {
   type Friend,
   MOCK_ALBUMS,
   MOCK_WANTS,
-  MOCK_SESSIONS,
   MOCK_FRIENDS,
   FOLDERS,
 } from "./mock-data";
@@ -17,7 +18,7 @@ import {
   fetchWantlist,
   fetchUserProfile,
   fetchCollectionValue,
-  type CollectionValue,
+  type DiscogsAuth,
   setDemoCollectionValue,
   clearCollectionValue,
   clearAllMarketData,
@@ -138,6 +139,10 @@ interface AppState {
   isAlbumInAnySession: (albumId: string) => boolean;
   mostRecentSessionId: string | null;
   firstSessionJustCreated: boolean;
+  // OAuth / session management
+  loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string }) => Promise<void>;
+  signOut: () => void;
+  isAuthenticated: boolean;
 }
 
 const AppContext = getOrCreateContext();
@@ -148,25 +153,10 @@ export function useApp(): AppState {
   return ctx;
 }
 
-function getInitialDarkMode(): boolean {
-  try {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("hg-dark-mode");
-      if (stored !== null) return stored === "true";
-    }
-  } catch {
-    // ignore
-  }
-  return true; // default to dark mode
-}
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  // ── Screen & view state ──
   const [screen, setScreenRaw] = useState<Screen>("feed");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [albums, setAlbums] = useState<Album[]>([]);
-  const [wants, setWants] = useState<WantItem[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState("All");
@@ -176,60 +166,289 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [purgeFilter, setPurgeFilter] = useState<PurgeTag | "unrated" | "all">("unrated");
   const [wantFilter, setWantFilter] = useState<"all" | "priority">("all");
   const [wantSearchQuery, setWantSearchQuery] = useState("");
-  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
+  const [headerHidden, setHeaderHidden] = useState(false);
 
-  // Last Played tracking
+  // ── Auth state ──
+  // Personal access token (dev QA flow) — persisted in sessionStorage
+  const [discogsToken, setDiscogsTokenRaw] = useState(() => {
+    try { return sessionStorage.getItem("hg_discogs_token") || ""; } catch { return ""; }
+  });
+  const setDiscogsToken = useCallback((t: string) => {
+    setDiscogsTokenRaw(t);
+    try {
+      if (t) sessionStorage.setItem("hg_discogs_token", t);
+      else sessionStorage.removeItem("hg_discogs_token");
+    } catch { /* ignore */ }
+  }, []);
+
+  // Discogs username — persisted in sessionStorage
+  const [discogsUsername, setDiscogsUsernameRaw] = useState(() => {
+    try { return sessionStorage.getItem("hg_discogs_username") || ""; } catch { return ""; }
+  });
+  const setDiscogsUsername = useCallback((u: string) => {
+    setDiscogsUsernameRaw(u);
+    try {
+      if (u) sessionStorage.setItem("hg_discogs_username", u);
+      else sessionStorage.removeItem("hg_discogs_username");
+    } catch { /* ignore */ }
+  }, []);
+
+  // OAuth credentials (populated from Convex user record or OAuth callback)
+  const [oauthCredentials, setOauthCredentials] = useState<{ accessToken: string; tokenSecret: string } | null>(null);
+
+  // Derived auth for Discogs API calls
+  const discogsAuth: DiscogsAuth | null = oauthCredentials || (discogsToken || null);
+  const isAuthenticated = !!discogsUsername && !!discogsAuth;
+
+  // ── Theme state ──
+  const [isDarkMode, setIsDarkMode] = useState(true); // default dark
+
+  // ── Data state ──
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [wants, setWants] = useState<WantItem[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [lastPlayed, setLastPlayed] = useState<Record<string, string>>({});
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
   const [rediscoverMode, setRediscoverMode] = useState(false);
-
-  // Display preferences
-  const [hidePurgeIndicators, setHidePurgeIndicators] = useState(false);
-  const [hideGalleryMeta, setHideGalleryMeta] = useState(false);
-  const [headerHidden, setHeaderHidden] = useState(false);
-
-  // Discogs sync state
+  const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
+  const [hideGalleryMeta, setHideGalleryMetaRaw] = useState(false);
   const [folders, setFolders] = useState<string[]>([]);
-  const [discogsToken, setDiscogsToken] = useState("");
-  const [discogsUsername, setDiscogsUsername] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
   const [lastSynced, setLastSynced] = useState("");
   const [syncStats, setSyncStats] = useState<{ albums: number; folders: number; wants: number } | null>(null);
-
-  // User profile
   const [userAvatar, setUserAvatar] = useState("");
-
-  // Connect Discogs flow trigger
   const [connectDiscogsRequested, setConnectDiscogsRequested] = useState(false);
-
-  // Session Picker
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
 
-  // Wrap setScreen to close all overlays and reset transient state
+  // ── Convex queries (skipped when no username) ──
+  const convexUser = useQuery(
+    api.users.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+  const convexPurgeTags = useQuery(
+    api.purge_tags.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+  const convexSessions = useQuery(
+    api.sessions.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+  const convexLastPlayed = useQuery(
+    api.last_played.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+  const convexWantPriorities = useQuery(
+    api.want_priorities.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+  const convexFollowing = useQuery(
+    api.following.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+  const convexPreferences = useQuery(
+    api.preferences.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+
+  // ── Convex mutations ──
+  const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
+  const createSessionMut = useMutation(api.sessions.create);
+  const updateSessionMut = useMutation(api.sessions.update);
+  const removeSessionMut = useMutation(api.sessions.remove);
+  const upsertLastPlayedMut = useMutation(api.last_played.upsert);
+  const upsertWantPriorityMut = useMutation(api.want_priorities.upsert);
+  const addFollowingMut = useMutation(api.following.add);
+  const removeFollowingMut = useMutation(api.following.remove);
+  const upsertPreferencesMut = useMutation(api.preferences.upsert);
+  const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
+  const clearSessionMut = useMutation(api.users.clearSession);
+
+  // ── Refs for latest Convex data (used in sync functions) ──
+  const purgeTagsRef = useRef(convexPurgeTags);
+  purgeTagsRef.current = convexPurgeTags;
+  const wantPrioritiesRef = useRef(convexWantPriorities);
+  wantPrioritiesRef.current = convexWantPriorities;
+  const lastPlayedRef = useRef(convexLastPlayed);
+  lastPlayedRef.current = convexLastPlayed;
+
+  // Track one-time hydration from Convex → local state
+  const hydratedRef = useRef({
+    purgeTags: false,
+    sessions: false,
+    lastPlayed: false,
+    wantPriorities: false,
+    preferences: false,
+  });
+
+  // Track whether initial auto-sync has run
+  const initialSyncDoneRef = useRef(false);
+
+  // ── Effects: Convex → local state hydration (one-time per session) ──
+
+  // Load OAuth credentials from Convex user record
+  useEffect(() => {
+    if (convexUser) {
+      setOauthCredentials({
+        accessToken: convexUser.access_token,
+        tokenSecret: convexUser.token_secret,
+      });
+      if (convexUser.discogs_avatar_url) {
+        setUserAvatar(convexUser.discogs_avatar_url);
+      }
+      if (convexUser.last_synced_at) {
+        const d = new Date(convexUser.last_synced_at);
+        const formatted = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          + " \u00b7 " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+        setLastSynced(formatted);
+      }
+    } else if (convexUser === null && discogsUsername && !discogsToken) {
+      // User record was deleted (signed out on another tab) or never existed for this OAuth user
+      // Only clear if there's no personal token fallback
+      setOauthCredentials(null);
+    }
+  }, [convexUser, discogsUsername, discogsToken]);
+
+  // Auto-sync on initial load for returning users (OAuth or personal token)
+  useEffect(() => {
+    if (initialSyncDoneRef.current) return;
+    if (!discogsUsername) return;
+
+    // For OAuth users: wait for Convex user record to load
+    if (!discogsToken && convexUser === undefined) return; // still loading
+    if (!discogsToken && convexUser === null) return; // no user record
+
+    // We have auth — trigger auto-sync
+    const auth: DiscogsAuth = convexUser
+      ? { accessToken: convexUser.access_token, tokenSecret: convexUser.token_secret }
+      : discogsToken;
+
+    if (!auth) return;
+
+    initialSyncDoneRef.current = true;
+
+    // Perform sync in background
+    performSync(discogsUsername, auth).catch(err => {
+      console.error("[Auto-sync] Failed:", err);
+    });
+  }, [discogsUsername, discogsToken, convexUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hydrate purge tags from Convex into albums (one-time, after albums are populated)
+  useEffect(() => {
+    if (!hydratedRef.current.purgeTags && convexPurgeTags !== undefined && albums.length > 0) {
+      hydratedRef.current.purgeTags = true;
+      const tagMap = new Map(convexPurgeTags.map(t => [t.release_id, t.tag as PurgeTag]));
+      setAlbums(prev => prev.map(a => ({
+        ...a,
+        purgeTag: tagMap.get(a.release_id) || null,
+      })));
+    }
+  }, [convexPurgeTags, albums.length]);
+
+  // Hydrate sessions from Convex (one-time)
+  useEffect(() => {
+    if (!hydratedRef.current.sessions && convexSessions !== undefined) {
+      hydratedRef.current.sessions = true;
+      if (convexSessions.length > 0) {
+        setSessions(convexSessions.map(s => ({
+          id: s.session_id,
+          name: s.name,
+          albumIds: s.album_ids.map(String),
+          createdAt: new Date(s.created_at).toISOString().split("T")[0],
+          lastModified: new Date(s.last_modified).toISOString(),
+        })));
+      }
+    }
+  }, [convexSessions]);
+
+  // Hydrate last played from Convex (one-time)
+  useEffect(() => {
+    if (!hydratedRef.current.lastPlayed && convexLastPlayed !== undefined) {
+      hydratedRef.current.lastPlayed = true;
+      if (convexLastPlayed.length > 0) {
+        const map: Record<string, string> = {};
+        for (const lp of convexLastPlayed) {
+          map[String(lp.release_id)] = new Date(lp.played_at).toISOString();
+        }
+        setLastPlayed(map);
+      }
+    }
+  }, [convexLastPlayed]);
+
+  // Hydrate want priorities from Convex into wants (one-time, after wants are populated)
+  useEffect(() => {
+    if (!hydratedRef.current.wantPriorities && convexWantPriorities !== undefined && wants.length > 0) {
+      hydratedRef.current.wantPriorities = true;
+      const prioMap = new Map(convexWantPriorities.map(p => [p.release_id, p.is_priority]));
+      setWants(prev => prev.map(w => ({
+        ...w,
+        priority: prioMap.get(w.release_id) || false,
+      })));
+    }
+  }, [convexWantPriorities, wants.length]);
+
+  // Hydrate preferences from Convex (one-time)
+  useEffect(() => {
+    if (!hydratedRef.current.preferences && convexPreferences) {
+      hydratedRef.current.preferences = true;
+      if (convexPreferences.theme === "dark") setIsDarkMode(true);
+      else if (convexPreferences.theme === "light") setIsDarkMode(false);
+      setHidePurgeIndicatorsRaw(convexPreferences.hide_purge_indicators);
+      setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
+    }
+  }, [convexPreferences]);
+
+  // ── Screen navigation ──
+
   const setScreen = useCallback((s: Screen) => {
     setScreenRaw(s);
-    // Close any open overlays so they don't persist across screens
     setShowAlbumDetail(false);
     setShowFilterDrawer(false);
     setSelectedAlbumId(null);
     setSessionPickerAlbumId(null);
-    // Reset header visibility when navigating
     setHeaderHidden(false);
   }, []);
 
+  // ── Theme toggle ──
+
   const toggleDarkMode = useCallback(() => {
-    setIsDarkMode((prev) => {
+    setIsDarkMode(prev => {
       const next = !prev;
-      try {
-        localStorage.setItem("hg-dark-mode", String(next));
-      } catch {
-        // ignore
+      if (discogsUsername) {
+        upsertPreferencesMut({
+          discogs_username: discogsUsername,
+          theme: next ? "dark" : "light",
+        });
       }
       return next;
     });
-  }, []);
+  }, [discogsUsername, upsertPreferencesMut]);
+
+  // ── Display preferences with Convex persistence ──
+
+  const setHidePurgeIndicators = useCallback((v: boolean) => {
+    setHidePurgeIndicatorsRaw(v);
+    if (discogsUsername) {
+      upsertPreferencesMut({
+        discogs_username: discogsUsername,
+        hide_purge_indicators: v,
+      });
+    }
+  }, [discogsUsername, upsertPreferencesMut]);
+
+  const setHideGalleryMeta = useCallback((v: boolean) => {
+    setHideGalleryMetaRaw(v);
+    if (discogsUsername) {
+      upsertPreferencesMut({
+        discogs_username: discogsUsername,
+        hide_gallery_meta: v,
+      });
+    }
+  }, [discogsUsername, upsertPreferencesMut]);
+
+  // ── Derived state ──
 
   const selectedAlbum = useMemo(
     () => albums.find((a) => a.id === selectedAlbumId) || null,
@@ -289,7 +508,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         result.sort((a, b) => {
           const aDate = lastPlayed[a.id] ? new Date(lastPlayed[a.id]).getTime() : 0;
           const bDate = lastPlayed[b.id] ? new Date(lastPlayed[b.id]).getTime() : 0;
-          return aDate - bDate; // 0 (never played) sorts to top
+          return aDate - bDate;
         });
         break;
     }
@@ -297,7 +516,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [albums, activeFolder, searchQuery, sortOption, neverPlayedFilter, lastPlayed]);
 
-  // Compute rediscover albums: never played, or not played in 6+ months, or added 3+ months ago but never played
   const computedRediscoverAlbums = useMemo(() => {
     const now = Date.now();
     const sixMonths = 180 * 86400000;
@@ -305,42 +523,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return albums.filter((a) => {
       const lp = lastPlayed[a.id];
-      if (!lp) return true; // never played
+      if (!lp) return true;
       const lpTime = new Date(lp).getTime();
-      if (now - lpTime > sixMonths) return true; // not played in 6+ months
+      if (now - lpTime > sixMonths) return true;
       const addedTime = new Date(a.dateAdded).getTime();
-      if (!lp && now - addedTime > threeMonths) return true; // added 3+ months ago, never played
+      if (!lp && now - addedTime > threeMonths) return true;
       return false;
     }).sort((a, b) => {
-      // Prioritize: never played first, then oldest played
       const aLp = lastPlayed[a.id];
       const bLp = lastPlayed[b.id];
       if (!aLp && bLp) return -1;
       if (aLp && !bLp) return 1;
       if (!aLp && !bLp) {
-        // Both never played — sort by oldest dateAdded
         return new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime();
       }
-      // Both have been played — sort by oldest last played
       return new Date(aLp!).getTime() - new Date(bLp!).getTime();
     });
   }, [albums, lastPlayed]);
+
+  // ── Data mutations (local state + Convex fire-and-forget) ──
 
   const setPurgeTag = useCallback((albumId: string, tag: PurgeTag) => {
     setAlbums((prev) =>
       prev.map((a) => (a.id === albumId ? { ...a, purgeTag: tag } : a))
     );
-  }, []);
+    if (discogsUsername && tag) {
+      upsertPurgeTagMut({
+        discogs_username: discogsUsername,
+        release_id: Number(albumId),
+        tag,
+      });
+    }
+  }, [discogsUsername, upsertPurgeTagMut]);
 
   const toggleWantPriority = useCallback((wantId: string) => {
-    setWants((prev) =>
-      prev.map((w) => (w.id === wantId ? { ...w, priority: !w.priority } : w))
-    );
-  }, []);
+    setWants((prev) => {
+      const want = prev.find((w) => w.id === wantId);
+      if (want && discogsUsername) {
+        upsertWantPriorityMut({
+          discogs_username: discogsUsername,
+          release_id: want.release_id,
+          is_priority: !want.priority,
+        });
+      }
+      return prev.map((w) => (w.id === wantId ? { ...w, priority: !w.priority } : w));
+    });
+  }, [discogsUsername, upsertWantPriorityMut]);
 
   const addToWantList = useCallback((item: WantItem) => {
     setWants((prev) => {
-      // Guard against duplicates by release_id
       const rid = Number(item.release_id);
       if (prev.some((w) => Number(w.release_id) === rid)) return prev;
       return [...prev, item];
@@ -357,15 +588,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return albums.some((a) => Number(a.release_id) === rid);
   }, [albums]);
 
+  const markPlayed = useCallback((albumId: string) => {
+    const now = new Date();
+    setLastPlayed((prev) => ({
+      ...prev,
+      [albumId]: now.toISOString(),
+    }));
+    if (discogsUsername) {
+      upsertLastPlayedMut({
+        discogs_username: discogsUsername,
+        release_id: Number(albumId),
+        played_at: now.getTime(),
+      });
+    }
+  }, [discogsUsername, upsertLastPlayedMut]);
+
+  // ── Session operations ──
+
   const deleteSession = useCallback((sessionId: string) => {
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-  }, []);
+    if (discogsUsername) {
+      removeSessionMut({ discogs_username: discogsUsername, session_id: sessionId });
+    }
+  }, [discogsUsername, removeSessionMut]);
 
   const renameSession = useCallback((sessionId: string, name: string) => {
     setSessions((prev) =>
       prev.map((s) => (s.id === sessionId ? { ...s, name } : s))
     );
-  }, []);
+    if (discogsUsername) {
+      updateSessionMut({ discogs_username: discogsUsername, session_id: sessionId, name });
+    }
+  }, [discogsUsername, updateSessionMut]);
 
   const reorderSessionAlbums = useCallback((sessionId: string, albumIds: string[]) => {
     setSessions((prev) => {
@@ -380,74 +634,106 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev.slice(sessionIndex + 1),
       ];
     });
-  }, []);
+    if (discogsUsername) {
+      updateSessionMut({
+        discogs_username: discogsUsername,
+        session_id: sessionId,
+        album_ids: albumIds.map(Number),
+      });
+    }
+  }, [discogsUsername, updateSessionMut]);
+
+  // ── Friends ──
 
   const addFriend = useCallback((friend: Friend) => {
     setFriends((prev) => [...prev, friend]);
-  }, []);
+    if (discogsUsername) {
+      addFollowingMut({ discogs_username: discogsUsername, following_username: friend.username });
+    }
+  }, [discogsUsername, addFollowingMut]);
 
   const removeFriend = useCallback((friendId: string) => {
-    setFriends((prev) => prev.filter((f) => f.id !== friendId));
-  }, []);
+    setFriends((prev) => {
+      const friend = prev.find(f => f.id === friendId);
+      if (friend && discogsUsername) {
+        removeFollowingMut({ discogs_username: discogsUsername, following_username: friend.username });
+      }
+      return prev.filter((f) => f.id !== friendId);
+    });
+  }, [discogsUsername, removeFollowingMut]);
 
-  const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
+  // ── Sync from Discogs ──
+
+  const performSync = useCallback(async (
+    username: string,
+    auth: DiscogsAuth
+  ): Promise<{ albums: number; folders: number; wants: number }> => {
     setIsSyncing(true);
     setSyncProgress("Authenticating...");
     try {
-      // 1. Get username from token
-      const username = await fetchIdentity(discogsToken);
-      setDiscogsUsername(username);
-
-      // 1b. Fetch user profile (avatar)
+      // Fetch user profile (avatar)
       try {
-        const profile = await fetchUserProfile(username, discogsToken);
+        const profile = await fetchUserProfile(username, auth);
         setUserAvatar(profile.avatar);
       } catch (e) {
         console.warn("[Discogs] Profile fetch failed:", e);
       }
 
-      // 2. Fetch collection
+      // Fetch collection
       setSyncProgress("Fetching collection...");
       const { albums: newAlbums, folders: newFolders } = await fetchCollection(
         username,
-        discogsToken,
+        auth,
         (loaded, total) => setSyncProgress(`Fetching collection... ${loaded}/${total}`)
       );
 
-      // Preserve purge tags from existing albums
-      setAlbums((prev) => {
-        const tagMap = new Map<string, PurgeTag>();
-        for (const a of prev) {
-          if (a.purgeTag) tagMap.set(a.id, a.purgeTag);
-        }
-        return newAlbums.map((a) => ({
+      // Merge purge tags from current Convex data
+      const tags = purgeTagsRef.current;
+      if (tags !== undefined) {
+        const tagMap = new Map(tags.map(t => [t.release_id, t.tag as PurgeTag]));
+        setAlbums(newAlbums.map(a => ({
           ...a,
-          purgeTag: tagMap.get(a.id) || null,
-        }));
-      });
+          purgeTag: tagMap.get(a.release_id) || null,
+        })));
+        hydratedRef.current.purgeTags = true;
+      } else {
+        setAlbums(newAlbums);
+      }
       setFolders(newFolders);
 
-      // 3. Fetch want list
+      // Fetch want list
       setSyncProgress("Fetching want list...");
       const newWants = await fetchWantlist(
         username,
-        discogsToken,
+        auth,
         (loaded, total) => setSyncProgress(`Fetching wants... ${loaded}/${total}`)
       );
 
-      // Preserve priority flags from existing wants
-      setWants((prev) => {
-        const prioMap = new Map<string, boolean>();
-        for (const w of prev) {
-          if (w.priority) prioMap.set(w.id, true);
-        }
-        return newWants.map((w) => ({
+      // Merge want priorities from current Convex data
+      const prios = wantPrioritiesRef.current;
+      if (prios !== undefined) {
+        const prioMap = new Map(prios.map(p => [p.release_id, p.is_priority]));
+        setWants(newWants.map(w => ({
           ...w,
-          priority: prioMap.get(w.id) || false,
-        }));
-      });
+          priority: prioMap.get(w.release_id) || false,
+        })));
+        hydratedRef.current.wantPriorities = true;
+      } else {
+        setWants(newWants);
+      }
 
-      // 4. Update sync metadata
+      // Merge last played from current Convex data
+      const lpData = lastPlayedRef.current;
+      if (lpData !== undefined && lpData.length > 0) {
+        const map: Record<string, string> = {};
+        for (const lp of lpData) {
+          map[String(lp.release_id)] = new Date(lp.played_at).toISOString();
+        }
+        setLastPlayed(map);
+        hydratedRef.current.lastPlayed = true;
+      }
+
+      // Update sync metadata
       const now = new Date();
       const formatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
         + " \u00b7 " + now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -459,23 +745,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       setSyncProgress("");
 
-      // 5. Fetch collection value from Discogs API
+      // Fetch collection value
       setSyncProgress("Fetching collection value...");
       try {
-        await fetchCollectionValue(username, discogsToken);
+        await fetchCollectionValue(username, auth);
       } catch (e) {
         console.warn("[Discogs] Collection value fetch failed:", e);
-        // No fallback — Insights screen will show explicit unavailable state
       }
 
-      // Save token + username to localStorage
-      try {
-        localStorage.setItem("hg-discogs-token", discogsToken);
-        localStorage.setItem("hg-discogs-username", username);
-        localStorage.setItem("hg-last-synced", formatted);
-      } catch (_e) { /* ignore */ }
+      // Update lastSynced in Convex
+      if (discogsUsername) {
+        updateLastSyncedMut({ discogs_username: username });
+      }
 
-      // Return the counts so callers can use them immediately (before React re-renders)
+      setSyncProgress("");
+
       return {
         albums: newAlbums.length,
         folders: newFolders.filter((f) => f !== "All").length,
@@ -487,10 +771,107 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [discogsToken]);
+  }, [discogsUsername, updateLastSyncedMut]);
+
+  const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
+    const auth = discogsAuth;
+    if (!auth) throw new Error("No Discogs authentication available");
+
+    // If we don't have a username yet, fetch identity first
+    let username = discogsUsername;
+    if (!username) {
+      username = await fetchIdentity(auth);
+      setDiscogsUsername(username);
+    }
+
+    return performSync(username, auth);
+  }, [discogsAuth, discogsUsername, setDiscogsUsername, performSync]);
+
+  // ── OAuth login ──
+
+  const loginWithOAuth = useCallback(async (user: {
+    username: string;
+    avatarUrl: string;
+    accessToken: string;
+    tokenSecret: string;
+  }) => {
+    // Set OAuth credentials
+    setOauthCredentials({ accessToken: user.accessToken, tokenSecret: user.tokenSecret });
+    setDiscogsUsername(user.username);
+    setUserAvatar(user.avatarUrl || "");
+    setDiscogsToken(""); // Clear any personal token
+
+    // Mark initial sync as done (we're about to trigger it explicitly)
+    initialSyncDoneRef.current = true;
+
+    // Trigger initial Discogs sync
+    const auth: DiscogsAuth = { accessToken: user.accessToken, tokenSecret: user.tokenSecret };
+    await performSync(user.username, auth);
+  }, [setDiscogsUsername, setDiscogsToken, performSync]);
+
+  // ── Sign out ──
+
+  const signOut = useCallback(() => {
+    // Clear auth session from Convex (keep purge tags, sessions, etc.)
+    if (discogsUsername) {
+      clearSessionMut({ discogs_username: discogsUsername });
+    }
+
+    // Clear local auth state
+    setOauthCredentials(null);
+    setDiscogsToken("");
+    setDiscogsUsername("");
+
+    // Clear sessionStorage
+    try {
+      sessionStorage.removeItem("hg_discogs_username");
+      sessionStorage.removeItem("hg_discogs_token");
+      sessionStorage.removeItem("hg_oauth_token_secret");
+    } catch { /* ignore */ }
+
+    // Reset data state
+    setAlbums([]);
+    setWants([]);
+    setSessions([]);
+    setFriends([]);
+    setFolders([]);
+    setSelectedAlbumId(null);
+    setSearchQuery("");
+    setActiveFolder("All");
+    setSortOption("artist-az");
+    setPurgeFilter("unrated");
+    setWantFilter("all");
+    setWantSearchQuery("");
+    setLastSynced("");
+    setSyncStats(null);
+    setSyncProgress("");
+    setLastPlayed({});
+    setNeverPlayedFilter(false);
+    setRediscoverMode(false);
+    setShowAlbumDetail(false);
+    setShowFilterDrawer(false);
+    setUserAvatar("");
+    setSessionPickerAlbumId(null);
+    setFirstSessionJustCreated(false);
+
+    // Clear cached data
+    clearCollectionValue();
+    clearAllMarketData();
+
+    // Reset hydration flags
+    hydratedRef.current = {
+      purgeTags: false,
+      sessions: false,
+      lastPlayed: false,
+      wantPriorities: false,
+      preferences: false,
+    };
+    initialSyncDoneRef.current = false;
+  }, [discogsUsername, clearSessionMut, setDiscogsToken, setDiscogsUsername]);
+
+  // ── Developer / QA resets ──
 
   const resetToDemo = useCallback(() => {
-    // Reset React state to demo defaults
     setAlbums(MOCK_ALBUMS.map(a => ({ ...a, purgeTag: null })));
     setWants(MOCK_WANTS.map(w => ({ ...w, priority: false })));
     setSessions([]);
@@ -513,21 +894,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowFilterDrawer(false);
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
-    // Set placeholder avatar for demo profile
     setUserAvatar("https://images.unsplash.com/photo-1758295040962-18a6812be713?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx2aW55bCUyMHJlY29yZCUyMGNvbGxlY3RvciUyMG1hbGUlMjBwb3J0cmFpdCUyMGNhc3VhbHxlbnwxfHx8fDE3NzE1Njc4MzZ8MA&ixlib=rb-4.1.0&q=80&w=1080");
-    // Reset collection value to demo figures
     setDemoCollectionValue();
-    // Clear per-album market cache
     clearAllMarketData();
-    // Clear Discogs sync localStorage (keep token so it's easy to re-sync)
+    // Clear auth (demo mode has no authentication)
+    setDiscogsToken("");
+    setOauthCredentials(null);
     try {
-      localStorage.removeItem("hg-discogs-username");
-      localStorage.removeItem("hg-last-synced");
+      sessionStorage.removeItem("hg_discogs_username");
+      sessionStorage.removeItem("hg_discogs_token");
     } catch { /* ignore */ }
-  }, []);
+    setDiscogsUsernameRaw("");
+  }, [setDiscogsToken]);
 
   const wipeAllData = useCallback(() => {
-    // Clear all React state to zero
     setAlbums([]);
     setWants([]);
     setSessions([]);
@@ -542,6 +922,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWantSearchQuery("");
     setDiscogsToken("");
     setDiscogsUsername("");
+    setOauthCredentials(null);
     setLastSynced("");
     setSyncStats(null);
     setSyncProgress("");
@@ -553,18 +934,147 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserAvatar("");
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
-    // Clear collection value entirely (will show "unavailable" state)
     clearCollectionValue();
-    // Clear per-album market cache
     clearAllMarketData();
-    // Wipe all app localStorage keys
     try {
-      localStorage.removeItem("hg-discogs-token");
-      localStorage.removeItem("hg-discogs-username");
-      localStorage.removeItem("hg-last-synced");
-      localStorage.removeItem("hg-dark-mode");
+      sessionStorage.removeItem("hg_discogs_username");
+      sessionStorage.removeItem("hg_discogs_token");
+      sessionStorage.removeItem("hg_oauth_token_secret");
     } catch { /* ignore */ }
+    hydratedRef.current = {
+      purgeTags: false,
+      sessions: false,
+      lastPlayed: false,
+      wantPriorities: false,
+      preferences: false,
+    };
+    initialSyncDoneRef.current = false;
+  }, [setDiscogsToken, setDiscogsUsername]);
+
+  const devSyncUser = useCallback(async (username: string, token: string) => {
+    // Wipe all existing data before loading new user
+    setAlbums([]);
+    setWants([]);
+    setSessions([]);
+    setFriends([]);
+    setFolders([]);
+    setSelectedAlbumId(null);
+    setSearchQuery("");
+    setActiveFolder("All");
+    setSortOption("artist-az");
+    setPurgeFilter("unrated");
+    setWantFilter("all");
+    setWantSearchQuery("");
+    setLastSynced("");
+    setSyncStats(null);
+    setSyncProgress("");
+    setLastPlayed({});
+    setNeverPlayedFilter(false);
+    setRediscoverMode(false);
+    setShowAlbumDetail(false);
+    setShowFilterDrawer(false);
+    setUserAvatar("");
+    setSessionPickerAlbumId(null);
+    setFirstSessionJustCreated(false);
+    setOauthCredentials(null);
+    // Don't set discogsToken yet — setting it would flip showSplash to false
+    // and unmount the splash screen mid-sync. We set it at the very end.
+    setDiscogsTokenRaw("");
+    setDiscogsUsernameRaw("");
+    clearCollectionValue();
+    clearAllMarketData();
+    try {
+      sessionStorage.removeItem("hg_discogs_username");
+      sessionStorage.removeItem("hg_discogs_token");
+    } catch { /* ignore */ }
+
+    // Reset hydration flags for new user
+    hydratedRef.current = {
+      purgeTags: false,
+      sessions: false,
+      lastPlayed: false,
+      wantPriorities: false,
+      preferences: false,
+    };
+    initialSyncDoneRef.current = true; // Prevent auto-sync from competing
+
+    // Now sync the new user
+    setIsSyncing(true);
+    setSyncProgress("Authenticating...");
+    try {
+      const fetchedUsername = await fetchIdentity(token);
+      setDiscogsUsernameRaw(fetchedUsername);
+
+      // Fetch user profile (avatar)
+      try {
+        const profile = await fetchUserProfile(fetchedUsername, token);
+        setUserAvatar(profile.avatar);
+      } catch (e) {
+        console.warn("[Discogs] Profile fetch failed:", e);
+      }
+
+      // Fetch collection
+      setSyncProgress("Fetching collection...");
+      const { albums: newAlbums, folders: newFolders } = await fetchCollection(
+        fetchedUsername,
+        token,
+        (loaded, total) => setSyncProgress(`Fetching collection... ${loaded}/${total}`)
+      );
+
+      // Fresh load — no purge tag preservation
+      setAlbums(newAlbums.map((a) => ({ ...a, purgeTag: null })));
+      setFolders(newFolders);
+
+      // Fetch want list
+      setSyncProgress("Fetching want list...");
+      const newWants = await fetchWantlist(
+        fetchedUsername,
+        token,
+        (loaded, total) => setSyncProgress(`Fetching wants... ${loaded}/${total}`)
+      );
+
+      // Fresh load — no priority preservation
+      setWants(newWants.map((w) => ({ ...w, priority: false })));
+
+      // Update sync metadata
+      const now = new Date();
+      const formatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        + " \u00b7 " + now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      setLastSynced(formatted);
+      setSyncStats({
+        albums: newAlbums.length,
+        folders: newFolders.filter((f) => f !== "All").length,
+        wants: newWants.length,
+      });
+      setSyncProgress("");
+
+      // Fetch collection value
+      setSyncProgress("Fetching collection value...");
+      try {
+        await fetchCollectionValue(fetchedUsername, token);
+      } catch (e) {
+        console.warn("[Discogs] Collection value fetch failed:", e);
+      }
+
+      // Save to sessionStorage
+      try {
+        sessionStorage.setItem("hg_discogs_token", token);
+        sessionStorage.setItem("hg_discogs_username", fetchedUsername);
+      } catch { /* ignore */ }
+
+      // Set token last — this flips showSplash to false in App.tsx
+      setDiscogsTokenRaw(token);
+
+      setSyncProgress("");
+    } catch (err: any) {
+      setSyncProgress("");
+      throw err;
+    } finally {
+      setIsSyncing(false);
+    }
   }, []);
+
+  // ── Connect Discogs flow trigger ──
 
   const requestConnectDiscogs = useCallback(() => {
     setConnectDiscogsRequested(true);
@@ -574,25 +1084,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setConnectDiscogsRequested(false);
   }, []);
 
+  // ── Session Picker ──
+
   const openSessionPicker = useCallback((albumId: string) => {
     // Auto-create "Saved for Later" session if no sessions exist
     setSessions((prev) => {
       if (prev.length === 0) {
         const now = new Date().toISOString();
+        const sessionId = "s" + Date.now();
         const newSession: Session = {
-          id: "s" + Date.now(),
+          id: sessionId,
           name: "Saved for Later",
           albumIds: [albumId],
           createdAt: now.split("T")[0],
           lastModified: now,
         };
         setFirstSessionJustCreated(true);
+        // Persist to Convex
+        if (discogsUsername) {
+          createSessionMut({
+            discogs_username: discogsUsername,
+            session_id: sessionId,
+            name: "Saved for Later",
+            album_ids: [Number(albumId)],
+          });
+        }
         return [newSession];
       }
       return prev;
     });
     setSessionPickerAlbumId(albumId);
-  }, []);
+  }, [discogsUsername, createSessionMut]);
 
   const closeSessionPicker = useCallback(() => {
     setSessionPickerAlbumId(null);
@@ -612,42 +1134,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const session = prev[sessionIndex];
       const now = new Date().toISOString();
       const albumIndex = session.albumIds.indexOf(albumId);
+      let newAlbumIds: string[];
       if (albumIndex === -1) {
-        // Add the album to the session
+        newAlbumIds = [...session.albumIds, albumId];
+      } else {
+        newAlbumIds = session.albumIds.filter((id) => id !== albumId);
+      }
+
+      // Persist to Convex
+      if (discogsUsername) {
+        updateSessionMut({
+          discogs_username: discogsUsername,
+          session_id: sessionId,
+          album_ids: newAlbumIds.map(Number),
+        });
+      }
+
+      if (albumIndex === -1) {
         return [
           ...prev.slice(0, sessionIndex),
-          { ...session, albumIds: [...session.albumIds, albumId], lastModified: now },
+          { ...session, albumIds: newAlbumIds, lastModified: now },
           ...prev.slice(sessionIndex + 1),
         ];
       } else {
-        // Remove the album from the session — don't update lastModified so list order stays stable
         return [
           ...prev.slice(0, sessionIndex),
-          { ...session, albumIds: session.albumIds.filter((id) => id !== albumId) },
+          { ...session, albumIds: newAlbumIds },
           ...prev.slice(sessionIndex + 1),
         ];
       }
     });
-  }, []);
+  }, [discogsUsername, updateSessionMut]);
 
   const createSessionDirect = useCallback((name: string, initialAlbumIds?: string[]) => {
     const now = new Date().toISOString();
+    const sessionId = "s" + Date.now();
     const newSession: Session = {
-      id: "s" + Date.now(),
+      id: sessionId,
       name,
       albumIds: initialAlbumIds || [],
       createdAt: now.split("T")[0],
       lastModified: now,
     };
     setSessions((prev) => [newSession, ...prev]);
-    return newSession.id;
-  }, []);
+    // Persist to Convex
+    if (discogsUsername) {
+      createSessionMut({
+        discogs_username: discogsUsername,
+        session_id: sessionId,
+        name,
+        album_ids: (initialAlbumIds || []).map(Number),
+      });
+    }
+    return sessionId;
+  }, [discogsUsername, createSessionMut]);
 
   const isAlbumInAnySession = useCallback((albumId: string) => {
     return sessions.some((s) => s.albumIds.includes(albumId));
   }, [sessions]);
 
-  // Derived: most recently active session (by lastModified)
   const mostRecentSessionId = useMemo(() => {
     if (sessions.length === 0) return null;
     return [...sessions].sort((a, b) =>
@@ -655,120 +1200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     )[0].id;
   }, [sessions]);
 
-  const devSyncUser = useCallback(async (username: string, token: string) => {
-    // ── Wipe all existing data before loading new user ──
-    setAlbums([]);
-    setWants([]);
-    setSessions([]);
-    setFriends([]);
-    setFolders([]);
-    setSelectedAlbumId(null);
-    setSearchQuery("");
-    setActiveFolder("All");
-    setSortOption("artist-az");
-    setPurgeFilter("unrated");
-    setWantFilter("all");
-    setWantSearchQuery("");
-    setLastSynced("");
-    setSyncStats(null);
-    setSyncProgress("");
-    setLastPlayed({});
-    setNeverPlayedFilter(false);
-    setRediscoverMode(false);
-    setShowAlbumDetail(false);
-    setShowFilterDrawer(false);
-    setUserAvatar("");
-    setSessionPickerAlbumId(null);
-    setFirstSessionJustCreated(false);
-    // Don't set discogsToken yet — setting it would flip showSplash to false
-    // and unmount the splash screen mid-sync. We set it at the very end.
-    setDiscogsToken("");
-    setDiscogsUsername("");
-    clearCollectionValue();
-    clearAllMarketData();
-    try {
-      localStorage.removeItem("hg-discogs-token");
-      localStorage.removeItem("hg-discogs-username");
-      localStorage.removeItem("hg-last-synced");
-    } catch { /* ignore */ }
-
-    // ── Now sync the new user ──
-    setIsSyncing(true);
-    setSyncProgress("Authenticating...");
-    try {
-      // 1. Get username from token
-      const fetchedUsername = await fetchIdentity(token);
-      setDiscogsUsername(fetchedUsername);
-
-      // 1b. Fetch user profile (avatar)
-      try {
-        const profile = await fetchUserProfile(fetchedUsername, token);
-        setUserAvatar(profile.avatar);
-      } catch (e) {
-        console.warn("[Discogs] Profile fetch failed:", e);
-      }
-
-      // 2. Fetch collection
-      setSyncProgress("Fetching collection...");
-      const { albums: newAlbums, folders: newFolders } = await fetchCollection(
-        fetchedUsername,
-        token,
-        (loaded, total) => setSyncProgress(`Fetching collection... ${loaded}/${total}`)
-      );
-
-      // Fresh load — no purge tag preservation
-      setAlbums(newAlbums.map((a) => ({ ...a, purgeTag: null })));
-      setFolders(newFolders);
-
-      // 3. Fetch want list
-      setSyncProgress("Fetching want list...");
-      const newWants = await fetchWantlist(
-        fetchedUsername,
-        token,
-        (loaded, total) => setSyncProgress(`Fetching wants... ${loaded}/${total}`)
-      );
-
-      // Fresh load — no priority preservation
-      setWants(newWants.map((w) => ({ ...w, priority: false })));
-
-      // 4. Update sync metadata
-      const now = new Date();
-      const formatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        + " \u00b7 " + now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      setLastSynced(formatted);
-      setSyncStats({
-        albums: newAlbums.length,
-        folders: newFolders.filter((f) => f !== "All").length,
-        wants: newWants.length,
-      });
-      setSyncProgress("");
-
-      // 5. Fetch collection value from Discogs API
-      setSyncProgress("Fetching collection value...");
-      try {
-        await fetchCollectionValue(fetchedUsername, token);
-      } catch (e) {
-        console.warn("[Discogs] Collection value fetch failed:", e);
-      }
-
-      // Save token + username to localStorage
-      try {
-        localStorage.setItem("hg-discogs-token", token);
-        localStorage.setItem("hg-discogs-username", fetchedUsername);
-        localStorage.setItem("hg-last-synced", formatted);
-      } catch (_e) { /* ignore */ }
-
-      // Set token last — this flips showSplash to false in App.tsx
-      setDiscogsToken(token);
-
-      setSyncProgress("");
-    } catch (err: any) {
-      setSyncProgress("");
-      throw err;
-    } finally {
-      setIsSyncing(false);
-    }
-  }, []);
+  // ── Context value ──
 
   const value = useMemo<AppState>(
     () => ({
@@ -814,12 +1246,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toggleDarkMode,
       // Last Played tracking
       lastPlayed,
-      markPlayed: (albumId: string) => {
-        setLastPlayed((prev) => ({
-          ...prev,
-          [albumId]: new Date().toISOString(),
-        }));
-      },
+      markPlayed,
       neverPlayedFilter,
       setNeverPlayedFilter,
       rediscoverMode,
@@ -863,6 +1290,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAlbumInAnySession,
       mostRecentSessionId,
       firstSessionJustCreated,
+      // OAuth / session management
+      loginWithOAuth,
+      signOut,
+      isAuthenticated,
     }),
     [
       screen, setScreen, viewMode, albums, wants, sessions, friends,
@@ -875,47 +1306,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       showFilterDrawer, showAlbumDetail,
       purgeFilter, wantFilter, wantSearchQuery,
       isDarkMode, toggleDarkMode,
-      // Last Played tracking
-      lastPlayed,
+      lastPlayed, markPlayed,
       neverPlayedFilter,
       rediscoverMode,
       computedRediscoverAlbums,
-      // Display preferences
-      hidePurgeIndicators,
-      hideGalleryMeta,
-      headerHidden,
-      setHeaderHidden,
-      // Discogs sync
+      hidePurgeIndicators, setHidePurgeIndicators,
+      hideGalleryMeta, setHideGalleryMeta,
+      headerHidden, setHeaderHidden,
       folders,
-      discogsToken,
-      setDiscogsToken,
-      discogsUsername,
-      setDiscogsUsername,
-      isSyncing,
-      syncProgress,
-      lastSynced,
-      syncFromDiscogs,
-      syncStats,
-      // User profile
+      discogsToken, setDiscogsToken,
+      discogsUsername, setDiscogsUsername,
+      isSyncing, syncProgress, lastSynced,
+      syncFromDiscogs, syncStats,
       userAvatar,
-      // Developer / QA resets
-      resetToDemo,
-      wipeAllData,
-      devSyncUser,
-      // Connect Discogs flow trigger (from within the main app)
-      connectDiscogsRequested,
-      requestConnectDiscogs,
-      clearConnectDiscogsRequest,
-      // Session Picker
-      sessionPickerAlbumId,
-      openSessionPicker,
-      closeSessionPicker,
-      isInSession,
-      toggleAlbumInSession,
-      createSessionDirect,
-      isAlbumInAnySession,
-      mostRecentSessionId,
-      firstSessionJustCreated,
+      resetToDemo, wipeAllData, devSyncUser,
+      connectDiscogsRequested, requestConnectDiscogs, clearConnectDiscogsRequest,
+      sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
+      isInSession, toggleAlbumInSession, createSessionDirect,
+      isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
+      loginWithOAuth, signOut, isAuthenticated,
     ]
   );
 

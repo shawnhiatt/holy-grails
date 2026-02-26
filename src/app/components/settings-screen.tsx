@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, Disc3, Upload, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, Bomb, SquareArrowOutUpRight } from "lucide-react";
+import { Eye, EyeOff, Disc3, Upload, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, Bomb, SquareArrowOutUpRight, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -27,14 +27,19 @@ export function SettingsScreen() {
     setHideGalleryMeta,
     resetToDemo,
     wipeAllData,
+    signOut,
+    isAuthenticated,
+    userAvatar,
   } = useApp();
+
+  const isOAuthUser = isAuthenticated && !discogsToken;
 
   const [showToken, setShowToken] = useState(false);
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const handleSync = async () => {
-    if (!discogsToken.trim()) {
+    if (!isOAuthUser && !discogsToken.trim()) {
       toast.error("Enter your Discogs personal access token first");
       return;
     }
@@ -48,6 +53,11 @@ export function SettingsScreen() {
       setSyncError(msg);
       toast.error(msg);
     }
+  };
+
+  const handleSignOut = () => {
+    signOut();
+    toast.success("Signed out.");
   };
 
   const handleConfirmClear = () => {
@@ -133,30 +143,50 @@ export function SettingsScreen() {
         <section className="mt-6">
           <div className="rounded-[12px] p-4 flex flex-col gap-4" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Discogs</h3>
-            <div>
-              <label className="block mb-1.5" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>Discogs Username</label>
-              <input type="text" value={discogsUsername} onChange={(e) => { if (!discogsToken) setDiscogsUsername(e.target.value); }}
-                placeholder="Auto-detected from token"
-                readOnly={!!discogsToken}
-                className="w-full rounded-[8px] px-3 py-2.5 outline-none transition-colors"
-                style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: discogsToken ? "var(--c-text-muted)" : "var(--c-text)", border: "1px solid var(--c-border-strong)", cursor: discogsToken ? "default" : undefined, opacity: discogsToken ? 0.7 : 1 }} />
-            </div>
-            <div>
-              <label className="block mb-1.5" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>Personal Access Token</label>
-              <div className="relative">
-                <input type={showToken ? "text" : "password"} value={discogsToken} onChange={(e) => setDiscogsToken(e.target.value)}
-                  placeholder="Paste your token here"
-                  className="w-full rounded-[8px] px-3 py-2.5 pr-10 outline-none transition-colors"
-                  style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }} />
-                <button onClick={() => setShowToken(!showToken)} className="absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors cursor-pointer" style={{ color: "var(--c-text-muted)" }}>
-                  {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+
+            {isOAuthUser ? (
+              /* OAuth user — show connected state */
+              <div className="flex items-center gap-3">
+                {userAvatar ? (
+                  <img src={userAvatar} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--c-chip-bg)" }} />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)" }}>{discogsUsername}</p>
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Connected via Discogs</p>
+                </div>
               </div>
-              <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[#0078B4] mt-1.5 hover:underline" style={{ fontSize: "12px", fontWeight: 400 }}>
-                Generate one at discogs.com/settings/developers. Takes about 30 seconds.<ExternalLink size={10} />
-              </a>
-            </div>
+            ) : (
+              /* Personal token user — show token inputs */
+              <>
+                <div>
+                  <label className="block mb-1.5" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>Discogs Username</label>
+                  <input type="text" value={discogsUsername} onChange={(e) => { if (!discogsToken) setDiscogsUsername(e.target.value); }}
+                    placeholder="Auto-detected from token"
+                    readOnly={!!discogsToken}
+                    className="w-full rounded-[8px] px-3 py-2.5 outline-none transition-colors"
+                    style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: discogsToken ? "var(--c-text-muted)" : "var(--c-text)", border: "1px solid var(--c-border-strong)", cursor: discogsToken ? "default" : undefined, opacity: discogsToken ? 0.7 : 1 }} />
+                </div>
+                <div>
+                  <label className="block mb-1.5" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>Personal Access Token</label>
+                  <div className="relative">
+                    <input type={showToken ? "text" : "password"} value={discogsToken} onChange={(e) => setDiscogsToken(e.target.value)}
+                      placeholder="Paste your token here"
+                      className="w-full rounded-[8px] px-3 py-2.5 pr-10 outline-none transition-colors"
+                      style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }} />
+                    <button onClick={() => setShowToken(!showToken)} className="absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors cursor-pointer" style={{ color: "var(--c-text-muted)" }}>
+                      {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[#0078B4] mt-1.5 hover:underline" style={{ fontSize: "12px", fontWeight: 400 }}>
+                    Generate one at discogs.com/settings/developers. Takes about 30 seconds.<ExternalLink size={10} />
+                  </a>
+                </div>
+              </>
+            )}
+
             <button onClick={handleSync} disabled={isSyncing}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
               style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(12,40,74,0.25)" }}>
@@ -184,6 +214,24 @@ export function SettingsScreen() {
                   }
                 </p>
               </div>
+            )}
+
+            {/* Sign out — visible when authenticated */}
+            {isAuthenticated && (
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors cursor-pointer"
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--c-text-secondary)",
+                  backgroundColor: "var(--c-chip-bg)",
+                  border: "1px solid var(--c-border)",
+                }}
+              >
+                <LogOut size={15} />
+                Sign out
+              </button>
             )}
           </div>
         </section>
