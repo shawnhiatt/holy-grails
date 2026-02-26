@@ -409,3 +409,12 @@ Do NOT set a custom `User-Agent` header — browsers block it as a forbidden hea
 - User profile: `GET /users/{username}`
 
 All API integration code goes in `discogs-api.ts`. No Discogs fetch calls anywhere else.
+
+**Multi-folder dedup behavior**
+
+`discogs-api.ts` deduplicates collection items by `release_id` after
+fetching all pages. If a release exists in more than one folder, only
+the first instance is kept. The second instance's folder assignment,
+condition notes, and grading are silently discarded. This is a known
+architectural assumption: one copy per release. Do not attempt to fix
+or change this behavior without explicit instruction from Shawn.
