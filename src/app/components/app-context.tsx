@@ -143,6 +143,7 @@ interface AppState {
   loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string }) => Promise<void>;
   signOut: () => void;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
 }
 
 const AppContext = getOrCreateContext();
@@ -200,6 +201,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const discogsAuth: DiscogsAuth | null = oauthCredentials || (discogsToken || null);
   const isAuthenticated = !!discogsUsername && !!discogsAuth;
 
+
   // ── Theme state ──
   const [isDarkMode, setIsDarkMode] = useState(true); // default dark
 
@@ -252,6 +254,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     api.preferences.getByUsername,
     discogsUsername ? { discogs_username: discogsUsername } : "skip"
   );
+
+  // isAuthLoading: true when a returning user's session is being restored
+  // (Convex query in flight or initial sync running) but data hasn't arrived yet.
+  // Prevents flashing the empty Feed before collection loads.
+  const isConvexUserGone = !discogsToken && convexUser === null;
+  const isAuthLoading = !!discogsUsername && albums.length === 0 && !isConvexUserGone;
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
@@ -1294,6 +1302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loginWithOAuth,
       signOut,
       isAuthenticated,
+      isAuthLoading,
     }),
     [
       screen, setScreen, viewMode, albums, wants, sessions, friends,
@@ -1324,7 +1333,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
       isInSession, toggleAlbumInSession, createSessionDirect,
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
-      loginWithOAuth, signOut, isAuthenticated,
+      loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
     ]
   );
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Toaster, toast } from "sonner";
+import { Disc3 } from "lucide-react";
 import { AppProvider, useApp } from "./components/app-context";
 import { BottomTabBar, DesktopTopNav, MobileHeader } from "./components/navigation";
 import { CrateBrowser } from "./components/crate-browser";
@@ -56,7 +57,7 @@ function AppContent() {
     resetToDemo, setScreen, discogsToken,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     headerHidden, sessionPickerAlbumId, devSyncUser,
-    isSyncing, syncProgress, isAuthenticated, loginWithOAuth,
+    isSyncing, syncProgress, isAuthenticated, isAuthLoading, loginWithOAuth,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
@@ -221,6 +222,18 @@ function AppContent() {
         onSuccess={handleAuthSuccess}
         onError={handleAuthError}
       />
+    );
+  }
+
+  // Show loading spinner while restoring a returning user's session
+  if (isAuthLoading) {
+    return (
+      <div
+        className="h-screen w-screen flex items-center justify-center"
+        style={{ backgroundColor: "#01294D" }}
+      >
+        <Disc3 size={32} className="disc-spinner" style={{ color: "#ACDEF2" }} />
+      </div>
     );
   }
 
