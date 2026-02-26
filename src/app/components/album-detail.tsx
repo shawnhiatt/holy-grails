@@ -316,7 +316,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 maxLength={100}
                 className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
                 style={{
-                  fontSize: "13px",
+                  fontSize: "16px",
                   fontWeight: 400,
                   color: "var(--c-text)",
                   backgroundColor: "var(--c-input-bg)",

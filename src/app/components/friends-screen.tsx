@@ -195,7 +195,7 @@ export function FriendsScreen() {
                     onChange={(e) => { setAddUsername(e.target.value); setAddError(""); }}
                     onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                     className="flex-1 bg-transparent outline-none border-none"
-                    style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
+                    style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
                     autoFocus
                   />
                 </div>
@@ -496,7 +496,7 @@ function FriendProfile({
               type="text" placeholder="Search..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-transparent outline-none border-none min-w-0"
-              style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
+              style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
             />
             {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
           </div>
@@ -540,7 +540,7 @@ function FriendProfile({
                 type="text" placeholder="Search..." value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent outline-none border-none min-w-0"
-                style={{ fontSize: "14px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
+                style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
               />
               {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
             </div>
