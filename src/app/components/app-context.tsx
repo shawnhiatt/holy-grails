@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
 import {
   type Album,
@@ -218,6 +219,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [folders, setFolders] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
+  const [syncFailed, setSyncFailed] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
   const [syncStats, setSyncStats] = useState<{ albums: number; folders: number; wants: number } | null>(null);
   const [userAvatar, setUserAvatar] = useState("");
@@ -259,7 +261,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
   // Prevents flashing the empty Feed before collection loads.
   const isConvexUserGone = !discogsToken && convexUser === null;
-  const isAuthLoading = !!discogsUsername && albums.length === 0 && !isConvexUserGone;
+  const isAuthLoading = !!discogsUsername && albums.length === 0 && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
@@ -340,6 +342,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Perform sync in background
     performSync(discogsUsername, auth).catch(err => {
       console.error("[Auto-sync] Failed:", err);
+      setSyncFailed(true);
+      toast.error("Sync failed. Try again in Settings.");
     });
   }, [discogsUsername, discogsToken, convexUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -775,6 +779,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
     } catch (err: any) {
       setSyncProgress("");
+      setSyncFailed(true);
       throw err;
     } finally {
       setIsSyncing(false);
@@ -782,6 +787,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [discogsUsername, updateLastSyncedMut]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
+    setSyncFailed(false);
     const auth = discogsAuth;
     if (!auth) throw new Error("No Discogs authentication available");
 
@@ -861,6 +867,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserAvatar("");
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
+    setSyncFailed(false);
 
     // Clear cached data
     clearCollectionValue();
@@ -902,6 +909,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowFilterDrawer(false);
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
+    setSyncFailed(false);
     setUserAvatar("https://images.unsplash.com/photo-1758295040962-18a6812be713?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx2aW55bCUyMHJlY29yZCUyMGNvbGxlY3RvciUyMG1hbGUlMjBwb3J0cmFpdCUyMGNhc3VhbHxlbnwxfHx8fDE3NzE1Njc4MzZ8MA&ixlib=rb-4.1.0&q=80&w=1080");
     setDemoCollectionValue();
     clearAllMarketData();
@@ -942,6 +950,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserAvatar("");
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
+    setSyncFailed(false);
     clearCollectionValue();
     clearAllMarketData();
     try {
