@@ -601,9 +601,19 @@ export function getCachedCollectionValue(): CollectionValue | null {
 }
 
 /**
+ * The Discogs collection/value API returns values with a leading currency symbol,
+ * e.g. "$250.00". Strip everything except digits, decimal point, and minus sign
+ * before passing to parseFloat.
+ */
+function parseCurrencyString(raw: unknown): number {
+  const cleaned = String(raw ?? "").replace(/[^0-9.-]/g, "");
+  return parseFloat(cleaned);
+}
+
+/**
  * Fetch collection value from Discogs API.
  * GET /users/{username}/collection/value
- * Returns minimum, median, maximum as float-strings. Parse as floats, never integers.
+ * Returns minimum, median, maximum as currency strings e.g. "$250.00".
  *
  * Throws if the expected numeric fields are missing or unparseable — callers treat that
  * as "unavailable" rather than silently displaying $0.
@@ -624,9 +634,9 @@ export async function fetchCollectionValue(
 
   const data = await res.json();
 
-  const minimum = parseFloat(data.minimum);
-  const median = parseFloat(data.median);
-  const maximum = parseFloat(data.maximum);
+  const minimum = parseCurrencyString(data.minimum);
+  const median = parseCurrencyString(data.median);
+  const maximum = parseCurrencyString(data.maximum);
 
   // Guard against a missing or non-numeric response (e.g. wrong shape, unexpected API change).
   // isFinite returns false for NaN and Infinity, but true for 0 — so a genuine $0 collection
