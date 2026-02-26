@@ -301,8 +301,9 @@ function AppContent() {
             <div
               className="lg:hidden flex-shrink-0"
               style={{
-                transform: headerHidden ? "translateY(-58px)" : "translateY(0)",
-                marginBottom: headerHidden ? "-58px" : "0px",
+                paddingTop: "env(safe-area-inset-top, 0px)",
+                transform: headerHidden ? "translateY(calc(-58px - env(safe-area-inset-top, 0px)))" : "translateY(0)",
+                marginBottom: headerHidden ? "calc(-58px - env(safe-area-inset-top, 0px))" : "0px",
                 transition: headerHidden
                   ? "transform 200ms cubic-bezier(0.25, 1, 0.5, 1), margin-bottom 200ms cubic-bezier(0.25, 1, 0.5, 1)"
                   : "transform 150ms cubic-bezier(0.25, 1, 0.5, 1), margin-bottom 150ms cubic-bezier(0.25, 1, 0.5, 1)",
