@@ -56,7 +56,7 @@ function AppContent() {
     resetToDemo, setScreen, discogsToken,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     headerHidden, sessionPickerAlbumId, devSyncUser,
-    isSyncing, syncProgress,
+    isSyncing, syncProgress, isAuthenticated, loginWithOAuth,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
@@ -101,15 +101,15 @@ function AppContent() {
     }
   }, []);
 
-  // Show splash when no data loaded and user hasn't dismissed it
-  const showSplash = !splashDismissed && albums.length === 0 && !discogsToken;
+  // Show splash when no data loaded and user hasn't authenticated or dismissed
+  const showSplash = !splashDismissed && albums.length === 0 && !discogsToken && !isAuthenticated;
 
-  // Re-show splash if all data is wiped (e.g. "Wipe All Data" in Settings)
+  // Re-show splash if all data is wiped (e.g. "Wipe All Data" or sign out)
   useEffect(() => {
-    if (albums.length === 0 && !discogsToken) {
+    if (albums.length === 0 && !discogsToken && !isAuthenticated) {
       setSplashDismissed(false);
     }
-  }, [albums.length, discogsToken]);
+  }, [albums.length, discogsToken, isAuthenticated]);
 
   // React to in-app "Connect Discogs" requests (e.g. from Feed empty state)
   useEffect(() => {
@@ -190,19 +190,24 @@ function AppContent() {
     await initiateDiscogsOAuth();
   }, []);
 
-  const handleAuthSuccess = useCallback((_user: {
+  const handleAuthSuccess = useCallback(async (user: {
     username: string;
     avatarUrl: string;
     accessToken: string;
     tokenSecret: string;
   }) => {
-    // OAuth complete — user is stored in Convex.
-    // For now, dismiss splash. Phase 2b will wire this into app-context.
+    // OAuth complete — wire into app-context, trigger initial sync
     setIsAuthCallback(false);
     setSplashDismissed(true);
     setScreen("feed");
     toast.success("Connected.", { duration: 2000 });
-  }, [setScreen]);
+    try {
+      await loginWithOAuth(user);
+    } catch (err: any) {
+      console.error("[OAuth] Post-login sync failed:", err);
+      toast.error("Sync failed. Try again from Settings.");
+    }
+  }, [setScreen, loginWithOAuth]);
 
   const handleAuthError = useCallback((error: string) => {
     setIsAuthCallback(false);
