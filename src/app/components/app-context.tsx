@@ -140,29 +140,6 @@ interface AppState {
 
 const AppContext = getOrCreateContext();
 
-// ── Username cookie helpers ──
-// Persists the logged-in username across force closes so Convex can be queried
-// immediately on cold load. Convex remains the source of truth for auth tokens.
-
-function getPersistedUsername(): string {
-  try {
-    const match = document.cookie.match(/(?:^|;\s*)hg_user=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : "";
-  } catch {
-    return "";
-  }
-}
-
-function persistUsername(username: string) {
-  try {
-    if (username) {
-      document.cookie = `hg_user=${encodeURIComponent(username)}; max-age=31536000; SameSite=Strict; path=/`;
-    } else {
-      document.cookie = "hg_user=; max-age=0; SameSite=Strict; path=/";
-    }
-  } catch { /* ignore */ }
-}
-
 export function useApp(): AppState {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error("useApp must be used within AppProvider");
@@ -191,13 +168,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDiscogsTokenRaw(t);
   }, []);
 
-  // Discogs username — cookie-persisted so force-close doesn't lose the session.
-  // Convex is the source of truth for auth tokens; the cookie is just a hint
-  // to know which username to query on cold load.
-  const [discogsUsername, setDiscogsUsernameRaw] = useState(() => getPersistedUsername());
+  // Discogs username — in-memory only; Convex is the source of truth
+  const [discogsUsername, setDiscogsUsernameRaw] = useState("");
   const setDiscogsUsername = useCallback((u: string) => {
     setDiscogsUsernameRaw(u);
-    persistUsername(u);
   }, []);
 
   // OAuth credentials (populated from Convex user record or OAuth callback)
@@ -232,7 +206,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
 
-  // ── Convex queries (skipped when no username) ──
+  // ── Convex queries ──
+
+  // Always-on query: used on cold load to restore a session after force close,
+  // before discogsUsername is populated in memory.
+  const convexLatestUser = useQuery(api.users.getLatestUser);
+
   const convexUser = useQuery(
     api.users.getByUsername,
     discogsUsername ? { discogs_username: discogsUsername } : "skip"
@@ -265,8 +244,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
   // Prevents flashing the empty Feed before collection loads.
+  //
+  // isRestoringSession: true on cold load while we're checking Convex for an
+  // existing user — before discogsUsername is known.
+  const isRestoringSession = !discogsUsername && convexLatestUser === undefined;
   const isConvexUserGone = !discogsToken && convexUser === null;
-  const isAuthLoading = !!discogsUsername && albums.length === 0 && !isConvexUserGone && !syncFailed;
+  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
@@ -302,6 +285,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const initialSyncDoneRef = useRef(false);
 
   // ── Effects: Convex → local state hydration (one-time per session) ──
+
+  // Session restore on force close: when discogsUsername is empty on mount and
+  // Convex has an existing user record, hydrate the username so the rest of the
+  // auth flow (credential load → auto-sync) proceeds as normal.
+  useEffect(() => {
+    if (!discogsUsername && convexLatestUser) {
+      setDiscogsUsernameRaw(convexLatestUser.discogs_username);
+    }
+  }, [convexLatestUser, discogsUsername]);
 
   // Load OAuth credentials from Convex user record
   useEffect(() => {
