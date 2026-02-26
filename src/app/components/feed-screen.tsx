@@ -374,7 +374,7 @@ export function FeedScreen() {
   const hasFriends = friends.length > 0;
 
   const cardBg = "var(--c-surface)";
-  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D1D8DF";
+  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
 
   // Sets for quick lookups in Following Activity heart logic
   const ownReleaseIds = useMemo(() => new Set(albums.map((a) => a.release_id)), [albums]);
@@ -733,7 +733,7 @@ export function FeedScreen() {
           width: width || undefined,
           flexShrink: width ? 0 : undefined,
           backgroundColor: "var(--c-surface)",
-          border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D1D8DF"}`,
+          border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
           boxShadow: "var(--c-card-shadow)",
         }}
       >

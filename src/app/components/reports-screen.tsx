@@ -73,8 +73,8 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
     <div
       className="rounded-[8px] px-3 py-2 shadow-lg"
       style={{
-        backgroundColor: isDarkMode ? "#1A3350" : "#FFFFFF",
-        border: `1px solid ${isDarkMode ? "#2D4A66" : "#D2D8DE"}`,
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border)",
       }}
     >
       {label && (
@@ -83,7 +83,7 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
         </p>
       )}
       {payload.map((entry: any, i: number) => (
-        <p key={i} style={{ fontSize: "13px", fontWeight: 600, color: isDarkMode ? "#E2E8F0" : "#0C284A" }}>
+        <p key={i} style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)" }}>
           {formatter ? formatter(entry.value) : entry.value}
         </p>
       ))}
@@ -957,7 +957,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 
       {/* Cut pile value */}
       {stats.cut > 0 && cutPileData.pricedCount > 0 && (
-        <p className="mt-4 text-center" style={{ fontSize: "14px", fontWeight: 600, color: isDarkMode ? "#E2E8F0" : "#0C284A" }}>
+        <p className="mt-4 text-center" style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)" }}>
           Cut pile worth approximately {formatCurrency(cutPileData.total)}
           {cutPileData.pricedCount < cutPileData.albumCount && (
             <span style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", marginTop: 2 }}>

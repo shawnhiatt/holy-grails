@@ -291,7 +291,7 @@ function PickerContent({
       )}
 
       {/* Session list */}
-      <div className="mt-3" style={{ maxHeight: 320, overflowY: "auto" }}>
+      <div className="mt-3 max-h-[320px] overflow-y-auto">
         {/* All sessions sorted by recency */}
         {sessions.map((session) => {
           const inSession = isInSession(albumId, session.id);
