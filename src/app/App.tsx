@@ -186,10 +186,8 @@ function AppContent() {
     setSplashDismissed(true);
   }, [devSyncUser, setScreen]);
 
-  const handleLoginWithDiscogs = useCallback(() => {
-    initiateDiscogsOAuth().catch((err: any) => {
-      toast.error(err?.message || "Failed to start login.", { duration: 3000 });
-    });
+  const handleLoginWithDiscogs = useCallback(async () => {
+    await initiateDiscogsOAuth();
   }, []);
 
   const handleAuthSuccess = useCallback((_user: {

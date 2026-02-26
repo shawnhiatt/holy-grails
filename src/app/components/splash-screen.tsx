@@ -16,7 +16,7 @@ interface SplashScreenProps {
   onDevSync?: (username: string, token: string) => Promise<void>;
   isSyncing?: boolean;
   syncProgress?: string;
-  onLoginWithDiscogs: () => void;
+  onLoginWithDiscogs: () => Promise<void>;
 }
 
 export function SplashScreen({
@@ -59,9 +59,15 @@ export function SplashScreen({
     }
   };
 
-  const handleLoginClick = () => {
+  const handleLoginClick = async () => {
     setLoginLoading(true);
-    onLoginWithDiscogs();
+    try {
+      await onLoginWithDiscogs();
+      // If successful, page redirects to Discogs — loading state doesn't matter
+    } catch (err: any) {
+      setLoginLoading(false);
+      setSyncError(err?.message || "Failed to connect to Discogs.");
+    }
   };
 
   return (
