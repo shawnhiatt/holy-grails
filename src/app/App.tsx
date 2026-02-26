@@ -73,11 +73,11 @@ function AppContent() {
   useEffect(() => {
     let meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
     if (meta) {
-      meta.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no");
+      meta.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover");
     } else {
       meta = document.createElement("meta");
       meta.name = "viewport";
-      meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
+      meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
       document.head.appendChild(meta);
     }
 

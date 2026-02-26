@@ -171,28 +171,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [headerHidden, setHeaderHidden] = useState(false);
 
   // ── Auth state ──
-  // Personal access token (dev QA flow) — persisted in sessionStorage
-  const [discogsToken, setDiscogsTokenRaw] = useState(() => {
-    try { return sessionStorage.getItem("hg_discogs_token") || ""; } catch { return ""; }
-  });
+  // Personal access token (dev QA flow) — in-memory only (no sessionStorage)
+  const [discogsToken, setDiscogsTokenRaw] = useState("");
   const setDiscogsToken = useCallback((t: string) => {
     setDiscogsTokenRaw(t);
-    try {
-      if (t) sessionStorage.setItem("hg_discogs_token", t);
-      else sessionStorage.removeItem("hg_discogs_token");
-    } catch { /* ignore */ }
   }, []);
 
-  // Discogs username — persisted in sessionStorage
-  const [discogsUsername, setDiscogsUsernameRaw] = useState(() => {
-    try { return sessionStorage.getItem("hg_discogs_username") || ""; } catch { return ""; }
-  });
+  // Discogs username — in-memory only; Convex is the source of truth
+  const [discogsUsername, setDiscogsUsernameRaw] = useState("");
   const setDiscogsUsername = useCallback((u: string) => {
     setDiscogsUsernameRaw(u);
-    try {
-      if (u) sessionStorage.setItem("hg_discogs_username", u);
-      else sessionStorage.removeItem("hg_discogs_username");
-    } catch { /* ignore */ }
   }, []);
 
   // OAuth credentials (populated from Convex user record or OAuth callback)
@@ -629,7 +617,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       prev.map((s) => (s.id === sessionId ? { ...s, name } : s))
     );
     if (discogsUsername) {
-      updateSessionMut({ discogs_username: discogsUsername, session_id: sessionId, name });
+      updateSessionMut({ discogs_username: discogsUsername, session_id: sessionId, name }).catch(console.error);
     }
   }, [discogsUsername, updateSessionMut]);
 
@@ -651,7 +639,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         discogs_username: discogsUsername,
         session_id: sessionId,
         album_ids: albumIds.map(Number),
-      });
+      }).catch(console.error);
     }
   }, [discogsUsername, updateSessionMut]);
 
@@ -836,10 +824,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDiscogsToken("");
     setDiscogsUsername("");
 
-    // Clear sessionStorage
+    // Clear sessionStorage (transient OAuth bridge only)
     try {
-      sessionStorage.removeItem("hg_discogs_username");
-      sessionStorage.removeItem("hg_discogs_token");
       sessionStorage.removeItem("hg_oauth_token_secret");
     } catch { /* ignore */ }
 
@@ -916,10 +902,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Clear auth (demo mode has no authentication)
     setDiscogsToken("");
     setOauthCredentials(null);
-    try {
-      sessionStorage.removeItem("hg_discogs_username");
-      sessionStorage.removeItem("hg_discogs_token");
-    } catch { /* ignore */ }
     setDiscogsUsernameRaw("");
   }, [setDiscogsToken]);
 
@@ -954,8 +936,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     clearCollectionValue();
     clearAllMarketData();
     try {
-      sessionStorage.removeItem("hg_discogs_username");
-      sessionStorage.removeItem("hg_discogs_token");
       sessionStorage.removeItem("hg_oauth_token_secret");
     } catch { /* ignore */ }
     hydratedRef.current = {
@@ -1000,10 +980,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDiscogsUsernameRaw("");
     clearCollectionValue();
     clearAllMarketData();
-    try {
-      sessionStorage.removeItem("hg_discogs_username");
-      sessionStorage.removeItem("hg_discogs_token");
-    } catch { /* ignore */ }
 
     // Reset hydration flags for new user
     hydratedRef.current = {
@@ -1072,12 +1048,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.warn("[Discogs] Collection value fetch failed:", e);
       }
-
-      // Save to sessionStorage
-      try {
-        sessionStorage.setItem("hg_discogs_token", token);
-        sessionStorage.setItem("hg_discogs_username", fetchedUsername);
-      } catch { /* ignore */ }
 
       // Set token last — this flips showSplash to false in App.tsx
       setDiscogsTokenRaw(token);
