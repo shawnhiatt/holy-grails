@@ -16,9 +16,7 @@ interface SplashScreenProps {
   onDevSync?: (username: string, token: string) => Promise<void>;
   isSyncing?: boolean;
   syncProgress?: string;
-  onSignIn: () => void;
-  onCreateAccount: () => void;
-  onSignInEmail: () => void;
+  onLoginWithDiscogs: () => void;
 }
 
 export function SplashScreen({
@@ -27,13 +25,9 @@ export function SplashScreen({
   onDevSync,
   isSyncing = false,
   syncProgress = "",
-  onSignIn,
-  onCreateAccount,
-  onSignInEmail,
+  onLoginWithDiscogs,
 }: SplashScreenProps) {
-  const textColor = "#E2E8F0";
   const mutedColor = "#7D92A8";
-  const outlineBorderColor = "#7D92A8";
   const logoFill = "#E2E8F0";
 
   /* Dev section colors — matched to Settings > Developer / QA */
@@ -47,8 +41,9 @@ export function SplashScreen({
   /* Local state: which user triggered the sync, and any error */
   const [syncingUser, setSyncingUser] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  /* All three dev buttons are disabled while any sync is in progress */
+  /* All dev buttons are disabled while any sync is in progress */
   const devDisabled = !!syncingUser;
 
   const handleDevSyncClick = async (user: typeof DEV_USERS[number]) => {
@@ -64,6 +59,11 @@ export function SplashScreen({
     }
   };
 
+  const handleLoginClick = () => {
+    setLoginLoading(true);
+    onLoginWithDiscogs();
+  };
+
   return (
     <div
       className="h-screen w-screen flex flex-col overflow-hidden"
@@ -77,8 +77,7 @@ export function SplashScreen({
       {/* Fullscreen looping video background */}
       <SplashVideo />
 
-      {/* Upper section — Logo group. justify-center pushes logo toward the buttons
-          with minimal gap, eliminating scroll on mobile viewports. */}
+      {/* Upper section — Logo group */}
       <div
         className="flex-1 flex flex-col items-center justify-center px-8 pb-6"
         style={{ position: "relative", zIndex: 1 }}
@@ -113,7 +112,7 @@ export function SplashScreen({
         </motion.div>
       </div>
 
-      {/* Lower section — Auth buttons + Dev section */}
+      {/* Lower section — Login button + Skip link + Dev section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -121,9 +120,10 @@ export function SplashScreen({
         className="flex flex-col items-center justify-start max-w-[400px] mx-auto w-full"
         style={{ paddingTop: 0, paddingRight: 24, paddingBottom: 48, paddingLeft: 24, position: "relative", zIndex: 1 }}
       >
-        {/* Primary: Sign in with Discogs */}
+        {/* Primary: Log in with Discogs */}
         <button
-          onClick={onSignIn}
+          onClick={handleLoginClick}
+          disabled={loginLoading}
           className="w-full py-3 rounded-full flex items-center justify-center gap-2 transition-colors cursor-pointer flex-shrink-0"
           style={{
             backgroundColor: "#EBFD00",
@@ -133,32 +133,20 @@ export function SplashScreen({
             fontFamily: "'DM Sans', system-ui, sans-serif",
             lineHeight: 1.5,
             border: "1px solid rgba(12,40,74,0.25)",
+            opacity: loginLoading ? 0.85 : 1,
           }}
         >
-          <Disc3 size={16} strokeWidth={2} />
-          Sign in with Discogs
+          {loginLoading ? (
+            <Disc3 size={16} strokeWidth={2} className="disc-spinner" />
+          ) : (
+            <Disc3 size={16} strokeWidth={2} />
+          )}
+          {loginLoading ? "Connecting..." : "Log in with Discogs"}
         </button>
 
-        {/* Secondary: Create an account */}
+        {/* Skip for now */}
         <button
-          onClick={onCreateAccount}
-          className="w-full py-3 rounded-full flex items-center justify-center gap-2 mt-3 transition-colors cursor-pointer flex-shrink-0"
-          style={{
-            backgroundColor: "transparent",
-            color: textColor,
-            fontSize: "14px",
-            fontWeight: 600,
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-            lineHeight: 1.5,
-            border: `1.5px solid ${outlineBorderColor}`,
-          }}
-        >
-          Create an account
-        </button>
-
-        {/* Text link: Sign in with email */}
-        <button
-          onClick={onSignInEmail}
+          onClick={onSkipToFeed}
           className="mt-4 cursor-pointer flex-shrink-0"
           style={{
             background: "none",
@@ -171,7 +159,7 @@ export function SplashScreen({
             lineHeight: 1.5,
           }}
         >
-          Sign in with email
+          Skip for now
         </button>
 
         {/* Developer / QA section — matches Settings screen styling */}
@@ -257,9 +245,6 @@ export function SplashScreen({
             </div>
           </button>
 
-          {/* Discogs sync section label */}
-          
-
           {/* Side-by-side Discogs user buttons */}
           <div className="flex gap-2">
             {DEV_USERS.map((user) => {
@@ -307,8 +292,7 @@ export function SplashScreen({
             })}
           </div>
 
-          {/* Sync progress counter + error — absolutely positioned below
-              the container so they reveal without shifting content above */}
+          {/* Sync progress counter + error */}
           {(syncingUser || (!syncingUser && syncError)) && (
             <div
               style={{

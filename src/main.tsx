@@ -1,7 +1,21 @@
+import { createRoot } from "react-dom/client";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+import App from "./app/App.tsx";
+import "./styles/index.css";
 
-  import { createRoot } from "react-dom/client";
-  import App from "./app/App.tsx";
-  import "./styles/index.css";
+const convexUrl = import.meta.env.VITE_CONVEX_URL;
+const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 
-  createRoot(document.getElementById("root")!).render(<App />);
-  
+function Root() {
+  if (convex) {
+    return (
+      <ConvexProvider client={convex}>
+        <App />
+      </ConvexProvider>
+    );
+  }
+  // No Convex URL configured — render app without Convex (demo mode still works)
+  return <App />;
+}
+
+createRoot(document.getElementById("root")!).render(<Root />);

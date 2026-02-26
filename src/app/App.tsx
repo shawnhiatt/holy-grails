@@ -16,11 +16,10 @@ import { useShake } from "./components/use-shake";
 import { ReportsScreen } from "./components/reports-screen";
 import { FeedScreen } from "./components/feed-screen";
 import { SplashScreen } from "./components/splash-screen";
-import { ConnectDiscogsPrompt } from "./components/connect-discogs-prompt";
-import { CreateAccountScreen } from "./components/create-account-screen";
-import { SignInScreen } from "./components/sign-in-screen";
+import { AuthCallback } from "./components/auth-callback";
 import { SessionPickerSheet } from "./components/session-picker-sheet";
 import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
+import { initiateDiscogsOAuth } from "./components/oauth-helpers";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
 /* nav-clearance: scroll containers consume --nav-clearance for bottom padding */
@@ -61,7 +60,12 @@ function AppContent() {
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
-  const [splashView, setSplashView] = useState<"splash" | "connect-prompt" | "create-account" | "sign-in-email">("splash");
+
+  // Detect if we're on the OAuth callback URL
+  const [isAuthCallback, setIsAuthCallback] = useState(() => {
+    return window.location.pathname === "/auth/callback" &&
+      window.location.search.includes("oauth_token");
+  });
 
   /* iOS PWA zoom fix — ensure viewport disables user scaling so inputs
      below 16px don't trigger Safari's auto-zoom. Runs once on mount. */
@@ -104,7 +108,6 @@ function AppContent() {
   useEffect(() => {
     if (albums.length === 0 && !discogsToken) {
       setSplashDismissed(false);
-      setSplashView("splash");
     }
   }, [albums.length, discogsToken]);
 
@@ -113,7 +116,6 @@ function AppContent() {
     if (connectDiscogsRequested) {
       clearConnectDiscogsRequest();
       setSplashDismissed(false);
-      setSplashView("connect-prompt");
     }
   }, [connectDiscogsRequested, clearConnectDiscogsRequest]);
 
@@ -184,79 +186,42 @@ function AppContent() {
     setSplashDismissed(true);
   }, [devSyncUser, setScreen]);
 
-  const handleSignIn = useCallback(() => {
-    setSplashView("connect-prompt");
+  const handleLoginWithDiscogs = useCallback(() => {
+    initiateDiscogsOAuth().catch((err: any) => {
+      toast.error(err?.message || "Failed to start login.", { duration: 3000 });
+    });
   }, []);
 
-  const handleCreateAccount = useCallback(() => {
-    setSplashView("create-account");
-  }, []);
-
-  const handleCreateAccountBack = useCallback(() => {
-    setSplashView("splash");
-  }, []);
-
-  const handleCreateAccountSuccess = useCallback(() => {
-    // Account created — show the Connect Discogs prompt
-    setSplashView("connect-prompt");
-  }, []);
-
-  const handlePromptConnect = useCallback(() => {
-    // OAuth simulation completed inside prompt — load data and go to Feed
-    resetToDemo();
-    setScreen("feed");
+  const handleAuthSuccess = useCallback((_user: {
+    username: string;
+    avatarUrl: string;
+    accessToken: string;
+    tokenSecret: string;
+  }) => {
+    // OAuth complete — user is stored in Convex.
+    // For now, dismiss splash. Phase 2b will wire this into app-context.
+    setIsAuthCallback(false);
     setSplashDismissed(true);
-  }, [resetToDemo, setScreen]);
-
-  const handlePromptSkip = useCallback(() => {
-    // User skipped — go to Feed with empty state
     setScreen("feed");
-    setSplashDismissed(true);
+    toast.success("Connected.", { duration: 2000 });
   }, [setScreen]);
 
-  const handleSignInEmail = useCallback(() => {
-    setSplashView("sign-in-email");
+  const handleAuthError = useCallback((error: string) => {
+    setIsAuthCallback(false);
+    toast.error(error || "Login failed", { duration: 3000 });
   }, []);
 
-  const handleSignInEmailBack = useCallback(() => {
-    setSplashView("splash");
-  }, []);
-
-  const handleSignInEmailSuccess = useCallback(() => {
-    // Returning user — already connected Discogs, go straight to Feed
-    resetToDemo();
-    setScreen("feed");
-    setSplashDismissed(true);
-  }, [resetToDemo, setScreen]);
+  // Handle OAuth callback
+  if (isAuthCallback) {
+    return (
+      <AuthCallback
+        onSuccess={handleAuthSuccess}
+        onError={handleAuthError}
+      />
+    );
+  }
 
   if (showSplash) {
-    if (splashView === "connect-prompt") {
-      return (
-        <ConnectDiscogsPrompt
-          isDarkMode={true}
-          onConnect={handlePromptConnect}
-          onSkip={handlePromptSkip}
-        />
-      );
-    } else if (splashView === "create-account") {
-      return (
-        <CreateAccountScreen
-          isDarkMode={true}
-          onBack={handleCreateAccountBack}
-          onSuccess={handleCreateAccountSuccess}
-          onSignIn={handleSignInEmail}
-        />
-      );
-    } else if (splashView === "sign-in-email") {
-      return (
-        <SignInScreen
-          isDarkMode={true}
-          onBack={handleSignInEmailBack}
-          onSuccess={handleSignInEmailSuccess}
-          onCreateAccount={handleCreateAccount}
-        />
-      );
-    }
     return (
       <SplashScreen
         isDarkMode={true}
@@ -264,9 +229,7 @@ function AppContent() {
         onDevSync={handleDevSync}
         isSyncing={isSyncing}
         syncProgress={syncProgress}
-        onSignIn={handleSignIn}
-        onCreateAccount={handleCreateAccount}
-        onSignInEmail={handleSignInEmail}
+        onLoginWithDiscogs={handleLoginWithDiscogs}
       />
     );
   }
