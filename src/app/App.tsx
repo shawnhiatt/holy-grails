@@ -225,14 +225,35 @@ function AppContent() {
     );
   }
 
+  // Animated dot count for auth loading label (cycles 1→2→3→1…)
+  const [syncDots, setSyncDots] = useState(1);
+  useEffect(() => {
+    if (!isAuthLoading) return;
+    const id = setInterval(() => setSyncDots((d) => (d % 3) + 1), 600);
+    return () => clearInterval(id);
+  }, [isAuthLoading]);
+
   // Show loading spinner while restoring a returning user's session
   if (isAuthLoading) {
     return (
       <div
-        className="h-screen w-screen flex items-center justify-center"
+        className="h-screen w-screen flex flex-col items-center justify-center"
         style={{ backgroundColor: "#01294D" }}
       >
         <Disc3 size={32} className="disc-spinner" style={{ color: "#ACDEF2" }} />
+        <p
+          style={{
+            marginTop: 12,
+            fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+            fontSize: 14,
+            fontWeight: 400,
+            color: "#D1D8DF",
+            minWidth: 160,
+            textAlign: "center",
+          }}
+        >
+          Syncing collection{".".repeat(syncDots)}
+        </p>
       </div>
     );
   }
