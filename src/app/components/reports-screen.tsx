@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, Cell,
 } from "recharts";
 import { useApp, type Screen } from "./app-context";
-import type { Album } from "./mock-data";
+import type { Album } from "./discogs-api";
 import { getCachedMarketData, getCachedCollectionValue } from "./discogs-api";
 import { getPriceAtCondition } from "./market-value";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purge-colors";

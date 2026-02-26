@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
 import { X, Search, Check } from "lucide-react";
 import { useApp } from "./app-context";
-import type { Album } from "./mock-data";
+import type { Album } from "./discogs-api";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 
 /* Bottom sheet safe area standard:

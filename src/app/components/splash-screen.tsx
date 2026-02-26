@@ -6,10 +6,6 @@ import { SplashVideo } from "./splash-video";
 
 interface SplashScreenProps {
   isDarkMode: boolean;
-  onSkipToFeed?: () => void;
-  onDevSync?: (username: string, token: string) => Promise<void>;
-  isSyncing?: boolean;
-  syncProgress?: string;
   onLoginWithDiscogs: () => Promise<void>;
 }
 

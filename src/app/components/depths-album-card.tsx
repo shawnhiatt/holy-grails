@@ -1,6 +1,6 @@
 import React from "react";
 import type { ReactNode } from "react";
-import type { Album } from "./mock-data";
+import type { Album } from "./discogs-api";
 
 function formatAddedDate(iso: string): string {
   const d = new Date(iso);

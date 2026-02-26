@@ -8,7 +8,7 @@ import {
   CONDITION_SHORT,
   type MarketData,
 } from "./discogs-api";
-import type { Album } from "./mock-data";
+import type { Album } from "./discogs-api";
 import { useApp } from "./app-context";
 import { AccordionSection } from "./accordion-section";
 

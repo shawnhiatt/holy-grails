@@ -9,7 +9,7 @@ import { motion, AnimatePresence, type PanInfo } from "motion/react";
 import { toast } from "sonner";
 import { useApp, type ViewMode, type Screen } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
-import type { Album, Friend, WantItem } from "./mock-data";
+import type { Album, Friend, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";

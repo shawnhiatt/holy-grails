@@ -11,7 +11,7 @@ import {
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import type { Friend } from "./mock-data";
+import type { Friend } from "./discogs-api";
 import type { Screen } from "./app-context";
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";

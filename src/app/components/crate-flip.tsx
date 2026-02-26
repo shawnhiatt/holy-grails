@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, type PanInfo } from "motion/react";
 import { X, Bookmark } from "lucide-react";
 import { useApp } from "./app-context";
-import type { Album } from "./mock-data";
+import type { Album } from "./discogs-api";
 import { lastPlayedLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 

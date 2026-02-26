@@ -54,10 +54,10 @@ function AppContent() {
   const {
     screen, showAlbumDetail, selectedAlbum, showFilterDrawer,
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail,
-    resetToDemo, setScreen, discogsToken,
+    setScreen, discogsToken,
     connectDiscogsRequested, clearConnectDiscogsRequest,
-    headerHidden, sessionPickerAlbumId, devSyncUser,
-    isSyncing, syncProgress, isAuthenticated, isAuthLoading, loginWithOAuth,
+    headerHidden, sessionPickerAlbumId,
+    isAuthenticated, isAuthLoading, loginWithOAuth,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
@@ -174,19 +174,6 @@ function AppContent() {
     ? "radial-gradient(ellipse 120% 60% at 50% 0%, #132B44 0%, #0C1A2E 100%)"
     : "radial-gradient(200% 100% at 50% 0%, #FFF 21.36%, #ACDEF2 100%)";
 
-  // Splash screen handlers
-  const handleSkipToFeed = useCallback(() => {
-    resetToDemo();
-    setScreen("feed");
-    setSplashDismissed(true);
-  }, [resetToDemo, setScreen]);
-
-  const handleDevSync = useCallback(async (username: string, token: string) => {
-    await devSyncUser(username, token);
-    setScreen("feed");
-    setSplashDismissed(true);
-  }, [devSyncUser, setScreen]);
-
   const handleLoginWithDiscogs = useCallback(async () => {
     await initiateDiscogsOAuth();
   }, []);
@@ -281,10 +268,6 @@ function AppContent() {
     return (
       <SplashScreen
         isDarkMode={true}
-        onSkipToFeed={handleSkipToFeed}
-        onDevSync={handleDevSync}
-        isSyncing={isSyncing}
-        syncProgress={syncProgress}
         onLoginWithDiscogs={handleLoginWithDiscogs}
       />
     );
