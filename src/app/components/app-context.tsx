@@ -241,15 +241,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     discogsUsername ? { discogs_username: discogsUsername } : "skip"
   );
 
-  // isAuthLoading: true when a returning user's session is being restored
-  // (Convex query in flight or initial sync running) but data hasn't arrived yet.
-  // Prevents flashing the empty Feed before collection loads.
-  //
-  // isRestoringSession: true on cold load while we're checking Convex for an
-  // existing user — before discogsUsername is known.
-  const isRestoringSession = !discogsUsername && convexLatestUser === undefined;
   const isConvexUserGone = !discogsToken && convexUser === null;
-  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !isConvexUserGone && !syncFailed;
+
+  // hasSyncedBefore: true once this account has a last_synced_at timestamp.
+  // Read from convexLatestUser so we know before convexUser (the username-specific
+  // query) resolves — convexLatestUser fires unconditionally and resolves first.
+  const hasSyncedBefore = !!(convexLatestUser?.last_synced_at);
+
+  // isRestoringSession covers the full Convex auth-restore chain on cold load:
+  // (1) convexLatestUser still in flight
+  // (2) username not yet hydrated from convexLatestUser into local state
+  // (3) credentials not yet hydrated from convexUser into oauthCredentials
+  // Prevents a splash-screen flash during the brief period before auth is confirmed.
+  const isRestoringSession =
+    convexLatestUser === undefined ||
+    (!discogsUsername && convexLatestUser !== null) ||
+    (!!discogsUsername && !discogsAuth && convexUser !== null && !isConvexUserGone);
+
+  // isAuthLoading blocks the UI in two cases:
+  // - Session restore: Convex queries loading on cold load (brief ~200–400ms)
+  // - First-ever sync: no last_synced_at means no data exists yet in Convex
+  // Returning users (hasSyncedBefore) skip the loading screen entirely —
+  // the background sync runs silently and populates the Feed when it completes.
+  const isAuthLoading =
+    isRestoringSession ||
+    (!hasSyncedBefore && !!discogsUsername && albums.length === 0 && !isConvexUserGone && !syncFailed);
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
