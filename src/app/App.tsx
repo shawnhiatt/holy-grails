@@ -215,6 +215,14 @@ function AppContent() {
     toast.error(error || "Login failed", { duration: 3000 });
   }, []);
 
+  // Animated dot count for auth loading label (cycles 0→1→2→3→0…)
+  const [syncDots, setSyncDots] = useState(0);
+  useEffect(() => {
+    if (!isAuthLoading) return;
+    const id = setInterval(() => setSyncDots((d) => (d + 1) % 4), 600);
+    return () => clearInterval(id);
+  }, [isAuthLoading]);
+
   // Handle OAuth callback
   if (isAuthCallback) {
     return (
@@ -224,14 +232,6 @@ function AppContent() {
       />
     );
   }
-
-  // Animated dot count for auth loading label (cycles 0→1→2→3→0…)
-  const [syncDots, setSyncDots] = useState(0);
-  useEffect(() => {
-    if (!isAuthLoading) return;
-    const id = setInterval(() => setSyncDots((d) => (d + 1) % 4), 600);
-    return () => clearInterval(id);
-  }, [isAuthLoading]);
 
   // Show loading spinner while restoring a returning user's session
   if (isAuthLoading) {
