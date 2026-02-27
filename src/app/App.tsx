@@ -236,7 +236,7 @@ function AppContent() {
   useShake({
     onShake: handleShake,
     enabled: !isDesktop && shakeToRandom,
-    threshold: 12,
+    threshold: 25,
     timeout: 1000,
   });
 

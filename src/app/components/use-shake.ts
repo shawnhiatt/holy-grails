@@ -11,7 +11,7 @@ interface UseShakeOptions {
  * Detects a "shake" gesture on mobile devices via the DeviceMotion API.
  * Calls `onShake` when acceleration exceeds the threshold multiple times within the timeout window.
  */
-export function useShake({ threshold = 15, timeout = 1000, onShake, enabled = true }: UseShakeOptions) {
+export function useShake({ threshold = 25, timeout = 1000, onShake, enabled = true }: UseShakeOptions) {
   const lastShakeRef = useRef(0);
   const shakeCountRef = useRef(0);
   const cooldownRef = useRef(false);
