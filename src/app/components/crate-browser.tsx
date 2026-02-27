@@ -83,7 +83,7 @@ export function CrateBrowser() {
     rediscoverMode,
     setRediscoverMode,
     rediscoverAlbums,
-    discogsToken,
+    isAuthenticated,
   } = useApp();
 
   const [lightboxActive, setLightboxActive] = useState(false);
@@ -298,7 +298,7 @@ export function CrateBrowser() {
       </div>
 
       {/* Content */}
-      {albums.length === 0 && !discogsToken ? (
+      {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
           heading="No albums found."
           subtext="Connect your Discogs collection to start browsing your crate."

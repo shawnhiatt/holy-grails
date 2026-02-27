@@ -136,6 +136,7 @@ interface AppState {
   signOut: () => void;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
+  discogsAuth: DiscogsAuth | null;
 }
 
 const AppContext = getOrCreateContext();
@@ -1143,6 +1144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       isAuthenticated,
       isAuthLoading,
+      discogsAuth,
     }),
     [
       screen, setScreen, viewMode, albums, wants, sessions, friends,
@@ -1173,7 +1175,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
       isInSession, toggleAlbumInSession, createSessionDirect,
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
-      loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
+      loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
     ]
   );
 

@@ -9,7 +9,7 @@ import { AddAlbumsDrawer } from "./add-albums-drawer";
 
 export function Sessions() {
   const {
-    sessions, albums, deleteSession, renameSession, createSessionDirect, discogsToken,
+    sessions, albums, deleteSession, renameSession, createSessionDirect, isAuthenticated,
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInSession, reorderSessionAlbums,
   } = useApp();
 
@@ -106,7 +106,7 @@ export function Sessions() {
       </AnimatePresence>
 
       {/* Session list or empty state */}
-      {albums.length === 0 && !discogsToken ? (
+      {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
           heading="No sessions yet."
           subtext="Connect your Discogs collection to start building listening sessions."

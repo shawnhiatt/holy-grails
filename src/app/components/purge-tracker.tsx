@@ -10,7 +10,7 @@ import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 
 export function PurgeTracker() {
-  const { albums, purgeFilter, setPurgeFilter, setPurgeTag, setSelectedAlbumId, setShowAlbumDetail, discogsToken, isDarkMode } = useApp();
+  const { albums, purgeFilter, setPurgeFilter, setPurgeTag, setSelectedAlbumId, setShowAlbumDetail, discogsToken, isDarkMode, isAuthenticated } = useApp();
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -123,7 +123,7 @@ export function PurgeTracker() {
         <p className="mt-0.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Evaluate your collection</p>
       </div>
 
-      {albums.length === 0 && !discogsToken ? (
+      {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
           heading="Nothing to evaluate."
           subtext="Connect your Discogs collection to start rating your records."
