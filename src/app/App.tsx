@@ -61,6 +61,7 @@ function AppContent() {
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
+  const [shakeEntrance, setShakeEntrance] = useState(false);
 
   // Three-phase state machine for the initial loading screen:
   //   'idle'     — not started or fully done; no loading screen
@@ -220,10 +221,16 @@ function AppContent() {
   const handleShake = useCallback(() => {
     if (albums.length === 0) return;
     const randomAlbum = albums[Math.floor(Math.random() * albums.length)];
+    if (navigator.vibrate) navigator.vibrate(40);
+    setShakeEntrance(true);
     setSelectedAlbumId(randomAlbum.id);
     setShowAlbumDetail(true);
-    toast.info("Shake! Random pick: " + randomAlbum.title, { duration: 2000 });
   }, [albums, setSelectedAlbumId, setShowAlbumDetail]);
+
+  // Reset shake entrance flag once the sheet is closed
+  useEffect(() => {
+    if (!showAlbumDetail) setShakeEntrance(false);
+  }, [showAlbumDetail]);
 
   useShake({
     onShake: handleShake,
@@ -422,7 +429,7 @@ function AppContent() {
       <BottomTabBar />
 
       <AnimatePresence>
-        {showAlbumDetail && selectedAlbum && <AlbumDetailSheet />}
+        {showAlbumDetail && selectedAlbum && <AlbumDetailSheet shakeEntrance={shakeEntrance} />}
       </AnimatePresence>
 
       <AnimatePresence>

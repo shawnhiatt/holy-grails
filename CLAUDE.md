@@ -287,6 +287,9 @@ The bottom tab bar floats 12px from the bottom with 10px side margins. Inner scr
 ### Input Font Size (iOS Auto-Zoom Prevention)
 All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zooms on inputs smaller than 16px. This is a hard rule.
 
+### PWA Platform Limitations
+- **Haptics**: The Vibration API (`navigator.vibrate()`) is supported on Android PWAs but not on iOS Safari or iOS PWAs — Apple does not support it. Always guard with `if (navigator.vibrate)` so it fails silently on iOS. Do not attempt to polyfill or work around this. If haptic feedback on iOS is ever required, it would need a native app wrapper (e.g. Capacitor) which is out of scope for Holy Grails.
+
 ---
 
 ## Navigation Structure

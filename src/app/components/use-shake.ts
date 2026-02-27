@@ -22,13 +22,25 @@ export function useShake({ threshold = 15, timeout = 1000, onShake, enabled = tr
     (event: DeviceMotionEvent) => {
       if (cooldownRef.current) return;
 
-      const acc = event.accelerationIncludingGravity;
-      if (!acc || acc.x == null || acc.y == null || acc.z == null) return;
+      // Prefer acceleration (gravity-excluded) for clean threshold comparison.
+      // Fall back to accelerationIncludingGravity with gravity compensation.
+      const acc = event.acceleration;
+      const accWithG = event.accelerationIncludingGravity;
 
-      const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+      let magnitude: number;
+      let adjustedThreshold: number;
 
-      // Subtract gravity (~9.8) and check against threshold
-      if (magnitude > threshold + 9.8) {
+      if (acc && acc.x != null && acc.y != null && acc.z != null) {
+        magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+        adjustedThreshold = threshold;
+      } else if (accWithG && accWithG.x != null && accWithG.y != null && accWithG.z != null) {
+        magnitude = Math.sqrt(accWithG.x * accWithG.x + accWithG.y * accWithG.y + accWithG.z * accWithG.z);
+        adjustedThreshold = threshold + 9.8; // compensate for resting gravity
+      } else {
+        return;
+      }
+
+      if (magnitude > adjustedThreshold) {
         const now = Date.now();
         if (now - lastShakeRef.current > timeout) {
           shakeCountRef.current = 0;
@@ -36,15 +48,15 @@ export function useShake({ threshold = 15, timeout = 1000, onShake, enabled = tr
         shakeCountRef.current++;
         lastShakeRef.current = now;
 
-        // Require 3 shakes within the timeout window
+        // Require 3 threshold exceedances within the timeout window
         if (shakeCountRef.current >= 3) {
           shakeCountRef.current = 0;
           cooldownRef.current = true;
           onShakeRef.current();
-          // Cooldown to prevent rapid re-triggers
+          // Debounce: prevent rapid re-triggers (matches timeout parameter)
           setTimeout(() => {
             cooldownRef.current = false;
-          }, 1500);
+          }, timeout);
         }
       }
     },
