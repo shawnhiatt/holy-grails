@@ -91,7 +91,16 @@ function headers(auth: DiscogsAuth): HeadersInit {
   };
 }
 
-/** Pause between paginated requests to stay under the 60 req/min rate limit. */
+/**
+ * Pause between paginated requests to stay under the 60 req/min rate limit.
+ *
+ * Rate limit math (250ms inter-page delay):
+ *   Collection sync  — ~5 pages (430 albums ÷ 100/page) + 2 setup requests = ~7 requests
+ *   Wantlist sync    — typically 1–2 pages = ~2 requests
+ *   Both run in parallel, so worst-case total ≈ 7 requests in ~1.25s of elapsed time.
+ *   That is well under the 60 requests/minute ceiling (= 1 req/sec sustained).
+ *   Even at 100 pages, 100 × 250ms = 25 seconds → 100 requests = 4 req/s, still under limit.
+ */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -386,7 +395,7 @@ export async function fetchCollection(
   let totalPages = 1;
 
   while (page <= totalPages) {
-    if (page > 1) await sleep(1000); // ~1 req/sec between pages; Discogs allows 60/min
+    if (page > 1) await sleep(250); // 250ms between pages — well within 60 req/min limit (see sleep() comment)
     const res = await discogsFetch(
       `${BASE}/users/${username}/collection/folders/0/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`,
       { headers: headers(auth) }
@@ -449,7 +458,7 @@ export async function fetchWantlist(
   let totalPages = 1;
 
   while (page <= totalPages) {
-    if (page > 1) await sleep(1000); // ~1 req/sec between pages; Discogs allows 60/min
+    if (page > 1) await sleep(250); // 250ms between pages — well within 60 req/min limit (see sleep() comment)
     const res = await discogsFetch(
       `${BASE}/users/${username}/wants?per_page=100&page=${page}`,
       { headers: headers(auth) }
