@@ -57,27 +57,42 @@ function AppContent() {
     setScreen, discogsToken,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     headerHidden, sessionPickerAlbumId,
-    isAuthenticated, isAuthLoading, loginWithOAuth,
+    isAuthenticated, isAuthLoading, isSyncing, loginWithOAuth,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
 
-  // Hold the loading screen for 500ms after isAuthLoading goes false so the
-  // progress bar can animate to 100% (300ms) and hold briefly (200ms).
-  const [syncComplete, setSyncComplete] = useState(false);
-  const wasAuthLoadingRef = useRef(false);
+  // Three-phase state machine for the initial loading screen:
+  //   'idle'     — not started or fully done; no loading screen
+  //   'syncing'  — isAuthLoading was true; keep loading screen up even after
+  //               albums arrive (isAuthLoading→false), because isSyncing is
+  //               still true (fetchCollectionValue etc. still running)
+  //   'complete' — isSyncing just went false; show progress=100 for 500ms
+  //               then transition back to 'idle'
+  //
+  // The key fix: syncComplete used to fire when isAuthLoading→false, which
+  // happens mid-sync (right after setAlbums). Now we wait for isSyncing→false,
+  // which is the true end-of-sync signal (set in performSync's finally block).
+  const [loadPhase, setLoadPhase] = useState<'idle' | 'syncing' | 'complete'>('idle');
+
+  // Enter 'syncing' once isAuthLoading becomes true (returning user session start)
   useEffect(() => {
-    if (isAuthLoading) {
-      wasAuthLoadingRef.current = true;
-      return;
+    if (isAuthLoading && loadPhase === 'idle') {
+      setLoadPhase('syncing');
     }
-    if (wasAuthLoadingRef.current) {
-      wasAuthLoadingRef.current = false;
-      setSyncComplete(true);
-      const id = setTimeout(() => setSyncComplete(false), 500);
-      return () => clearTimeout(id);
-    }
-  }, [isAuthLoading]);
+  }, [isAuthLoading, loadPhase]);
+
+  // Exit 'syncing' only when BOTH isAuthLoading=false AND isSyncing=false —
+  // i.e., albums are loaded AND the full performSync (including collection value
+  // fetch) has finished. Guard on isAuthLoading to avoid premature completion
+  // on the brief window where loadPhase='syncing' but isSyncing hasn't started.
+  useEffect(() => {
+    if (loadPhase !== 'syncing') return;
+    if (isSyncing || isAuthLoading) return;
+    setLoadPhase('complete');
+    const id = setTimeout(() => setLoadPhase('idle'), 500);
+    return () => clearTimeout(id);
+  }, [loadPhase, isSyncing, isAuthLoading]);
 
   // Detect if we're on the OAuth callback URL
   const [isAuthCallback, setIsAuthCallback] = useState(() => {
@@ -229,10 +244,11 @@ function AppContent() {
     );
   }
 
-  // Show loading spinner while restoring a returning user's session.
-  // syncComplete keeps it mounted an extra 500ms so the bar can animate to 100%.
-  if (isAuthLoading || syncComplete) {
-    return <LoadingScreen message="Syncing collection" progress={syncComplete ? 100 : undefined} />;
+  // Show loading screen while: albums haven't loaded (isAuthLoading), or the
+  // full sync is still running after albums arrive (loadPhase='syncing'), or
+  // we're in the 500ms completion window (loadPhase='complete').
+  if (isAuthLoading || loadPhase === 'syncing' || loadPhase === 'complete') {
+    return <LoadingScreen message="Syncing collection" progress={loadPhase === 'complete' ? 100 : undefined} />;
   }
 
   if (showSplash) {
