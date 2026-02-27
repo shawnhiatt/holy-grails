@@ -104,10 +104,12 @@ src/
       sign-in-screen.tsx
       splash-screen.tsx
       splash-video.tsx
+      swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       use-hide-header.ts
       use-shake.ts
       wantlist.tsx
+      loading-screen.tsx   # Unified full-screen loading component with splash video background, Disc3 spinner, and animated ellipsis message. Use this for all full-screen loading states — do not create new loading screens.
       ui/                # shadcn components — do not modify directly
     imports/
     styles/
@@ -373,6 +375,9 @@ Do not introduce new z-index values outside this hierarchy without checking for 
    - `convex/schema.ts` — database schema
    - `auth-callback.tsx` — OAuth callback handler
    - `App.tsx` — root layout and auth state routing
+   - `loading-screen.tsx` — full-screen loading state
+
+9. **Convex deploy required.** Any changes to files in the `convex/` directory must be followed by `npx convex deploy` before pushing to Vercel. The dev and prod Convex deployments are separate — `npx convex dev` only updates dev. Failing to deploy will cause production errors.
 
 ---
 
@@ -407,6 +412,8 @@ Do NOT set a custom `User-Agent` header — browsers block it as a forbidden hea
 - User profile: `GET /users/{username}`
 
 All API integration code goes in `discogs-api.ts`. No Discogs fetch calls anywhere else.
+
+**sessionStorage** is permitted in one place only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`. No other sessionStorage usage is permitted anywhere in the codebase.
 
 **Multi-folder dedup behavior**
 
