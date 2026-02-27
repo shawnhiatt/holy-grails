@@ -179,6 +179,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
   // Keep refs array in sync with album count
   if (rowRefs.current.length !== albums.length) {
@@ -225,6 +226,9 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                 key={album.id}
                 ref={(el) => { rowRefs.current[i] = el; }}
                 onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
+                onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
+                onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
                 className="flex items-center gap-3 p-2.5 rounded-[10px] tappable transition-colors text-left group relative"
                 style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
               >
