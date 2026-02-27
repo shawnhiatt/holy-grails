@@ -151,6 +151,15 @@ function WantAlphabetSidebar({ entries, anchorRefs, scrollRef }: WantAlphabetSid
   );
 }
 
+type WantRenderItem =
+  | { kind: "divider"; label: string; firstIndex: number; isFirst: boolean }
+  | { kind: "item"; want: WantItem; itemIndex: number };
+
+function getWantGroupLabel(item: WantItem): string {
+  const ch = (item.artist || "").charAt(0).toUpperCase();
+  return /[A-Z]/.test(ch) ? ch : "#";
+}
+
 type WantViewMode = "crate" | "list" | "grid" | "artwork";
 
 const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
@@ -504,11 +513,21 @@ function WantGridView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
     anchorRefs.current = new Array(wants.length).fill(null);
   }
 
-  // Build a set of item indices that are the first of their letter group (for anchors)
-  const anchorIndices = useMemo(() => {
-    if (!alphabetEntries) return new Set<number>();
-    return new Set(alphabetEntries.map((e) => e.firstIndex));
-  }, [alphabetEntries]);
+  const wantRenderItems = useMemo((): WantRenderItem[] => {
+    const items: WantRenderItem[] = [];
+    let currentLabel: string | null = null;
+    let isFirst = true;
+    wants.forEach((want, itemIndex) => {
+      const label = getWantGroupLabel(want);
+      if (label !== currentLabel) {
+        items.push({ kind: "divider", label, firstIndex: itemIndex, isFirst });
+        currentLabel = label;
+        isFirst = false;
+      }
+      items.push({ kind: "item", want, itemIndex });
+    });
+    return items;
+  }, [wants]);
 
   if (wants.length === 0) return <div className="flex-1 flex items-center justify-center"><p style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>No items found</p></div>;
 
@@ -516,15 +535,39 @@ function WantGridView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] pb-[120px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
-          {wants.map((item, i) => (
-            <div
-              key={item.id}
-              className="relative min-w-0"
-              ref={anchorIndices.has(i) ? (el) => { anchorRefs.current[i] = el; } : undefined}
-            >
-              <WantGridCard item={item} togglePriority={togglePriority} isDarkMode={isDarkMode} token={discogsToken} />
-            </div>
-          ))}
+          {wantRenderItems.map((item) => {
+            if (item.kind === "divider") {
+              return (
+                <div
+                  key={`divider-${item.label}`}
+                  className="col-span-full"
+                  style={{ paddingTop: item.isFirst ? 0 : 16, paddingBottom: 8 }}
+                  ref={(el) => { anchorRefs.current[item.firstIndex] = el; }}
+                >
+                  <p style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    color: "var(--c-text-tertiary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: 6,
+                  }}>
+                    {item.label}
+                  </p>
+                  <div style={{ height: 1, backgroundColor: "var(--c-border)" }} />
+                </div>
+              );
+            }
+            return (
+              <div
+                key={item.want.id}
+                className="relative min-w-0"
+              >
+                <WantGridCard item={item.want} togglePriority={togglePriority} isDarkMode={isDarkMode} token={discogsToken} />
+              </div>
+            );
+          })}
         </div>
       </div>
 

@@ -161,6 +161,43 @@ function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSidebarProp
   );
 }
 
+/* ─── Section Divider Logic ─── */
+
+const DIVIDER_SORT_OPTS = new Set([
+  "artist-az", "artist-za", "title-az",
+  "year-new", "year-old",
+  "added-new", "added-old",
+]);
+
+function getAlbumGroupLabel(album: Album, sortOption: string): string {
+  switch (sortOption) {
+    case "artist-az":
+    case "artist-za": {
+      const ch = (album.artist || "").charAt(0).toUpperCase();
+      return /[A-Z]/.test(ch) ? ch : "#";
+    }
+    case "title-az": {
+      const ch = (album.title || "").charAt(0).toUpperCase();
+      return /[A-Z]/.test(ch) ? ch : "#";
+    }
+    case "year-new":
+    case "year-old":
+      return album.year ? String(album.year) : "—";
+    case "added-new":
+    case "added-old": {
+      if (!album.dateAdded) return "—";
+      const d = new Date(album.dateAdded);
+      return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    }
+    default:
+      return "";
+  }
+}
+
+type GridRenderItem =
+  | { kind: "divider"; label: string; firstAlbumIndex: number; isFirst: boolean }
+  | { kind: "album"; album: Album; albumIndex: number };
+
 /* ─── Album Grid ─── */
 
 interface AlbumGridProps {
@@ -190,6 +227,27 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
     if (!alphabetEntries) return new Set<number>();
     return new Set(alphabetEntries.map((e) => e.firstIndex));
   }, [alphabetEntries]);
+
+  const hasDividers = DIVIDER_SORT_OPTS.has(sortOption);
+
+  const renderItems = useMemo((): GridRenderItem[] => {
+    if (!hasDividers) {
+      return albums.map((album, albumIndex) => ({ kind: "album", album, albumIndex }));
+    }
+    const items: GridRenderItem[] = [];
+    let currentLabel: string | null = null;
+    let isFirst = true;
+    albums.forEach((album, albumIndex) => {
+      const label = getAlbumGroupLabel(album, sortOption);
+      if (label !== currentLabel) {
+        items.push({ kind: "divider", label, firstAlbumIndex: albumIndex, isFirst });
+        currentLabel = label;
+        isFirst = false;
+      }
+      items.push({ kind: "album", album, albumIndex });
+    });
+    return items;
+  }, [albums, sortOption, hasDividers]);
 
   if (albums.length === 0) {
     return (
@@ -227,11 +285,36 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] pb-[112px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
-          {albums.map((album, i) => (
+          {renderItems.map((item) => {
+            if (item.kind === "divider") {
+              return (
+                <div
+                  key={`divider-${item.label}`}
+                  className="col-span-full"
+                  style={{ paddingTop: item.isFirst ? 0 : 16, paddingBottom: 8 }}
+                  ref={(el) => { anchorRefs.current[item.firstAlbumIndex] = el; }}
+                >
+                  <p style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    color: "var(--c-text-tertiary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: 6,
+                  }}>
+                    {item.label}
+                  </p>
+                  <div style={{ height: 1, backgroundColor: "var(--c-border)" }} />
+                </div>
+              );
+            }
+            const { album, albumIndex } = item;
+            return (
             <div
               key={album.id}
               className="relative min-w-0"
-              ref={anchorIndices.has(i) ? (el) => { anchorRefs.current[i] = el; } : undefined}
+              ref={!hasDividers && anchorIndices.has(albumIndex) ? (el) => { anchorRefs.current[albumIndex] = el; } : undefined}
             >
               <div
                 role="button"
@@ -365,7 +448,8 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
