@@ -1,3 +1,8 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* Push Sonner toast container below iOS status bar in PWA mode */
+[data-sonner-toaster][data-y-position="top"] {
+  top: env(safe-area-inset-top, 44px) !important;
+}

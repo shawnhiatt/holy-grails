@@ -19,7 +19,7 @@ import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
 import { LoadingScreen } from "./components/loading-screen";
 import { SessionPickerSheet } from "./components/session-picker-sheet";
-import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
+import { EASE_OUT, EASE_IN_OUT, DURATION_NORMAL, DURATION_FAST } from "./components/motion-tokens";
 import { initiateDiscogsOAuth } from "./components/oauth-helpers";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
@@ -258,8 +258,8 @@ function AppContent() {
                 transform: headerHidden ? "translateY(calc(-58px - env(safe-area-inset-top, 0px)))" : "translateY(0)",
                 marginBottom: headerHidden ? "calc(-58px - env(safe-area-inset-top, 0px))" : "0px",
                 transition: headerHidden
-                  ? "transform 200ms cubic-bezier(0.25, 1, 0.5, 1), margin-bottom 200ms cubic-bezier(0.25, 1, 0.5, 1)"
-                  : "transform 150ms cubic-bezier(0.25, 1, 0.5, 1), margin-bottom 150ms cubic-bezier(0.25, 1, 0.5, 1)",
+                  ? `transform ${DURATION_NORMAL * 1000}ms cubic-bezier(${EASE_IN_OUT.join(",")}), margin-bottom ${DURATION_NORMAL * 1000}ms cubic-bezier(${EASE_IN_OUT.join(",")})`
+                  : `transform ${DURATION_FAST * 1000}ms cubic-bezier(${EASE_OUT.join(",")}), margin-bottom ${DURATION_FAST * 1000}ms cubic-bezier(${EASE_OUT.join(",")})`,
               }}
             >
               <MobileHeader />
@@ -274,8 +274,8 @@ function AppContent() {
                 style={{
                   height: headerHidden ? "12px" : "0px",
                   transition: headerHidden
-                    ? "height 200ms cubic-bezier(0.25, 1, 0.5, 1)"
-                    : "height 150ms cubic-bezier(0.25, 1, 0.5, 1)",
+                    ? `height ${DURATION_NORMAL * 1000}ms cubic-bezier(${EASE_IN_OUT.join(",")})`
+                    : `height ${DURATION_FAST * 1000}ms cubic-bezier(${EASE_OUT.join(",")})`,
                 }}
               />
               {renderScreen()}
@@ -337,7 +337,6 @@ function AppContent() {
         duration={2500}
         theme={isDarkMode ? "dark" : "light"}
         richColors
-        offset="env(safe-area-inset-top, 44px)"
       />
     </div>
   );
