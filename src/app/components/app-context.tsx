@@ -285,12 +285,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Track whether initial auto-sync has run
   const initialSyncDoneRef = useRef(false);
 
+  // Prevents session restore from re-hydrating after an explicit sign-out
+  const hasSignedOutRef = useRef(false);
+
   // ── Effects: Convex → local state hydration (one-time per session) ──
 
   // Session restore on force close: when discogsUsername is empty on mount and
   // Convex has an existing user record, hydrate the username so the rest of the
   // auth flow (credential load → auto-sync) proceeds as normal.
   useEffect(() => {
+    if (hasSignedOutRef.current) return;
     if (!discogsUsername && convexLatestUser) {
       setDiscogsUsernameRaw(convexLatestUser.discogs_username);
     }
@@ -866,6 +870,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Navigate away from any authenticated-only screen
     setScreenRaw("feed");
+
+    // Prevent session restore from re-hydrating after explicit sign-out
+    hasSignedOutRef.current = true;
 
     // Clear cached data
     clearCollectionValue();
