@@ -69,6 +69,7 @@ interface AppState {
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
   toggleWantPriority: (wantId: string) => void;
   addToWantList: (item: WantItem) => void;
+  removeFromWantList: (releaseId: string | number) => void;
   isInWants: (releaseId: string | number) => boolean;
   isInCollection: (releaseId: string | number) => boolean;
   deleteSession: (sessionId: string) => void;
@@ -86,6 +87,8 @@ interface AppState {
   setWantSearchQuery: (q: string) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  colorMode: "light" | "dark" | "system";
+  setColorMode: (mode: "light" | "dark" | "system") => void;
   // Last Played tracking
   lastPlayed: Record<string, string>;
   markPlayed: (albumId: string) => void;
@@ -184,7 +187,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 
   // ── Theme state ──
-  const [isDarkMode, setIsDarkMode] = useState(true); // default dark
+  const [colorMode, setColorModeRaw] = useState<"light" | "dark" | "system">("dark");
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
+    try { return window.matchMedia("(prefers-color-scheme: dark)").matches; } catch { return true; }
+  });
 
   // ── Data state ──
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -288,6 +294,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Prevents session restore from re-hydrating after an explicit sign-out
   const hasSignedOutRef = useRef(false);
+
+  // ── System color scheme listener ──
+  useEffect(() => {
+    try {
+      const mql = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
+      mql.addEventListener("change", handleChange);
+      return () => mql.removeEventListener("change", handleChange);
+    } catch { /* ignore */ }
+  }, []);
 
   // ── Effects: Convex → local state hydration (one-time per session) ──
 
@@ -408,8 +424,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydratedRef.current.preferences && convexPreferences) {
       hydratedRef.current.preferences = true;
-      if (convexPreferences.theme === "dark") setIsDarkMode(true);
-      else if (convexPreferences.theme === "light") setIsDarkMode(false);
+      if (convexPreferences.theme) setColorModeRaw(convexPreferences.theme);
       setHidePurgeIndicatorsRaw(convexPreferences.hide_purge_indicators);
       setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
     }
@@ -479,18 +494,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Theme toggle ──
 
-  const toggleDarkMode = useCallback(() => {
-    setIsDarkMode(prev => {
-      const next = !prev;
-      if (discogsUsername) {
-        upsertPreferencesMut({
-          discogs_username: discogsUsername,
-          theme: next ? "dark" : "light",
-        });
-      }
-      return next;
-    });
+  // Derived isDarkMode from colorMode + system preference
+  const isDarkMode = colorMode === "dark" || (colorMode === "system" && systemIsDark);
+
+  const setColorMode = useCallback((mode: "light" | "dark" | "system") => {
+    setColorModeRaw(mode);
+    if (discogsUsername) {
+      upsertPreferencesMut({ discogs_username: discogsUsername, theme: mode });
+    }
   }, [discogsUsername, upsertPreferencesMut]);
+
+  const toggleDarkMode = useCallback(() => {
+    const next: "light" | "dark" = isDarkMode ? "light" : "dark";
+    setColorModeRaw(next);
+    if (discogsUsername) {
+      upsertPreferencesMut({ discogs_username: discogsUsername, theme: next });
+    }
+  }, [isDarkMode, discogsUsername, upsertPreferencesMut]);
 
   // ── Display preferences with Convex persistence ──
 
@@ -642,6 +662,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (prev.some((w) => Number(w.release_id) === rid)) return prev;
       return [...prev, item];
     });
+  }, []);
+
+  const removeFromWantList = useCallback((releaseId: string | number) => {
+    const rid = Number(releaseId);
+    setWants((prev) => prev.filter((w) => Number(w.release_id) !== rid));
   }, []);
 
   const isInWants = useCallback((releaseId: string | number) => {
@@ -1141,6 +1166,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPurgeTag,
       toggleWantPriority,
       addToWantList,
+      removeFromWantList,
       isInWants,
       isInCollection,
       deleteSession,
@@ -1158,6 +1184,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setWantSearchQuery,
       isDarkMode,
       toggleDarkMode,
+      colorMode,
+      setColorMode,
       // Last Played tracking
       lastPlayed,
       markPlayed,
@@ -1214,12 +1242,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addFriend, removeFriend,
       selectedAlbumId, selectedAlbum,
       searchQuery, activeFolder, sortOption, filteredAlbums,
-      setPurgeTag, toggleWantPriority, addToWantList,
+      setPurgeTag, toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
       deleteSession, renameSession, reorderSessionAlbums,
       showFilterDrawer, showAlbumDetail,
       purgeFilter, wantFilter, wantSearchQuery,
-      isDarkMode, toggleDarkMode,
+      isDarkMode, toggleDarkMode, colorMode, setColorMode,
       lastPlayed, markPlayed,
       neverPlayedFilter,
       rediscoverMode,

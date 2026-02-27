@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { Disc3, AlertTriangle } from "lucide-react";
 import { WordmarkLogo } from "./navigation";
@@ -19,14 +19,34 @@ export function SplashScreen({
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Track whether a redirect was initiated so we can reset state if user backs out
+  const loginInitiatedRef = useRef(false);
+
+  useEffect(() => {
+    const handleReturn = () => {
+      if (loginInitiatedRef.current) {
+        setLoginLoading(false);
+        loginInitiatedRef.current = false;
+      }
+    };
+    document.addEventListener("visibilitychange", handleReturn);
+    window.addEventListener("focus", handleReturn);
+    return () => {
+      document.removeEventListener("visibilitychange", handleReturn);
+      window.removeEventListener("focus", handleReturn);
+    };
+  }, []);
+
   const handleLoginClick = async () => {
     setLoginLoading(true);
     setLoginError(null);
+    loginInitiatedRef.current = true;
     try {
       await onLoginWithDiscogs();
       // If successful, page redirects to Discogs — loading state doesn't matter
     } catch (err: any) {
       setLoginLoading(false);
+      loginInitiatedRef.current = false;
       setLoginError(err?.message || "Failed to connect to Discogs.");
     }
   };

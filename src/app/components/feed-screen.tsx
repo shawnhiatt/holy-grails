@@ -406,7 +406,7 @@ export function FeedScreen() {
         return next;
       });
       toast.dismiss();
-      toast.info("Added to your want list.", { duration: 2500 });
+      toast.info("Added to your wantlist.", { duration: 2500 });
     },
     [ownReleaseIds, wantReleaseIds, addToWantList, setScreen]
   );

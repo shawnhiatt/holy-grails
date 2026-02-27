@@ -30,7 +30,7 @@ const FRIEND_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] =
 ];
 
 export function FriendsScreen() {
-  const { friends, addFriend, removeFriend, albums, wants, isAuthenticated, discogsAuth, isDarkMode, addToWantList, setScreen: setAppScreen } = useApp();
+  const { friends, addFriend, removeFriend, albums, wants, isAuthenticated, discogsAuth, isDarkMode, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -251,6 +251,7 @@ export function FriendsScreen() {
             albums={albums}
             wants={wants}
             addToWantList={addToWantList}
+            removeFromWantList={removeFromWantList}
             setAppScreen={setAppScreen}
           />
         )}
@@ -908,6 +909,7 @@ function PopulatedFriendsView({
   albums: userAlbumsForHeart,
   wants: userWantsForHeart,
   addToWantList,
+  removeFromWantList,
   setAppScreen,
 }: {
   friends: Friend[];
@@ -916,12 +918,15 @@ function PopulatedFriendsView({
   albums: Album[];
   wants: WantItem[];
   addToWantList: (item: WantItem) => void;
+  removeFromWantList: (releaseId: string | number) => void;
   setAppScreen: (s: Screen) => void;
 }) {
   const activityFeed = useMemo(() => buildActivityFeed(friends), [friends]);
 
-  // Track items that were just added to want list (for heart animation)
+  // Track items that were just added to wantlist (for heart animation)
   const [justAddedWantIds, setJustAddedWantIds] = useState<Set<string>>(() => new Set());
+  // Confirmation dialog for removing an item from the wantlist
+  const [removeWantConfirm, setRemoveWantConfirm] = useState<ActivityItem | null>(null);
 
   // Sets for quick lookups
   const ownReleaseIds = useMemo(() => new Set(userAlbumsForHeart.map((a) => a.release_id)), [userAlbumsForHeart]);
@@ -940,12 +945,12 @@ function PopulatedFriendsView({
   const handleHeartTap = useCallback((item: ActivityItem) => {
     // Already in collection — no action
     if (ownReleaseIds.has(item.albumReleaseId)) return;
-    // Already in want list — navigate to Wants
-    if (wantReleaseIds.has(item.albumReleaseId)) {
-      setAppScreen("wants");
+    // Already in wantlist — confirm removal
+    if (wantReleaseIds.has(item.albumReleaseId) || justAddedWantIds.has(item.id)) {
+      setRemoveWantConfirm(item);
       return;
     }
-    // Add to want list
+    // Add to wantlist
     addToWantList({
       id: `w-friend-${item.albumReleaseId}-${Date.now()}`,
       release_id: item.albumReleaseId,
@@ -962,8 +967,8 @@ function PopulatedFriendsView({
       return next;
     });
     toast.dismiss();
-    toast.info("Added to your want list.", { duration: 2500 });
-  }, [ownReleaseIds, wantReleaseIds, addToWantList, setAppScreen]);
+    toast.info("Added to your wantlist.", { duration: 2500 });
+  }, [ownReleaseIds, wantReleaseIds, justAddedWantIds, addToWantList]);
 
   return (
     <div className="flex flex-col">
@@ -1304,6 +1309,58 @@ function PopulatedFriendsView({
           })}
         </div>
       )}
+
+      {/* Wantlist removal confirmation */}
+      <AnimatePresence>
+        {removeWantConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center px-6"
+            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+            onClick={() => setRemoveWantConfirm(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[320px] rounded-[14px] p-5"
+              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+            >
+              <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
+                Remove {removeWantConfirm.albumTitle} from your wantlist?
+              </p>
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => setRemoveWantConfirm(null)}
+                  className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer"
+                  style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    removeFromWantList(removeWantConfirm.albumReleaseId);
+                    setJustAddedWantIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(removeWantConfirm.id);
+                      return next;
+                    });
+                    toast.success("Removed from wantlist.");
+                    setRemoveWantConfirm(null);
+                  }}
+                  className="flex-1 py-2.5 rounded-[10px] bg-[#FF33B6] text-white transition-colors hover:bg-[#E6009E] cursor-pointer"
+                  style={{ fontSize: "14px", fontWeight: 600 }}
+                >
+                  Remove
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
