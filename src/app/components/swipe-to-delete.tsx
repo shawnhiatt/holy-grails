@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 
@@ -11,9 +11,6 @@ export interface SwipeToDeleteProps {
 }
 
 export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
-  const [isDesktop, setIsDesktop] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
-  );
   const [isDeleted, setIsDeleted] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -26,13 +23,6 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
   const pointerStartX = useRef(0);
   const offsetAtPointerDown = useRef(0);
   const currentOffset = useRef(0);
-
-  useEffect(() => {
-    const mql = window.matchMedia("(min-width: 1024px)");
-    const onChange = () => setIsDesktop(mql.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
 
   // Imperatively set content transform — avoids React re-renders on every drag frame
   const applyContentTransform = useCallback((x: number, transition?: string) => {
@@ -148,8 +138,6 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
     [triggerDelete]
   );
 
-  // Desktop: render children as-is — no swipe behavior
-  if (isDesktop) return <>{children}</>;
   if (isDeleted) return null;
 
   return (
@@ -159,19 +147,20 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
-      {/* Delete zone — z-index 1, sits behind the card */}
+      {/* Delete zone — z-index 1, sits behind the card, full width */}
       <div
         style={{
           position: "absolute",
           top: 0,
           right: 0,
           bottom: 0,
-          width: DELETE_ZONE_WIDTH,
+          width: "100%",
           backgroundColor: "#FF33B6",
           zIndex: 1,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: "flex-end",
+          paddingRight: 28,
           cursor: "pointer",
         }}
         onClick={triggerDelete}
