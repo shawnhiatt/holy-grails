@@ -12,7 +12,6 @@ import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purg
 import { formatDateShort } from "./last-played-utils";
 import { toast } from "sonner";
 import { NoDiscogsCard } from "./no-discogs-card";
-import { useHideHeaderOnScroll } from "./use-hide-header";
 
 /* ─── Track which screen opened Reports ─── */
 let _entryScreen: Screen = "settings";
@@ -982,7 +981,6 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 export function ReportsScreen() {
   const { albums, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
   const accent = useAccent();
-  const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
   const pricedCount = useMemo(() => {
     let count = 0;
@@ -1021,7 +1019,7 @@ export function ReportsScreen() {
         />
       ) : (
       /* Scrollable content */
-      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "calc(32px + var(--nav-clearance, 0px))" }} onScroll={onHeaderScroll}>
+      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "calc(32px + var(--nav-clearance, 0px))" }}>
         {/* Desktop 2x2 grid / Mobile vertical stack */}
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-5 lg:gap-6">
           {/* Section 1 — spans full width on desktop for hero prominence */}
