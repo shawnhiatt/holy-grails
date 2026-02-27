@@ -74,6 +74,9 @@ function AppContent() {
   // happens mid-sync (right after setAlbums). Now we wait for isSyncing→false,
   // which is the true end-of-sync signal (set in performSync's finally block).
   const [loadPhase, setLoadPhase] = useState<'idle' | 'syncing' | 'complete'>('idle');
+  // Guards against the ~1ms window where isAuthLoading and isSyncing are both
+  // false before the actual sync has started. Prevents premature 'complete'.
+  const hasSeenSyncingRef = useRef(false);
 
   // Enter 'syncing' once isAuthLoading becomes true (returning user session start)
   useEffect(() => {
@@ -82,15 +85,26 @@ function AppContent() {
     }
   }, [isAuthLoading, loadPhase]);
 
-  // Exit 'syncing' only when BOTH isAuthLoading=false AND isSyncing=false —
-  // i.e., albums are loaded AND the full performSync (including collection value
-  // fetch) has finished. Guard on isAuthLoading to avoid premature completion
-  // on the brief window where loadPhase='syncing' but isSyncing hasn't started.
+  // Track when isSyncing goes true during the 'syncing' phase so we know the
+  // real sync has actually started and it's safe to complete later.
+  useEffect(() => {
+    if (loadPhase === 'syncing' && isSyncing) {
+      hasSeenSyncingRef.current = true;
+    }
+  }, [loadPhase, isSyncing]);
+
+  // Exit 'syncing' only when isAuthLoading=false, isSyncing=false, AND we have
+  // confirmed isSyncing was true at least once — eliminating the race condition
+  // where both flags briefly read false before the sync actually starts.
   useEffect(() => {
     if (loadPhase !== 'syncing') return;
     if (isSyncing || isAuthLoading) return;
+    if (!hasSeenSyncingRef.current) return;
     setLoadPhase('complete');
-    const id = setTimeout(() => setLoadPhase('idle'), 500);
+    const id = setTimeout(() => {
+      hasSeenSyncingRef.current = false;
+      setLoadPhase('idle');
+    }, 500);
     return () => clearTimeout(id);
   }, [loadPhase, isSyncing, isAuthLoading]);
 
