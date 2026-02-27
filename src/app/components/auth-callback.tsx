@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { LoadingScreen } from "./loading-screen";
+import { oauthInFlight } from "./oauth-helpers";
 
 interface AuthCallbackProps {
   onSuccess: (user: {
@@ -56,6 +57,12 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
     let cancelled = false;
 
     async function completeOAuth() {
+      // Clear the in-flight flag immediately — this is a successful return, not
+      // an abandonment. Clearing before the exchange ensures visibilitychange
+      // (if it fires during the async exchange) finds the flag already false
+      // and does not trigger an incorrect abandonment reset.
+      oauthInFlight.current = false;
+
       try {
         // Step 1: Exchange verifier for access token
         setStatus("exchanging");

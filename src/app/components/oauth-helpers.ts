@@ -10,6 +10,21 @@
  * All persistent data lives in Convex — no localStorage is used anywhere.
  */
 
+/**
+ * In-memory flag that is true between the moment the OAuth redirect begins
+ * and the moment auth-callback.tsx confirms a successful return.
+ *
+ * Used by App.tsx to distinguish abandonment (flag still true when the page
+ * becomes visible again) from success (flag cleared by auth-callback before
+ * visibilitychange can fire).
+ *
+ * This is a module-level object (not React state/localStorage) so that:
+ *  - It is shared between App.tsx and auth-callback.tsx without prop-drilling.
+ *  - It survives iOS Safari bfcache restores, where the JS heap is preserved
+ *    exactly as it was when the page was cached.
+ */
+export const oauthInFlight = { current: false };
+
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api";
 
