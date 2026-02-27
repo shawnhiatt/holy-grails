@@ -171,6 +171,7 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
       {/* Card content — z-index 2, draggable layer on top */}
       <div
         ref={contentRef}
+        className={isDragging ? "[&_*]:cursor-grabbing" : "[&_*]:cursor-grab"}
         style={{
           position: "relative",
           zIndex: 2,
