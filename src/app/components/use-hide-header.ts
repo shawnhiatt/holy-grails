@@ -2,7 +2,7 @@ import { useRef, useCallback } from "react";
 import { useApp } from "./app-context";
 
 /** Screens where the mobile header hides on scroll */
-const HIDE_HEADER_SCREENS = new Set(["crate", "wants", "friends"]);
+const HIDE_HEADER_SCREENS = new Set(["crate", "wants"]);
 
 /** Minimum scroll delta (px) before triggering a hide. Prevents flicker on small incidental scrolls. */
 const SCROLL_THRESHOLD = 8;

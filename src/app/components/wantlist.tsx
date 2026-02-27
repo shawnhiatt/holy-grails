@@ -161,7 +161,7 @@ const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
 ];
 
 export function Wantlist() {
-  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated } = useApp();
+  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, headerHidden } = useApp();
   const [viewMode, setViewMode] = useState<WantViewMode>("grid");
 
   const filteredWants = useMemo(() => {
@@ -230,7 +230,7 @@ export function Wantlist() {
       </div>
 
       {/* ===== MOBILE top controls ===== */}
-      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[8px] pb-[4px]" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[8px] pb-[4px]" style={headerHidden ? { paddingTop: "env(safe-area-inset-top, 0px)" } : undefined}>
         <h2 style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Wantlist</h2>
       </div>
 

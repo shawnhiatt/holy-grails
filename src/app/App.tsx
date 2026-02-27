@@ -337,7 +337,7 @@ function AppContent() {
         duration={2500}
         theme={isDarkMode ? "dark" : "light"}
         richColors
-        style={{ "--offset": "env(safe-area-inset-top, 44px)" } as React.CSSProperties}
+        offset="env(safe-area-inset-top, 44px)"
       />
     </div>
   );

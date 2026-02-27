@@ -84,6 +84,7 @@ export function CrateBrowser() {
     setRediscoverMode,
     rediscoverAlbums,
     isAuthenticated,
+    headerHidden,
   } = useApp();
 
   const [lightboxActive, setLightboxActive] = useState(false);
@@ -246,7 +247,7 @@ export function CrateBrowser() {
       {/* ===== MOBILE title bar ===== */}
       <div
         className="lg:hidden flex-shrink-0 px-[16px] pt-[8px] pb-[4px]"
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+        style={headerHidden ? { paddingTop: "env(safe-area-inset-top, 0px)" } : undefined}
       >
         <div className="flex items-center justify-between">
           <h2 style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Collection</h2>
