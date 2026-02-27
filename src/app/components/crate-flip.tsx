@@ -23,6 +23,8 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
   const dragY = useMotionValue(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
+  const suppressNextClick = useRef(false);
 
   // Reset index when albums change
   useEffect(() => {
@@ -113,7 +115,8 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
           >
             <button
               onClick={(e) => { e.stopPropagation(); onLightboxDeactivate(); }}
-              className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/80 hover:text-white hover:bg-white/25 transition-all z-10"
+              className="absolute right-5 w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/80 hover:text-white hover:bg-white/25 transition-all z-10"
+              style={{ top: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
             >
               <X size={20} />
             </button>
@@ -163,7 +166,10 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
                         onDragEnd: handleDragEnd,
                       }
                     : {})}
-                  onClick={() => isCurrent && handleCardTap(album.id)}
+                  onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; suppressNextClick.current = false; }}
+                  onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                  onTouchEnd={() => { if (isCurrent && touchState.current && !touchState.current.moved) { suppressNextClick.current = true; handleCardTap(album.id); } touchState.current = null; }}
+                  onClick={() => { if (suppressNextClick.current) { suppressNextClick.current = false; return; } if (isCurrent) handleCardTap(album.id); }}
                 >
                   {/* Cover art */}
                   <img

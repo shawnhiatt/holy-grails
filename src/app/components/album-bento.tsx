@@ -1,4 +1,5 @@
 import { Bookmark } from "lucide-react";
+import { useRef } from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { useHideHeaderOnScroll } from "./use-hide-header";
@@ -15,6 +16,7 @@ interface AlbumArtworkProps {
 export function AlbumArtwork({ albums }: AlbumArtworkProps) {
   const { setSelectedAlbumId, setShowAlbumDetail, hidePurgeIndicators, albums: allAlbums, isDarkMode, setScreen, openSessionPicker, isAlbumInAnySession } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
+  const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
   const collectionEmpty = allAlbums.length === 0;
 
@@ -55,6 +57,9 @@ export function AlbumArtwork({ albums }: AlbumArtworkProps) {
             tabIndex={0}
             onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } }}
+            onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
+            onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+            onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
             className="relative overflow-hidden group focus:outline-none cursor-pointer"
             style={{
               aspectRatio: "1 / 1",

@@ -178,6 +178,7 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
   // Keep refs array in sync with album count
   if (anchorRefs.current.length !== albums.length) {
@@ -237,6 +238,9 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                 tabIndex={0}
                 onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } }}
+                onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
+                onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
                 className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
                 style={{
                   backgroundColor: "var(--c-surface)",
