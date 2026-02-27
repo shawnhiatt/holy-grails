@@ -15,17 +15,10 @@ interface LoadingScreenProps {
  * login screen, a Disc3 spinner, and an animated ellipsis below the message.
  */
 export function LoadingScreen({ message, progress }: LoadingScreenProps) {
-  const [dots, setDots] = useState(1);
   const [simProgress, setSimProgress] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
-
-  // Dots cycle 1 → 2 → 3 → 1
-  useEffect(() => {
-    const id = setInterval(() => setDots((d) => (d % 3) + 1), 600);
-    return () => clearInterval(id);
-  }, []);
 
   // Respect prefers-reduced-motion
   useEffect(() => {
@@ -139,17 +132,9 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
                     color: "#9EAFC2",
                   }}
                 >
-                  {[1, 2, 3].map((i) => (
-                    <span
-                      key={i}
-                      style={{
-                        opacity: dots >= i ? 1 : 0,
-                        transition: reducedMotion ? "none" : "opacity 0.15s",
-                      }}
-                    >
-                      .
-                    </span>
-                  ))}
+                  <span>.</span>
+                  <span className="sync-dot-2">.</span>
+                  <span className="sync-dot-3">.</span>
                 </span>
               </span>
             </div>

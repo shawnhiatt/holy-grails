@@ -27,6 +27,61 @@
   }
 }
 
+/* Ellipsis dots — LoadingScreen animated sync message
+   Dot 1 is always visible (no animation).
+   Dot 2 fades in at t=600ms, dot 3 at t=1200ms; both fade out together at t=1800ms.
+   Cycle duration matches the disc-spinner: 1.8s. Fade duration: ~0.15s (8.3% of cycle). */
+@-webkit-keyframes sync-ellipsis-2 {
+  0%, 33.3% { opacity: 0; }
+  41.7%     { opacity: 1; }
+  91.7%     { opacity: 1; }
+  100%      { opacity: 0; }
+}
+@keyframes sync-ellipsis-2 {
+  0%, 33.3% { opacity: 0; }
+  41.7%     { opacity: 1; }
+  91.7%     { opacity: 1; }
+  100%      { opacity: 0; }
+}
+
+@-webkit-keyframes sync-ellipsis-3 {
+  0%, 66.7% { opacity: 0; }
+  75%       { opacity: 1; }
+  91.7%     { opacity: 1; }
+  100%      { opacity: 0; }
+}
+@keyframes sync-ellipsis-3 {
+  0%, 66.7% { opacity: 0; }
+  75%       { opacity: 1; }
+  91.7%     { opacity: 1; }
+  100%      { opacity: 0; }
+}
+
+.sync-dot-2 {
+  opacity: 0;
+  -webkit-animation: sync-ellipsis-2 1.8s linear infinite;
+          animation: sync-ellipsis-2 1.8s linear infinite;
+  -webkit-animation-iteration-count: infinite;
+          animation-iteration-count: infinite;
+}
+
+.sync-dot-3 {
+  opacity: 0;
+  -webkit-animation: sync-ellipsis-3 1.8s linear infinite;
+          animation: sync-ellipsis-3 1.8s linear infinite;
+  -webkit-animation-iteration-count: infinite;
+          animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-dot-2,
+  .sync-dot-3 {
+    -webkit-animation: none;
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* Screen title — 36px mobile, 48px desktop */
 @media (min-width: 1024px) {
   .screen-title {
