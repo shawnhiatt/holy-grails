@@ -579,6 +579,7 @@ function WantGridView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
   );
 }
 
+// Intentionally separate from album list item — actions diverge in Phase 6
 function WantlistView({ wants, togglePriority }: { wants: WantItem[]; togglePriority: (id: string) => void }) {
   const { isDarkMode } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();

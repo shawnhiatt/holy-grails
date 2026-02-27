@@ -163,6 +163,8 @@ function AlphabetSidebar({ entries, rowRefs, scrollRef }: AlphabetSidebarProps) 
   );
 }
 
+// Intentionally separate from wantlist list item — actions diverge in Phase 6
+
 /* ─── Album List ─── */
 
 interface AlbumListProps {
@@ -237,7 +239,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
-                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}</p>
+                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist} · {album.year}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <div className="flex items-center gap-2">
@@ -250,7 +252,6 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                         }}
                       />
                     )}
-                    <span className="hidden sm:block" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{album.year}</span>
                     <span
                       className="px-2 py-0.5 rounded-full hidden md:block"
                       style={{
