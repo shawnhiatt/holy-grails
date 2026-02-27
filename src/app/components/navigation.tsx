@@ -199,10 +199,9 @@ function ThemeSwitch({
 export function MobileHeader() {
   const { screen, setScreen, isDarkMode, toggleDarkMode, userAvatar } = useApp();
 
-  const iconColor = isDarkMode ? "#E2E8F0" : "#0C284A";
   const logoFill = isDarkMode ? "#E2E8F0" : "#0C284A";
-  const activeBg = isDarkMode ? "rgba(226,232,240,0.12)" : "rgba(12,40,74,0.12)";
-  const avatarBorderColor = isDarkMode ? "#E2E8F0" : "#0C284A";
+  const activeBg = "rgba(172,222,242,0.12)";
+  const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
 
   return (
     <div
@@ -229,8 +228,8 @@ export function MobileHeader() {
           className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer"
           title="Following"
           style={{
-            color: iconColor,
-            backgroundColor: screen === "friends" ? activeBg : "transparent",
+            color: screen === "friends" ? "#EBFD00" : "var(--c-text-muted)",
+            backgroundColor: screen === "friends" ? activeBg : inactiveBg,
           }}
         >
           <Users size={18} strokeWidth={screen === "friends" ? 1.83 : 1.3125} />
@@ -240,10 +239,10 @@ export function MobileHeader() {
           className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer"
           title="Settings"
           style={{
-            color: iconColor,
-            padding: 0,
-            overflow: "hidden",
-            backgroundColor: screen === "settings" && !userAvatar ? activeBg : "transparent",
+            color: screen === "settings" ? "#EBFD00" : "var(--c-text-muted)",
+            padding: userAvatar ? 0 : undefined,
+            overflow: userAvatar ? "hidden" : undefined,
+            backgroundColor: screen === "settings" ? activeBg : inactiveBg,
           }}
         >
           {userAvatar ? (
@@ -251,7 +250,7 @@ export function MobileHeader() {
               src={userAvatar}
               alt="Profile"
               className="w-8 h-8 rounded-full object-cover"
-              style={{ border: screen === "settings" ? `2px solid ${avatarBorderColor}` : "2px solid transparent" }}
+              style={{ border: screen === "settings" ? "2px solid #EBFD00" : "2px solid transparent" }}
             />
           ) : (
             <UserRound size={18} strokeWidth={screen === "settings" ? 1.83 : 1.3125} />

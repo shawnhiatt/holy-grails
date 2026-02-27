@@ -6,6 +6,7 @@ import { useApp } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { AddAlbumsDrawer } from "./add-albums-drawer";
+import { SwipeToDelete } from "./swipe-to-delete";
 
 export function Sessions() {
   const {
@@ -124,34 +125,41 @@ export function Sessions() {
               {sortedSessions.map((session) => {
                 const sessionAlbums = session.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
                 return (
-                  <button
+                  <SwipeToDelete
                     key={session.id}
-                    onClick={() => setActiveSessionId(session.id)}
-                    className="w-full rounded-[12px] flex items-center gap-3 p-4 text-left transition-colors tappable"
-                    style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+                    onDelete={() => {
+                      deleteSession(session.id);
+                      toast.warning(`"${session.name}" deleted`, { duration: 1500 });
+                    }}
                   >
-                    <div className="relative w-12 h-12 flex-shrink-0">
-                      {sessionAlbums.length > 0 ? (
-                        sessionAlbums.slice(0, 3).map((album, i) => (
-                          <img key={album!.id} src={album!.cover} alt="" className="absolute w-10 h-10 rounded-[6px] object-cover"
-                            style={{ top: i * 2, left: i * 2, zIndex: 3 - i, border: "2px solid var(--c-surface)" }} />
-                        ))
-                      ) : (
-                        <div className="w-12 h-12 rounded-[10px] flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
-                          <Headphones size={20} style={{ color: "var(--c-text-muted)" }} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="line-clamp-2 text-left" style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text)" }}>{session.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Disc3 size={11} />{session.albumIds.length} album{session.albumIds.length !== 1 ? "s" : ""}</span>
-                        <span style={{ color: "var(--c-border)" }}>&middot;</span>
-                        <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Calendar size={11} />{new Date(session.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                    <button
+                      onClick={() => setActiveSessionId(session.id)}
+                      className="w-full rounded-[12px] flex items-center gap-3 p-4 text-left transition-colors tappable"
+                      style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+                    >
+                      <div className="relative w-12 h-12 flex-shrink-0">
+                        {sessionAlbums.length > 0 ? (
+                          sessionAlbums.slice(0, 3).map((album, i) => (
+                            <img key={album!.id} src={album!.cover} alt="" className="absolute w-10 h-10 rounded-[6px] object-cover"
+                              style={{ top: i * 2, left: i * 2, zIndex: 3 - i, border: "2px solid var(--c-surface)" }} />
+                          ))
+                        ) : (
+                          <div className="w-12 h-12 rounded-[10px] flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
+                            <Headphones size={20} style={{ color: "var(--c-text-muted)" }} />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
-                  </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="line-clamp-2 text-left" style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text)" }}>{session.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Disc3 size={11} />{session.albumIds.length} album{session.albumIds.length !== 1 ? "s" : ""}</span>
+                          <span style={{ color: "var(--c-border)" }}>&middot;</span>
+                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Calendar size={11} />{new Date(session.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
+                    </button>
+                  </SwipeToDelete>
                 );
               })}
             </div>
