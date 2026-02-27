@@ -30,7 +30,7 @@ const FRIEND_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] =
 ];
 
 export function FriendsScreen() {
-  const { friends, addFriend, removeFriend, albums, wants, discogsToken, isDarkMode, addToWantList, setScreen: setAppScreen } = useApp();
+  const { friends, addFriend, removeFriend, albums, wants, isAuthenticated, discogsAuth, isDarkMode, addToWantList, setScreen: setAppScreen } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -47,8 +47,8 @@ export function FriendsScreen() {
   const handleConnect = useCallback(async () => {
     const username = addUsername.trim();
     if (!username) return;
-    if (!discogsToken) {
-      setAddError("Set your Discogs token in Settings first.");
+    if (!isAuthenticated || !discogsAuth) {
+      setAddError("Connect your Discogs account in Settings first.");
       return;
     }
     if (friends.some((f) => f.username.toLowerCase() === username.toLowerCase())) {
@@ -62,7 +62,7 @@ export function FriendsScreen() {
 
     try {
       // 1. Check user exists and get their canonical username + avatar
-      const profile = await fetchUserProfile(username, discogsToken);
+      const profile = await fetchUserProfile(username, discogsAuth);
 
       // 2. Fetch their collection
       setAddProgress("Fetching collection...");
@@ -71,7 +71,7 @@ export function FriendsScreen() {
       try {
         const result = await fetchCollection(
           profile.username,
-          discogsToken,
+          discogsAuth,
           (loaded, total) => setAddProgress(`Fetching collection... ${loaded}/${total}`)
         );
         friendAlbums = result.albums;
@@ -106,7 +106,7 @@ export function FriendsScreen() {
       try {
         friendWants = await fetchWantlist(
           profile.username,
-          discogsToken,
+          discogsAuth,
           (loaded, total) => setAddProgress(`Fetching wants... ${loaded}/${total}`)
         );
       } catch (e: any) {
@@ -136,7 +136,7 @@ export function FriendsScreen() {
     } finally {
       setAddLoading(false);
     }
-  }, [addUsername, friends, addFriend, discogsToken]);
+  }, [addUsername, friends, addFriend, isAuthenticated, discogsAuth]);
 
   if (selectedFriend) {
     return (

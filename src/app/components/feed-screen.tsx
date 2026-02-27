@@ -203,7 +203,7 @@ export function FeedScreen() {
     setPurgeFilter,
     setNeverPlayedFilter,
     isDarkMode,
-    discogsToken,
+    isAuthenticated,
     openSessionPicker,
     isAlbumInAnySession,
     hidePurgeIndicators,
@@ -1549,7 +1549,7 @@ export function FeedScreen() {
         }
       `}</style>
       {/* ─── NO DISCOGS CONNECTED STATE ─── */}
-      {!hasData && !discogsToken ? (
+      {!hasData && !isAuthenticated ? (
         <NoDiscogsCard />
       ) : (
       /* Scrollable content */
@@ -1581,7 +1581,7 @@ export function FeedScreen() {
             )}
 
             {/* Empty state (has token but no albums) */}
-            {!hasData && !!discogsToken && <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />}
+            {!hasData && isAuthenticated && <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />}
           </div>
 
           {/* ═══ MOBILE STACKED LAYOUT ═══ */}
@@ -1615,7 +1615,7 @@ export function FeedScreen() {
             )}
 
             {/* Empty state (has token but no albums) */}
-            {!hasData && !!discogsToken && <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />}
+            {!hasData && isAuthenticated && <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />}
           </div>
         </div>
       </div>

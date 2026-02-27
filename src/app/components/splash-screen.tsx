@@ -116,6 +116,23 @@ export function SplashScreen({
               {loginLoading ? "Connecting..." : "Log in with Discogs"}
             </button>
 
+            {/* Sign up link */}
+            <a
+              href="https://www.discogs.com/register"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                fontSize: "13px",
+                fontWeight: 400,
+                color: "#D1D8DF",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                marginTop: "12px",
+                textDecoration: "none",
+              }}
+            >
+              New to Discogs? Create a free account
+            </a>
+
             {/* Login error */}
             {loginError && (
               <div

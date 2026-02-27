@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, Disc3, Upload, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut } from "lucide-react";
+import { Eye, EyeOff, Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -188,17 +188,6 @@ export function SettingsScreen() {
             </div>
             <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
           </button>
-        </section>
-
-        <section className="mt-6">
-          <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Import from CSV</h3>
-            <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] border border-dashed transition-colors"
-              style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-surface-alt)", color: "var(--c-text-secondary)", borderColor: "var(--c-border-strong)" }}><Upload size={16} />Import Collection CSV</button>
-            <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] border border-dashed transition-colors"
-              style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-surface-alt)", color: "var(--c-text-secondary)", borderColor: "var(--c-border-strong)" }}><Upload size={16} />Import Want List CSV</button>
-            <p className="text-center" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Export from Discogs &rarr; Settings &rarr; Export Collection.</p>
-          </div>
         </section>
 
         <section className="mt-6">

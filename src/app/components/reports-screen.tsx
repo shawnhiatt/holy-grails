@@ -980,7 +980,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 /* ═══════════════════ MAIN REPORTS SCREEN ═══════════════════ */
 
 export function ReportsScreen() {
-  const { albums, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, discogsToken } = useApp();
+  const { albums, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
   const accent = useAccent();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
@@ -1014,7 +1014,7 @@ export function ReportsScreen() {
       </div>
 
       {/* No Discogs connected */}
-      {albums.length === 0 && !discogsToken ? (
+      {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
           heading="No data yet."
           subtext="Connect your Discogs collection to see insights about your records."

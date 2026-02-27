@@ -161,7 +161,7 @@ const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
 ];
 
 export function Wantlist() {
-  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, discogsToken } = useApp();
+  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated } = useApp();
   const [viewMode, setViewMode] = useState<WantViewMode>("grid");
 
   const filteredWants = useMemo(() => {
@@ -256,7 +256,7 @@ export function Wantlist() {
       </div>
 
       {/* Content */}
-      {wants.length === 0 && !discogsToken ? (
+      {wants.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
           heading="No wants found."
           subtext="Connect your Discogs account to sync your wantlist."
