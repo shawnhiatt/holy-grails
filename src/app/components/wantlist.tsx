@@ -586,13 +586,29 @@ function WantlistView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
 
   const alphabetEntries = useWantAlphabetIndex(wants);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
-  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep refs array in sync with item count
-  if (rowRefs.current.length !== wants.length) {
-    rowRefs.current = new Array(wants.length).fill(null);
+  if (anchorRefs.current.length !== wants.length) {
+    anchorRefs.current = new Array(wants.length).fill(null);
   }
+
+  const wantRenderItems = useMemo((): WantRenderItem[] => {
+    const items: WantRenderItem[] = [];
+    let currentLabel: string | null = null;
+    let isFirst = true;
+    wants.forEach((want, itemIndex) => {
+      const label = getWantGroupLabel(want);
+      if (label !== currentLabel) {
+        items.push({ kind: "divider", label, firstIndex: itemIndex, isFirst });
+        currentLabel = label;
+        isFirst = false;
+      }
+      items.push({ kind: "item", want, itemIndex });
+    });
+    return items;
+  }, [wants]);
 
   if (wants.length === 0) return <div className="flex-1 flex items-center justify-center"><p style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>No items found</p></div>;
 
@@ -605,54 +621,78 @@ function WantlistView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
         onScroll={onHeaderScroll}
       >
         <div className="flex flex-col gap-1.5">
-          {wants.map((item, i) => (
-            <div
-              key={item.id}
-              ref={(el) => { rowRefs.current[i] = el; }}
-              className="flex items-center gap-3 p-2.5 rounded-[10px] tappable transition-colors"
-              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
-            >
-              <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0">
-                <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
-                <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist} · {item.year}</p>
-              </div>
-              <span className="hidden sm:block flex-shrink-0" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{item.label}</span>
-              <a
-                href={`https://www.discogs.com/release/${item.release_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-shrink-0 flex items-center gap-1.5 p-2 transition-opacity hover:opacity-80"
-                style={{ color: "var(--c-text-muted)" }}
-                title="View on Discogs"
-                onClick={(e) => e.stopPropagation()}
+          {wantRenderItems.map((item) => {
+            if (item.kind === "divider") {
+              return (
+                <div
+                  key={`divider-${item.label}`}
+                  style={{ paddingTop: item.isFirst ? 0 : 16, paddingBottom: 8 }}
+                  ref={(el) => { anchorRefs.current[item.firstIndex] = el; }}
+                >
+                  <p style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    color: "var(--c-text-tertiary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: 6,
+                  }}>
+                    {item.label}
+                  </p>
+                  <div style={{ height: 1, backgroundColor: "var(--c-border)" }} />
+                </div>
+              );
+            }
+            const { want } = item;
+            return (
+              <div
+                key={want.id}
+                className="flex items-center gap-3 p-2.5 rounded-[10px] tappable transition-colors"
+                style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
               >
-                <span className="hidden lg:inline" style={{ fontSize: "12px", fontWeight: 500 }}>View on Discogs</span>
-                <ExternalLink size={15} />
-              </a>
-              <button onClick={() => togglePriority(item.id)} className="flex-shrink-0 p-2 transition-transform hover:scale-110">
-                {item.priority ? (
-                  <Zap size={18}
-                    fill={isDarkMode ? "#EBFD00" : "#B8C900"}
-                    color={isDarkMode ? "#EBFD00" : "#B8C900"}
-                  />
-                ) : (
-                  <Zap size={18}
-                    fill="none"
-                    color={isDarkMode ? "var(--c-text-faint)" : "var(--c-text-faint)"}
-                  />
-                )}
-              </button>
-            </div>
-          ))}
+                <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0">
+                  <img src={want.cover} alt={want.title} className="w-full h-full object-cover" />
+                </div>
+                <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{want.title}</p>
+                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{want.artist} · {want.year}</p>
+                </div>
+                <span className="hidden sm:block flex-shrink-0" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{want.label}</span>
+                <a
+                  href={`https://www.discogs.com/release/${want.release_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 flex items-center gap-1.5 p-2 transition-opacity hover:opacity-80"
+                  style={{ color: "var(--c-text-muted)" }}
+                  title="View on Discogs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="hidden lg:inline" style={{ fontSize: "12px", fontWeight: 500 }}>View on Discogs</span>
+                  <ExternalLink size={15} />
+                </a>
+                <button onClick={() => togglePriority(want.id)} className="flex-shrink-0 p-2 transition-transform hover:scale-110">
+                  {want.priority ? (
+                    <Zap size={18}
+                      fill={isDarkMode ? "#EBFD00" : "#B8C900"}
+                      color={isDarkMode ? "#EBFD00" : "#B8C900"}
+                    />
+                  ) : (
+                    <Zap size={18}
+                      fill="none"
+                      color={isDarkMode ? "var(--c-text-faint)" : "var(--c-text-faint)"}
+                    />
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Alphabet index sidebar — mobile only */}
       {indexVisible && (
-        <WantAlphabetSidebar entries={alphabetEntries!} anchorRefs={rowRefs} scrollRef={scrollRef} />
+        <WantAlphabetSidebar entries={alphabetEntries!} anchorRefs={anchorRefs} scrollRef={scrollRef} />
       )}
     </>
   );

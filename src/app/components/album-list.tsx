@@ -5,6 +5,7 @@ import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { formatRelativeDate } from "./last-played-utils";
 import { useHideHeaderOnScroll } from "./use-hide-header";
+import { DIVIDER_SORT_OPTS, getAlbumGroupLabel } from "./album-grid";
 
 /* ─── Alphabet Index Sidebar (mobile only) ─── */
 
@@ -51,13 +52,17 @@ function useAlphabetIndex(albums: Album[], sortOption: string) {
   }, [albums, sortOption]);
 }
 
+type ListRenderItem =
+  | { kind: "divider"; label: string; firstAlbumIndex: number; isFirst: boolean }
+  | { kind: "album"; album: Album };
+
 interface AlphabetSidebarProps {
   entries: LetterEntry[];
-  rowRefs: React.MutableRefObject<(HTMLButtonElement | null)[]>;
+  anchorRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function AlphabetSidebar({ entries, rowRefs, scrollRef }: AlphabetSidebarProps) {
+function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSidebarProps) {
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,13 +73,13 @@ function AlphabetSidebar({ entries, rowRefs, scrollRef }: AlphabetSidebarProps) 
   }, []);
 
   const scrollToLetter = useCallback((entry: LetterEntry, smooth = false) => {
-    const el = rowRefs.current[entry.firstIndex];
+    const el = anchorRefs.current[entry.firstIndex];
     if (el && scrollRef.current) {
       const container = scrollRef.current;
       const elTop = el.offsetTop - container.offsetTop;
       container.scrollTo({ top: elTop - 8, behavior: smooth ? "smooth" : "auto" });
     }
-  }, [rowRefs, scrollRef]);
+  }, [anchorRefs, scrollRef]);
 
   const getEntryFromY = useCallback((clientY: number): LetterEntry | null => {
     const strip = stripRef.current;
@@ -179,13 +184,34 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
   const collectionEmpty = allAlbums.length === 0;
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
+  const hasDividers = DIVIDER_SORT_OPTS.has(sortOption);
+
+  const renderItems = useMemo((): ListRenderItem[] => {
+    if (!hasDividers) {
+      return albums.map((album) => ({ kind: "album", album }));
+    }
+    const items: ListRenderItem[] = [];
+    let currentLabel: string | null = null;
+    let isFirst = true;
+    albums.forEach((album, albumIndex) => {
+      const label = getAlbumGroupLabel(album, sortOption);
+      if (label !== currentLabel) {
+        items.push({ kind: "divider", label, firstAlbumIndex: albumIndex, isFirst });
+        currentLabel = label;
+        isFirst = false;
+      }
+      items.push({ kind: "album", album });
+    });
+    return items;
+  }, [albums, sortOption, hasDividers]);
+
   // Keep refs array in sync with album count
-  if (rowRefs.current.length !== albums.length) {
-    rowRefs.current = new Array(albums.length).fill(null);
+  if (anchorRefs.current.length !== albums.length) {
+    anchorRefs.current = new Array(albums.length).fill(null);
   }
 
   if (albums.length === 0) {
@@ -221,12 +247,34 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
         onScroll={onHeaderScroll}
       >
         <div className="flex flex-col gap-1.5">
-          {albums.map((album, i) => {
+          {renderItems.map((item) => {
+            if (item.kind === "divider") {
+              return (
+                <div
+                  key={`divider-${item.label}`}
+                  style={{ paddingTop: item.isFirst ? 0 : 16, paddingBottom: 8 }}
+                  ref={(el) => { anchorRefs.current[item.firstAlbumIndex] = el; }}
+                >
+                  <p style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    color: "var(--c-text-tertiary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: 6,
+                  }}>
+                    {item.label}
+                  </p>
+                  <div style={{ height: 1, backgroundColor: "var(--c-border)" }} />
+                </div>
+              );
+            }
+            const { album } = item;
             const lp = lastPlayed[album.id];
             return (
               <button
                 key={album.id}
-                ref={(el) => { rowRefs.current[i] = el; }}
                 onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
                 onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
                 onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
@@ -304,7 +352,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
 
       {/* Alphabet index sidebar — mobile only */}
       {indexVisible && (
-        <AlphabetSidebar entries={alphabetEntries!} rowRefs={rowRefs} scrollRef={scrollRef} />
+        <AlphabetSidebar entries={alphabetEntries!} anchorRefs={anchorRefs} scrollRef={scrollRef} />
       )}
     </>
   );
