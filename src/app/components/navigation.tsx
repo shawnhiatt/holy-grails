@@ -116,7 +116,6 @@ function ThemeSwitch({
 }) {
   const isHeader = variant === "header";
   const isTopnav = variant === "topnav";
-  // Track colors
   const trackBg = isTopnav
     ? (isDark ? "rgba(235,253,0,0.08)" : "rgba(12,40,74,0.1)")
     : isHeader
@@ -148,7 +147,6 @@ function ThemeSwitch({
       }}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
-      {/* Icons */}
       <Sun
         size={12}
         strokeWidth={2}
@@ -175,15 +173,12 @@ function ThemeSwitch({
           zIndex: 1,
         }}
       />
-      {/* Thumb */}
       <div
         style={{
           position: "absolute",
           top: "50%",
           transform: "translateY(-50%)",
-          left: isDark
-            ? "27px"
-            : "3px",
+          left: isDark ? "27px" : "3px",
           width: "22px",
           height: "22px",
           borderRadius: "50%",
