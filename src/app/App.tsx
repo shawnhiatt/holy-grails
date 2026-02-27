@@ -94,6 +94,11 @@ function AppContent() {
     return () => clearTimeout(id);
   }, [loadPhase, isSyncing, isAuthLoading]);
 
+  // DEBUG — remove before merging
+  useEffect(() => {
+    console.log('[LoadPhase]', { isAuthLoading, isSyncing, loadPhase, ts: Date.now() });
+  }, [isAuthLoading, isSyncing, loadPhase]);
+
   // Detect if we're on the OAuth callback URL
   const [isAuthCallback, setIsAuthCallback] = useState(() => {
     return window.location.pathname === "/auth/callback" &&
