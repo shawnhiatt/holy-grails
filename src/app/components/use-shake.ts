@@ -68,26 +68,10 @@ export function useShake({ threshold = 15, timeout = 1000, onShake, enabled = tr
     if (typeof window === "undefined") return;
     if (!("DeviceMotionEvent" in window)) return;
 
-    // iOS 13+ requires permission
-    const requestPermission = async () => {
-      const DME = DeviceMotionEvent as any;
-      if (typeof DME.requestPermission === "function") {
-        try {
-          const permission = await DME.requestPermission();
-          if (permission === "granted") {
-            window.addEventListener("devicemotion", handleMotion);
-          }
-        } catch {
-          // Permission denied — silently ignore
-        }
-      } else {
-        // Non-iOS or older iOS — just listen
-        window.addEventListener("devicemotion", handleMotion);
-      }
-    };
-
-    requestPermission();
-
+    // Permission must already be granted via the settings toggle before this
+    // listener is attached. Do not call requestPermission() here — iOS requires
+    // a user gesture, and on subsequent loads the grant persists automatically.
+    window.addEventListener("devicemotion", handleMotion);
     return () => {
       window.removeEventListener("devicemotion", handleMotion);
     };

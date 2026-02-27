@@ -58,6 +58,7 @@ function AppContent() {
     connectDiscogsRequested, clearConnectDiscogsRequest,
     headerHidden, sessionPickerAlbumId,
     isAuthenticated, isAuthLoading, isSyncing, loginWithOAuth,
+    shakeToRandom,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
@@ -234,7 +235,7 @@ function AppContent() {
 
   useShake({
     onShake: handleShake,
-    enabled: !isDesktop,
+    enabled: !isDesktop && shakeToRandom,
     threshold: 12,
     timeout: 1000,
   });

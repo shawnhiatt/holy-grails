@@ -56,5 +56,6 @@ export default defineSchema({
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("system")),
     hide_purge_indicators: v.boolean(),
     hide_gallery_meta: v.boolean(),
+    shake_to_random: v.optional(v.boolean()),
   }).index("by_username", ["discogs_username"]),
 });
