@@ -864,6 +864,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFirstSessionJustCreated(false);
     setSyncFailed(false);
 
+    // Navigate away from any authenticated-only screen
+    setScreenRaw("feed");
+
     // Clear cached data
     clearCollectionValue();
     clearAllMarketData();

@@ -312,8 +312,8 @@ function AppContent() {
         <div
           className="fixed left-0 right-0 pointer-events-none lg:hidden"
           style={{
-            bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
-            height: "140px",
+            bottom: 0,
+            height: "calc(140px + 12px + env(safe-area-inset-bottom, 0px))",
             zIndex: 100,
             background: "linear-gradient(to bottom, transparent, var(--app-bg))",
           }}
@@ -337,6 +337,7 @@ function AppContent() {
         duration={2500}
         theme={isDarkMode ? "dark" : "light"}
         richColors
+        style={{ "--offset": "env(safe-area-inset-top, 44px)" } as React.CSSProperties}
       />
     </div>
   );

@@ -36,6 +36,24 @@ export function SettingsScreen() {
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  // Logged-out state — show minimal sign-in prompt
+  if (!isAuthenticated && !discogsToken) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center px-[32px] gap-4">
+        <p style={{ fontSize: "15px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
+          You're not signed in.
+        </p>
+        <button
+          onClick={() => setScreen("feed")}
+          className="px-6 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors"
+          style={{ fontSize: "14px", fontWeight: 600 }}
+        >
+          Log in with Discogs
+        </button>
+      </div>
+    );
+  }
+
   const handleSync = async () => {
     if (!isOAuthUser && !discogsToken.trim()) {
       toast.error("Enter your Discogs personal access token first");
