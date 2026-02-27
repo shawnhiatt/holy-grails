@@ -234,7 +234,7 @@ export function FriendsScreen() {
       </AnimatePresence>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "var(--nav-clearance, 0px)" }} onScroll={onHeaderScroll}>
+      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 80px))" }} onScroll={onHeaderScroll}>
         {friends.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 py-20">
             <Users size={48} style={{ color: "var(--c-text-faint)" }} />
@@ -874,7 +874,7 @@ function buildActivityFeed(friends: Friend[]): ActivityItem[] {
     if (friend.isPrivate || friend.collection.length === 0) continue;
     const sorted = [...friend.collection]
       .sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""))
-      .slice(0, 8);
+      .slice(0, 30);
     sorted.forEach((album) => {
       items.push({
         id: `act-${friend.id}-${album.id}`,
