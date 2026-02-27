@@ -93,14 +93,23 @@ function AppContent() {
     }
   }, [loadPhase, isSyncing]);
 
-  // Exit 'syncing' only when isAuthLoading=false, isSyncing=false, AND we have
-  // confirmed isSyncing was true at least once — eliminating the race condition
-  // where both flags briefly read false before the sync actually starts.
+  // Exit 'syncing' once isAuthLoading and isSyncing are both false.
+  // Two exit paths:
+  //   Authenticated: hasSeenSyncingRef is true (sync ran) → go to 'complete'
+  //                  so the progress bar can animate to 100% before dismissing.
+  //   No-session:    hasSeenSyncingRef is false (Convex resolved with no user,
+  //                  sync never started) → go straight to 'idle' so the splash
+  //                  screen is not blocked by a 'syncing' phase that never ends.
   useEffect(() => {
     if (loadPhase !== 'syncing') return;
     if (isSyncing || isAuthLoading) return;
-    if (!hasSeenSyncingRef.current) return;
-    setLoadPhase('complete');
+    if (hasSeenSyncingRef.current) {
+      // Authenticated path: sync ran and finished — advance to complete
+      setLoadPhase('complete');
+    } else {
+      // No-session path: Convex resolved with no user, sync never started — go straight to idle
+      setLoadPhase('idle');
+    }
   }, [loadPhase, isSyncing, isAuthLoading]);
 
   // Separate effect for 'complete' → 'idle' so the timer isn't cancelled by
