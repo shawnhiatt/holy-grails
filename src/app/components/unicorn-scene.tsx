@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { UnicornScene as LibraryScene } from "unicornstudio-react";
+import { useEffect, useRef, useState } from "react";
+
+const PROJECT_ID = "cnsv252lbgNqAPR7Odzz";
+const CDN_SRC =
+  "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v2.0.5/dist/unicornStudio.umd.js";
 
 // Performance note: if the scene causes frame drops on the loading screen during
 // active sync, lower SCENE_SCALE to 0.5 and tune SCENE_DPI accordingly.
-const SCENE_SCALE = 0.75;
-const SCENE_DPI = 1.5;
-const PROJECT_ID = "7hz0T9mnpIOKgPTu6xzW";
 
 interface UnicornSceneProps {
   className?: string;
@@ -25,6 +25,15 @@ function isWebGLAvailable(): boolean {
   }
 }
 
+declare global {
+  interface Window {
+    UnicornStudio?: {
+      isInitialized: boolean;
+      init: () => void;
+    };
+  }
+}
+
 /**
  * Wrapper around the Unicorn Studio WebGL scene for use as a fullscreen
  * background. Falls back to a plain #01294D div if WebGL is unavailable or
@@ -38,6 +47,41 @@ export function UnicornScene({ className }: UnicornSceneProps) {
     typeof window !== "undefined" ? isWebGLAvailable() : true
   );
   const [failed, setFailed] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!webGLSupported || failed) return;
+
+    const loadAndInit = () => {
+      if (window.UnicornStudio?.isInitialized) {
+        window.UnicornStudio.init();
+        return;
+      }
+
+      if (document.querySelector(`script[src="${CDN_SRC}"]`)) return;
+
+      const script = document.createElement("script");
+      script.src = CDN_SRC;
+      script.type = "text/javascript";
+      script.onload = () => {
+        try {
+          window.UnicornStudio?.init();
+        } catch {
+          setFailed(true);
+        }
+      };
+      script.onerror = () => setFailed(true);
+      (document.head || document.body).appendChild(script);
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", loadAndInit, {
+        once: true,
+      });
+    } else {
+      loadAndInit();
+    }
+  }, [webGLSupported, failed]);
 
   if (!webGLSupported || failed) {
     return (
@@ -49,15 +93,10 @@ export function UnicornScene({ className }: UnicornSceneProps) {
   }
 
   return (
-    <div className={className} style={{ zIndex: 0 }}>
-      <LibraryScene
-        projectId={PROJECT_ID}
-        scale={SCENE_SCALE}
-        dpi={SCENE_DPI}
-        lazyLoad={false}
-        width="100%"
-        height="100%"
-        onError={() => setFailed(true)}
+    <div className={className} style={{ zIndex: 0 }} ref={containerRef}>
+      <div
+        data-us-project={PROJECT_ID}
+        style={{ width: "100%", height: "100%" }}
       />
     </div>
   );
