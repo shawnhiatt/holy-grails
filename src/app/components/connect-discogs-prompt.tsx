@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Check, Loader2 } from "lucide-react";
 import svgPaths from "../../imports/svg-uhymsl4ur0";
-import { SplashVideo } from "./splash-video";
+import { UnicornScene } from "./unicorn-scene";
 
 type FlowState = "idle" | "loading" | "success";
 
@@ -55,8 +55,8 @@ export function ConnectDiscogsPrompt({
         position: "relative",
       }}
     >
-      {/* Fullscreen looping video background */}
-      <SplashVideo />
+      {/* Fullscreen WebGL scene background */}
+      <UnicornScene className="absolute inset-0 w-full h-full" />
 
       <AnimatePresence mode="wait">
         {flowState === "success" ? (

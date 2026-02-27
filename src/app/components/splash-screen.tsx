@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { Disc3, AlertTriangle } from "lucide-react";
 import { WordmarkLogo } from "./navigation";
-import { SplashVideo } from "./splash-video";
+import { UnicornScene } from "./unicorn-scene";
 
 interface SplashScreenProps {
   isDarkMode: boolean;
@@ -41,8 +41,8 @@ export function SplashScreen({
         position: "relative",
       }}
     >
-      {/* Fullscreen looping video background */}
-      <SplashVideo />
+      {/* Fullscreen WebGL scene background */}
+      <UnicornScene className="absolute inset-0 w-full h-full" />
 
       {/* Logo + button group — centered vertically within a min-height container
           so the button sits close to the wordmark and doesn't float to the
