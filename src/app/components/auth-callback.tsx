@@ -21,7 +21,7 @@ interface AuthCallbackProps {
  * credentials in Convex.
  */
 export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
-  const [status, setStatus] = useState<"exchanging" | "identifying" | "saving">(
+  const [status, setStatus] = useState<"exchanging" | "identifying" | "saving" | "done">(
     "exchanging"
   );
   const exchangeToken = useAction(api.oauth.accessToken);
@@ -94,6 +94,13 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
 
         if (cancelled) return;
 
+        // Hold at "done" for 500ms so the progress bar can animate to 100%
+        // (300ms fill) and hold briefly (200ms) before the screen unmounts.
+        setStatus("done");
+        await new Promise<void>((r) => setTimeout(r, 500));
+
+        if (cancelled) return;
+
         // Clean up URL params
         window.history.replaceState({}, "", "/");
 
@@ -126,5 +133,5 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
         ? "Fetching your profile"
         : "Saving credentials";
 
-  return <LoadingScreen message={statusText} />;
+  return <LoadingScreen message={statusText} progress={status === "done" ? 100 : undefined} />;
 }

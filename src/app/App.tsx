@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, Component } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Toaster, toast } from "sonner";
 import { AppProvider, useApp } from "./components/app-context";
@@ -61,6 +61,23 @@ function AppContent() {
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
+
+  // Hold the loading screen for 500ms after isAuthLoading goes false so the
+  // progress bar can animate to 100% (300ms) and hold briefly (200ms).
+  const [syncComplete, setSyncComplete] = useState(false);
+  const wasAuthLoadingRef = useRef(false);
+  useEffect(() => {
+    if (isAuthLoading) {
+      wasAuthLoadingRef.current = true;
+      return;
+    }
+    if (wasAuthLoadingRef.current) {
+      wasAuthLoadingRef.current = false;
+      setSyncComplete(true);
+      const id = setTimeout(() => setSyncComplete(false), 500);
+      return () => clearTimeout(id);
+    }
+  }, [isAuthLoading]);
 
   // Detect if we're on the OAuth callback URL
   const [isAuthCallback, setIsAuthCallback] = useState(() => {
@@ -212,9 +229,10 @@ function AppContent() {
     );
   }
 
-  // Show loading spinner while restoring a returning user's session
-  if (isAuthLoading) {
-    return <LoadingScreen message="Syncing collection" />;
+  // Show loading spinner while restoring a returning user's session.
+  // syncComplete keeps it mounted an extra 500ms so the bar can animate to 100%.
+  if (isAuthLoading || syncComplete) {
+    return <LoadingScreen message="Syncing collection" progress={syncComplete ? 100 : undefined} />;
   }
 
   if (showSplash) {
