@@ -17,26 +17,26 @@ import { useApp, type Screen } from "./app-context";
 /** Desktop top nav — left group */
 const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
+  { id: "friends", label: "Following", icon: Users },
   { id: "crate", label: "Collection", icon: Library },
   { id: "wants", label: "Wants", icon: Heart },
-  { id: "sessions", label: "Sessions", icon: Headphones },
 ];
 
 /** Desktop top nav — right group */
 const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
+  { id: "sessions", label: "Sessions", icon: Headphones },
   { id: "purge", label: "Purge", icon: SquareArrowOutUpRight },
   { id: "reports", label: "Insights", icon: BarChart3 },
-  { id: "friends", label: "Following", icon: Users },
   { id: "settings", label: "Settings", icon: UserRound },
 ];
 
-/** Mobile bottom bar — Feed replaces Sessions, Sessions replaces Purge, Purge removed */
+/** Mobile bottom bar */
 const MOBILE_NAV_ITEMS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
+  { id: "friends", label: "Following", icon: Users },
   { id: "crate", label: "Collection", icon: Library },
   { id: "wants", label: "Wants", icon: Heart },
   { id: "sessions", label: "Sessions", icon: Headphones },
-  { id: "friends", label: "Following", icon: Users },
 ];
 
 /** SVG wordmark logo — "Holy Grails" with integrated vinyl record icon */
@@ -346,7 +346,7 @@ export function DesktopTopNav() {
           <Icon
             size={17}
             strokeWidth={isActive ? 1.8 : 1.2}
-            color={isActive ? activeColor : inactiveColor}
+            color={isActive ? "#EBFD00" : inactiveColor}
           />
         )}
         <span
