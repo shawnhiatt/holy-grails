@@ -101,12 +101,19 @@ function AppContent() {
     if (isSyncing || isAuthLoading) return;
     if (!hasSeenSyncingRef.current) return;
     setLoadPhase('complete');
+  }, [loadPhase, isSyncing, isAuthLoading]);
+
+  // Separate effect for 'complete' → 'idle' so the timer isn't cancelled by
+  // the cleanup of the 'syncing' → 'complete' effect above (which re-runs when
+  // loadPhase changes, clearing its own setTimeout before it fires).
+  useEffect(() => {
+    if (loadPhase !== 'complete') return;
     const id = setTimeout(() => {
       hasSeenSyncingRef.current = false;
       setLoadPhase('idle');
     }, 500);
     return () => clearTimeout(id);
-  }, [loadPhase, isSyncing, isAuthLoading]);
+  }, [loadPhase]);
 
   // DEBUG — remove before merging
   useEffect(() => {
