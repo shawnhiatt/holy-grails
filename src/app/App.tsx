@@ -126,11 +126,6 @@ function AppContent() {
     return () => clearTimeout(id);
   }, [loadPhase]);
 
-  // DEBUG — remove before merging
-  useEffect(() => {
-    console.log('[LoadPhase]', { isAuthLoading, isSyncing, loadPhase, ts: Date.now() });
-  }, [isAuthLoading, isSyncing, loadPhase]);
-
   // OAuth abandonment detection.
   //
   // oauthInFlight.current is set to true in handleLoginWithDiscogs the moment
