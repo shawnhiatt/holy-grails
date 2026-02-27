@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { motion } from "motion/react";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
-import { SplashVideo } from "./splash-video";
+import { UnicornScene } from "./unicorn-scene";
 
 type FieldError = { email?: string; password?: string; confirm?: string };
 
@@ -142,8 +142,8 @@ export function CreateAccountScreen({
         position: "relative",
       }}
     >
-      {/* Fullscreen looping video background */}
-      <SplashVideo />
+      {/* Fullscreen WebGL scene background */}
+      <UnicornScene className="absolute inset-0 w-full h-full" />
 
       {/* Header with back arrow */}
       <motion.div

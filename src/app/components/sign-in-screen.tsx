@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Eye, EyeOff, Loader2, Check } from "lucide-react";
-import { SplashVideo } from "./splash-video";
+import { UnicornScene } from "./unicorn-scene";
 
 type SubView = "sign-in" | "forgot-password";
 
@@ -41,8 +41,8 @@ export function SignInScreen({
         position: "relative",
       }}
     >
-      {/* Fullscreen looping video background */}
-      <SplashVideo />
+      {/* Fullscreen WebGL scene background */}
+      <UnicornScene className="absolute inset-0 w-full h-full" />
 
       <AnimatePresence mode="wait">
         {subView === "sign-in" ? (

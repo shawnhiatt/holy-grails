@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Disc3 } from "lucide-react";
 import { motion } from "motion/react";
-import { SplashVideo } from "./splash-video";
+import { UnicornScene } from "./unicorn-scene";
 import { EASE_OUT } from "./motion-tokens";
 
 interface LoadingScreenProps {
@@ -80,7 +80,7 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
         position: "relative",
       }}
     >
-      <SplashVideo />
+      <UnicornScene className="absolute inset-0 w-full h-full" />
 
       <div
         className="flex flex-col items-center gap-3"
