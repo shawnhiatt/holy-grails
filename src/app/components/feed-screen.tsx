@@ -1122,8 +1122,8 @@ export function FeedScreen() {
         <div className="flex gap-[6px] flex-wrap pb-[12px]">
           {[
             { label: "Keep", count: keepCount, color: purgeTagColor("keep", isDarkMode), filter: "keep" as const },
-            { label: "Cut", count: cutCount, color: purgeTagColor("cut", isDarkMode), filter: "cut" as const },
             { label: "Maybe", count: maybeCount, color: purgeTagColor("maybe", isDarkMode), filter: "maybe" as const },
+            { label: "Cut", count: cutCount, color: purgeTagColor("cut", isDarkMode), filter: "cut" as const },
             { label: "Unrated", count: unratedCount, color: purgeTagColor("unrated", isDarkMode), filter: "unrated" as const },
           ].map((chip) => (
             <button
@@ -1254,8 +1254,8 @@ export function FeedScreen() {
               {/* Buttons */}
               <div style={{ display: "flex", flexDirection: "row", gap: "8px", marginTop: "12px" }}>
                 <button onClick={() => handlePurgeDecision("keep")} className="tappable" style={purgeButtonStyle("keep")}>Keep</button>
-                <button onClick={() => handlePurgeDecision("cut")} className="tappable" style={purgeButtonStyle("cut")}>Cut</button>
                 <button onClick={() => handlePurgeDecision("maybe")} className="tappable" style={purgeButtonStyle("maybe")}>Maybe</button>
+                <button onClick={() => handlePurgeDecision("cut")} className="tappable" style={purgeButtonStyle("cut")}>Cut</button>
               </div>
             </div>
 
@@ -1354,8 +1354,8 @@ export function FeedScreen() {
                   {/* Button row */}
                   <div style={{ display: "flex", flexDirection: "row", gap: "8px", width: "100%", marginTop: "12px" }}>
                     <button onClick={() => handlePurgeDecision("keep")} className="tappable" style={purgeButtonStyle("keep")}>Keep</button>
-                    <button onClick={() => handlePurgeDecision("cut")} className="tappable" style={purgeButtonStyle("cut")}>Cut</button>
                     <button onClick={() => handlePurgeDecision("maybe")} className="tappable" style={purgeButtonStyle("maybe")}>Maybe</button>
+                    <button onClick={() => handlePurgeDecision("cut")} className="tappable" style={purgeButtonStyle("cut")}>Cut</button>
                   </div>
                 </div>
               </div>
