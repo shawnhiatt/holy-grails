@@ -6,3 +6,12 @@
 [data-sonner-toaster][data-y-position="top"] {
   top: env(safe-area-inset-top, 44px) !important;
 }
+
+/* In standalone PWA mode the 12px float gap between the tab bar and the safe
+   area creates excess whitespace. Remove it so the pill sits flush with the
+   safe area boundary instead. Only applies to true installed PWA contexts. */
+@media (display-mode: standalone) {
+  .bottom-tab-bar {
+    bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+}

@@ -261,7 +261,7 @@ export function BottomTabBar() {
 
   return (
     <nav
-      className="fixed z-[130] flex items-center justify-between lg:hidden"
+      className="fixed z-[130] flex items-center justify-between lg:hidden bottom-tab-bar"
       style={{
         bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
         left: "10px",

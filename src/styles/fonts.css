@@ -1,18 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
 /* Vinyl disc spinner — 33⅓ RPM (1.8s per rotation) */
+@-webkit-keyframes spin-record {
+  from { -webkit-transform: rotate(0deg); transform: rotate(0deg); }
+  to   { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
+}
 @keyframes spin-record {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
 
 .disc-spinner {
+  -webkit-animation: spin-record 1.8s linear infinite;
   animation: spin-record 1.8s linear infinite;
+  -webkit-transform-origin: center center;
   transform-origin: center center;
+  /* Ensures transform-origin is relative to the element itself on SVG in iOS Safari */
+  -webkit-transform-box: fill-box;
+  transform-box: fill-box;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .disc-spinner {
+    -webkit-animation: none;
     animation: none;
   }
 }

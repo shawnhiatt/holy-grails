@@ -5,8 +5,8 @@ import type { Album } from "./discogs-api";
 function formatAddedDate(iso: string): string {
   const d = new Date(iso);
   const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
   return `Added ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
