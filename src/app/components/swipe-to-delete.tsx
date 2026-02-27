@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { motion, useAnimation } from "motion/react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
+import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 
-const SWIPE_THRESHOLD = 60;
 const DELETE_ZONE_WIDTH = 80;
+const SNAP_OPEN_THRESHOLD = 46; // half of delete zone width
 
 export interface SwipeToDeleteProps {
   onDelete: () => void;
@@ -15,8 +14,18 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
   const [isDesktop, setIsDesktop] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
   );
-  const [deleted, setDeleted] = useState(false);
-  const controls = useAnimation();
+  const [isDeleted, setIsDeleted] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Drag tracking via refs — avoids React re-renders on every pointermove
+  const isDraggingRef = useRef(false);
+  const hasDragged = useRef(false);
+  const pointerStartX = useRef(0);
+  const offsetAtPointerDown = useRef(0);
+  const currentOffset = useRef(0);
 
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
@@ -25,57 +34,174 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  const triggerDelete = useCallback(async () => {
-    await controls.start({
-      x: -window.innerWidth,
-      opacity: 0,
-      transition: { duration: DURATION_NORMAL, ease: EASE_OUT },
-    });
-    setDeleted(true);
-    onDelete();
-  }, [controls, onDelete]);
+  // Imperatively set content transform — avoids React re-renders on every drag frame
+  const applyContentTransform = useCallback((x: number, transition?: string) => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.style.transition = transition ?? "none";
+    el.style.transform = `translateX(${x}px)`;
+    currentOffset.current = x;
+  }, []);
 
-  const handleDragEnd = useCallback(
-    (_: unknown, info: { offset: { x: number } }) => {
-      if (info.offset.x < -SWIPE_THRESHOLD) {
+  const triggerDelete = useCallback(() => {
+    const wrapper = wrapperRef.current;
+    const content = contentRef.current;
+
+    if (!wrapper) {
+      setIsDeleted(true);
+      onDelete();
+      return;
+    }
+
+    const easing = `cubic-bezier(${EASE_IN_OUT.join(",")})`;
+    const dur = `${Math.round(DURATION_NORMAL * 1000)}ms`;
+
+    // Slide content off-screen left
+    if (content) {
+      content.style.transition = `transform ${dur} ${easing}`;
+      content.style.transform = `translateX(-${window.innerWidth}px)`;
+    }
+
+    // Collapse wrapper: capture current height, then animate max-height + opacity to 0
+    const height = wrapper.offsetHeight;
+    wrapper.style.maxHeight = `${height}px`;
+    wrapper.style.overflow = "hidden";
+    // Force reflow so the browser registers the explicit max-height before animating
+    void wrapper.offsetHeight;
+    wrapper.style.transition = `max-height ${dur} ${easing}, opacity ${dur} ${easing}`;
+    wrapper.style.maxHeight = "0";
+    wrapper.style.opacity = "0";
+
+    setTimeout(() => {
+      setIsDeleted(true);
+      onDelete();
+    }, DURATION_NORMAL * 1000 + 50);
+  }, [onDelete]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    isDraggingRef.current = true;
+    hasDragged.current = false;
+    pointerStartX.current = e.clientX;
+    offsetAtPointerDown.current = currentOffset.current;
+    setIsDragging(true);
+    // Disable transition during active drag
+    if (contentRef.current) {
+      contentRef.current.style.transition = "none";
+    }
+    // Capture pointer so events keep firing if finger leaves the element
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const delta = e.clientX - pointerStartX.current;
+    if (Math.abs(delta) > 5) hasDragged.current = true;
+    // Only allow dragging left (clamp offset to <= 0)
+    const newOffset = Math.min(0, offsetAtPointerDown.current + delta);
+    applyContentTransform(newOffset);
+  }, [applyContentTransform]);
+
+  const handlePointerUp = useCallback(() => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+
+    const x = currentOffset.current;
+    const absX = Math.abs(x);
+    const elementWidth = wrapperRef.current?.offsetWidth ?? 300;
+
+    if (absX > elementWidth * 0.3) {
+      // Swiped past 30% of element width — trigger delete
+      triggerDelete();
+    } else if (absX > SNAP_OPEN_THRESHOLD) {
+      // Swiped past half delete zone — snap open to reveal
+      applyContentTransform(
+        -DELETE_ZONE_WIDTH,
+        `transform ${Math.round(DURATION_NORMAL * 1000)}ms cubic-bezier(${EASE_IN_OUT.join(",")})`
+      );
+    } else {
+      // Snap back to closed
+      applyContentTransform(
+        0,
+        `transform ${Math.round(DURATION_FAST * 1000)}ms cubic-bezier(${EASE_OUT.join(",")})`
+      );
+    }
+  }, [triggerDelete, applyContentTransform]);
+
+  const handlePointerCancel = useCallback(() => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    applyContentTransform(
+      0,
+      `transform ${Math.round(DURATION_FAST * 1000)}ms cubic-bezier(${EASE_OUT.join(",")})`
+    );
+  }, [applyContentTransform]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
         triggerDelete();
-      } else {
-        controls.start({
-          x: 0,
-          transition: { duration: DURATION_FAST, ease: EASE_OUT },
-        });
       }
     },
-    [controls, triggerDelete]
+    [triggerDelete]
   );
 
   // Desktop: render children as-is — no swipe behavior
   if (isDesktop) return <>{children}</>;
-
-  if (deleted) return null;
+  if (isDeleted) return null;
 
   return (
-    <div className="relative overflow-hidden" style={{ borderRadius: "12px" }}>
-      {/* Delete zone — revealed as item slides left */}
+    <div
+      ref={wrapperRef}
+      style={{ position: "relative", overflow: "hidden", borderRadius: "12px" }}
+      onKeyDown={handleKeyDown}
+      tabIndex={-1}
+    >
+      {/* Delete zone — z-index 1, sits behind the card */}
       <div
-        className="absolute right-0 top-0 bottom-0 flex items-center justify-center"
-        style={{ width: DELETE_ZONE_WIDTH, backgroundColor: "#FF33B6" }}
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: DELETE_ZONE_WIDTH,
+          backgroundColor: "#FF33B6",
+          zIndex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+        }}
         onClick={triggerDelete}
       >
         <Trash2 size={20} color="white" />
       </div>
 
-      {/* Swipeable item layer */}
-      <motion.div
-        animate={controls}
-        drag="x"
-        dragConstraints={{ left: -DELETE_ZONE_WIDTH, right: 0 }}
-        dragElastic={0}
-        dragMomentum={false}
-        onDragEnd={handleDragEnd}
+      {/* Card content — z-index 2, draggable layer on top */}
+      <div
+        ref={contentRef}
+        style={{
+          position: "relative",
+          zIndex: 2,
+          cursor: isDragging ? "grabbing" : "grab",
+          touchAction: "pan-y",
+          userSelect: "none",
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onClickCapture={(e) => {
+          // Suppress click on children (e.g. session button) if user was swiping
+          if (hasDragged.current) {
+            e.stopPropagation();
+          }
+        }}
       >
         {children}
-      </motion.div>
+      </div>
     </div>
   );
 }
