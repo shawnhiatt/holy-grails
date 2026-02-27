@@ -689,13 +689,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn("[Discogs] Profile fetch failed:", e);
       }
 
-      // Fetch collection
-      setSyncProgress("Fetching collection...");
-      const { albums: newAlbums, folders: newFolders } = await fetchCollection(
-        username,
-        auth,
-        (loaded, total) => setSyncProgress(`Fetching collection... ${loaded}/${total}`)
-      );
+      // Fetch collection and wantlist in parallel — no dependency between them
+      setSyncProgress("Syncing...");
+      const [{ albums: newAlbums, folders: newFolders }, newWants] = await Promise.all([
+        fetchCollection(
+          username,
+          auth,
+          (loaded, total) => setSyncProgress(`Fetching collection... ${loaded}/${total}`)
+        ),
+        fetchWantlist(
+          username,
+          auth,
+          (loaded, total) => setSyncProgress(`Fetching wants... ${loaded}/${total}`)
+        ),
+      ]);
 
       // Merge purge tags from current Convex data
       const tags = purgeTagsRef.current;
@@ -710,14 +717,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAlbums(newAlbums);
       }
       setFolders(newFolders);
-
-      // Fetch want list
-      setSyncProgress("Fetching want list...");
-      const newWants = await fetchWantlist(
-        username,
-        auth,
-        (loaded, total) => setSyncProgress(`Fetching wants... ${loaded}/${total}`)
-      );
 
       // Merge want priorities from current Convex data
       const prios = wantPrioritiesRef.current;
