@@ -5,7 +5,7 @@ import { UnicornScene as LibraryScene } from "unicornstudio-react";
 // active sync, lower SCENE_SCALE to 0.5 and tune SCENE_DPI accordingly.
 const SCENE_SCALE = 0.75;
 const SCENE_DPI = 1.5;
-const PROJECT_ID = "YOUR_PROJECT_EMBED_ID";
+const PROJECT_ID = "7hz0T9mnpIOKgPTu6xzW";
 
 interface UnicornSceneProps {
   className?: string;
