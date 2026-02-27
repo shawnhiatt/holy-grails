@@ -102,6 +102,9 @@ interface AppState {
   setHidePurgeIndicators: (v: boolean) => void;
   hideGalleryMeta: boolean;
   setHideGalleryMeta: (v: boolean) => void;
+  // Shake gesture
+  shakeToRandom: boolean;
+  setShakeToRandom: (v: boolean) => void;
   // Header hide-on-scroll
   headerHidden: boolean;
   setHeaderHidden: (v: boolean) => void;
@@ -202,6 +205,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [rediscoverMode, setRediscoverMode] = useState(false);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [hideGalleryMeta, setHideGalleryMetaRaw] = useState(false);
+  const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [folders, setFolders] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
@@ -427,6 +431,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (convexPreferences.theme) setColorModeRaw(convexPreferences.theme);
       setHidePurgeIndicatorsRaw(convexPreferences.hide_purge_indicators);
       setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
+      setShakeToRandomRaw(convexPreferences.shake_to_random ?? false);
     }
   }, [convexPreferences]);
 
@@ -530,6 +535,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       upsertPreferencesMut({
         discogs_username: discogsUsername,
         hide_gallery_meta: v,
+      });
+    }
+  }, [discogsUsername, upsertPreferencesMut]);
+
+  const setShakeToRandom = useCallback((v: boolean) => {
+    setShakeToRandomRaw(v);
+    if (discogsUsername) {
+      upsertPreferencesMut({
+        discogs_username: discogsUsername,
+        shake_to_random: v,
       });
     }
   }, [discogsUsername, upsertPreferencesMut]);
@@ -1199,6 +1214,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHidePurgeIndicators,
       hideGalleryMeta,
       setHideGalleryMeta,
+      // Shake gesture
+      shakeToRandom,
+      setShakeToRandom,
       headerHidden,
       setHeaderHidden,
       // Discogs sync
@@ -1254,6 +1272,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       computedRediscoverAlbums,
       hidePurgeIndicators, setHidePurgeIndicators,
       hideGalleryMeta, setHideGalleryMeta,
+      shakeToRandom, setShakeToRandom,
       headerHidden, setHeaderHidden,
       folders,
       discogsToken, setDiscogsToken,

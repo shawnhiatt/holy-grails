@@ -21,6 +21,7 @@ export const upsert = mutation({
     ),
     hide_purge_indicators: v.optional(v.boolean()),
     hide_gallery_meta: v.optional(v.boolean()),
+    shake_to_random: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -37,6 +38,8 @@ export const upsert = mutation({
         updates.hide_purge_indicators = args.hide_purge_indicators;
       if (args.hide_gallery_meta !== undefined)
         updates.hide_gallery_meta = args.hide_gallery_meta;
+      if (args.shake_to_random !== undefined)
+        updates.shake_to_random = args.shake_to_random;
 
       await ctx.db.patch(existing._id, updates);
       return existing._id;
@@ -47,6 +50,7 @@ export const upsert = mutation({
       theme: args.theme ?? "system",
       hide_purge_indicators: args.hide_purge_indicators ?? false,
       hide_gallery_meta: args.hide_gallery_meta ?? false,
+      shake_to_random: args.shake_to_random ?? false,
     });
   },
 });

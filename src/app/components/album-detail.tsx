@@ -455,7 +455,7 @@ function InlineSessionRow({
   );
 }
 
-export function AlbumDetailSheet() {
+export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: boolean }) {
   const { selectedAlbum, setShowAlbumDetail, isDarkMode } = useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
   const sheetY = useMotionValue(0);
@@ -533,8 +533,8 @@ export function AlbumDetailSheet() {
         onClick={() => setShowAlbumDetail(false)}
       />
       <motion.div
-        initial={{ y: "100%" }}
-        animate={dismissed ? undefined : { y: 0 }}
+        initial={{ y: "100%", x: shakeEntrance ? 20 : 0 }}
+        animate={dismissed ? undefined : { y: 0, x: 0 }}
         exit={{ y: "100%" }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}

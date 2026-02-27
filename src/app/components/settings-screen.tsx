@@ -30,6 +30,8 @@ export function SettingsScreen() {
     signOut,
     isAuthenticated,
     userAvatar,
+    shakeToRandom,
+    setShakeToRandom,
   } = useApp();
 
   const isOAuthUser = isAuthenticated && !discogsToken;
@@ -37,6 +39,32 @@ export function SettingsScreen() {
   const [showToken, setShowToken] = useState(false);
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [motionDenied, setMotionDenied] = useState(false);
+
+  const handleShakeToggle = async () => {
+    if (shakeToRandom) {
+      setShakeToRandom(false);
+      return;
+    }
+    if (
+      typeof DeviceMotionEvent !== "undefined" &&
+      typeof (DeviceMotionEvent as any).requestPermission === "function"
+    ) {
+      try {
+        const permission = await (DeviceMotionEvent as any).requestPermission();
+        if (permission !== "granted") {
+          setMotionDenied(true);
+          setTimeout(() => setMotionDenied(false), 4000);
+          return;
+        }
+      } catch {
+        setMotionDenied(true);
+        setTimeout(() => setMotionDenied(false), 4000);
+        return;
+      }
+    }
+    setShakeToRandom(true);
+  };
 
   // Logged-out state — show minimal sign-in prompt
   if (!isAuthenticated && !discogsToken) {
@@ -299,6 +327,46 @@ export function SettingsScreen() {
                     height: "20px",
                     borderRadius: "50%",
                     backgroundColor: hideGalleryMeta ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
+                    transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                  }}
+                />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Gestures</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Shake to random</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Shake your device to open a random record</p>
+                {motionDenied && (
+                  <p className="mt-1" style={{ fontSize: "12px", fontWeight: 400, color: isDarkMode ? "#FF98DA" : "#9A207C" }}>
+                    Motion access denied. Enable in iOS Settings.
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={handleShakeToggle}
+                className="relative flex items-center rounded-full cursor-pointer transition-colors flex-shrink-0 ml-3"
+                style={{
+                  width: "44px",
+                  height: "24px",
+                  backgroundColor: shakeToRandom ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(12,40,74,0.12)"),
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "2px",
+                    left: shakeToRandom ? "22px" : "2px",
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    backgroundColor: shakeToRandom ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
                     transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
                     boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
                   }}
