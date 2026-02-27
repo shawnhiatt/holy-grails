@@ -389,6 +389,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Avoid: "seamlessly," "powerful," "experience," "journey"
 - Toast notifications: under 4 words where possible, no punctuation except a period for emphasis
 - The plural of vinyl is vinyl
+- "Wantlist" is one word — never "want list" or "want-list"
 
 ---
 

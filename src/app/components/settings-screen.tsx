@@ -21,6 +21,8 @@ export function SettingsScreen() {
     folders,
     setScreen,
     isDarkMode,
+    colorMode,
+    setColorMode,
     hidePurgeIndicators,
     setHidePurgeIndicators,
     hideGalleryMeta,
@@ -62,7 +64,7 @@ export function SettingsScreen() {
     setSyncError(null);
     try {
       const stats = await syncFromDiscogs();
-      toast.success(`Synced \u2014 ${stats.albums} records \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} want list items`);
+      toast.success(`Synced \u2014 ${stats.albums} records \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} wantlist items`);
     } catch (err: any) {
       const msg = err?.message || "Sync failed. Check your token and try again.";
       console.error("[Discogs Sync Error]", err);
@@ -158,8 +160,8 @@ export function SettingsScreen() {
                 )}
                 <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)" }}>
                   {syncStats
-                    ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} want list items`
-                    : `${albums.length} records \u00b7 ${folders.filter((f) => f !== "All").length} folders \u00b7 ${wants.length} want list items`
+                    ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
+                    : `${albums.length} records \u00b7 ${folders.filter((f) => f !== "All").length} folders \u00b7 ${wants.length} wantlist items`
                   }
                 </p>
               </div>
@@ -311,7 +313,7 @@ export function SettingsScreen() {
                       ? "This removes all Keep, Cut, and Maybe tags from your collection. This cannot be undone."
                       : confirmAction === "Sessions"
                       ? "This deletes all saved sessions. This cannot be undone."
-                      : "This removes everything stored locally \u2014 purge tags, sessions, want list priorities, listening history, and cached pricing. Your Discogs collection is not affected."}
+                      : "This removes everything stored locally \u2014 purge tags, sessions, wantlist priorities, listening history, and cached pricing. Your Discogs collection is not affected."}
                   </p>
                 </div>
               </div>

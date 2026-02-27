@@ -36,7 +36,7 @@ const MOBILE_NAV_ITEMS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "crate", label: "Collection", icon: Library },
   { id: "wants", label: "Wants", icon: Heart },
   { id: "sessions", label: "Sessions", icon: Headphones },
-  { id: "reports", label: "Insights", icon: BarChart3 },
+  { id: "friends", label: "Following", icon: Users },
 ];
 
 /** SVG wordmark logo — "Holy Grails" with integrated vinyl record icon */
@@ -221,18 +221,18 @@ export function MobileHeader() {
         <WordmarkLogo className="w-[156px] h-auto" fillColor={logoFill} isDarkMode={isDarkMode} />
       </button>
 
-      {/* Right: Following + Settings icons */}
+      {/* Right: Insights + Settings icons */}
       <div className="flex-1 flex items-center justify-end gap-1">
         <button
-          onClick={() => setScreen("friends")}
+          onClick={() => setScreen("reports")}
           className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer"
-          title="Following"
+          title="Insights"
           style={{
-            color: screen === "friends" ? "#EBFD00" : "var(--c-text-muted)",
-            backgroundColor: screen === "friends" ? activeBg : inactiveBg,
+            color: screen === "reports" ? "#EBFD00" : "var(--c-text-muted)",
+            backgroundColor: screen === "reports" ? activeBg : inactiveBg,
           }}
         >
-          <Users size={18} strokeWidth={screen === "friends" ? 1.83 : 1.3125} />
+          <BarChart3 size={18} strokeWidth={screen === "reports" ? 1.83 : 1.3125} />
         </button>
         <button
           onClick={() => setScreen("settings")}
