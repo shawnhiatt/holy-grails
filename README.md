@@ -1,5 +1,5 @@
 
-  # Holy Grails V0.2.4
+  # Holy Grails V0.2.5
 
   A vinyl record collection management PWA that syncs with Discogs.
 
