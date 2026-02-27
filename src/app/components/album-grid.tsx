@@ -163,13 +163,13 @@ function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSidebarProp
 
 /* ─── Section Divider Logic ─── */
 
-const DIVIDER_SORT_OPTS = new Set([
+export const DIVIDER_SORT_OPTS = new Set([
   "artist-az", "artist-za", "title-az",
   "year-new", "year-old",
   "added-new", "added-old",
 ]);
 
-function getAlbumGroupLabel(album: Album, sortOption: string): string {
+export function getAlbumGroupLabel(album: Album, sortOption: string): string {
   switch (sortOption) {
     case "artist-az":
     case "artist-za": {
