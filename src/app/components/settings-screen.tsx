@@ -213,6 +213,40 @@ export function SettingsScreen() {
         <section className="mt-6">
           <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Appearance</h3>
+            <div className="flex items-center justify-between gap-3">
+              <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Color mode</p>
+              <div
+                className="flex rounded-[8px] flex-shrink-0"
+                style={{ border: "1px solid var(--c-border)", backgroundColor: isDarkMode ? "rgba(158,175,194,0.08)" : "rgba(12,40,74,0.04)" }}
+              >
+                {(["Light", "Dark", "System"] as const).map((label) => {
+                  const value = label.toLowerCase() as "light" | "dark" | "system";
+                  const isActive = colorMode === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setColorMode(value)}
+                      className="cursor-pointer transition-colors"
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: isActive ? 600 : 400,
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        padding: "6px 12px",
+                        borderRadius: "7px",
+                        backgroundColor: isActive
+                          ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
+                          : "transparent",
+                        color: isActive
+                          ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                          : "var(--c-text-secondary)",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Hide purge indicators</p>
