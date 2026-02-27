@@ -88,6 +88,8 @@ src/
       depths-album-card.tsx
       discogs-api.ts     # All Discogs API calls live here
       feed-screen.tsx
+      figma/
+        ImageWithFallback.tsx  # Origin unclear, not currently referenced elsewhere. Flagged for future audit — do not delete until confirmed unused.
       filter-drawer.tsx
       friends-screen.tsx
       last-played-utils.ts
@@ -103,9 +105,9 @@ src/
       settings-screen.tsx
       sign-in-screen.tsx
       splash-screen.tsx
-      splash-video.tsx
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
+      unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps `unicornstudio-react`. Project ID: `7hz0T9mnpIOKgPTu6xzW`. Falls back to `#01294D` if WebGL is unavailable.
       use-hide-header.ts
       use-shake.ts
       wantlist.tsx
@@ -317,6 +319,7 @@ Horizontal top nav with 8 items split left/center/right. Logo centered. Both gro
 
 | Layer | Z-Index | Component |
 |---|---|---|
+| Confirm-removal dialog | `z-[200]` | friends-screen.tsx |
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |
 | Album detail mobile backdrop | `z-[110]` | album-detail.tsx |
@@ -328,8 +331,12 @@ Horizontal top nav with 8 items split left/center/right. Logo centered. Both gro
 | Session picker mobile sheet | `z-[85]` | session-picker-sheet.tsx |
 | Session picker mobile backdrop | `z-[80]` | session-picker-sheet.tsx |
 | Add Albums drawer | `z-[80]` | add-albums-drawer.tsx |
+| Filter drawer panel | `z-[70]` | filter-drawer.tsx |
+| Filter drawer backdrop | `z-[60]` | filter-drawer.tsx |
 | Desktop session picker | `z-50` | session-picker-sheet.tsx |
 | Alphabet index sidebar | `z-40` | album-grid.tsx, album-list.tsx |
+| Wantlist card close button | `z-[2]` | wantlist.tsx |
+| Wantlist card hover overlay | `z-[1]` | wantlist.tsx |
 
 Do not introduce new z-index values outside this hierarchy without checking for conflicts.
 
