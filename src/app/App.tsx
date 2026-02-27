@@ -20,7 +20,7 @@ import { AuthCallback } from "./components/auth-callback";
 import { LoadingScreen } from "./components/loading-screen";
 import { SessionPickerSheet } from "./components/session-picker-sheet";
 import { EASE_OUT, EASE_IN_OUT, DURATION_NORMAL, DURATION_FAST } from "./components/motion-tokens";
-import { initiateDiscogsOAuth } from "./components/oauth-helpers";
+import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
 /* nav-clearance: scroll containers consume --nav-clearance for bottom padding */
@@ -119,6 +119,28 @@ function AppContent() {
   useEffect(() => {
     console.log('[LoadPhase]', { isAuthLoading, isSyncing, loadPhase, ts: Date.now() });
   }, [isAuthLoading, isSyncing, loadPhase]);
+
+  // OAuth abandonment detection.
+  //
+  // oauthInFlight.current is set to true in handleLoginWithDiscogs the moment
+  // the OAuth redirect begins, and cleared by auth-callback.tsx the moment a
+  // successful return is confirmed (before any visibilitychange can fire on the
+  // callback page).
+  //
+  // When the app regains visibility with the flag still true, it means the user
+  // backed out of the Discogs auth page without completing OAuth. Reset all
+  // loading state so the splash screen returns to its default state.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && oauthInFlight.current) {
+        oauthInFlight.current = false;
+        hasSeenSyncingRef.current = false;
+        setLoadPhase('idle');
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // Detect if we're on the OAuth callback URL
   const [isAuthCallback, setIsAuthCallback] = useState(() => {
@@ -233,7 +255,15 @@ function AppContent() {
     : "radial-gradient(200% 100% at 50% 0%, #FFF 21.36%, #ACDEF2 100%)";
 
   const handleLoginWithDiscogs = useCallback(async () => {
-    await initiateDiscogsOAuth();
+    oauthInFlight.current = true;
+    try {
+      await initiateDiscogsOAuth();
+      // Redirect to Discogs begins — page will navigate away.
+      // oauthInFlight.current stays true until auth-callback clears it.
+    } catch (err) {
+      oauthInFlight.current = false;
+      throw err; // Re-throw so SplashScreen can show the error
+    }
   }, []);
 
   const handleAuthSuccess = useCallback(async (user: {
