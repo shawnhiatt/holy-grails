@@ -280,6 +280,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lastPlayed: false,
     wantPriorities: false,
     preferences: false,
+    following: false,
   });
 
   // Track whether initial auto-sync has run
@@ -413,6 +414,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
     }
   }, [convexPreferences]);
+
+  // Hydrate following from Convex (one-time, after auth is available)
+  useEffect(() => {
+    if (hydratedRef.current.following) return;
+    if (convexFollowing === undefined) return; // still loading
+    if (!discogsAuth) return; // wait for credentials
+    if (convexFollowing.length === 0) {
+      hydratedRef.current.following = true;
+      return;
+    }
+    hydratedRef.current.following = true;
+    const authSnapshot = discogsAuth;
+    for (const record of convexFollowing) {
+      const username = record.following_username;
+      (async () => {
+        try {
+          const profile = await fetchUserProfile(username, authSnapshot);
+          let friendAlbums: Album[] = [];
+          let friendFolders: string[] = ["All"];
+          let friendWants: WantItem[] = [];
+          let isPrivate = false;
+          try {
+            const result = await fetchCollection(username, authSnapshot);
+            friendAlbums = result.albums;
+            friendFolders = result.folders;
+          } catch (e: any) {
+            if (e?.message?.includes("403")) isPrivate = true;
+          }
+          try {
+            friendWants = await fetchWantlist(username, authSnapshot);
+          } catch { /* wantlist may be unavailable — skip */ }
+          const friend: Friend = {
+            id: `f-${username}`,
+            username: profile.username,
+            avatar: profile.avatar,
+            isPrivate,
+            folders: friendFolders,
+            lastSynced: new Date().toISOString().split("T")[0],
+            collection: friendAlbums,
+            wants: friendWants,
+          };
+          setFriends(prev => {
+            if (prev.some(f => f.username.toLowerCase() === friend.username.toLowerCase())) return prev;
+            return [...prev, friend];
+          });
+        } catch (e) {
+          console.warn(`[Friends] Could not restore @${username}:`, e);
+        }
+      })();
+    }
+  }, [convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Screen navigation ──
 
@@ -885,6 +937,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastPlayed: false,
       wantPriorities: false,
       preferences: false,
+      following: false,
     };
     initialSyncDoneRef.current = false;
   }, [discogsUsername, clearSessionMut, setDiscogsToken, setDiscogsUsername]);
@@ -930,6 +983,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastPlayed: false,
       wantPriorities: false,
       preferences: false,
+      following: false,
     };
     initialSyncDoneRef.current = false;
   }, [setDiscogsToken, setDiscogsUsername]);
