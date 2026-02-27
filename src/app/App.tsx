@@ -233,10 +233,11 @@ function AppContent() {
     if (!showAlbumDetail) setShakeEntrance(false);
   }, [showAlbumDetail]);
 
+  // Note: this threshold overrides the default in use-shake.ts — update both if changing
   useShake({
     onShake: handleShake,
     enabled: !isDesktop && shakeToRandom,
-    threshold: 12,
+    threshold: 25,
     timeout: 1000,
   });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Eye, EyeOff, Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -40,11 +40,18 @@ export function SettingsScreen() {
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [motionDenied, setMotionDenied] = useState(false);
+  const motionDeniedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleShakeToggle = async () => {
     if (shakeToRandom) {
       setShakeToRandom(false);
       return;
+    }
+    // Cancel any in-flight denial timer so a re-tap doesn't get preempted
+    // by the previous timeout clearing the message mid-permission-prompt.
+    if (motionDeniedTimerRef.current !== null) {
+      clearTimeout(motionDeniedTimerRef.current);
+      motionDeniedTimerRef.current = null;
     }
     if (
       typeof DeviceMotionEvent !== "undefined" &&
@@ -54,15 +61,22 @@ export function SettingsScreen() {
         const permission = await (DeviceMotionEvent as any).requestPermission();
         if (permission !== "granted") {
           setMotionDenied(true);
-          setTimeout(() => setMotionDenied(false), 4000);
+          motionDeniedTimerRef.current = setTimeout(() => {
+            setMotionDenied(false);
+            motionDeniedTimerRef.current = null;
+          }, 4000);
           return;
         }
       } catch {
         setMotionDenied(true);
-        setTimeout(() => setMotionDenied(false), 4000);
+        motionDeniedTimerRef.current = setTimeout(() => {
+          setMotionDenied(false);
+          motionDeniedTimerRef.current = null;
+        }, 4000);
         return;
       }
     }
+    setMotionDenied(false);
     setShakeToRandom(true);
   };
 
