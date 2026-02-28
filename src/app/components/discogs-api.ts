@@ -708,20 +708,6 @@ export function clearCollectionValue(): void {
   _collectionValue = null;
 }
 
-/** Demo-mode collection value — used when loading placeholder data */
-const DEMO_COLLECTION_VALUE: CollectionValue = {
-  minimum: 312.50,
-  median: 587.00,
-  maximum: 1243.75,
-  currency: "USD",
-  fetchedAt: Date.now(),
-};
-
-/** Reset to demo-mode collection value (placeholder import) */
-export function setDemoCollectionValue(): void {
-  _collectionValue = { ...DEMO_COLLECTION_VALUE };
-}
-
 /** Clear all per-album market data from the in-memory cache */
 export function clearAllMarketData(): void {
   marketCache.clear();

@@ -57,7 +57,7 @@ function AppContent() {
     setScreen, discogsToken,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     headerHidden, sessionPickerAlbumId,
-    isAuthenticated, isAuthLoading, isSyncing, loginWithOAuth,
+    isAuthenticated, isAuthLoading, isSyncing, syncProgress, loginWithOAuth,
     shakeToRandom,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
@@ -317,7 +317,7 @@ function AppContent() {
   // full sync is still running after albums arrive (loadPhase='syncing'), or
   // we're in the 500ms completion window (loadPhase='complete').
   if (isAuthLoading || loadPhase === 'syncing' || loadPhase === 'complete') {
-    return <LoadingScreen message="Syncing collection" progress={loadPhase === 'complete' ? 100 : undefined} />;
+    return <LoadingScreen message={syncProgress || "Syncing collection"} progress={loadPhase === 'complete' ? 100 : undefined} />;
   }
 
   if (showSplash) {
