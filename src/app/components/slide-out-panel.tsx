@@ -141,7 +141,8 @@ export function SlideOutPanel({
         style={{
           y: sheetY,
           zIndex: sheetZIndex,
-          bottom: "env(safe-area-inset-bottom, 0px)",
+          bottom: "0px",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
           maxHeight: "calc(100vh - 58px)",
           backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
           boxShadow: isDarkMode
