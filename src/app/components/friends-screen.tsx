@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import type React from "react";
 import {
-  UserPlus, ArrowLeft, Search, ChevronRight, Trash2, Lock,
+  UserPlus, ArrowLeft, Search, ChevronRight, UserMinus, Lock,
   Disc3, Users, Grid2x2, List, ExternalLink, Grid3x3,
   Heart,
 } from "lucide-react";
@@ -274,7 +274,7 @@ function FriendRow({
   return (
     <div className="relative overflow-hidden" style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}>
       <div className="absolute inset-y-0 right-0 flex items-center px-5 bg-[#FF33B6]">
-        <Trash2 size={18} color="white" />
+        <UserMinus size={18} color="white" />
       </div>
 
       <motion.div
@@ -400,9 +400,30 @@ function FriendProfile({
             <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer" style={{ color: "var(--c-text)" }}>
               <ArrowLeft size={20} />
             </button>
-            <h2 className="screen-title" style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>
-              @{friend.username}
-            </h2>
+            {friend.avatar ? (
+              <img src={friend.avatar} alt={friend.username} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: "2px solid var(--c-border)" }} />
+            ) : (
+              <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}>
+                <Users size={14} style={{ color: "var(--c-text-muted)" }} />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[22px] lg:text-[36px] leading-[1.2]" style={{ fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                @{friend.username}
+              </h2>
+            </div>
+            <a href={"https://www.discogs.com/user/" + friend.username} target="_blank" rel="noopener noreferrer"
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}>
+              <ExternalLink size={16} />
+            </a>
+            <button
+              onClick={() => setShowRemoveConfirm(true)}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[rgba(255,51,182,0.1)] cursor-pointer"
+              style={{ color: "#FF33B6" }}
+              title="Unfollow"
+            >
+              <UserMinus size={16} />
+            </button>
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center px-8">
@@ -412,6 +433,51 @@ function FriendProfile({
             This collection is set to private on Discogs. Ask @{friend.username} to make it public in their Discogs privacy settings.
           </p>
         </div>
+        {/* Remove confirmation dialog */}
+        <AnimatePresence>
+          {showRemoveConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] flex items-center justify-center px-6"
+              style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+              onClick={() => setShowRemoveConfirm(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-[320px] rounded-[14px] p-5"
+                style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+              >
+                <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
+                  Unfollow @{friend.username}?
+                </p>
+                <p className="mt-2" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: 1.5 }}>
+                  Their collection and wantlist data will be removed from your app.
+                </p>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => setShowRemoveConfirm(false)}
+                    className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer"
+                    style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text)" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { setShowRemoveConfirm(false); onRemove(); }}
+                    className="flex-1 py-2.5 rounded-[10px] bg-[#FF33B6] text-white transition-colors hover:bg-[#E6009E] cursor-pointer"
+                    style={{ fontSize: "14px", fontWeight: 600 }}
+                  >
+                    Unfollow
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -453,7 +519,7 @@ function FriendProfile({
             style={{ color: "#FF33B6" }}
             title="Unfollow"
           >
-            <Trash2 size={16} />
+            <UserMinus size={16} />
           </button>
         </div>
 
@@ -932,15 +998,27 @@ function PopulatedFriendsView({
   const ownReleaseIds = useMemo(() => new Set(userAlbumsForHeart.map((a) => a.release_id)), [userAlbumsForHeart]);
   const wantReleaseIds = useMemo(() => new Set(userWantsForHeart.map((w) => w.release_id)), [userWantsForHeart]);
 
-  // From the Depths — one random album per followed user, refreshed each mount (per-visit)
-  const [depthsPicks] = useState(() => {
-    return friends
+  // From the Depths — 2–4 random albums per followed user; re-derives when friends list changes
+  const MAX_CARDS_PER_USER = 4;
+  const depthsPicks = useMemo(() => {
+    const results: { friend: Friend; album: Album; cardKey: string }[] = [];
+    friends
       .filter((f) => !f.isPrivate && f.collection.length > 0)
-      .map((friend) => {
-        const randomIndex = Math.floor(Math.random() * friend.collection.length);
-        return { friend, album: friend.collection[randomIndex] };
+      .forEach((friend) => {
+        const shuffled = [...friend.collection].sort(() => Math.random() - 0.5);
+        const picks = shuffled.slice(0, MAX_CARDS_PER_USER);
+        // Minimum 2 cards: if only 1 album, show it twice (same content, unique key)
+        if (picks.length === 1) {
+          results.push({ friend, album: picks[0], cardKey: `${friend.id}-${picks[0].id}-a` });
+          results.push({ friend, album: picks[0], cardKey: `${friend.id}-${picks[0].id}-b` });
+        } else {
+          picks.forEach((album, idx) => {
+            results.push({ friend, album, cardKey: `${friend.id}-${album.id}-${idx}` });
+          });
+        }
       });
-  });
+    return results;
+  }, [friends]);
 
   const handleHeartTap = useCallback((item: ActivityItem) => {
     // Already in collection — no action
@@ -1054,9 +1132,9 @@ function PopulatedFriendsView({
           >
             <style>{`.depths-scroll::-webkit-scrollbar { display: none; }`}</style>
             <div className="flex gap-[12px] px-[16px] lg:px-[24px]">
-              {depthsPicks.map(({ friend, album }) => (
+              {depthsPicks.map(({ friend, album, cardKey }) => (
                 <motion.div
-                  key={`depths-${friend.id}-${album.id}`}
+                  key={`depths-${cardKey}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.45, ease: [0.25, 1, 0.5, 1] }}
