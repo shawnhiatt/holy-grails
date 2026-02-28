@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Play } from "lucide-react";
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
+  BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
 import { useApp, type Screen } from "./app-context";
@@ -43,12 +43,6 @@ function normalizeConditionLabel(mc: string): string {
 }
 
 const CONDITION_ORDER = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"];
-
-/* ─── Accent color helper ─── */
-function useAccent() {
-  const { isDarkMode } = useApp();
-  return isDarkMode ? "#EBFD00" : "#7A8A00";
-}
 
 /* ─── Section header style ─── */
 const sectionHeaderStyle: React.CSSProperties = {
@@ -101,17 +95,6 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
   const median = collectionValue?.median ?? 0;
   const minimum = collectionValue?.minimum ?? 0;
   const maximum = collectionValue?.maximum ?? 0;
-
-  // Generate value history (mock monthly snapshots) — only when we have real data
-  const historyData = useMemo(() => {
-    if (!hasValue) return [];
-    const months = ["Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"];
-    const base = median * 0.82;
-    return months.map((m, i) => ({
-      month: m,
-      value: Math.round(base + (median - base) * (i / (months.length - 1)) + (Math.random() - 0.5) * median * 0.03),
-    }));
-  }, [median, hasValue]);
 
   // Purge impact — uses condition-matched prices only (no fallback to pricePaid)
   const cutAlbums = albums.filter((a) => a.purgeTag === "cut");
@@ -191,42 +174,6 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
             </p>
           </div>
 
-          {/* Value over time chart */}
-          <div className="mt-5" style={{ height: 160 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={historyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="valueGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={CHART_GREEN} stopOpacity={0.25} />
-                    <stop offset="100%" stopColor={CHART_GREEN} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: isDarkMode ? "#617489" : "#9BA4B2" }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: isDarkMode ? "#617489" : "#9BA4B2" }}
-                  tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`}
-                />
-                <Tooltip content={<ChartTooltip formatter={(v: number) => formatCurrency(v)} />} />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={CHART_GREEN}
-                  strokeWidth={2}
-                  fill="url(#valueGrad)"
-                  dot={{ r: 3, fill: CHART_GREEN, strokeWidth: 0 }}
-                  activeDot={{ r: 5, fill: CHART_GREEN, strokeWidth: 2, stroke: isDarkMode ? "#132B44" : "#FFFFFF" }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
           {/* Purge impact callout */}
           {cutAlbums.length > 0 && cutPileData.pricedCount > 0 && (
             <div
@@ -257,43 +204,34 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
   );
 }
 
-/* ─────────────────── SECTION 2: Collection Growth ─────────────────── */
+/* ─────────────────── SECTION: Value Insights ─────────────────── */
 
-function CollectionGrowthSection({ albums }: { albums: Album[] }) {
+function ValueInsightsSection({ albums }: { albums: Album[] }) {
   const { isDarkMode } = useApp();
 
-  const growthData = useMemo(() => {
-    const monthMap = new Map<string, number>();
+  const { mostValuable, leastValuable, averageValue, pricedCount } = useMemo(() => {
+    let most: { album: Album; value: number } | null = null;
+    let least: { album: Album; value: number } | null = null;
+    let totalValue = 0;
+    let pricedCount = 0;
 
     for (const album of albums) {
-      const d = new Date(album.dateAdded);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      monthMap.set(key, (monthMap.get(key) || 0) + 1);
+      const cached = getCachedMarketData(album.release_id);
+      const price = getPriceAtCondition(album, cached);
+      if (price) {
+        totalValue += price.value;
+        pricedCount++;
+        if (!most || price.value > most.value) most = { album, value: price.value };
+        if (!least || price.value < least.value) least = { album, value: price.value };
+      }
     }
 
-    const sorted = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b));
-
-    // Show last 12 months or all if fewer
-    const recent = sorted.slice(-12);
-    const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-
-    return recent.map(([key, count]) => {
-      const [y, m] = key.split("-");
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      return {
-        label: `${monthNames[parseInt(m) - 1]} '${y.slice(2)}`,
-        count,
-        isCurrent: key === currentMonth,
-      };
-    });
-  }, [albums]);
-
-  // Recent additions
-  const recentStats = useMemo(() => {
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const recent = albums.filter((a) => new Date(a.dateAdded) >= threeMonthsAgo);
-    return recent.length;
+    return {
+      mostValuable: most,
+      leastValuable: least,
+      averageValue: pricedCount > 0 ? totalValue / pricedCount : null,
+      pricedCount,
+    };
   }, [albums]);
 
   return (
@@ -305,63 +243,385 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
         boxShadow: "var(--c-card-shadow)",
       }}
     >
-      <p style={sectionHeaderStyle}>
-        Growth
-      </p>
+      <p style={sectionHeaderStyle}>Value</p>
 
-      <div className="mt-3">
+      {pricedCount === 0 ? (
+        <p className="mt-4 py-4 text-center" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
+          Browse albums to load pricing data.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3 mt-4">
+          {/* Most valuable */}
+          {mostValuable && (
+            <div
+              className="rounded-[10px] p-3 flex items-center gap-3"
+              style={{
+                backgroundColor: isDarkMode ? "rgba(0,154,50,0.08)" : "rgba(0,154,50,0.06)",
+                border: `1px solid ${isDarkMode ? "rgba(0,154,50,0.2)" : "rgba(0,154,50,0.15)"}`,
+              }}
+            >
+              <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+                <img src={mostValuable.album.cover} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: CHART_GREEN, marginBottom: 2 }}>
+                  Most valuable
+                </p>
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                  {mostValuable.album.artist} — {mostValuable.album.title}
+                </p>
+              </div>
+              <span style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: CHART_GREEN, flexShrink: 0 }}>
+                {formatCurrency(mostValuable.value)}
+              </span>
+            </div>
+          )}
+
+          {/* Least valuable */}
+          {leastValuable && (
+            <div
+              className="rounded-[10px] p-3 flex items-center gap-3"
+              style={{
+                backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                border: "1px solid var(--c-border)",
+              }}
+            >
+              <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+                <img src={leastValuable.album.cover} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: "var(--c-text-muted)", marginBottom: 2 }}>
+                  Least valuable
+                </p>
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                  {leastValuable.album.artist} — {leastValuable.album.title}
+                </p>
+              </div>
+              <span style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", flexShrink: 0 }}>
+                {formatCurrency(leastValuable.value)}
+              </span>
+            </div>
+          )}
+
+          {/* Average value */}
+          {averageValue !== null && (
+            <div
+              className="rounded-[10px] px-4 py-3 flex items-center justify-between"
+              style={{
+                backgroundColor: isDarkMode ? "var(--c-surface-alt)" : "#F5F5F6",
+                border: "1px solid var(--c-border)",
+              }}
+            >
+              <div>
+                <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: "var(--c-text-muted)", marginBottom: 2 }}>
+                  Average per album
+                </p>
+                <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  Based on {pricedCount} of {albums.length} priced
+                </p>
+              </div>
+              <span style={{ fontSize: "24px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", letterSpacing: "-0.5px" }}>
+                {formatCurrency(averageValue)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────── SECTION: Condition ─────────────────── */
+
+function ConditionSection({ albums }: { albums: Album[] }) {
+  const { isDarkMode } = useApp();
+
+  const { conditionData, topConditionPct } = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of albums) {
+      const label = normalizeConditionLabel(a.mediaCondition);
+      map.set(label, (map.get(label) || 0) + 1);
+    }
+    const conditionData = CONDITION_ORDER
+      .filter((c) => map.has(c))
+      .map((c) => ({ condition: c, count: map.get(c)! }));
+
+    const topCount = (map.get("M") || 0) + (map.get("NM") || 0);
+    const topConditionPct = albums.length > 0 ? Math.round((topCount / albums.length) * 100) : 0;
+
+    return { conditionData, topConditionPct };
+  }, [albums]);
+
+  const maxCount = Math.max(...conditionData.map((d) => d.count), 1);
+
+  function conditionBarColor(condition: string): string {
+    if (condition === "M" || condition === "NM") return isDarkMode ? "#3E9842" : "#2D7A31";
+    if (condition === "VG+") return isDarkMode ? "#5FBFA0" : "#1A7A5A";
+    if (condition === "VG") return isDarkMode ? "#ACDEF2" : "#00527A";
+    if (condition === "G+" || condition === "G") return isDarkMode ? "#C9A0E0" : "#7A3A9A";
+    return isDarkMode ? "#FF98DA" : "#9A207C";
+  }
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Condition</p>
+
+      {/* Quality ratio */}
+      <div
+        className="mt-3 mb-4 rounded-[10px] px-4 py-3 flex items-center gap-3"
+        style={{
+          backgroundColor: isDarkMode ? "rgba(62,152,66,0.08)" : "rgba(62,152,66,0.06)",
+          border: `1px solid ${isDarkMode ? "rgba(62,152,66,0.2)" : "rgba(62,152,66,0.15)"}`,
+        }}
+      >
         <span
           style={{
             fontSize: "36px",
             fontWeight: 700,
             fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-            color: "var(--c-text)",
+            color: isDarkMode ? "#3E9842" : "#2D7A31",
             letterSpacing: "-1px",
-            lineHeight: 1.1,
+            lineHeight: 1,
           }}
         >
-          {albums.length}
+          {topConditionPct}%
         </span>
-        <span className="ml-2" style={{ fontSize: "15px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-          records in your collection
+        <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.4 }}>
+          of your collection is NM or better
+        </p>
+      </div>
+
+      {/* Condition distribution */}
+      <div className="flex flex-col gap-2.5">
+        {conditionData.map((d) => (
+          <div key={d.condition} className="flex items-center gap-3">
+            <span
+              className="shrink-0 text-right"
+              style={{
+                width: 36,
+                fontSize: "12px",
+                fontWeight: 600,
+                color: conditionBarColor(d.condition),
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+              }}
+            >
+              {d.condition}
+            </span>
+            <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: isDarkMode ? "#0F2238" : "#F0F1F3" }}>
+              <div
+                className="h-full rounded-[4px]"
+                style={{
+                  width: `${(d.count / maxCount) * 100}%`,
+                  backgroundColor: conditionBarColor(d.condition),
+                  minWidth: 4,
+                }}
+              />
+            </div>
+            <span className="shrink-0" style={{ width: 28, fontSize: "12px", fontWeight: 600, color: "var(--c-text)", textAlign: "right" }}>
+              {d.count}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── SECTION: Market (placeholder) ─────────────────── */
+
+function MarketSection({ albums }: { albums: Album[] }) {
+  const { isDarkMode } = useApp();
+
+  const { mostForSale, hardestToFind, cachedCount } = useMemo(() => {
+    let mostForSale: { album: Album; numForSale: number } | null = null;
+    let hardestToFind: { album: Album; numForSale: number } | null = null;
+    let cachedCount = 0;
+
+    for (const album of albums) {
+      const cached = getCachedMarketData(album.release_id);
+      if (!cached) continue;
+      cachedCount++;
+      const n = cached.stats.numForSale;
+      if (mostForSale === null || n > mostForSale.numForSale) mostForSale = { album, numForSale: n };
+      if (hardestToFind === null || n < hardestToFind.numForSale) hardestToFind = { album, numForSale: n };
+    }
+
+    return { mostForSale, hardestToFind, cachedCount };
+  }, [albums]);
+
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+    border: "1px solid var(--c-border)",
+  };
+
+  function MarketCard({
+    label,
+    item,
+    countLabel,
+  }: {
+    label: string;
+    item: { album: Album; numForSale: number } | null;
+    countLabel: (n: number) => string;
+  }) {
+    return (
+      <div className="rounded-[10px] p-3" style={cardStyle}>
+        <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: "var(--c-text-muted)", marginBottom: 6 }}>
+          {label}
+        </p>
+        {item ? (
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-[5px] overflow-hidden flex-shrink-0">
+              <img src={item.album.cover} alt="" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                {item.album.artist} — {item.album.title}
+              </p>
+              <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                {countLabel(item.numForSale)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
+            Browse albums to load market data.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <p style={sectionHeaderStyle}>Market</p>
+        <span
+          className="px-2 py-1 rounded-full"
+          style={{
+            fontSize: "10px",
+            fontWeight: 600,
+            letterSpacing: "0.5px",
+            textTransform: "uppercase" as const,
+            backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3",
+            color: "var(--c-text-muted)",
+          }}
+        >
+          Partial data
         </span>
       </div>
 
-      <div className="mt-4" style={{ height: 160 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={growthData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-            <XAxis
-              dataKey="label"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 10, fill: isDarkMode ? "#617489" : "#9BA4B2" }}
-              interval={0}
-              angle={-45}
-              textAnchor="end"
-              height={45}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 11, fill: isDarkMode ? "#617489" : "#9BA4B2" }}
-              allowDecimals={false}
-            />
-            <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} albums`} />} />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={28}>
-              {growthData.map((entry, i) => (
-                <Cell
-                  key={i}
-                  fill={CHART_PINK}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="flex flex-col gap-3">
+        <MarketCard
+          label="Most copies for sale"
+          item={mostForSale}
+          countLabel={(n) => `${n} ${n === 1 ? "copy" : "copies"} listed`}
+        />
+        <MarketCard
+          label="Hardest to find"
+          item={hardestToFind}
+          countLabel={(n) => n === 0 ? "No copies listed" : `${n} ${n === 1 ? "copy" : "copies"} listed`}
+        />
       </div>
 
-      <p className="mt-2" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-        Added {recentStats} records in the last 3 months
+      <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
+        Based on {cachedCount} of {albums.length} albums with cached market data. Browse more to improve accuracy.
       </p>
+    </div>
+  );
+}
+
+/* ─────────────────── SECTION: Value by Folder ─────────────────── */
+
+function FoldersValueSection({ albums }: { albums: Album[] }) {
+  const { isDarkMode } = useApp();
+
+  const folderData = useMemo(() => {
+    const map = new Map<string, { total: number; count: number; priced: number }>();
+
+    for (const album of albums) {
+      const entry = map.get(album.folder) || { total: 0, count: 0, priced: 0 };
+      entry.count++;
+      const cached = getCachedMarketData(album.release_id);
+      const price = getPriceAtCondition(album, cached);
+      if (price) {
+        entry.total += price.value;
+        entry.priced++;
+      }
+      map.set(album.folder, entry);
+    }
+
+    return [...map.entries()]
+      .map(([folder, data]) => ({ folder, ...data }))
+      .sort((a, b) => b.total - a.total);
+  }, [albums]);
+
+  const maxTotal = Math.max(...folderData.map((d) => d.total), 1);
+  const anyPriced = folderData.some((d) => d.priced > 0);
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Value by Folder</p>
+
+      {!anyPriced ? (
+        <p className="mt-4 py-4 text-center" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
+          Browse albums to load pricing data.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3 mt-4">
+          {folderData.map((d) => (
+            <div key={d.folder}>
+              <div className="flex items-center justify-between mb-1">
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                  {d.folder}
+                </span>
+                <div className="flex items-center gap-2">
+                  {d.priced > 0 && (
+                    <span style={{ fontSize: "13px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: CHART_GREEN }}>
+                      {formatCurrency(d.total)}
+                    </span>
+                  )}
+                  <span style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                    {d.count} records
+                  </span>
+                </div>
+              </div>
+              {d.priced > 0 && (
+                <div className="h-[12px] rounded-[4px] overflow-hidden" style={{ backgroundColor: isDarkMode ? "#0F2238" : "#F0F1F3" }}>
+                  <div
+                    className="h-full rounded-[4px]"
+                    style={{
+                      width: `${(d.total / maxTotal) * 100}%`,
+                      backgroundColor: CHART_GREEN,
+                      minWidth: 4,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -980,7 +1240,6 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 
 export function ReportsScreen() {
   const { albums, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
-  const accent = useAccent();
 
   const pricedCount = useMemo(() => {
     let count = 0;
@@ -1022,16 +1281,29 @@ export function ReportsScreen() {
       <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "calc(32px + var(--nav-clearance, 0px))" }}>
         {/* Desktop 2x2 grid / Mobile vertical stack */}
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-5 lg:gap-6">
-          {/* Section 1 — spans full width on desktop for hero prominence */}
+          {/* Collection Value — full width */}
           <div className="lg:col-span-2">
             <CollectionValueSection albums={albums} />
           </div>
 
-          {/* Section 2 */}
-          <CollectionGrowthSection albums={albums} />
+          {/* Value Insights + Condition — side by side on desktop */}
+          <ValueInsightsSection albums={albums} />
+          <ConditionSection albums={albums} />
 
-          {/* Section 3 */}
-          <CollectionBreakdownSection albums={albums} />
+          {/* Market — full width */}
+          <div className="lg:col-span-2">
+            <MarketSection albums={albums} />
+          </div>
+
+          {/* Value by Folder — full width */}
+          <div className="lg:col-span-2">
+            <FoldersValueSection albums={albums} />
+          </div>
+
+          {/* Breakdown — full width */}
+          <div className="lg:col-span-2">
+            <CollectionBreakdownSection albums={albums} />
+          </div>
 
           {/* Section 5: Listening Activity */}
           <div className="lg:col-span-2">
@@ -1058,9 +1330,6 @@ export function ReportsScreen() {
           </p>
           <p className="max-w-xs" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", textWrap: "pretty" }}>
             Per-album pricing loaded for {pricedCount} of {albums.length} records — more loads as you browse.
-          </p>
-          <p className="max-w-xs" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", textWrap: "pretty" }}>
-            Value history tracks from your first sync. Discogs doesn't store this; we do.
           </p>
         </div>
       </div>
