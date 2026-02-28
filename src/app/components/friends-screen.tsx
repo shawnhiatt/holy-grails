@@ -1007,15 +1007,9 @@ function PopulatedFriendsView({
       .forEach((friend) => {
         const shuffled = [...friend.collection].sort(() => Math.random() - 0.5);
         const picks = shuffled.slice(0, MAX_CARDS_PER_USER);
-        // Minimum 2 cards: if only 1 album, show it twice (same content, unique key)
-        if (picks.length === 1) {
-          results.push({ friend, album: picks[0], cardKey: `${friend.id}-${picks[0].id}-a` });
-          results.push({ friend, album: picks[0], cardKey: `${friend.id}-${picks[0].id}-b` });
-        } else {
-          picks.forEach((album, idx) => {
-            results.push({ friend, album, cardKey: `${friend.id}-${album.id}-${idx}` });
-          });
-        }
+        picks.forEach((album, idx) => {
+          results.push({ friend, album, cardKey: `${friend.id}-${album.id}-${idx}` });
+        });
       });
     return results;
   }, [friends]);
