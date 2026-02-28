@@ -34,10 +34,6 @@ export interface Album {
   dateAdded: string;
   discogsUrl: string;
   purgeTag: PurgeTag;
-  /** Marketplace listings count — populated by background prefetch, undefined until fetched */
-  numForSale?: number;
-  /** Lowest listing price in USD — undefined when no copies listed or not yet fetched */
-  lowestPrice?: number;
 }
 
 export interface WantItem {

@@ -138,6 +138,15 @@ interface AppState {
   isAlbumInAnySession: (albumId: string) => boolean;
   mostRecentSessionId: string | null;
   firstSessionJustCreated: boolean;
+  // Market data manual refresh
+  refreshMarketData: () => Promise<void>;
+  marketRefreshProgress: { current: number; total: number } | null;
+  isRefreshingMarket: boolean;
+  marketInsights: {
+    mostForSale: { releaseId: number; title: string; artist: string; cover: string; numForSale: number };
+    hardestToFind: { releaseId: number; title: string; artist: string; cover: string; numForSale: number };
+    updatedAt: number;
+  } | null | undefined;
   // OAuth / session management
   loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string }) => Promise<void>;
   signOut: () => void;
@@ -209,7 +218,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [folders, setFolders] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const isSyncingRef = useRef(false); // Stable ref so async prefetch can observe sync state
+  const [isRefreshingMarket, setIsRefreshingMarket] = useState(false);
+  const [marketRefreshProgress, setMarketRefreshProgress] = useState<{ current: number; total: number } | null>(null);
   const [syncProgress, setSyncProgress] = useState("");
   const [syncFailed, setSyncFailed] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
@@ -257,6 +267,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     api.collection.getByUsername,
     discogsUsername ? { discogsUsername } : "skip"
   );
+  const convexMarketInsights = useQuery(
+    api.market_insights.getByUsername,
+    discogsUsername ? { discogsUsername } : "skip"
+  );
 
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
@@ -281,7 +295,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
   const replaceCollectionMut = useMutation(api.collection.replaceAll);
-  const updateMarketStatsMut = useMutation(api.collection.updateMarketStats);
+  const upsertMarketInsightsMut = useMutation(api.market_insights.upsert);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -290,8 +304,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   wantPrioritiesRef.current = convexWantPriorities;
   const lastPlayedRef = useRef(convexLastPlayed);
   lastPlayedRef.current = convexLastPlayed;
-  const convexCollectionRef = useRef(convexCollection);
-  convexCollectionRef.current = convexCollection;
 
   // Track one-time hydration from Convex → local state
   const hydratedRef = useRef({
@@ -405,8 +417,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dateAdded: row.dateAdded,
           discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
           purgeTag: null,
-          numForSale: row.numForSale,
-          lowestPrice: row.lowestPrice,
         }));
 
         // Derive folder list from cached albums
@@ -470,11 +480,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Fetch collection value in background
         fetchCollectionValue(discogsUsername, auth).catch((e) => {
           console.warn("[Cache load] Collection value fetch failed:", e);
-        });
-
-        // Background market stats prefetch for stale/missing albums
-        prefetchMarketStats(cachedAlbums, auth, discogsUsername).catch((e) => {
-          console.warn("[Cache load] Market stats prefetch failed:", e);
         });
 
         // Fetch avatar in background
@@ -897,95 +902,91 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [discogsUsername, removeFollowingMut]);
 
-  // ── Background market stats prefetch ──
-
-  const MARKET_STATS_TTL = 7 * 24 * 3600000; // 7 days in ms
+  // ── Market data manual refresh ──
 
   /**
-   * Fetches marketplace stats (numForSale, lowestPrice) for every album that
-   * has no stats or has stats older than MARKET_STATS_TTL. Runs at 1 req/2 sec
-   * (30/min) to leave headroom for sync and other API calls.
-   * Waits for any in-progress sync to finish before issuing requests, and
-   * pauses mid-batch if a new sync starts. Handles 429 with 10-second backoff.
-   * Writes results to Convex and updates local album state live.
-   * Always call fire-and-forget (no await) — never blocks the sync return.
+   * Fetches /marketplace/stats for every album, 3 seconds apart (20/min).
+   * Computes mostForSale and hardestToFind, then writes to the market_insights
+   * Convex table. Never runs concurrently with an active sync.
    */
-  const prefetchMarketStats = useCallback(async (
-    albumList: Album[],
-    auth: DiscogsAuth,
-    username: string
-  ): Promise<void> => {
-    const now = Date.now();
-    const rows = convexCollectionRef.current;
-
-    // Build staleness map from the Convex collection snapshot
-    const statsAgeMap = new Map<number, number | undefined>();
-    if (rows) {
-      for (const row of rows) {
-        statsAgeMap.set(row.releaseId, (row as any).marketStatsUpdatedAt as number | undefined);
-      }
+  const refreshMarketData = useCallback(async (): Promise<void> => {
+    if (isSyncing) {
+      toast.error("Sync in progress. Wait for sync to complete.");
+      return;
     }
+    const auth = discogsAuth;
+    if (!auth || !discogsUsername) return;
 
-    const toFetch = albumList.filter((a) => {
-      const updatedAt = statsAgeMap.get(a.release_id);
-      return !updatedAt || now - updatedAt > MARKET_STATS_TTL;
-    });
+    const albumList = albums;
+    if (albumList.length === 0) return;
 
-    if (toFetch.length === 0) return;
+    setIsRefreshingMarket(true);
+    setMarketRefreshProgress({ current: 0, total: albumList.length });
 
-    // Wait for any in-progress sync to fully complete before issuing any requests
-    while (isSyncingRef.current) {
-      await new Promise<void>((r) => setTimeout(r, 500));
-    }
+    const results: Array<{ album: Album; numForSale: number }> = [];
 
-    console.log(`[MarketStats] Prefetching stats for ${toFetch.length} of ${albumList.length} albums...`);
-
-    const writeStats = async (album: Album, stats: { numForSale: number; lowestPrice: number | null }) => {
-      await updateMarketStatsMut({
-        discogsUsername: username,
-        releaseId: album.release_id,
-        numForSale: stats.numForSale,
-        lowestPrice: stats.lowestPrice ?? undefined,
-        marketStatsUpdatedAt: Date.now(),
-      });
-      // Update local state so Insights page updates live as data arrives
-      setAlbums((prev) => prev.map((a) =>
-        a.release_id === album.release_id
-          ? { ...a, numForSale: stats.numForSale, lowestPrice: stats.lowestPrice ?? undefined }
-          : a
-      ));
-    };
-
-    for (const album of toFetch) {
-      // Pause if a new sync started while we were mid-batch
-      while (isSyncingRef.current) {
-        await new Promise<void>((r) => setTimeout(r, 500));
-      }
-
-      try {
-        const stats = await fetchMarketStats(album.release_id, auth);
-        await writeStats(album, stats);
-      } catch (e) {
-        if (e instanceof Error && e.message.includes("429")) {
-          console.warn("[MarketStats] 429 rate limit — backing off 10s...");
-          await new Promise<void>((r) => setTimeout(r, 10000));
-          // Single retry after backoff; skip on second failure to keep batch moving
-          try {
-            const stats = await fetchMarketStats(album.release_id, auth);
-            await writeStats(album, stats);
-          } catch (e2) {
-            console.warn(`[MarketStats] Retry failed for release ${album.release_id}:`, e2);
-          }
-        } else {
-          console.warn(`[MarketStats] Failed for release ${album.release_id}:`, e);
+    try {
+      for (let i = 0; i < albumList.length; i++) {
+        const album = albumList[i];
+        try {
+          const stats = await fetchMarketStats(album.release_id, auth);
+          results.push({ album, numForSale: stats.numForSale });
+        } catch (e) {
+          console.warn(`[MarketRefresh] Failed for release ${album.release_id}:`, e);
+        }
+        setMarketRefreshProgress({ current: i + 1, total: albumList.length });
+        // 3s between requests — 20/min, well under the 60/min limit
+        if (i < albumList.length - 1) {
+          await new Promise<void>((r) => setTimeout(r, 3000));
         }
       }
-      // 2 req/sec max (30/min) — leaves headroom for sync and other API calls
-      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-    }
 
-    console.log("[MarketStats] Prefetch complete.");
-  }, [updateMarketStatsMut]); // eslint-disable-line react-hooks/exhaustive-deps
+      if (results.length === 0) {
+        toast.error("No market data available.");
+        return;
+      }
+
+      let mostForSale = results[0];
+      let hardestToFind: typeof results[0] | null = null;
+
+      for (const r of results) {
+        if (r.numForSale > mostForSale.numForSale) mostForSale = r;
+        if (r.numForSale > 0 && (hardestToFind === null || r.numForSale < hardestToFind.numForSale)) {
+          hardestToFind = r;
+        }
+      }
+
+      // Fall back to mostForSale if every album has 0 copies listed
+      const finalHardestToFind = hardestToFind ?? mostForSale;
+
+      await upsertMarketInsightsMut({
+        discogsUsername,
+        mostForSale: {
+          releaseId: mostForSale.album.release_id,
+          title: mostForSale.album.title,
+          artist: mostForSale.album.artist,
+          cover: mostForSale.album.cover,
+          numForSale: mostForSale.numForSale,
+        },
+        hardestToFind: {
+          releaseId: finalHardestToFind.album.release_id,
+          title: finalHardestToFind.album.title,
+          artist: finalHardestToFind.album.artist,
+          cover: finalHardestToFind.album.cover,
+          numForSale: finalHardestToFind.numForSale,
+        },
+        updatedAt: Date.now(),
+      });
+
+      toast.success("Market data updated.");
+    } catch (e) {
+      console.error("[MarketRefresh] Failed:", e);
+      toast.error("Market refresh failed.");
+    } finally {
+      setIsRefreshingMarket(false);
+      setMarketRefreshProgress(null);
+    }
+  }, [isSyncing, discogsAuth, discogsUsername, albums, upsertMarketInsightsMut]);
 
   // ── Sync from Discogs ──
 
@@ -994,7 +995,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     auth: DiscogsAuth
   ): Promise<{ albums: number; folders: number; wants: number }> => {
     setIsSyncing(true);
-    isSyncingRef.current = true;
     setSyncProgress("Authenticating...");
     try {
       // Fetch user profile (avatar)
@@ -1109,11 +1109,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       setSyncProgress("");
 
-      // Background market stats prefetch (non-blocking — runs at 1 req/sec after sync)
-      prefetchMarketStats(newAlbums, auth, username).catch((e) => {
-        console.warn("[Sync] Market stats prefetch failed:", e);
-      });
-
       return {
         albums: newAlbums.length,
         folders: newFolders.filter((f) => f !== "All").length,
@@ -1125,9 +1120,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw err;
     } finally {
       setIsSyncing(false);
-      isSyncingRef.current = false;
     }
-  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, prefetchMarketStats]);
+  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);
@@ -1498,6 +1492,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAlbumInAnySession,
       mostRecentSessionId,
       firstSessionJustCreated,
+      // Market data manual refresh
+      refreshMarketData,
+      marketRefreshProgress,
+      isRefreshingMarket,
+      marketInsights: convexMarketInsights ?? null,
       // OAuth / session management
       loginWithOAuth,
       signOut,
@@ -1536,6 +1535,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isInSession, toggleAlbumInSession, createSessionDirect,
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
+      refreshMarketData, marketRefreshProgress, isRefreshingMarket, convexMarketInsights,
     ]
   );
 

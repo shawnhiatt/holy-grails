@@ -69,12 +69,28 @@ export default defineSchema({
     notes: v.string(),
     customFields: v.optional(v.array(v.object({ name: v.string(), value: v.string() }))),
     dateAdded: v.string(),
-    numForSale: v.optional(v.number()),
-    lowestPrice: v.optional(v.number()),
-    marketStatsUpdatedAt: v.optional(v.number()),
   })
     .index("by_username", ["discogsUsername"])
     .index("by_username_and_release", ["discogsUsername", "releaseId"]),
+
+  market_insights: defineTable({
+    discogsUsername: v.string(),
+    mostForSale: v.object({
+      releaseId: v.number(),
+      title: v.string(),
+      artist: v.string(),
+      cover: v.string(),
+      numForSale: v.number(),
+    }),
+    hardestToFind: v.object({
+      releaseId: v.number(),
+      title: v.string(),
+      artist: v.string(),
+      cover: v.string(),
+      numForSale: v.number(),
+    }),
+    updatedAt: v.number(),
+  }).index("by_username", ["discogsUsername"]),
 
   preferences: defineTable({
     discogs_username: v.string(),
