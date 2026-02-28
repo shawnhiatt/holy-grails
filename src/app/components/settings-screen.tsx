@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Eye, EyeOff, Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3 } from "lucide-react";
+import { Eye, EyeOff, Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -32,6 +32,10 @@ export function SettingsScreen() {
     userAvatar,
     shakeToRandom,
     setShakeToRandom,
+    refreshMarketData,
+    marketRefreshProgress,
+    isRefreshingMarket,
+    marketInsights,
   } = useApp();
 
   const isOAuthUser = isAuthenticated && !discogsToken;
@@ -270,6 +274,33 @@ export function SettingsScreen() {
                 </p>
               </div>
               <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
+            </button>
+            <button
+              onClick={refreshMarketData}
+              disabled={isSyncing || isRefreshingMarket}
+              className="w-full rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
+                border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
+              }}
+            >
+              <RefreshCw
+                size={20}
+                style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }}
+                className={`flex-shrink-0 ${isRefreshingMarket ? "disc-spinner" : ""}`}
+              />
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                  {isSyncing ? "Sync in progress..." : "Refresh market data"}
+                </p>
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
+                  {isRefreshingMarket && marketRefreshProgress
+                    ? `Analyzing ${marketRefreshProgress.current} / ${marketRefreshProgress.total} albums...`
+                    : marketInsights?.updatedAt
+                      ? `Last updated ${(() => { const d = Math.floor((Date.now() - marketInsights.updatedAt) / 86400000); return d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`; })()}`
+                      : "Never updated"}
+                </p>
+              </div>
             </button>
           </div>
         </section>

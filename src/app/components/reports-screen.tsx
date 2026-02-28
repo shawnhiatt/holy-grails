@@ -436,43 +436,22 @@ function ConditionSection({ albums }: { albums: Album[] }) {
 
 /* ─────────────────── SECTION: Market ─────────────────── */
 
-function MarketSection({ albums }: { albums: Album[] }) {
-  const { isDarkMode } = useApp();
-
-  const { mostForSale, hardestToFind, analyzedCount } = useMemo(() => {
-    let mostForSale: { album: Album; numForSale: number } | null = null;
-    let hardestToFind: { album: Album; numForSale: number } | null = null;
-    let analyzedCount = 0;
-
-    for (const album of albums) {
-      if (album.numForSale === undefined) continue;
-      analyzedCount++;
-      const n = album.numForSale;
-      if (mostForSale === null || n > mostForSale.numForSale) mostForSale = { album, numForSale: n };
-      // Only consider albums with at least 1 copy listed for "hardest to find"
-      if (n > 0 && (hardestToFind === null || n < hardestToFind.numForSale)) hardestToFind = { album, numForSale: n };
-    }
-
-    return { mostForSale, hardestToFind, analyzedCount };
-  }, [albums]);
+function MarketSection() {
+  const { isDarkMode, marketInsights } = useApp();
 
   const cardStyle: React.CSSProperties = {
     backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
     border: "1px solid var(--c-border)",
   };
 
-  const emptyLabel = analyzedCount === 0
-    ? "Loading market data…"
-    : "No data available.";
+  const emptyMsg = "Tap 'Refresh market data' in Settings to populate.";
 
   function MarketCard({
     label,
     item,
-    countLabel,
   }: {
     label: string;
-    item: { album: Album; numForSale: number } | null;
-    countLabel: (n: number) => string;
+    item: { title: string; artist: string; cover: string; numForSale: number } | null | undefined;
   }) {
     return (
       <div className="rounded-[10px] p-3" style={cardStyle}>
@@ -482,32 +461,32 @@ function MarketSection({ albums }: { albums: Album[] }) {
         {item ? (
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-[5px] overflow-hidden flex-shrink-0">
-              <img src={item.album.cover} alt="" className="w-full h-full object-cover" />
+              <img src={item.cover} alt="" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1 min-w-0">
               <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                {item.album.artist} — {item.album.title}
+                {item.artist} — {item.title}
               </p>
               <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                {countLabel(item.numForSale)}
+                {item.numForSale} {item.numForSale === 1 ? "copy" : "copies"} listed
               </p>
             </div>
           </div>
         ) : (
           <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-            {emptyLabel}
+            {emptyMsg}
           </p>
         )}
       </div>
     );
   }
 
-  const footerText =
-    analyzedCount === 0
-      ? "Market data is loading in the background."
-      : analyzedCount < albums.length
-        ? `${analyzedCount} of ${albums.length} albums analyzed so far.`
-        : null;
+  const updatedAgo = marketInsights?.updatedAt
+    ? (() => {
+        const d = Math.floor((Date.now() - marketInsights.updatedAt) / 86400000);
+        return d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`;
+      })()
+    : null;
 
   return (
     <div
@@ -525,19 +504,17 @@ function MarketSection({ albums }: { albums: Album[] }) {
       <div className="flex flex-col gap-3">
         <MarketCard
           label="Most copies for sale"
-          item={mostForSale}
-          countLabel={(n) => `${n} ${n === 1 ? "copy" : "copies"} listed`}
+          item={marketInsights?.mostForSale}
         />
         <MarketCard
           label="Hardest to find"
-          item={hardestToFind}
-          countLabel={(n) => `${n} ${n === 1 ? "copy" : "copies"} listed`}
+          item={marketInsights?.hardestToFind}
         />
       </div>
 
-      {footerText && (
+      {updatedAgo && (
         <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-          {footerText}
+          Last updated {updatedAgo}.
         </p>
       )}
     </div>
@@ -1292,7 +1269,7 @@ export function ReportsScreen() {
 
           {/* Market — full width */}
           <div className="lg:col-span-2">
-            <MarketSection albums={albums} />
+            <MarketSection />
           </div>
 
           {/* Value by Folder — full width */}
