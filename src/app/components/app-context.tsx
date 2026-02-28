@@ -209,6 +209,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [folders, setFolders] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const isSyncingRef = useRef(false); // Stable ref so async prefetch can observe sync state
   const [syncProgress, setSyncProgress] = useState("");
   const [syncFailed, setSyncFailed] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
@@ -902,8 +903,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Fetches marketplace stats (numForSale, lowestPrice) for every album that
-   * has no stats or has stats older than MARKET_STATS_TTL. Runs at 1 req/sec
-   * to stay comfortably under the Discogs 60 req/min rate limit.
+   * has no stats or has stats older than MARKET_STATS_TTL. Runs at 1 req/2 sec
+   * (30/min) to leave headroom for sync and other API calls.
+   * Waits for any in-progress sync to finish before issuing requests, and
+   * pauses mid-batch if a new sync starts. Handles 429 with 10-second backoff.
    * Writes results to Convex and updates local album state live.
    * Always call fire-and-forget (no await) — never blocks the sync return.
    */
@@ -930,31 +933,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (toFetch.length === 0) return;
 
+    // Wait for any in-progress sync to fully complete before issuing any requests
+    while (isSyncingRef.current) {
+      await new Promise<void>((r) => setTimeout(r, 500));
+    }
+
     console.log(`[MarketStats] Prefetching stats for ${toFetch.length} of ${albumList.length} albums...`);
 
+    const writeStats = async (album: Album, stats: { numForSale: number; lowestPrice: number | null }) => {
+      await updateMarketStatsMut({
+        discogsUsername: username,
+        releaseId: album.release_id,
+        numForSale: stats.numForSale,
+        lowestPrice: stats.lowestPrice ?? undefined,
+        marketStatsUpdatedAt: Date.now(),
+      });
+      // Update local state so Insights page updates live as data arrives
+      setAlbums((prev) => prev.map((a) =>
+        a.release_id === album.release_id
+          ? { ...a, numForSale: stats.numForSale, lowestPrice: stats.lowestPrice ?? undefined }
+          : a
+      ));
+    };
+
     for (const album of toFetch) {
+      // Pause if a new sync started while we were mid-batch
+      while (isSyncingRef.current) {
+        await new Promise<void>((r) => setTimeout(r, 500));
+      }
+
       try {
         const stats = await fetchMarketStats(album.release_id, auth);
-
-        await updateMarketStatsMut({
-          discogsUsername: username,
-          releaseId: album.release_id,
-          numForSale: stats.numForSale,
-          lowestPrice: stats.lowestPrice ?? undefined,
-          marketStatsUpdatedAt: Date.now(),
-        });
-
-        // Update local state so Insights page updates live as data arrives
-        setAlbums((prev) => prev.map((a) =>
-          a.release_id === album.release_id
-            ? { ...a, numForSale: stats.numForSale, lowestPrice: stats.lowestPrice ?? undefined }
-            : a
-        ));
+        await writeStats(album, stats);
       } catch (e) {
-        console.warn(`[MarketStats] Failed for release ${album.release_id}:`, e);
+        if (e instanceof Error && e.message.includes("429")) {
+          console.warn("[MarketStats] 429 rate limit — backing off 10s...");
+          await new Promise<void>((r) => setTimeout(r, 10000));
+          // Single retry after backoff; skip on second failure to keep batch moving
+          try {
+            const stats = await fetchMarketStats(album.release_id, auth);
+            await writeStats(album, stats);
+          } catch (e2) {
+            console.warn(`[MarketStats] Retry failed for release ${album.release_id}:`, e2);
+          }
+        } else {
+          console.warn(`[MarketStats] Failed for release ${album.release_id}:`, e);
+        }
       }
-      // 1 req/sec — safe under 60 req/min limit
-      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+      // 2 req/sec max (30/min) — leaves headroom for sync and other API calls
+      await new Promise<void>((resolve) => setTimeout(resolve, 2000));
     }
 
     console.log("[MarketStats] Prefetch complete.");
@@ -967,6 +994,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     auth: DiscogsAuth
   ): Promise<{ albums: number; folders: number; wants: number }> => {
     setIsSyncing(true);
+    isSyncingRef.current = true;
     setSyncProgress("Authenticating...");
     try {
       // Fetch user profile (avatar)
@@ -1097,6 +1125,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw err;
     } finally {
       setIsSyncing(false);
+      isSyncingRef.current = false;
     }
   }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, prefetchMarketStats]);
 
