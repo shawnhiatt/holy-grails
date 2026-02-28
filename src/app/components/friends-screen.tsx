@@ -954,10 +954,11 @@ function buildActivityFeed(friends: Friend[]): ActivityItem[] {
     });
   }
   items.sort((a, b) => b.date.localeCompare(a.date));
-  for (const item of items) {
+  const capped = items.slice(0, 300);
+  for (const item of capped) {
     item.displayDate = item.date ? formatActivityDate(item.date) : "";
   }
-  return items;
+  return capped;
 }
 
 /* ====== Populated Friends View ====== */
