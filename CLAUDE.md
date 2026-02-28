@@ -297,7 +297,7 @@ All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zoom
 ## Navigation Structure
 
 ### Mobile (< 1024px)
-Floating pill bottom tab bar with 5 items:
+Floating pill bottom tab bar with 4 items:
 
 | Order | Label | Icon | Screen |
 |---|---|---|---|
@@ -305,13 +305,15 @@ Floating pill bottom tab bar with 5 items:
 | 2 | Collection | Library | `crate` |
 | 3 | Wants | Heart | `wants` |
 | 4 | Sessions | Headphones | `sessions` |
-| 5 | Insights | BarChart3 | `reports` |
 
-Following and Settings are in the mobile header, not the bottom bar.
-**Purge is not in the mobile bottom bar** — it's accessed from the Feed screen card, Settings quick-access card, and Album Detail.
+Mobile header right group (2 buttons): Following (Users icon, navigates to `friends`) + Settings avatar.
+**Purge and Insights are not in the mobile bottom bar** — Purge is accessed from the Feed screen card, Settings quick-access card, and Album Detail. Insights is accessible from the desktop nav only.
 
 ### Desktop (>= 1024px)
 Horizontal top nav with 8 items split left/center/right. Logo centered. Both groups are `flex-1`.
+
+**Left group:** Feed > Collection > Wants > Sessions
+**Right group:** Following > Purge > Insights > Settings > theme toggle
 
 ---
 

@@ -17,14 +17,14 @@ import { useApp, type Screen } from "./app-context";
 /** Desktop top nav — left group */
 const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
-  { id: "friends", label: "Following", icon: Users },
   { id: "crate", label: "Collection", icon: Library },
   { id: "wants", label: "Wants", icon: Heart },
+  { id: "sessions", label: "Sessions", icon: Headphones },
 ];
 
 /** Desktop top nav — right group */
 const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
-  { id: "sessions", label: "Sessions", icon: Headphones },
+  { id: "friends", label: "Following", icon: Users },
   { id: "purge", label: "Purge", icon: SquareArrowOutUpRight },
   { id: "reports", label: "Insights", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: UserRound },
@@ -33,7 +33,6 @@ const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
 /** Mobile bottom bar */
 const MOBILE_NAV_ITEMS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
-  { id: "friends", label: "Following", icon: Users },
   { id: "crate", label: "Collection", icon: Library },
   { id: "wants", label: "Wants", icon: Heart },
   { id: "sessions", label: "Sessions", icon: Headphones },
@@ -216,18 +215,18 @@ export function MobileHeader() {
         <WordmarkLogo className="w-[156px] h-auto" fillColor={logoFill} isDarkMode={isDarkMode} />
       </button>
 
-      {/* Right: Insights + Settings icons */}
+      {/* Right: Following + Settings icons */}
       <div className="flex-1 flex items-center justify-end gap-1">
         <button
-          onClick={() => setScreen("reports")}
+          onClick={() => setScreen("friends")}
           className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer"
-          title="Insights"
+          title="Following"
           style={{
-            color: screen === "reports" ? "#EBFD00" : "var(--c-text-muted)",
-            backgroundColor: screen === "reports" ? activeBg : inactiveBg,
+            color: screen === "friends" ? "#EBFD00" : "var(--c-text-muted)",
+            backgroundColor: screen === "friends" ? activeBg : inactiveBg,
           }}
         >
-          <BarChart3 size={18} strokeWidth={screen === "reports" ? 1.83 : 1.3125} />
+          <Users size={18} strokeWidth={screen === "friends" ? 1.83 : 1.3125} />
         </button>
         <button
           onClick={() => setScreen("settings")}
