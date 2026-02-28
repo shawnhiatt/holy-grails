@@ -105,6 +105,7 @@ src/
       settings-screen.tsx
       sign-in-screen.tsx
       splash-screen.tsx
+      slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps `unicornstudio-react`. Project ID: `7hz0T9mnpIOKgPTu6xzW`. Falls back to `#01294D` if WebGL is unavailable.

@@ -2,6 +2,24 @@
 @import './tailwind.css';
 @import './theme.css';
 
+/* Prevent native pull-down bounce in PWA. Background on html ensures no
+   color flash if any overscroll does occur. Responds to system color scheme
+   since dark mode is JS-driven with no .dark class on html. */
+html {
+  overscroll-behavior: none;
+  background-color: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    background-color: #0C1A2E;
+  }
+}
+
+body {
+  overscroll-behavior: none;
+}
+
 /* Push Sonner toast container below iOS status bar in PWA mode */
 [data-sonner-toaster][data-y-position="top"] {
   top: env(safe-area-inset-top, 44px) !important;
