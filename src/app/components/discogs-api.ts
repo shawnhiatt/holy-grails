@@ -582,7 +582,7 @@ const MARKET_CACHE_TTL = 30 * 24 * 3600000; // 30 days in ms
 
 export async function fetchMarketData(
   releaseId: number,
-  _auth: DiscogsAuth,
+  auth: DiscogsAuth,
   forceRefresh = false
 ): Promise<MarketData> {
   // Return cached if fresh (< 30 days) and not forcing refresh
@@ -592,42 +592,47 @@ export async function fetchMarketData(
   const prices: ConditionPrice[] = [];
   let stats: MarketplaceStats = { lowestPrice: null, numForSale: 0, currency: "USD" };
 
-  // ── QA PLACEHOLDER: hardcoded price suggestions ──
-  // TODO: Replace with live API calls when wired to production
-  // Original endpoints:
-  //   GET ${BASE}/marketplace/price_suggestions/${releaseId}
-  //   GET ${BASE}/marketplace/stats/${releaseId}
+  // Fetch price suggestions — GET /marketplace/price_suggestions/{release_id}
+  // Response: { "Near Mint (NM or M-)": { currency: "USD", value: 28.0 }, ... }
+  // Only condition grades with actual sales data are present in the response.
   try {
-    const QA_PRICES: Record<string, number> = {
-      "Mint (M)": 45.00,
-      "Near Mint (NM or M-)": 28.00,
-      "Very Good Plus (VG+)": 18.00,
-      "Very Good (VG)": 10.00,
-      "Good Plus (G+)": 5.00,
-      "Good (G)": 3.00,
-      "Fair (F)": 1.50,
-      "Poor (P)": 0.75,
-    };
-    for (const grade of CONDITION_GRADES) {
-      if (QA_PRICES[grade] != null) {
-        prices.push({
-          condition: grade,
-          value: QA_PRICES[grade],
-          currency: "USD",
-        });
+    const res = await discogsFetch(
+      `${BASE}/marketplace/price_suggestions/${releaseId}`,
+      { headers: headers(auth) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      for (const grade of CONDITION_GRADES) {
+        const entry = data[grade];
+        if (entry && typeof entry.value === "number") {
+          prices.push({
+            condition: grade,
+            value: entry.value,
+            currency: entry.currency || "USD",
+          });
+        }
       }
     }
   } catch (e) {
     console.warn("[Discogs] Price suggestions failed:", e);
   }
 
-  // ── QA PLACEHOLDER: hardcoded marketplace stats ──
+  // Fetch marketplace stats — GET /marketplace/stats/{release_id}
+  // Response: { lowest_price: { currency: "USD", value: 8.50 } | null, num_for_sale: 12 }
+  // lowest_price is null when no copies are currently listed.
   try {
-    stats = {
-      lowestPrice: 8.50,
-      numForSale: 12,
-      currency: "USD",
-    };
+    const res = await discogsFetch(
+      `${BASE}/marketplace/stats/${releaseId}`,
+      { headers: headers(auth) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      stats = {
+        lowestPrice: data.lowest_price?.value ?? null,
+        numForSale: data.num_for_sale ?? 0,
+        currency: data.lowest_price?.currency ?? "USD",
+      };
+    }
   } catch (e) {
     console.warn("[Discogs] Marketplace stats failed:", e);
   }
