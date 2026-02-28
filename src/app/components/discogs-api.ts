@@ -16,6 +16,7 @@ export type PurgeTag = "keep" | "cut" | "maybe" | null;
 export interface Album {
   id: string;
   release_id: number;
+  instance_id: number;
   title: string;
   artist: string;
   year: number;
@@ -312,7 +313,7 @@ function formatArtistName(name: string): string {
 function mapRelease(
   r: DiscogsRelease,
   folderMap: Map<number, string>,
-  fieldMap: FieldMap
+  fieldMap: FieldMap,
 ): Album {
   const bi = r.basic_information;
   const artist = bi.artists
@@ -362,6 +363,7 @@ function mapRelease(
   return {
     id: String(bi.id),
     release_id: bi.id,
+    instance_id: r.instance_id,
     title: bi.title,
     artist,
     year: bi.year || 0,

@@ -51,6 +51,28 @@ export default defineSchema({
     followed_at: v.number(),
   }).index("by_username", ["discogs_username"]),
 
+  collection: defineTable({
+    discogsUsername: v.string(),
+    releaseId: v.number(),
+    instanceId: v.number(),
+    artist: v.string(),
+    title: v.string(),
+    year: v.number(),
+    cover: v.string(),
+    folder: v.string(),
+    label: v.string(),
+    catalogNumber: v.string(),
+    format: v.string(),
+    mediaCondition: v.string(),
+    sleeveCondition: v.string(),
+    pricePaid: v.string(),
+    notes: v.string(),
+    customFields: v.optional(v.array(v.object({ name: v.string(), value: v.string() }))),
+    dateAdded: v.string(),
+  })
+    .index("by_username", ["discogsUsername"])
+    .index("by_username_and_release", ["discogsUsername", "releaseId"]),
+
   preferences: defineTable({
     discogs_username: v.string(),
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("system")),
