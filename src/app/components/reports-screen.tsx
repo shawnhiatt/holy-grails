@@ -434,32 +434,36 @@ function ConditionSection({ albums }: { albums: Album[] }) {
   );
 }
 
-/* ─────────────────── SECTION: Market (placeholder) ─────────────────── */
+/* ─────────────────── SECTION: Market ─────────────────── */
 
 function MarketSection({ albums }: { albums: Album[] }) {
   const { isDarkMode } = useApp();
 
-  const { mostForSale, hardestToFind, cachedCount } = useMemo(() => {
+  const { mostForSale, hardestToFind, analyzedCount } = useMemo(() => {
     let mostForSale: { album: Album; numForSale: number } | null = null;
     let hardestToFind: { album: Album; numForSale: number } | null = null;
-    let cachedCount = 0;
+    let analyzedCount = 0;
 
     for (const album of albums) {
-      const cached = getCachedMarketData(album.release_id);
-      if (!cached) continue;
-      cachedCount++;
-      const n = cached.stats.numForSale;
+      if (album.numForSale === undefined) continue;
+      analyzedCount++;
+      const n = album.numForSale;
       if (mostForSale === null || n > mostForSale.numForSale) mostForSale = { album, numForSale: n };
-      if (hardestToFind === null || n < hardestToFind.numForSale) hardestToFind = { album, numForSale: n };
+      // Only consider albums with at least 1 copy listed for "hardest to find"
+      if (n > 0 && (hardestToFind === null || n < hardestToFind.numForSale)) hardestToFind = { album, numForSale: n };
     }
 
-    return { mostForSale, hardestToFind, cachedCount };
+    return { mostForSale, hardestToFind, analyzedCount };
   }, [albums]);
 
   const cardStyle: React.CSSProperties = {
     backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
     border: "1px solid var(--c-border)",
   };
+
+  const emptyLabel = analyzedCount === 0
+    ? "Loading market data…"
+    : "No data available.";
 
   function MarketCard({
     label,
@@ -491,12 +495,19 @@ function MarketSection({ albums }: { albums: Album[] }) {
           </div>
         ) : (
           <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-            Browse albums to load market data.
+            {emptyLabel}
           </p>
         )}
       </div>
     );
   }
+
+  const footerText =
+    analyzedCount === 0
+      ? "Market data is loading in the background."
+      : analyzedCount < albums.length
+        ? `${analyzedCount} of ${albums.length} albums analyzed so far.`
+        : null;
 
   return (
     <div
@@ -507,21 +518,8 @@ function MarketSection({ albums }: { albums: Album[] }) {
         boxShadow: "var(--c-card-shadow)",
       }}
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4">
         <p style={sectionHeaderStyle}>Market</p>
-        <span
-          className="px-2 py-1 rounded-full"
-          style={{
-            fontSize: "10px",
-            fontWeight: 600,
-            letterSpacing: "0.5px",
-            textTransform: "uppercase" as const,
-            backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3",
-            color: "var(--c-text-muted)",
-          }}
-        >
-          Partial data
-        </span>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -533,13 +531,15 @@ function MarketSection({ albums }: { albums: Album[] }) {
         <MarketCard
           label="Hardest to find"
           item={hardestToFind}
-          countLabel={(n) => n === 0 ? "No copies listed" : `${n} ${n === 1 ? "copy" : "copies"} listed`}
+          countLabel={(n) => `${n} ${n === 1 ? "copy" : "copies"} listed`}
         />
       </div>
 
-      <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-        Based on {cachedCount} of {albums.length} albums with cached market data. Browse more to improve accuracy.
-      </p>
+      {footerText && (
+        <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
+          {footerText}
+        </p>
+      )}
     </div>
   );
 }
