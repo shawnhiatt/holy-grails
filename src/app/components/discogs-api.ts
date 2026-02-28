@@ -598,6 +598,31 @@ export async function fetchMarketStats(
   };
 }
 
+/**
+ * Fetch only price suggestions for a release — returns condition → price map.
+ * Used by the market insights refresh in app-context.tsx.
+ * Callers are responsible for rate limiting.
+ */
+export async function fetchPriceSuggestions(
+  releaseId: number,
+  auth: DiscogsAuth
+): Promise<{ condition: string; value: number }[]> {
+  const res = await discogsFetch(
+    `${BASE}/marketplace/price_suggestions/${releaseId}`,
+    { headers: headers(auth) }
+  );
+  if (!res.ok) throw new Error(`Price suggestions failed (${res.status})`);
+  const data = await res.json();
+  const prices: { condition: string; value: number }[] = [];
+  for (const grade of CONDITION_GRADES) {
+    const entry = data[grade];
+    if (entry && typeof entry.value === "number") {
+      prices.push({ condition: grade, value: entry.value });
+    }
+  }
+  return prices;
+}
+
 /** 30-day cache TTL for per-album market data */
 const MARKET_CACHE_TTL = 30 * 24 * 3600000; // 30 days in ms
 

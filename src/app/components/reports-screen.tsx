@@ -207,32 +207,9 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
 /* ─────────────────── SECTION: Value Insights ─────────────────── */
 
 function ValueInsightsSection({ albums }: { albums: Album[] }) {
-  const { isDarkMode } = useApp();
+  const { isDarkMode, marketInsights } = useApp();
 
-  const { mostValuable, leastValuable, averageValue, pricedCount } = useMemo(() => {
-    let most: { album: Album; value: number } | null = null;
-    let least: { album: Album; value: number } | null = null;
-    let totalValue = 0;
-    let pricedCount = 0;
-
-    for (const album of albums) {
-      const cached = getCachedMarketData(album.release_id);
-      const price = getPriceAtCondition(album, cached);
-      if (price) {
-        totalValue += price.value;
-        pricedCount++;
-        if (!most || price.value > most.value) most = { album, value: price.value };
-        if (!least || price.value < least.value) least = { album, value: price.value };
-      }
-    }
-
-    return {
-      mostValuable: most,
-      leastValuable: least,
-      averageValue: pricedCount > 0 ? totalValue / pricedCount : null,
-      pricedCount,
-    };
-  }, [albums]);
+  const hasData = marketInsights && marketInsights.mostValuable.price > 0;
 
   return (
     <div
@@ -245,66 +222,62 @@ function ValueInsightsSection({ albums }: { albums: Album[] }) {
     >
       <p style={sectionHeaderStyle}>Value</p>
 
-      {pricedCount === 0 ? (
+      {!hasData ? (
         <p className="mt-4 py-4 text-center" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
-          Browse albums to load pricing data.
+          Run market analysis to see value insights.
         </p>
       ) : (
         <div className="flex flex-col gap-3 mt-4">
           {/* Most valuable */}
-          {mostValuable && (
-            <div
-              className="rounded-[10px] p-3 flex items-center gap-3"
-              style={{
-                backgroundColor: isDarkMode ? "rgba(0,154,50,0.08)" : "rgba(0,154,50,0.06)",
-                border: `1px solid ${isDarkMode ? "rgba(0,154,50,0.2)" : "rgba(0,154,50,0.15)"}`,
-              }}
-            >
-              <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                <img src={mostValuable.album.cover} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: CHART_GREEN, marginBottom: 2 }}>
-                  Most valuable
-                </p>
-                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {mostValuable.album.artist} — {mostValuable.album.title}
-                </p>
-              </div>
-              <span style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: CHART_GREEN, flexShrink: 0 }}>
-                {formatCurrency(mostValuable.value)}
-              </span>
+          <div
+            className="rounded-[10px] p-3 flex items-center gap-3"
+            style={{
+              backgroundColor: isDarkMode ? "rgba(0,154,50,0.08)" : "rgba(0,154,50,0.06)",
+              border: `1px solid ${isDarkMode ? "rgba(0,154,50,0.2)" : "rgba(0,154,50,0.15)"}`,
+            }}
+          >
+            <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+              <img src={marketInsights.mostValuable.cover} alt="" className="w-full h-full object-cover" />
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: CHART_GREEN, marginBottom: 2 }}>
+                Most valuable
+              </p>
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                {marketInsights.mostValuable.artist} — {marketInsights.mostValuable.title}
+              </p>
+            </div>
+            <span style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: CHART_GREEN, flexShrink: 0 }}>
+              {formatCurrency(marketInsights.mostValuable.price)}
+            </span>
+          </div>
 
           {/* Least valuable */}
-          {leastValuable && (
-            <div
-              className="rounded-[10px] p-3 flex items-center gap-3"
-              style={{
-                backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
-                border: "1px solid var(--c-border)",
-              }}
-            >
-              <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                <img src={leastValuable.album.cover} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: "var(--c-text-muted)", marginBottom: 2 }}>
-                  Least valuable
-                </p>
-                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {leastValuable.album.artist} — {leastValuable.album.title}
-                </p>
-              </div>
-              <span style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", flexShrink: 0 }}>
-                {formatCurrency(leastValuable.value)}
-              </span>
+          <div
+            className="rounded-[10px] p-3 flex items-center gap-3"
+            style={{
+              backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+              border: "1px solid var(--c-border)",
+            }}
+          >
+            <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+              <img src={marketInsights.leastValuable.cover} alt="" className="w-full h-full object-cover" />
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" as const, color: "var(--c-text-muted)", marginBottom: 2 }}>
+                Least valuable
+              </p>
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                {marketInsights.leastValuable.artist} — {marketInsights.leastValuable.title}
+              </p>
+            </div>
+            <span style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", flexShrink: 0 }}>
+              {formatCurrency(marketInsights.leastValuable.price)}
+            </span>
+          </div>
 
           {/* Average value */}
-          {averageValue !== null && (
+          {marketInsights.averageValue > 0 && (
             <div
               className="rounded-[10px] px-4 py-3 flex items-center justify-between"
               style={{
@@ -317,11 +290,11 @@ function ValueInsightsSection({ albums }: { albums: Album[] }) {
                   Average per album
                 </p>
                 <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  Based on {pricedCount} of {albums.length} priced
+                  Based on {marketInsights.albumsAnalyzed} of {albums.length} analyzed
                 </p>
               </div>
               <span style={{ fontSize: "24px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", letterSpacing: "-0.5px" }}>
-                {formatCurrency(averageValue)}
+                {formatCurrency(marketInsights.averageValue)}
               </span>
             </div>
           )}
@@ -437,14 +410,12 @@ function ConditionSection({ albums }: { albums: Album[] }) {
 /* ─────────────────── SECTION: Market ─────────────────── */
 
 function MarketSection() {
-  const { isDarkMode, marketInsights } = useApp();
+  const { isDarkMode, marketInsights, refreshMarketData, isRefreshingMarket, marketRefreshProgress } = useApp();
 
   const cardStyle: React.CSSProperties = {
     backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
     border: "1px solid var(--c-border)",
   };
-
-  const emptyMsg = "Tap 'Refresh market data' in Settings to populate.";
 
   function MarketCard({
     label,
@@ -472,11 +443,7 @@ function MarketSection() {
               </p>
             </div>
           </div>
-        ) : (
-          <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-            {emptyMsg}
-          </p>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -487,6 +454,8 @@ function MarketSection() {
         return d === 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`;
       })()
     : null;
+
+  const hasData = !!marketInsights;
 
   return (
     <div
@@ -501,21 +470,47 @@ function MarketSection() {
         <p style={sectionHeaderStyle}>Market</p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <MarketCard
-          label="Most copies for sale"
-          item={marketInsights?.mostForSale}
-        />
-        <MarketCard
-          label="Hardest to find"
-          item={marketInsights?.hardestToFind}
-        />
-      </div>
+      {!hasData ? (
+        <div className="flex flex-col items-center py-4 gap-3">
+          {isRefreshingMarket && marketRefreshProgress ? (
+            <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+              Analyzing {marketRefreshProgress.current} / {marketRefreshProgress.total} albums...
+            </p>
+          ) : (
+            <>
+              <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                Run market analysis to see insights.
+              </p>
+              <button
+                onClick={refreshMarketData}
+                disabled={isRefreshingMarket}
+                className="px-5 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
+                style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(12,40,74,0.25)" }}
+              >
+                Start building market insights
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            <MarketCard
+              label="Most copies for sale"
+              item={marketInsights.mostForSale}
+            />
+            <MarketCard
+              label="Hardest to find"
+              item={marketInsights.hardestToFind}
+            />
+          </div>
 
-      {updatedAgo && (
-        <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-          Last updated {updatedAgo}.
-        </p>
+          {updatedAgo && (
+            <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
+              Last updated {updatedAgo}.
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -524,30 +519,20 @@ function MarketSection() {
 /* ─────────────────── SECTION: Value by Folder ─────────────────── */
 
 function FoldersValueSection({ albums }: { albums: Album[] }) {
-  const { isDarkMode } = useApp();
+  const { isDarkMode, marketInsights } = useApp();
 
-  const folderData = useMemo(() => {
-    const map = new Map<string, { total: number; count: number; priced: number }>();
+  const folderValues = marketInsights?.folderValues ?? [];
+  const hasData = folderValues.length > 0 && folderValues.some((d) => d.totalValue > 0);
+  const maxTotal = Math.max(...folderValues.map((d) => d.totalValue), 1);
 
+  // Build a count map from albums for display
+  const folderCounts = useMemo(() => {
+    const map = new Map<string, number>();
     for (const album of albums) {
-      const entry = map.get(album.folder) || { total: 0, count: 0, priced: 0 };
-      entry.count++;
-      const cached = getCachedMarketData(album.release_id);
-      const price = getPriceAtCondition(album, cached);
-      if (price) {
-        entry.total += price.value;
-        entry.priced++;
-      }
-      map.set(album.folder, entry);
+      map.set(album.folder, (map.get(album.folder) || 0) + 1);
     }
-
-    return [...map.entries()]
-      .map(([folder, data]) => ({ folder, ...data }))
-      .sort((a, b) => b.total - a.total);
+    return map;
   }, [albums]);
-
-  const maxTotal = Math.max(...folderData.map((d) => d.total), 1);
-  const anyPriced = folderData.some((d) => d.priced > 0);
 
   return (
     <div
@@ -560,35 +545,35 @@ function FoldersValueSection({ albums }: { albums: Album[] }) {
     >
       <p style={sectionHeaderStyle}>Value by Folder</p>
 
-      {!anyPriced ? (
+      {!hasData ? (
         <p className="mt-4 py-4 text-center" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
-          Browse albums to load pricing data.
+          Run market analysis to see folder values.
         </p>
       ) : (
         <div className="flex flex-col gap-3 mt-4">
-          {folderData.map((d) => (
+          {folderValues.map((d) => (
             <div key={d.folder}>
               <div className="flex items-center justify-between mb-1">
                 <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                   {d.folder}
                 </span>
                 <div className="flex items-center gap-2">
-                  {d.priced > 0 && (
+                  {d.totalValue > 0 && (
                     <span style={{ fontSize: "13px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: CHART_GREEN }}>
-                      {formatCurrency(d.total)}
+                      {formatCurrency(d.totalValue)}
                     </span>
                   )}
                   <span style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                    {d.count} records
+                    {folderCounts.get(d.folder) ?? 0} records
                   </span>
                 </div>
               </div>
-              {d.priced > 0 && (
+              {d.totalValue > 0 && (
                 <div className="h-[12px] rounded-[4px] overflow-hidden" style={{ backgroundColor: isDarkMode ? "#0F2238" : "#F0F1F3" }}>
                   <div
                     className="h-full rounded-[4px]"
                     style={{
-                      width: `${(d.total / maxTotal) * 100}%`,
+                      width: `${(d.totalValue / maxTotal) * 100}%`,
                       backgroundColor: CHART_GREEN,
                       minWidth: 4,
                     }}
