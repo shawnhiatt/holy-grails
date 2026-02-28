@@ -799,44 +799,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [discogsUsername, removePurgeTagMut]);
 
-  const executePurgeCut = useCallback(async () => {
-    if (!discogsAuth || !discogsUsername || isSyncing) return;
-
-    const toDelete = albums.filter((a) => a.purgeTag === "cut");
-    if (toDelete.length === 0) return;
-
-    setPurgeProgress({ running: true, current: 0, total: toDelete.length, failed: [] });
-
-    const failedIds: number[] = [];
-
-    for (let i = 0; i < toDelete.length; i++) {
-      const album = toDelete[i];
-      setPurgeProgress({ running: true, current: i + 1, total: toDelete.length, failed: failedIds });
-      try {
-        await removeFromCollection(discogsUsername, album.folder_id, album.release_id, album.instance_id, discogsAuth);
-        deletePurgeTag(album.release_id);
-      } catch (err) {
-        console.error("[PurgeCut] Failed to remove", album.release_id, err);
-        failedIds.push(album.release_id);
-      }
-      if (i < toDelete.length - 1) {
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-    }
-
-    const removed = toDelete.length - failedIds.length;
-    setPurgeProgress(null);
-
-    if (failedIds.length === 0) {
-      toast.success(`${removed} album${removed === 1 ? "" : "s"} removed.`);
-    } else {
-      toast.error(`${removed} of ${toDelete.length} removed. ${failedIds.length} failed.`);
-    }
-
-    setScreen("crate");
-    syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
-  }, [discogsAuth, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs]);
-
   const toggleWantPriority = useCallback((wantId: string) => {
     setWants((prev) => {
       const want = prev.find((w) => w.id === wantId);
@@ -1098,6 +1060,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return performSync(username, auth);
   }, [discogsAuth, discogsUsername, setDiscogsUsername, performSync]);
+
+  // executePurgeCut must be defined after syncFromDiscogs — it references
+  // syncFromDiscogs in its dependency array, and accessing a const before its
+  // declaration is evaluated throws a temporal dead zone ReferenceError.
+  const executePurgeCut = useCallback(async () => {
+    if (!discogsAuth || !discogsUsername || isSyncing) return;
+
+    const toDelete = albums.filter((a) => a.purgeTag === "cut");
+    if (toDelete.length === 0) return;
+
+    setPurgeProgress({ running: true, current: 0, total: toDelete.length, failed: [] });
+
+    const failedIds: number[] = [];
+
+    for (let i = 0; i < toDelete.length; i++) {
+      const album = toDelete[i];
+      setPurgeProgress({ running: true, current: i + 1, total: toDelete.length, failed: failedIds });
+      try {
+        await removeFromCollection(discogsUsername, album.folder_id, album.release_id, album.instance_id, discogsAuth);
+        deletePurgeTag(album.release_id);
+      } catch (err) {
+        console.error("[PurgeCut] Failed to remove", album.release_id, err);
+        failedIds.push(album.release_id);
+      }
+      if (i < toDelete.length - 1) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    const removed = toDelete.length - failedIds.length;
+    setPurgeProgress(null);
+
+    if (failedIds.length === 0) {
+      toast.success(`${removed} album${removed === 1 ? "" : "s"} removed.`);
+    } else {
+      toast.error(`${removed} of ${toDelete.length} removed. ${failedIds.length} failed.`);
+    }
+
+    setScreen("crate");
+    syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
+  }, [discogsAuth, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs]);
 
   // ── OAuth login ──
 
