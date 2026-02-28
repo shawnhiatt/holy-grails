@@ -791,13 +791,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fetchCollection(
           username,
           auth,
-          (loaded, total) => setSyncProgress(`Fetching collection... ${loaded}/${total}`)
+          (loaded, total) => setSyncProgress(`Fetching ${loaded} / ${total}`)
         ),
-        fetchWantlist(
-          username,
-          auth,
-          (loaded, total) => setSyncProgress(`Fetching wants... ${loaded}/${total}`)
-        ),
+        fetchWantlist(username, auth),
       ]);
 
       // Merge purge tags from current Convex data
