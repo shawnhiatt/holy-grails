@@ -89,26 +89,26 @@ export default defineSchema({
       cover: v.string(),
       numForSale: v.number(),
     }),
-    mostValuable: v.optional(v.object({
+    mostValuable: v.object({
       releaseId: v.number(),
       title: v.string(),
       artist: v.string(),
       cover: v.string(),
       price: v.number(),
-    })),
-    leastValuable: v.optional(v.object({
+    }),
+    leastValuable: v.object({
       releaseId: v.number(),
       title: v.string(),
       artist: v.string(),
       cover: v.string(),
       price: v.number(),
-    })),
-    averageValue: v.optional(v.number()),
-    folderValues: v.optional(v.array(v.object({
+    }),
+    averageValue: v.number(),
+    folderValues: v.array(v.object({
       folder: v.string(),
       totalValue: v.number(),
-    }))),
-    albumsAnalyzed: v.optional(v.number()),
+    })),
+    albumsAnalyzed: v.number(),
     updatedAt: v.number(),
   }).index("by_username", ["discogsUsername"]),
 
