@@ -141,7 +141,7 @@ export function SlideOutPanel({
         style={{
           y: sheetY,
           zIndex: sheetZIndex,
-          paddingBottom: "var(--slide-panel-pb)",
+          paddingBottom: "env(safe-area-inset-bottom, 16px)",
           maxHeight: "calc(100vh - 58px)",
           backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
           boxShadow: isDarkMode
@@ -221,8 +221,11 @@ export function SlideOutPanel({
         {/* Optional pinned footer */}
         {footer && (
           <div
-            className="p-4 flex-shrink-0"
-            style={{ borderTop: "1px solid var(--c-border-strong)" }}
+            className="pt-4 px-4 flex-shrink-0"
+            style={{
+              borderTop: "1px solid var(--c-border-strong)",
+              paddingBottom: "var(--slide-panel-footer-pb)",
+            }}
           >
             {footer}
           </div>

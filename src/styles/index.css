@@ -20,15 +20,16 @@ body {
   overscroll-behavior: none;
 }
 
-/* SlideOutPanel sheet bottom padding — clears the floating mobile nav bar
-   (96px matches mobilePaddingBottom in App.tsx). Resets to safe-area-only
-   on desktop where the tab bar is hidden and panels render as dialogs. */
+/* SlideOutPanel footer bottom padding — clears the floating mobile nav bar.
+   The outer sheet handles safe-area via paddingBottom, so the footer only
+   needs the nav-bar height (96px matches mobilePaddingBottom in App.tsx).
+   Resets to a normal p-4 equivalent on desktop where the tab bar is hidden. */
 :root {
-  --slide-panel-pb: calc(env(safe-area-inset-bottom, 0px) + 96px);
+  --slide-panel-footer-pb: 96px;
 }
 @media (min-width: 1024px) {
   :root {
-    --slide-panel-pb: env(safe-area-inset-bottom, 16px);
+    --slide-panel-footer-pb: 16px;
   }
 }
 
