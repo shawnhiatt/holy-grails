@@ -770,14 +770,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAlbums((prev) =>
       prev.map((a) => (a.id === albumId ? { ...a, purgeTag: tag } : a))
     );
-    if (discogsUsername && tag) {
-      upsertPurgeTagMut({
-        discogs_username: discogsUsername,
-        release_id: Number(albumId),
-        tag,
-      });
+    if (discogsUsername) {
+      if (tag) {
+        upsertPurgeTagMut({
+          discogs_username: discogsUsername,
+          release_id: Number(albumId),
+          tag,
+        });
+      } else {
+        removePurgeTagMut({
+          discogs_username: discogsUsername,
+          release_id: Number(albumId),
+        });
+      }
     }
-  }, [discogsUsername, upsertPurgeTagMut]);
+  }, [discogsUsername, upsertPurgeTagMut, removePurgeTagMut]);
 
   const deletePurgeTag = useCallback((releaseId: number) => {
     setAlbums((prev) =>
