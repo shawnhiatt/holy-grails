@@ -411,7 +411,7 @@ function AppContent() {
       </div>
 
       {/* Scroll fade overlay — dissolves content above the floating bottom nav (mobile only) */}
-      {!showAlbumDetail && !sessionPickerAlbumId && (
+      {!sessionPickerAlbumId && (
         <div
           className="fixed left-0 right-0 pointer-events-none lg:hidden"
           style={{
