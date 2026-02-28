@@ -141,7 +141,7 @@ interface AppState {
   mostRecentSessionId: string | null;
   firstSessionJustCreated: boolean;
   // Market data manual refresh
-  refreshMarketData: () => Promise<void>;
+  refreshMarketData: (options?: { forceRefresh?: boolean }) => Promise<void>;
   marketRefreshProgress: { current: number; total: number } | null;
   isRefreshingMarket: boolean;
   marketInsights: {
@@ -576,8 +576,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexPreferences]);
 
-  // Hydrate following from Convex (one-time, after auth is available)
+  // Hydrate following from Convex — deferred until the user navigates to
+  // the Following screen so we don't burn rate-limit budget on app load.
   useEffect(() => {
+    if (screen !== "friends") return;
     if (hydratedRef.current.following) return;
     if (convexFollowing === undefined) return; // still loading
     if (!discogsAuth) return; // wait for credentials
@@ -625,7 +627,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       })();
     }
-  }, [convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [screen, convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Screen navigation ──
 
@@ -916,7 +918,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * album. Uses adaptive delay (1s default, 10s backoff on 429). Computes
    * all Insights results in memory, then writes once to Convex.
    */
-  const refreshMarketData = useCallback(async (): Promise<void> => {
+  const refreshMarketData = useCallback(async (options?: { forceRefresh?: boolean }): Promise<void> => {
     if (isSyncing) {
       toast.error("Sync in progress. Wait for sync to complete.");
       return;
@@ -927,9 +929,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const albumList = albums;
     if (albumList.length === 0) return;
 
-    // Skip entirely if data is <7 days old
+    // Skip entirely if data is <7 days old (unless force-refreshing)
     const SEVEN_DAYS = 7 * 24 * 3600000;
-    if (convexMarketInsights && Date.now() - convexMarketInsights.updatedAt < SEVEN_DAYS) {
+    if (!options?.forceRefresh && convexMarketInsights && Date.now() - convexMarketInsights.updatedAt < SEVEN_DAYS) {
       toast("Market data is up to date.");
       return;
     }

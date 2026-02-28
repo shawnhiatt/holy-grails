@@ -303,6 +303,24 @@ export function SettingsScreen() {
                       <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
                         Last updated {updatedAgoText}.
                       </p>
+                      <button
+                        onClick={() => refreshMarketData({ forceRefresh: true })}
+                        className="cursor-pointer"
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 400,
+                          fontFamily: "'DM Sans', system-ui, sans-serif",
+                          color: "var(--c-text-faint)",
+                          marginTop: "2px",
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          textDecoration: "underline",
+                          textUnderlineOffset: "2px",
+                        }}
+                      >
+                        Refresh anyway
+                      </button>
                     </div>
                   </div>
                 );
