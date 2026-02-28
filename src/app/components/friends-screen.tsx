@@ -931,12 +931,6 @@ function getInitial(username: string): string {
 
 function buildActivityFeed(friends: Friend[]): ActivityItem[] {
   const items: ActivityItem[] = [];
-  const recentDates = [
-    "2026-02-18", "2026-02-15", "2026-02-12", "2026-02-10",
-    "2026-02-07", "2026-02-04", "2026-01-30", "2026-01-26",
-    "2026-01-22", "2026-01-18", "2026-01-15", "2026-01-12",
-    "2026-01-08", "2026-01-04", "2025-12-28",
-  ];
   for (const friend of friends) {
     if (friend.isPrivate || friend.collection.length === 0) continue;
     const sorted = [...friend.collection]
@@ -954,14 +948,14 @@ function buildActivityFeed(friends: Friend[]): ActivityItem[] {
         albumReleaseId: album.release_id,
         albumYear: album.year,
         albumLabel: album.label,
-        date: recentDates[items.length % recentDates.length] || "2026-01-01",
+        date: album.dateAdded || "",
         displayDate: "",
       });
     });
   }
   items.sort((a, b) => b.date.localeCompare(a.date));
   for (const item of items) {
-    item.displayDate = formatActivityDate(item.date);
+    item.displayDate = item.date ? formatActivityDate(item.date) : "";
   }
   return items;
 }
@@ -988,6 +982,9 @@ function PopulatedFriendsView({
   setAppScreen: (s: Screen) => void;
 }) {
   const activityFeed = useMemo(() => buildActivityFeed(friends), [friends]);
+  const [visibleCount, setVisibleCount] = useState(30);
+  const visibleActivity = useMemo(() => activityFeed.slice(0, visibleCount), [activityFeed, visibleCount]);
+  const hasMore = activityFeed.length > visibleCount;
 
   // Track items that were just added to wantlist (for heart animation)
   const [justAddedWantIds, setJustAddedWantIds] = useState<Set<string>>(() => new Set());
@@ -1232,7 +1229,7 @@ function PopulatedFriendsView({
         </div>
       ) : (
         <div className="flex flex-col">
-          {activityFeed.map((item) => {
+          {visibleActivity.map((item) => {
             const inCollection = ownReleaseIds.has(item.albumReleaseId);
             const inWantList = wantReleaseIds.has(item.albumReleaseId) || justAddedWantIds.has(item.id);
             return (
@@ -1379,6 +1376,26 @@ function PopulatedFriendsView({
               </div>
             );
           })}
+          {hasMore && (
+            <div className="px-[16px] lg:px-[24px] py-[16px]" style={{ borderTopWidth: "1px", borderTopStyle: "solid", borderColor: "var(--c-border)" }}>
+              <button
+                onClick={() => setVisibleCount((c) => c + 30)}
+                className="w-full cursor-pointer"
+                style={{
+                  padding: "10px 0",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  color: "var(--c-text-secondary)",
+                  backgroundColor: "var(--c-chip-bg)",
+                  border: "none",
+                  borderRadius: "10px",
+                }}
+              >
+                Load more
+              </button>
+            </div>
+          )}
         </div>
       )}
 
