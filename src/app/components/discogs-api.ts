@@ -34,6 +34,10 @@ export interface Album {
   dateAdded: string;
   discogsUrl: string;
   purgeTag: PurgeTag;
+  /** Marketplace listings count — populated by background prefetch, undefined until fetched */
+  numForSale?: number;
+  /** Lowest listing price in USD — undefined when no copies listed or not yet fetched */
+  lowestPrice?: number;
 }
 
 export interface WantItem {
@@ -575,6 +579,27 @@ export function normalizeCondition(raw: string): string | null {
 
 export function getCachedMarketData(releaseId: number): MarketData | null {
   return marketCache.get(releaseId) || null;
+}
+
+/**
+ * Fetch only marketplace stats for a release — skips price suggestions.
+ * Used by the background market stats prefetch in app-context.tsx.
+ * Callers are responsible for rate limiting (1 req/sec recommended).
+ */
+export async function fetchMarketStats(
+  releaseId: number,
+  auth: DiscogsAuth
+): Promise<{ numForSale: number; lowestPrice: number | null }> {
+  const res = await discogsFetch(
+    `${BASE}/marketplace/stats/${releaseId}`,
+    { headers: headers(auth) }
+  );
+  if (!res.ok) throw new Error(`Marketplace stats failed (${res.status})`);
+  const data = await res.json();
+  return {
+    numForSale: data.num_for_sale ?? 0,
+    lowestPrice: data.lowest_price?.value ?? null,
+  };
 }
 
 /** 30-day cache TTL for per-album market data */
