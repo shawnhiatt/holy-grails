@@ -1,18 +1,33 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { Check, Minus, HelpCircle, Loader2 } from "lucide-react";
-import { motion, useMotionValue, useTransform } from "motion/react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { Check, Minus, HelpCircle, Loader2, Trash2 } from "lucide-react";
+import { motion, useMotionValue, useTransform, AnimatePresence } from "motion/react";
+import { toast } from "sonner";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
-import { getCachedMarketData, fetchMarketData } from "./discogs-api";
+import { getCachedMarketData, fetchMarketData, removeFromCollection } from "./discogs-api";
 import { getPriceAtCondition } from "./market-value";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeTagTint, purgeIndicatorColor, purgeToast } from "./purge-colors";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 
 export function PurgeTracker() {
-  const { albums, purgeFilter, setPurgeFilter, setPurgeTag, setSelectedAlbumId, setShowAlbumDetail, discogsToken, isDarkMode, isAuthenticated } = useApp();
+  const {
+    albums, purgeFilter, setPurgeFilter, setPurgeTag, deletePurgeTag,
+    setSelectedAlbumId, setShowAlbumDetail,
+    discogsToken, discogsUsername, discogsAuth,
+    isDarkMode, isAuthenticated, isSyncing, syncFromDiscogs, setScreen,
+  } = useApp();
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Purge Cut dialog + execution state
+  const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
+  const [purgeProgress, setPurgeProgress] = useState<{
+    running: boolean;
+    current: number;
+    total: number;
+    failed: number[];
+  } | null>(null);
 
   // Scroll to top when filter changes
   useEffect(() => {
@@ -116,6 +131,57 @@ export function PurgeTracker() {
     }
   }, [setPurgeTag, isDarkMode, backgroundFetchForCut]);
 
+  const executePurgeCut = useCallback(async () => {
+    if (!discogsAuth || !discogsUsername || isSyncing) return;
+    setShowPurgeCutDialog(false);
+
+    const toDelete = cutAlbums.slice(); // snapshot
+    setPurgeProgress({ running: true, current: 0, total: toDelete.length, failed: [] });
+
+    const failedIds: number[] = [];
+
+    for (let i = 0; i < toDelete.length; i++) {
+      const album = toDelete[i];
+      setPurgeProgress({ running: true, current: i + 1, total: toDelete.length, failed: failedIds });
+      try {
+        await removeFromCollection(
+          discogsUsername,
+          album.folder_id,
+          album.release_id,
+          album.instance_id,
+          discogsAuth
+        );
+        // Success (or 404 — already gone) — remove the purge tag
+        deletePurgeTag(album.release_id);
+      } catch (err) {
+        console.error("[PurgeCut] Failed to remove", album.release_id, err);
+        failedIds.push(album.release_id);
+      }
+      // 1 second delay between requests to respect Discogs rate limit
+      if (i < toDelete.length - 1) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    const removed = toDelete.length - failedIds.length;
+    setPurgeProgress(null);
+
+    // Trigger full re-sync
+    try {
+      await syncFromDiscogs();
+    } catch (err) {
+      console.error("[PurgeCut] Re-sync failed:", err);
+    }
+
+    // Summary toast + navigate to collection
+    if (failedIds.length === 0) {
+      toast.success(`${removed} album${removed === 1 ? "" : "s"} removed.`);
+    } else {
+      toast.error(`${removed} of ${toDelete.length} removed. ${failedIds.length} failed.`);
+    }
+    setScreen("crate");
+  }, [discogsAuth, discogsUsername, isSyncing, cutAlbums, deletePurgeTag, syncFromDiscogs, setScreen]);
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
@@ -156,6 +222,39 @@ export function PurgeTracker() {
           <StatChip label="Unrated" tag="unrated" count={unratedCount} isActive={purgeFilter === "unrated"} onClick={() => setPurgeFilter("unrated")} isDark={isDarkMode} />
         </div>
       </div>
+
+      {/* Purge Cut action button — visible when at least one album is tagged Cut */}
+      {cutCount > 0 && !purgeProgress && (
+        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pb-[8px]">
+          <button
+            onClick={() => setShowPurgeCutDialog(true)}
+            disabled={isSyncing}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors"
+            style={{
+              backgroundColor: isSyncing ? "var(--c-chip-bg)" : "#EBFD00",
+              color: isSyncing ? "var(--c-text-muted)" : "#0C284A",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            <Trash2 size={15} />
+            Purge Cut ({cutCount})
+          </button>
+        </div>
+      )}
+
+      {/* Progress indicator during purge execution */}
+      {purgeProgress && (
+        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pb-[8px]">
+          <div className="rounded-[10px] py-3 px-4 flex items-center gap-3" style={{ backgroundColor: purgeTagBg("cut", isDarkMode), border: `1px solid ${purgeTagBorder("cut", isDarkMode)}` }}>
+            <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: purgeTagColor("cut", isDarkMode) }} />
+            <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>
+              Removing {purgeProgress.current} of {purgeProgress.total}...
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Cut value summary */}
       {purgeFilter === "cut" && cutAlbums.length > 0 && (
@@ -229,7 +328,149 @@ export function PurgeTracker() {
       </div>
       </>
       )}
+
+      {/* Purge Cut confirmation dialog */}
+      <AnimatePresence>
+        {showPurgeCutDialog && (
+          <PurgeCutDialog
+            cutAlbums={cutAlbums}
+            isDark={isDarkMode}
+            onCancel={() => setShowPurgeCutDialog(false)}
+            onConfirm={executePurgeCut}
+          />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function PurgeCutDialog({
+  cutAlbums,
+  isDark,
+  onCancel,
+  onConfirm,
+}: {
+  cutAlbums: Album[];
+  isDark: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const n = cutAlbums.length;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+        className="fixed inset-0 bg-black/40"
+        style={{ zIndex: 88 }}
+        onClick={onCancel}
+      />
+
+      {/* Sheet */}
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+        className="fixed left-0 right-0 bottom-0 rounded-t-[20px] flex flex-col"
+        style={{
+          zIndex: 89,
+          maxHeight: "75vh",
+          backgroundColor: isDark ? "#132B44" : "#FFFFFF",
+          boxShadow: isDark ? "0 -8px 32px rgba(0,0,0,0.3)" : "0 -8px 32px rgba(12,40,74,0.1)",
+          "--c-text": isDark ? "#E2E8F0" : "#0C284A",
+          "--c-text-secondary": isDark ? "#9EAFC2" : "#455B75",
+          "--c-text-muted": isDark ? "#7D92A8" : "#6B7B8E",
+          "--c-border-strong": isDark ? "#2D4A66" : "#74889C",
+          "--c-surface": isDark ? "#132B44" : "#FFFFFF",
+          "--c-chip-bg": isDark ? "#1A3350" : "#EFF1F3",
+        } as React.CSSProperties}
+      >
+        {/* Grab handle */}
+        <div className="flex justify-center py-3 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: isDark ? "#2D4A66" : "#D2D8DE" }} />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pb-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--c-border-strong)" }}>
+          <h3 style={{ fontSize: "18px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
+            Purge Cut
+          </h3>
+          <button
+            onClick={onCancel}
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
+          >
+            <Minus size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
+          <p style={{ fontSize: "14px", color: "var(--c-text-secondary)", lineHeight: 1.5, marginBottom: "16px" }}>
+            This will permanently remove {n} album{n === 1 ? "" : "s"} from your Discogs collection. This cannot be undone.
+          </p>
+          <div className="flex flex-col gap-1">
+            {cutAlbums.map((album) => (
+              <div key={album.release_id} className="flex items-center gap-2.5 py-1.5">
+                <div className="w-8 h-8 rounded-[6px] overflow-hidden flex-shrink-0">
+                  <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                    {album.title}
+                  </p>
+                  <p style={{ fontSize: "12px", color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                    {album.artist}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          className="flex flex-col gap-2 px-4 pt-3"
+          style={{
+            borderTop: "1px solid var(--c-border-strong)",
+            paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 8px)",
+          }}
+        >
+          <button
+            onClick={onConfirm}
+            className="w-full py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors"
+            style={{
+              backgroundColor: "#EBFD00",
+              color: "#0C284A",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            <Trash2 size={15} />
+            Remove {n} album{n === 1 ? "" : "s"}
+          </button>
+          <button
+            onClick={onCancel}
+            className="w-full py-3 rounded-[10px] transition-colors"
+            style={{
+              backgroundColor: "var(--c-chip-bg)",
+              color: "var(--c-text-secondary)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: "14px",
+              fontWeight: 500,
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </motion.div>
+    </>
   );
 }
 

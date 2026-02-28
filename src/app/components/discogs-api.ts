@@ -17,6 +17,7 @@ export interface Album {
   id: string;
   release_id: number;
   instance_id: number;
+  folder_id: number;
   title: string;
   artist: string;
   year: number;
@@ -364,6 +365,7 @@ function mapRelease(
     id: String(bi.id),
     release_id: bi.id,
     instance_id: r.instance_id,
+    folder_id: r.folder_id,
     title: bi.title,
     artist,
     year: bi.year || 0,
@@ -718,4 +720,34 @@ export function clearCollectionValue(): void {
 /** Clear all per-album market data from the in-memory cache */
 export function clearAllMarketData(): void {
   marketCache.clear();
+}
+
+/* ─── Collection Mutations ─── */
+
+/**
+ * Remove a single release instance from the user's Discogs collection.
+ * DELETE /users/{username}/collection/folders/{folder_id}/releases/{release_id}/instances/{instance_id}
+ *
+ * 404 is treated as success — the album is already gone from Discogs.
+ * All other non-2xx responses throw so the caller can log and skip.
+ */
+export async function removeFromCollection(
+  username: string,
+  folderId: number,
+  releaseId: number,
+  instanceId: number,
+  auth: DiscogsAuth
+): Promise<void> {
+  const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}`;
+  const res = await discogsFetch(url, {
+    method: "DELETE",
+    headers: headers(auth),
+  });
+  if (res.status === 404) return; // Already removed — treat as success
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to remove release ${releaseId} from collection (${res.status})${body ? ": " + body : ""}`
+    );
+  }
 }

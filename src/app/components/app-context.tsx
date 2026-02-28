@@ -67,6 +67,7 @@ interface AppState {
   setSortOption: (s: SortOption) => void;
   filteredAlbums: Album[];
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
+  deletePurgeTag: (releaseId: number) => void;
   toggleWantPriority: (wantId: string) => void;
   addToWantList: (item: WantItem) => void;
   removeFromWantList: (releaseId: string | number) => void;
@@ -268,6 +269,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
+  const removePurgeTagMut = useMutation(api.purge_tags.remove);
   const createSessionMut = useMutation(api.sessions.create);
   const updateSessionMut = useMutation(api.sessions.update);
   const removeSessionMut = useMutation(api.sessions.remove);
@@ -384,6 +386,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           id: String(row.releaseId),
           release_id: row.releaseId,
           instance_id: row.instanceId,
+          folder_id: row.folderId ?? 1,
           title: row.title,
           artist: row.artist,
           year: row.year,
@@ -776,6 +779,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [discogsUsername, upsertPurgeTagMut]);
 
+  const deletePurgeTag = useCallback((releaseId: number) => {
+    setAlbums((prev) =>
+      prev.map((a) => (a.release_id === releaseId ? { ...a, purgeTag: null } : a))
+    );
+    if (discogsUsername) {
+      removePurgeTagMut({ discogs_username: discogsUsername, release_id: releaseId });
+    }
+  }, [discogsUsername, removePurgeTagMut]);
+
   const toggleWantPriority = useCallback((wantId: string) => {
     setWants((prev) => {
       const want = prev.find((w) => w.id === wantId);
@@ -961,6 +973,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           albums: newAlbums.map((a) => ({
             releaseId: a.release_id,
             instanceId: a.instance_id,
+            folderId: a.folder_id,
             artist: a.artist,
             title: a.title,
             year: a.year,
@@ -1322,6 +1335,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSortOption,
       filteredAlbums,
       setPurgeTag,
+      deletePurgeTag,
       toggleWantPriority,
       addToWantList,
       removeFromWantList,
@@ -1403,7 +1417,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addFriend, removeFriend,
       selectedAlbumId, selectedAlbum,
       searchQuery, activeFolder, sortOption, filteredAlbums,
-      setPurgeTag, toggleWantPriority, addToWantList, removeFromWantList,
+      setPurgeTag, deletePurgeTag, toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
       deleteSession, renameSession, reorderSessionAlbums,
       showFilterDrawer, showAlbumDetail,
