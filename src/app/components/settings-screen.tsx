@@ -237,58 +237,64 @@ export function SettingsScreen() {
           </div>
         </section>
 
-        {/* Tools section — mobile only (Purge and Insights not in mobile nav) */}
-        <section className="mt-6 lg:hidden">
+        {/* Tools section — visible on all viewports; 2-col grid on desktop */}
+        <section className="mt-6">
           <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)", marginBottom: "12px" }}>Tools</h3>
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={() => setScreen("purge")}
-              className="w-full rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Purge Tracker card — wraps nav action + optional Purge Cut secondary action */}
+            <div
+              className="rounded-[12px] overflow-hidden"
               style={{
                 backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
                 border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
               }}
             >
-              <SquareArrowOutUpRight size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                  Purge Tracker
-                </p>
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
-                  Rate your collection — keep, cut, or maybe.
-                </p>
-              </div>
-              <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
-            </button>
-            {cutAlbums.length > 0 && !purgeProgress && (
               <button
-                onClick={() => setShowPurgeCutDialog(true)}
-                disabled={isSyncing}
-                className="w-full rounded-[12px] p-3 flex items-center gap-3 text-left cursor-pointer"
-                style={{
-                  backgroundColor: isDarkMode ? "rgba(255,152,218,0.06)" : "rgba(154,32,124,0.06)",
-                  border: `1px solid ${isDarkMode ? "rgba(255,152,218,0.15)" : "rgba(154,32,124,0.15)"}`,
-                }}
+                onClick={() => setScreen("purge")}
+                className="w-full p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
               >
-                <Trash2 size={16} style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} className="flex-shrink-0" />
-                <span style={{ fontSize: "14px", fontWeight: 500, color: isDarkMode ? "#FF98DA" : "#9A207C", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                  Purge Cut ({cutAlbums.length})
-                </span>
+                <SquareArrowOutUpRight size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                    Purge Tracker
+                  </p>
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
+                    Rate your collection — keep, cut, or maybe.
+                  </p>
+                </div>
+                <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
               </button>
-            )}
 
-            {purgeProgress && (
-              <div className="rounded-[12px] py-3 px-4 flex items-center gap-3" style={{ backgroundColor: "var(--c-chip-bg)", border: "1px solid var(--c-border)" }}>
-                <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} />
-                <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>
-                  Removing {purgeProgress.current} of {purgeProgress.total}...
-                </span>
-              </div>
-            )}
+              {cutAlbums.length > 0 && !purgeProgress && (
+                <div style={{ borderTop: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}` }}>
+                  <button
+                    onClick={() => setShowPurgeCutDialog(true)}
+                    disabled={isSyncing}
+                    className="w-full px-4 py-2.5 flex items-center gap-1.5 cursor-pointer transition-opacity hover:opacity-70 disabled:opacity-40"
+                    style={{ fontSize: "13px", fontWeight: 500, color: isDarkMode ? "#FF98DA" : "#9A207C", fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                  >
+                    <Trash2 size={13} className="flex-shrink-0" />
+                    Purge Cut ({cutAlbums.length})
+                  </button>
+                </div>
+              )}
 
+              {purgeProgress && (
+                <div style={{ borderTop: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}` }}>
+                  <div className="px-4 py-2.5 flex items-center gap-1.5">
+                    <Loader2 size={13} className="animate-spin flex-shrink-0" style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} />
+                    <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                      Removing {purgeProgress.current} of {purgeProgress.total}...
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Insights card */}
             <button
               onClick={() => setScreen("reports")}
-              className="w-full rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
+              className="rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
               style={{
                 backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
                 border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
