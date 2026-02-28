@@ -209,7 +209,7 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
 function ValueInsightsSection({ albums }: { albums: Album[] }) {
   const { isDarkMode, marketInsights } = useApp();
 
-  const hasData = marketInsights && marketInsights.mostValuable.price > 0;
+  const hasData = marketInsights?.mostValuable && marketInsights?.leastValuable && marketInsights.mostValuable.price > 0;
 
   return (
     <div
@@ -277,7 +277,7 @@ function ValueInsightsSection({ albums }: { albums: Album[] }) {
           </div>
 
           {/* Average value */}
-          {marketInsights.averageValue > 0 && (
+          {marketInsights.averageValue != null && marketInsights.averageValue > 0 && (
             <div
               className="rounded-[10px] px-4 py-3 flex items-center justify-between"
               style={{
@@ -290,11 +290,11 @@ function ValueInsightsSection({ albums }: { albums: Album[] }) {
                   Average per album
                 </p>
                 <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  Based on {marketInsights.albumsAnalyzed} of {albums.length} analyzed
+                  Based on {marketInsights.albumsAnalyzed ?? 0} of {albums.length} analyzed
                 </p>
               </div>
               <span style={{ fontSize: "24px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", letterSpacing: "-0.5px" }}>
-                {formatCurrency(marketInsights.averageValue)}
+                {formatCurrency(marketInsights.averageValue!)}
               </span>
             </div>
           )}
