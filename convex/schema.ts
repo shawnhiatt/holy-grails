@@ -69,11 +69,6 @@ export default defineSchema({
     notes: v.string(),
     customFields: v.optional(v.array(v.object({ name: v.string(), value: v.string() }))),
     dateAdded: v.string(),
-    // Stale fields from previous approach — kept optional so prod documents
-    // pass schema validation until a Sync Now wipes and repopulates the table.
-    numForSale: v.optional(v.float64()),
-    lowestPrice: v.optional(v.float64()),
-    marketStatsUpdatedAt: v.optional(v.float64()),
   })
     .index("by_username", ["discogsUsername"])
     .index("by_username_and_release", ["discogsUsername", "releaseId"]),
