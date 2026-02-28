@@ -1,5 +1,6 @@
-import { useState, useRef } from "react";
-import { Eye, EyeOff, Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3 } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { Eye, EyeOff, Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, Loader2 } from "lucide-react";
+import { PurgeCutDialog } from "./purge-tracker";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -32,6 +33,8 @@ export function SettingsScreen() {
     userAvatar,
     shakeToRandom,
     setShakeToRandom,
+    executePurgeCut,
+    purgeProgress,
   } = useApp();
 
   const isOAuthUser = isAuthenticated && !discogsToken;
@@ -41,6 +44,11 @@ export function SettingsScreen() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [motionDenied, setMotionDenied] = useState(false);
   const motionDeniedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Purge Cut dialog (execution lives in context via executePurgeCut)
+  const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
+
+  const cutAlbums = useMemo(() => albums.filter((a) => a.purgeTag === "cut"), [albums]);
 
   const handleShakeToggle = async () => {
     if (shakeToRandom) {
@@ -252,6 +260,32 @@ export function SettingsScreen() {
               </div>
               <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
             </button>
+            {cutAlbums.length > 0 && !purgeProgress && (
+              <button
+                onClick={() => setShowPurgeCutDialog(true)}
+                disabled={isSyncing}
+                className="w-full rounded-[12px] p-3 flex items-center gap-3 text-left cursor-pointer"
+                style={{
+                  backgroundColor: isDarkMode ? "rgba(255,152,218,0.06)" : "rgba(154,32,124,0.06)",
+                  border: `1px solid ${isDarkMode ? "rgba(255,152,218,0.15)" : "rgba(154,32,124,0.15)"}`,
+                }}
+              >
+                <Trash2 size={16} style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} className="flex-shrink-0" />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: isDarkMode ? "#FF98DA" : "#9A207C", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                  Purge Cut ({cutAlbums.length})
+                </span>
+              </button>
+            )}
+
+            {purgeProgress && (
+              <div className="rounded-[12px] py-3 px-4 flex items-center gap-3" style={{ backgroundColor: "var(--c-chip-bg)", border: "1px solid var(--c-border)" }}>
+                <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>
+                  Removing {purgeProgress.current} of {purgeProgress.total}...
+                </span>
+              </div>
+            )}
+
             <button
               onClick={() => setScreen("reports")}
               className="w-full rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
@@ -430,6 +464,17 @@ export function SettingsScreen() {
           </div>
         </section>
       </div>
+
+      <AnimatePresence>
+        {showPurgeCutDialog && (
+          <PurgeCutDialog
+            cutAlbums={cutAlbums}
+            isDark={isDarkMode}
+            onCancel={() => setShowPurgeCutDialog(false)}
+            onConfirm={() => { setShowPurgeCutDialog(false); executePurgeCut(); }}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {confirmAction && (
