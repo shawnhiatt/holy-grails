@@ -251,6 +251,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     api.preferences.getByUsername,
     discogsUsername ? { discogs_username: discogsUsername } : "skip"
   );
+  const convexCollection = useQuery(
+    api.collection.getByUsername,
+    discogsUsername ? { discogsUsername } : "skip"
+  );
 
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
@@ -274,6 +278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsertPreferencesMut = useMutation(api.preferences.upsert);
   const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
+  const replaceCollectionMut = useMutation(api.collection.replaceAll);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -344,7 +349,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexUser, discogsUsername, discogsToken]);
 
-  // Auto-sync on initial load for returning users (OAuth or personal token)
+  // Auto-sync on initial load for returning users (OAuth or personal token).
+  // If the collection was synced within the last 24 hours, load from
+  // the Convex cache instead of hitting Discogs.
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
   useEffect(() => {
     if (initialSyncDoneRef.current) return;
     if (!discogsUsername) return;
@@ -353,22 +362,130 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!discogsToken && convexUser === undefined) return; // still loading
     if (!discogsToken && convexUser === null) return; // no user record
 
-    // We have auth — trigger auto-sync
+    // We have auth — decide whether to use cache or full sync
     const auth: DiscogsAuth = convexUser
       ? { accessToken: convexUser.access_token, tokenSecret: convexUser.token_secret }
       : discogsToken;
 
     if (!auth) return;
 
-    initialSyncDoneRef.current = true;
+    const lastSync = convexUser?.last_synced_at ?? null;
+    const isFresh = lastSync != null && Date.now() - lastSync < TWENTY_FOUR_HOURS;
 
-    // Perform sync in background
-    performSync(discogsUsername, auth).catch(err => {
-      console.error("[Auto-sync] Failed:", err);
-      setSyncFailed(true);
-      toast.error("Sync failed. Try again in Settings.");
-    });
-  }, [discogsUsername, discogsToken, convexUser]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (isFresh) {
+      // Cache is fresh — wait for convexCollection to arrive, then hydrate
+      if (convexCollection === undefined) return; // still loading
+
+      initialSyncDoneRef.current = true;
+
+      if (convexCollection.length > 0) {
+        // Hydrate albums from Convex cache
+        const cachedAlbums: Album[] = convexCollection.map((row) => ({
+          id: String(row.releaseId),
+          release_id: row.releaseId,
+          instance_id: row.instanceId,
+          title: row.title,
+          artist: row.artist,
+          year: row.year,
+          cover: row.cover,
+          folder: row.folder,
+          label: row.label,
+          catalogNumber: row.catalogNumber,
+          format: row.format,
+          mediaCondition: row.mediaCondition,
+          sleeveCondition: row.sleeveCondition,
+          pricePaid: row.pricePaid,
+          notes: row.notes,
+          customFields: row.customFields,
+          dateAdded: row.dateAdded,
+          discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
+          purgeTag: null,
+        }));
+
+        // Derive folder list from cached albums
+        const folderSet = new Set(cachedAlbums.map((a) => a.folder));
+        const cachedFolders = ["All", ...Array.from(folderSet).filter((f) => f !== "All").sort()];
+
+        // Merge purge tags
+        const tags = purgeTagsRef.current;
+        if (tags !== undefined) {
+          const tagMap = new Map(tags.map((t) => [t.release_id, t.tag as PurgeTag]));
+          setAlbums(cachedAlbums.map((a) => ({
+            ...a,
+            purgeTag: tagMap.get(a.release_id) || null,
+          })));
+          hydratedRef.current.purgeTags = true;
+        } else {
+          setAlbums(cachedAlbums);
+        }
+        setFolders(cachedFolders);
+
+        // Still need wantlist from Discogs (not cached)
+        fetchWantlist(discogsUsername, auth).then((newWants) => {
+          const prios = wantPrioritiesRef.current;
+          if (prios !== undefined) {
+            const prioMap = new Map(prios.map((p) => [p.release_id, p.is_priority]));
+            setWants(newWants.map((w) => ({
+              ...w,
+              priority: prioMap.get(w.release_id) || false,
+            })));
+            hydratedRef.current.wantPriorities = true;
+          } else {
+            setWants(newWants);
+          }
+
+          // Merge last played
+          const lpData = lastPlayedRef.current;
+          if (lpData !== undefined && lpData.length > 0) {
+            const map: Record<string, string> = {};
+            for (const lp of lpData) {
+              map[String(lp.release_id)] = new Date(lp.played_at).toISOString();
+            }
+            setLastPlayed(map);
+            hydratedRef.current.lastPlayed = true;
+          }
+
+          setSyncStats({
+            albums: cachedAlbums.length,
+            folders: cachedFolders.filter((f) => f !== "All").length,
+            wants: newWants.length,
+          });
+        }).catch((err) => {
+          console.warn("[Cache load] Wantlist fetch failed:", err);
+          // Albums are still loaded from cache — app is usable
+          setSyncStats({
+            albums: cachedAlbums.length,
+            folders: cachedFolders.filter((f) => f !== "All").length,
+            wants: 0,
+          });
+        });
+
+        // Fetch collection value in background
+        fetchCollectionValue(discogsUsername, auth).catch((e) => {
+          console.warn("[Cache load] Collection value fetch failed:", e);
+        });
+
+        // Fetch avatar in background
+        fetchUserProfile(discogsUsername, auth).then((p) => setUserAvatar(p.avatar)).catch(() => {});
+      } else {
+        // Cache is empty despite being "fresh" — fall back to full sync
+        initialSyncDoneRef.current = true;
+        performSync(discogsUsername, auth).catch((err) => {
+          console.error("[Auto-sync] Failed:", err);
+          setSyncFailed(true);
+          toast.error("Sync failed. Try again in Settings.");
+        });
+      }
+    } else {
+      // Cache is stale or missing — full sync from Discogs
+      initialSyncDoneRef.current = true;
+      performSync(discogsUsername, auth).catch((err) => {
+        console.error("[Auto-sync] Failed:", err);
+        setSyncFailed(true);
+        toast.error("Sync failed. Try again in Settings.");
+      });
+    }
+  }, [discogsUsername, discogsToken, convexUser, convexCollection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate purge tags from Convex into albums (one-time, after albums are populated)
   useEffect(() => {
@@ -834,6 +951,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         hydratedRef.current.lastPlayed = true;
       }
 
+      // Write collection to Convex cache
+      setSyncProgress("Caching collection...");
+      try {
+        await replaceCollectionMut({
+          discogsUsername: username,
+          albums: newAlbums.map((a) => ({
+            releaseId: a.release_id,
+            instanceId: a.instance_id,
+            artist: a.artist,
+            title: a.title,
+            year: a.year,
+            cover: a.cover,
+            folder: a.folder,
+            label: a.label,
+            catalogNumber: a.catalogNumber,
+            format: a.format,
+            mediaCondition: a.mediaCondition,
+            sleeveCondition: a.sleeveCondition,
+            pricePaid: a.pricePaid,
+            notes: a.notes,
+            customFields: a.customFields,
+            dateAdded: a.dateAdded,
+          })),
+        });
+      } catch (e) {
+        console.warn("[Convex] Collection cache write failed:", e);
+      }
+
       // Update sync metadata
       const now = new Date();
       const formatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -873,7 +1018,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [discogsUsername, updateLastSyncedMut]);
+  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);
