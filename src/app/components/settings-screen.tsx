@@ -1,6 +1,5 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Eye, EyeOff, Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, Loader2 } from "lucide-react";
-import { removeFromCollection } from "./discogs-api";
 import { PurgeCutDialog } from "./purge-tracker";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -13,7 +12,6 @@ export function SettingsScreen() {
     setDiscogsToken,
     discogsUsername,
     setDiscogsUsername,
-    discogsAuth,
     isSyncing,
     syncProgress,
     lastSynced,
@@ -35,7 +33,8 @@ export function SettingsScreen() {
     userAvatar,
     shakeToRandom,
     setShakeToRandom,
-    deletePurgeTag,
+    executePurgeCut,
+    purgeProgress,
   } = useApp();
 
   const isOAuthUser = isAuthenticated && !discogsToken;
@@ -46,59 +45,10 @@ export function SettingsScreen() {
   const [motionDenied, setMotionDenied] = useState(false);
   const motionDeniedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Purge Cut dialog state (settings entry point)
+  // Purge Cut dialog (execution lives in context via executePurgeCut)
   const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
-  const [purgeProgress, setPurgeProgress] = useState<{
-    running: boolean;
-    current: number;
-    total: number;
-    failed: number[];
-  } | null>(null);
 
   const cutAlbums = useMemo(() => albums.filter((a) => a.purgeTag === "cut"), [albums]);
-
-  const executePurgeCut = useCallback(async () => {
-    if (!discogsAuth || !discogsUsername || isSyncing) return;
-    setShowPurgeCutDialog(false);
-
-    const toDelete = cutAlbums.slice();
-    setPurgeProgress({ running: true, current: 0, total: toDelete.length, failed: [] });
-
-    const failedIds: number[] = [];
-
-    for (let i = 0; i < toDelete.length; i++) {
-      const album = toDelete[i];
-      setPurgeProgress({ running: true, current: i + 1, total: toDelete.length, failed: failedIds });
-      try {
-        await removeFromCollection(
-          discogsUsername,
-          album.folder_id,
-          album.release_id,
-          album.instance_id,
-          discogsAuth
-        );
-        deletePurgeTag(album.release_id);
-      } catch (err) {
-        console.error("[PurgeCut] Failed to remove", album.release_id, err);
-        failedIds.push(album.release_id);
-      }
-      if (i < toDelete.length - 1) {
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-    }
-
-    const removed = toDelete.length - failedIds.length;
-    setPurgeProgress(null);
-
-    if (failedIds.length === 0) {
-      toast.success(`${removed} album${removed === 1 ? "" : "s"} removed.`);
-    } else {
-      toast.error(`${removed} of ${toDelete.length} removed. ${failedIds.length} failed.`);
-    }
-
-    setScreen("crate");
-    syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
-  }, [discogsAuth, discogsUsername, isSyncing, cutAlbums, deletePurgeTag, syncFromDiscogs, setScreen]);
 
   const handleShakeToggle = async () => {
     if (shakeToRandom) {
@@ -521,7 +471,7 @@ export function SettingsScreen() {
             cutAlbums={cutAlbums}
             isDark={isDarkMode}
             onCancel={() => setShowPurgeCutDialog(false)}
-            onConfirm={executePurgeCut}
+            onConfirm={() => { setShowPurgeCutDialog(false); executePurgeCut(); }}
           />
         )}
       </AnimatePresence>

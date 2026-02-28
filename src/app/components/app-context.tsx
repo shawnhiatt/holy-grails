@@ -8,6 +8,7 @@ import {
   fetchWantlist,
   fetchUserProfile,
   fetchCollectionValue,
+  removeFromCollection,
   type DiscogsAuth,
   type Album,
   type WantItem,
@@ -68,6 +69,8 @@ interface AppState {
   filteredAlbums: Album[];
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
   deletePurgeTag: (releaseId: number) => void;
+  executePurgeCut: () => Promise<void>;
+  purgeProgress: { running: boolean; current: number; total: number; failed: number[] } | null;
   toggleWantPriority: (wantId: string) => void;
   addToWantList: (item: WantItem) => void;
   removeFromWantList: (releaseId: string | number) => void;
@@ -213,6 +216,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [syncFailed, setSyncFailed] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
   const [syncStats, setSyncStats] = useState<{ albums: number; folders: number; wants: number } | null>(null);
+  const [purgeProgress, setPurgeProgress] = useState<{ running: boolean; current: number; total: number; failed: number[] } | null>(null);
   const [userAvatar, setUserAvatar] = useState("");
   const [connectDiscogsRequested, setConnectDiscogsRequested] = useState(false);
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
@@ -795,6 +799,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [discogsUsername, removePurgeTagMut]);
 
+  const executePurgeCut = useCallback(async () => {
+    if (!discogsAuth || !discogsUsername || isSyncing) return;
+
+    const toDelete = albums.filter((a) => a.purgeTag === "cut");
+    if (toDelete.length === 0) return;
+
+    setPurgeProgress({ running: true, current: 0, total: toDelete.length, failed: [] });
+
+    const failedIds: number[] = [];
+
+    for (let i = 0; i < toDelete.length; i++) {
+      const album = toDelete[i];
+      setPurgeProgress({ running: true, current: i + 1, total: toDelete.length, failed: failedIds });
+      try {
+        await removeFromCollection(discogsUsername, album.folder_id, album.release_id, album.instance_id, discogsAuth);
+        deletePurgeTag(album.release_id);
+      } catch (err) {
+        console.error("[PurgeCut] Failed to remove", album.release_id, err);
+        failedIds.push(album.release_id);
+      }
+      if (i < toDelete.length - 1) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    const removed = toDelete.length - failedIds.length;
+    setPurgeProgress(null);
+
+    if (failedIds.length === 0) {
+      toast.success(`${removed} album${removed === 1 ? "" : "s"} removed.`);
+    } else {
+      toast.error(`${removed} of ${toDelete.length} removed. ${failedIds.length} failed.`);
+    }
+
+    setScreen("crate");
+    syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
+  }, [discogsAuth, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs]);
+
   const toggleWantPriority = useCallback((wantId: string) => {
     setWants((prev) => {
       const want = prev.find((w) => w.id === wantId);
@@ -1343,6 +1385,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       filteredAlbums,
       setPurgeTag,
       deletePurgeTag,
+      executePurgeCut,
+      purgeProgress,
       toggleWantPriority,
       addToWantList,
       removeFromWantList,
@@ -1424,7 +1468,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addFriend, removeFriend,
       selectedAlbumId, selectedAlbum,
       searchQuery, activeFolder, sortOption, filteredAlbums,
-      setPurgeTag, deletePurgeTag, toggleWantPriority, addToWantList, removeFromWantList,
+      setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
+      toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
       deleteSession, renameSession, reorderSessionAlbums,
       showFilterDrawer, showAlbumDetail,
