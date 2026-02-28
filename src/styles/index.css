@@ -20,6 +20,18 @@ body {
   overscroll-behavior: none;
 }
 
+/* SlideOutPanel sheet bottom padding — clears the floating mobile nav bar
+   (96px matches mobilePaddingBottom in App.tsx). Resets to safe-area-only
+   on desktop where the tab bar is hidden and panels render as dialogs. */
+:root {
+  --slide-panel-pb: calc(env(safe-area-inset-bottom, 0px) + 96px);
+}
+@media (min-width: 1024px) {
+  :root {
+    --slide-panel-pb: env(safe-area-inset-bottom, 16px);
+  }
+}
+
 /* Push Sonner toast container below iOS status bar in PWA mode */
 [data-sonner-toaster][data-y-position="top"] {
   top: env(safe-area-inset-top, 44px) !important;
