@@ -145,11 +145,6 @@ interface FeedActivity {
 
 function buildFeedActivity(friends: Friend[], max: number): FeedActivity[] {
   const items: FeedActivity[] = [];
-  const recentDates = [
-    "2026-02-18", "2026-02-15", "2026-02-12", "2026-02-10",
-    "2026-02-07", "2026-02-04", "2026-01-30", "2026-01-26",
-    "2026-01-22", "2026-01-18", "2026-01-15", "2026-01-12",
-  ];
   for (const friend of friends) {
     if (friend.isPrivate || friend.collection.length === 0) continue;
     const sorted = [...friend.collection]
@@ -167,14 +162,14 @@ function buildFeedActivity(friends: Friend[], max: number): FeedActivity[] {
         albumReleaseId: album.release_id,
         albumYear: album.year,
         albumLabel: album.label,
-        date: recentDates[items.length % recentDates.length] || "2026-01-01",
+        date: album.dateAdded || "",
         displayDate: "",
       });
     });
   }
   items.sort((a, b) => b.date.localeCompare(a.date));
   for (const item of items) {
-    item.displayDate = formatActivityDate(item.date);
+    item.displayDate = item.date ? formatActivityDate(item.date) : "";
   }
   return items.slice(0, max);
 }
