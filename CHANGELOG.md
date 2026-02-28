@@ -14,6 +14,7 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 - Fixed race condition where `loadPhase` could enter `'complete'` during a ~1ms window before the sync started (`hasSeenSyncingRef` guard)
 - Fixed self-cancelling timer bug where the `'complete'` → `'idle'` setTimeout was cleared by React's own cleanup mechanism (extracted to a dedicated effect)
 - Fixed unauthenticated / incognito load getting stuck on loading screen forever — added no-session escape hatch to the `loadPhase` state machine
+- Sync progress messaging: loading screen now displays live "Fetching X / Y" counts per page during collection sync, falling back to "Syncing collection" when the string is empty
 
 ### Authentication
 - Fixed stuck "Connecting..." button when user backs out of Discogs OAuth without completing auth — implemented `oauthInFlight` module-level ref shared between `App.tsx` and `auth-callback.tsx` to distinguish abandonment from successful return
@@ -29,6 +30,9 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 - Desktop left group reordered: Feed → Following → Collection → Wants
 - Desktop right group reordered: Sessions → Purge → Insights → Settings → theme toggle
 - Desktop active nav item now shows yellow (`#EBFD00`) icon to match mobile active state
+- Further restructured in follow-on session: Following removed from mobile footer, moved to mobile header right icon — mobile footer is now 4 items: Feed → Collection → Wants → Sessions
+- Desktop left group finalised: Feed → Collection → Wants → Sessions
+- Desktop right group finalised: Following → Purge → Insights → Settings → theme toggle
 
 ### Purge + Feed
 - Standardized Keep / Maybe / Cut order across Feed purge card and Purge Tracker screen (buttons and stat chips)
@@ -79,6 +83,41 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 - `VERSIONING.md` added to repo root
 - `CHANGELOG.md` rewritten from scratch at 0.2.5 baseline
 - `CLAUDE.md` updated: PWA platform limitations (Vibration API iOS caveat), wantlist copy rule ("wantlist" is one word)
+- `CLAUDE.md`: removed deleted `splash-video.tsx`, added `unicorn-scene.tsx` and `figma/ImageWithFallback.tsx`, completed z-index hierarchy table with 5 new entries, updated navigation structure to reflect current tab bar
+- Bumped `package.json` version from `0.0.1` to `0.2.5`
+- Removed debug `console.log` (`[LoadPhase]`) from `App.tsx`
+- Removed dead `setDemoCollectionValue` export and `DEMO_COLLECTION_VALUE` constant from `discogs-api.ts`
+
+### iOS Safari and PWA polish
+- Fixed ellipsis dot animation not looping on iOS Safari in standalone PWA mode — replaced `setInterval`-driven JS animation with pure CSS keyframes (`sync-ellipsis-2`, `sync-ellipsis-3`), full webkit treatment, `prefers-reduced-motion` support
+- Fixed disc spinner animation on iOS Safari — added `@-webkit-keyframes`, `-webkit-animation`, `-webkit-transform-origin`, and `transform-box: fill-box` to `.disc-spinner`
+- Fixed mobile bottom tab bar sitting too far from screen edge in standalone PWA mode — `@media (display-mode: standalone)` CSS fix, no JS sniffing
+- Fixed overscroll pull-down bounce revealing background color — `overscroll-behavior: none` on `html` and `body`; background color responds to `prefers-color-scheme`
+
+### Slide-out panel
+- Extracted shared `SlideOutPanel` component — accepts scrollable children slot, optional title/headerAction header row, optional pinned footer, and z-index/className overrides
+- Album detail panel and filter drawer both refactored to use `SlideOutPanel`
+- Fixed background bleeding into safe area zone below mobile nav — sheet anchors to physical screen edge, internal padding handles safe area
+
+### Filter drawer
+- Added Apply Filters button (`#EBFD00`) pinned to panel footer
+- Fixed Apply Filters button obscured by mobile nav bar — clearance handled via `var(--slide-panel-footer-pb)`
+- Added swipe-to-dismiss gesture
+
+### Following screen
+- Fixed "View on Discogs" and "Unfollow" buttons hidden when a followed user has a private collection
+- Replaced `Trash2` icon with `UserMinus` for all Unfollow actions
+- Fixed From the Depths not live-updating when a new user is followed — changed from `useState` lazy init to `useMemo` on `friends`
+- From the Depths shows up to 4 cards per followed user (no minimum padding — single-album users show 1 card)
+- Fixed From the Depths dates wrapping to two lines — abbreviated to 3-letter month format, e.g. "Nov 2023"
+
+### Recent Activity
+- Fixed dates — were fabricated via a hardcoded `recentDates` cycling array; now use real `album.dateAdded` from Discogs
+- Fixed feed loading 30 items per user instead of 30 total — now merges all followed users, caps at 300, displays 30 at a time
+- Added Load More (+30 per tap)
+
+### Settings
+- Added Tools section (mobile-only): Purge Tracker and Insights quick-access cards
 
 ---
 

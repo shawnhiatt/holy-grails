@@ -53,7 +53,7 @@ The version lives in the About section of `settings-screen.tsx`. Update it there
 | Version | What it represents |
 |---|---|
 | `0.2.4` | Current — post-deploy, all infrastructure phases complete |
-| `0.2.5` | QA round: loading screen, nav swap, wantlist copy, color mode, bug fixes |
+| `0.2.5` | QA round: loading screen, nav restructure, SlideOutPanel, iOS Safari polish, feed/following fixes, color mode |
 | `0.3.0` | Phase 5 — write operations ship |
 | `0.4.0` | Phase 6 — want list writes ship |
 | `0.5.0` | Phase 7 — Look Up feature ships |
