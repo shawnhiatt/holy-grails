@@ -166,20 +166,17 @@ export function PurgeTracker() {
     const removed = toDelete.length - failedIds.length;
     setPurgeProgress(null);
 
-    // Trigger full re-sync
-    try {
-      await syncFromDiscogs();
-    } catch (err) {
-      console.error("[PurgeCut] Re-sync failed:", err);
-    }
-
-    // Summary toast + navigate to collection
+    // Summary toast
     if (failedIds.length === 0) {
       toast.success(`${removed} album${removed === 1 ? "" : "s"} removed.`);
     } else {
       toast.error(`${removed} of ${toDelete.length} removed. ${failedIds.length} failed.`);
     }
+
+    // Navigate to collection immediately; re-sync in background so the
+    // collection view reflects the deletions without blocking navigation.
     setScreen("crate");
+    syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
   }, [discogsAuth, discogsUsername, isSyncing, cutAlbums, deletePurgeTag, syncFromDiscogs, setScreen]);
 
   return (
@@ -222,27 +219,6 @@ export function PurgeTracker() {
           <StatChip label="Unrated" tag="unrated" count={unratedCount} isActive={purgeFilter === "unrated"} onClick={() => setPurgeFilter("unrated")} isDark={isDarkMode} />
         </div>
       </div>
-
-      {/* Purge Cut action button — visible when at least one album is tagged Cut */}
-      {cutCount > 0 && !purgeProgress && (
-        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pb-[8px]">
-          <button
-            onClick={() => setShowPurgeCutDialog(true)}
-            disabled={isSyncing}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors"
-            style={{
-              backgroundColor: isSyncing ? "var(--c-chip-bg)" : "#EBFD00",
-              color: isSyncing ? "var(--c-text-muted)" : "#0C284A",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              fontSize: "14px",
-              fontWeight: 600,
-            }}
-          >
-            <Trash2 size={15} />
-            Purge Cut ({cutCount})
-          </button>
-        </div>
-      )}
 
       {/* Progress indicator during purge execution */}
       {purgeProgress && (
@@ -299,7 +275,7 @@ export function PurgeTracker() {
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: (purgeFilter === "cut" && cutCount > 0 && !purgeProgress) ? "24px" : "calc(24px + var(--nav-clearance, 0px))" }}>
         {filteredAlbums.length === 0 ? (
           <div className="flex items-center justify-center py-16">
             <p style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
@@ -326,6 +302,33 @@ export function PurgeTracker() {
           </div>
         )}
       </div>
+
+      {/* Pinned Purge Cut footer — visible when Cut filter is active */}
+      {purgeFilter === "cut" && cutCount > 0 && !purgeProgress && (
+        <div
+          className="flex-shrink-0 px-[16px] lg:px-[24px] pt-3"
+          style={{
+            borderTop: "1px solid var(--c-border)",
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 0px) + 8px)",
+          }}
+        >
+          <button
+            onClick={() => setShowPurgeCutDialog(true)}
+            disabled={isSyncing}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors"
+            style={{
+              backgroundColor: isSyncing ? "var(--c-chip-bg)" : "#EBFD00",
+              color: isSyncing ? "var(--c-text-muted)" : "#0C284A",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            <Trash2 size={15} />
+            Purge Cut ({cutCount})
+          </button>
+        </div>
+      )}
       </>
       )}
 
@@ -344,7 +347,7 @@ export function PurgeTracker() {
   );
 }
 
-function PurgeCutDialog({
+export function PurgeCutDialog({
   cutAlbums,
   isDark,
   onCancel,
