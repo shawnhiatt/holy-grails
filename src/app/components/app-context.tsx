@@ -576,8 +576,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexPreferences]);
 
-  // Hydrate following from Convex (one-time, after auth is available)
+  // Hydrate following from Convex — deferred until the user navigates to
+  // the Following screen so we don't burn rate-limit budget on app load.
   useEffect(() => {
+    if (screen !== "friends") return;
     if (hydratedRef.current.following) return;
     if (convexFollowing === undefined) return; // still loading
     if (!discogsAuth) return; // wait for credentials
@@ -625,7 +627,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       })();
     }
-  }, [convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [screen, convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Screen navigation ──
 
