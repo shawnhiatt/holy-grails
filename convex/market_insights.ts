@@ -1,12 +1,20 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-const insightAlbum = v.object({
+const marketAlbum = v.object({
   releaseId: v.number(),
   title: v.string(),
   artist: v.string(),
   cover: v.string(),
   numForSale: v.number(),
+});
+
+const valueAlbum = v.object({
+  releaseId: v.number(),
+  title: v.string(),
+  artist: v.string(),
+  cover: v.string(),
+  price: v.number(),
 });
 
 export const getByUsername = query({
@@ -24,8 +32,16 @@ export const getByUsername = query({
 export const upsert = mutation({
   args: {
     discogsUsername: v.string(),
-    mostForSale: insightAlbum,
-    hardestToFind: insightAlbum,
+    mostForSale: marketAlbum,
+    hardestToFind: marketAlbum,
+    mostValuable: valueAlbum,
+    leastValuable: valueAlbum,
+    averageValue: v.number(),
+    folderValues: v.array(v.object({
+      folder: v.string(),
+      totalValue: v.number(),
+    })),
+    albumsAnalyzed: v.number(),
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -40,6 +56,11 @@ export const upsert = mutation({
       discogsUsername: args.discogsUsername,
       mostForSale: args.mostForSale,
       hardestToFind: args.hardestToFind,
+      mostValuable: args.mostValuable,
+      leastValuable: args.leastValuable,
+      averageValue: args.averageValue,
+      folderValues: args.folderValues,
+      albumsAnalyzed: args.albumsAnalyzed,
       updatedAt: args.updatedAt,
     };
 
