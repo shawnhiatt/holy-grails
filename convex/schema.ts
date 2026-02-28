@@ -73,45 +73,6 @@ export default defineSchema({
     .index("by_username", ["discogsUsername"])
     .index("by_username_and_release", ["discogsUsername", "releaseId"]),
 
-  market_insights: defineTable({
-    discogsUsername: v.string(),
-    mostForSale: v.object({
-      releaseId: v.number(),
-      title: v.string(),
-      artist: v.string(),
-      cover: v.string(),
-      numForSale: v.number(),
-    }),
-    hardestToFind: v.object({
-      releaseId: v.number(),
-      title: v.string(),
-      artist: v.string(),
-      cover: v.string(),
-      numForSale: v.number(),
-    }),
-    mostValuable: v.optional(v.object({
-      releaseId: v.number(),
-      title: v.string(),
-      artist: v.string(),
-      cover: v.string(),
-      price: v.number(),
-    })),
-    leastValuable: v.optional(v.object({
-      releaseId: v.number(),
-      title: v.string(),
-      artist: v.string(),
-      cover: v.string(),
-      price: v.number(),
-    })),
-    averageValue: v.optional(v.number()),
-    folderValues: v.optional(v.array(v.object({
-      folder: v.string(),
-      totalValue: v.number(),
-    }))),
-    albumsAnalyzed: v.optional(v.number()),
-    updatedAt: v.number(),
-  }).index("by_username", ["discogsUsername"]),
-
   preferences: defineTable({
     discogs_username: v.string(),
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("system")),

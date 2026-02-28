@@ -577,52 +577,6 @@ export function getCachedMarketData(releaseId: number): MarketData | null {
   return marketCache.get(releaseId) || null;
 }
 
-/**
- * Fetch only marketplace stats for a release — skips price suggestions.
- * Used by the background market stats prefetch in app-context.tsx.
- * Callers are responsible for rate limiting (1 req/sec recommended).
- */
-export async function fetchMarketStats(
-  releaseId: number,
-  auth: DiscogsAuth
-): Promise<{ numForSale: number; lowestPrice: number | null }> {
-  const res = await discogsFetch(
-    `${BASE}/marketplace/stats/${releaseId}`,
-    { headers: headers(auth) }
-  );
-  if (!res.ok) throw new Error(`Marketplace stats failed (${res.status})`);
-  const data = await res.json();
-  return {
-    numForSale: data.num_for_sale ?? 0,
-    lowestPrice: data.lowest_price?.value ?? null,
-  };
-}
-
-/**
- * Fetch only price suggestions for a release — returns condition → price map.
- * Used by the market insights refresh in app-context.tsx.
- * Callers are responsible for rate limiting.
- */
-export async function fetchPriceSuggestions(
-  releaseId: number,
-  auth: DiscogsAuth
-): Promise<{ condition: string; value: number }[]> {
-  const res = await discogsFetch(
-    `${BASE}/marketplace/price_suggestions/${releaseId}`,
-    { headers: headers(auth) }
-  );
-  if (!res.ok) throw new Error(`Price suggestions failed (${res.status})`);
-  const data = await res.json();
-  const prices: { condition: string; value: number }[] = [];
-  for (const grade of CONDITION_GRADES) {
-    const entry = data[grade];
-    if (entry && typeof entry.value === "number") {
-      prices.push({ condition: grade, value: entry.value });
-    }
-  }
-  return prices;
-}
-
 /** 30-day cache TTL for per-album market data */
 const MARKET_CACHE_TTL = 30 * 24 * 3600000; // 30 days in ms
 
