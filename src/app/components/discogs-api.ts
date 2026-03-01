@@ -730,10 +730,10 @@ export function clearAllMarketData(): void {
  *   POST /users/{username}/collection/fields/{field_id}/releases/{release_id}/instances/{instance_id}
  *
  * Fetches field definitions first to resolve field IDs from field names.
+ * Note: the custom fields endpoint does not use folder_id in the URL.
  */
 export async function updateCollectionInstance(
   username: string,
-  folderId: number,
   releaseId: number,
   instanceId: number,
   fields: {
