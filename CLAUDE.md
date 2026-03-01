@@ -293,6 +293,17 @@ All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zoom
 ### PWA Platform Limitations
 - **Haptics**: The Vibration API (`navigator.vibrate()`) is supported on Android PWAs but not on iOS Safari or iOS PWAs — Apple does not support it. Always guard with `if (navigator.vibrate)` so it fails silently on iOS. Do not attempt to polyfill or work around this. If haptic feedback on iOS is ever required, it would need a native app wrapper (e.g. Capacitor) which is out of scope for Holy Grails.
 
+### Album Detail Edit Mode
+The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCondition`, `sleeveCondition`, `notes`, and `folder`. Key patterns:
+- Edit mode is entered via a `Pencil` (16px) icon button in the panel header. For desktop (`hideHeader=false`) it sits beside the X close button. For mobile (`hideHeader=true`) it sits in the album title row.
+- Edit mode is not accessible while `isSyncing` — the button is hidden during sync.
+- `isEditMode` state resets whenever `selectedAlbum` changes.
+- On Save: Discogs API calls first (`updateCollectionInstance` / `moveToFolder` from `discogs-api.ts`), then local state + Convex cache update via `updateAlbum` from context. On failure: error toast, stay in edit mode so the user can retry. Never trigger a full re-sync.
+- Folder moves use the two-step Discogs API process: add to new folder → delete from old folder. The new `instance_id` returned by the add call must be stored in local state and Convex.
+- `updateAlbum(albumId, fields)` in `app-context.tsx` updates local albums state and fires `collection.updateInstance` Convex mutation. Pattern mirrors `setPurgeTag`.
+- Condition grades for the dropdowns: use `CONDITION_GRADES` exported from `discogs-api.ts` — do not hardcode them.
+- Custom field ID resolution for the Discogs update happens inside `updateCollectionInstance` — it fetches the user's field definitions to map field names to IDs.
+
 ---
 
 ## Navigation Structure
@@ -356,6 +367,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Discogs OAuth 1.0a authentication (real login via Discogs)
 - Live Discogs API sync (collection, folders, wantlist, collection value)
 - All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
+- Album instance editing (media/sleeve condition, notes, folder) from album detail panel
 - Deployed to Vercel at holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope

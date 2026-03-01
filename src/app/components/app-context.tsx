@@ -141,6 +141,8 @@ interface AppState {
   isAlbumInAnySession: (albumId: string) => boolean;
   mostRecentSessionId: string | null;
   firstSessionJustCreated: boolean;
+  // Album instance editing
+  updateAlbum: (albumId: string, fields: Partial<Album>) => void;
   // OAuth / session management
   loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string }) => Promise<void>;
   signOut: () => void;
@@ -285,6 +287,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
   const replaceCollectionMut = useMutation(api.collection.replaceAll);
+  const updateInstanceMut = useMutation(api.collection.updateInstance);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -798,6 +801,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removePurgeTagMut({ discogs_username: discogsUsername, release_id: releaseId });
     }
   }, [discogsUsername, removePurgeTagMut]);
+
+  const updateAlbum = useCallback((albumId: string, fields: Partial<Album>) => {
+    setAlbums((prev) =>
+      prev.map((a) => (a.id === albumId ? { ...a, ...fields } : a))
+    );
+    if (discogsUsername) {
+      updateInstanceMut({
+        discogsUsername,
+        releaseId: Number(albumId),
+        ...(fields.mediaCondition !== undefined && { mediaCondition: fields.mediaCondition }),
+        ...(fields.sleeveCondition !== undefined && { sleeveCondition: fields.sleeveCondition }),
+        ...(fields.notes !== undefined && { notes: fields.notes }),
+        ...(fields.folder !== undefined && { folder: fields.folder }),
+        ...(fields.folder_id !== undefined && { folderId: fields.folder_id }),
+        ...(fields.instance_id !== undefined && { instanceId: fields.instance_id }),
+      }).catch(console.error);
+    }
+  }, [discogsUsername, updateInstanceMut]);
 
   const toggleWantPriority = useCallback((wantId: string) => {
     setWants((prev) => {
@@ -1459,6 +1480,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAlbumInAnySession,
       mostRecentSessionId,
       firstSessionJustCreated,
+      // Album instance editing
+      updateAlbum,
       // OAuth / session management
       loginWithOAuth,
       signOut,
@@ -1497,6 +1520,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
       isInSession, toggleAlbumInSession, createSessionDirect,
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
+      updateAlbum,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
     ]
   );

@@ -60,3 +60,48 @@ export const replaceAll = mutation({
     }
   },
 });
+
+/**
+ * Patch a single album document by releaseId + discogsUsername.
+ * Used after editing instance fields (condition, notes, folder) in the album detail panel.
+ * Does not trigger a full re-sync — only updates the affected document.
+ */
+export const updateInstance = mutation({
+  args: {
+    discogsUsername: v.string(),
+    releaseId: v.number(),
+    mediaCondition: v.optional(v.string()),
+    sleeveCondition: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    folder: v.optional(v.string()),
+    folderId: v.optional(v.number()),
+    instanceId: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("collection")
+      .withIndex("by_username_and_release", (q) =>
+        q.eq("discogsUsername", args.discogsUsername).eq("releaseId", args.releaseId)
+      )
+      .first();
+
+    if (!row) return;
+
+    const patch: {
+      mediaCondition?: string;
+      sleeveCondition?: string;
+      notes?: string;
+      folder?: string;
+      folderId?: number;
+      instanceId?: number;
+    } = {};
+    if (args.mediaCondition !== undefined) patch.mediaCondition = args.mediaCondition;
+    if (args.sleeveCondition !== undefined) patch.sleeveCondition = args.sleeveCondition;
+    if (args.notes !== undefined) patch.notes = args.notes;
+    if (args.folder !== undefined) patch.folder = args.folder;
+    if (args.folderId !== undefined) patch.folderId = args.folderId;
+    if (args.instanceId !== undefined) patch.instanceId = args.instanceId;
+
+    await ctx.db.patch(row._id, patch);
+  },
+});
