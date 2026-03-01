@@ -4,6 +4,61 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.2.6 — 2026-03-01
+
+### Collection caching
+- Added `collection` table to Convex schema — one row per album per user
+- Collection persists between sessions; repeat loads within 24 hours skip Discogs fetch entirely and hydrate from Convex instantly
+- `lastSyncedAt` timestamp on `users` table controls auto-sync staleness
+- Manual "Sync Now" always triggers a full sync regardless of cache age
+- Full wipe-and-repopulate strategy on sync (`replaceAll` mutation)
+- `folderId` and `instanceId` added to album objects and Convex schema (required for write operations)
+
+### Insights redesign
+- Removed fake growth chart (synthetic interpolation with Math.random())
+- Added condition distribution section with visual grade breakdown
+- Added condition quality ratio ("X% of your collection is NM or better")
+- Added folder breakdown computed from cached collection data
+- Removed all market-dependent sections (rolled back — see Cleanup below)
+
+### Following screen performance
+- Followed users' collection and wantlist data now loads only when the user navigates to the Following screen, not on every app load
+- Eliminates 10+ Discogs API calls from the startup path that were competing with the main collection sync for rate limit budget
+
+### Purge Cut
+- Added "Purge Cut (N)" action to permanently remove all Cut-tagged albums from Discogs collection in bulk
+- Two entry points: pinned footer in Purge screen (Cut filter only) and inside Purge Tracker card in Settings
+- Two-step confirmation dialog with scrollable album list and count
+- Progress indicator during execution ("Removing X of N albums...")
+- Per-album 1 second delay between Discogs delete requests to stay within rate limits
+- Purge tags cleared from Convex on successful deletion
+- Partial failure handling — failed deletions logged and skipped, tags preserved
+- Full collection re-sync triggered automatically after completion
+- `executePurgeCut` lives in `app-context.tsx`, consumed by both entry points via context
+
+### Edit album fields
+- Added edit mode to album detail panel via Pencil icon
+- Editable fields: Media Condition, Sleeve Condition, Notes, Folder
+- Condition dropdowns use exact Discogs grade strings from `CONDITION_GRADES` in `discogs-api.ts`
+- Folder dropdown populated from unique folders in cached collection (move to existing folder only — no creating new folders)
+- Save writes to Discogs API then updates Convex cache — no full resync
+- Folder move uses two-step Discogs operation (add to new folder, delete from old)
+- Error toast keeps edit mode open for retry on failure
+- Edit mode disabled while sync is in progress
+
+### Bug fixes
+- Fixed purge tag not persisting when toggling an active tag off — null tag now correctly calls `removePurgeTagMut` instead of silently dropping the write
+- Fixed circular dependency crash from `executePurgeCut` referencing `syncFromDiscogs` before its declaration in `app-context.tsx`
+- Fixed Settings Tools section hidden on desktop — now visible with two-column grid layout on large screens
+- Fixed Purge Cut button appearing as sibling card — now nested inside Purge Tracker card as a subordinate action
+
+### Cleanup
+- Removed `QA_PRICES` hardcoded marketplace prices from `discogs-api.ts`
+- Removed `fetchMarketStats` and `fetchPriceSuggestions` from `discogs-api.ts` (market insights feature built and rolled back due to Discogs API rate limit constraints in a browser PWA context)
+- `market_insights` Convex table added and removed in same version
+
+---
+
 ## 0.2.5 — 2026-02-27
 
 ### Loading screen
