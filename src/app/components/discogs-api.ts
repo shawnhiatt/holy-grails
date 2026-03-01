@@ -725,6 +725,104 @@ export function clearAllMarketData(): void {
 /* ─── Collection Mutations ─── */
 
 /**
+ * Update media condition, sleeve condition, and/or notes for a specific
+ * collection instance. Each field is updated via the custom fields endpoint:
+ *   POST /users/{username}/collection/fields/{field_id}/releases/{release_id}/instances/{instance_id}
+ *
+ * Fetches field definitions first to resolve field IDs from field names.
+ */
+export async function updateCollectionInstance(
+  username: string,
+  folderId: number,
+  releaseId: number,
+  instanceId: number,
+  fields: {
+    mediaCondition?: string;
+    sleeveCondition?: string;
+    notes?: string;
+  },
+  auth: DiscogsAuth
+): Promise<void> {
+  const fieldDefs = await fetchCustomFields(username, auth);
+  const fieldMap = buildFieldMap(fieldDefs);
+
+  const updates: { fieldId: number; value: string }[] = [];
+
+  if (fields.mediaCondition !== undefined && fieldMap.mediaConditionId != null) {
+    updates.push({ fieldId: fieldMap.mediaConditionId, value: fields.mediaCondition });
+  }
+  if (fields.sleeveCondition !== undefined && fieldMap.sleeveConditionId != null) {
+    updates.push({ fieldId: fieldMap.sleeveConditionId, value: fields.sleeveCondition });
+  }
+  if (fields.notes !== undefined && fieldMap.notesId != null) {
+    updates.push({ fieldId: fieldMap.notesId, value: fields.notes });
+  }
+
+  for (const update of updates) {
+    const url = `${BASE}/users/${encodeURIComponent(username)}/collection/fields/${update.fieldId}/releases/${releaseId}/instances/${instanceId}`;
+    const res = await discogsFetch(url, {
+      method: "POST",
+      headers: { ...headers(auth), "Content-Type": "application/json" },
+      body: JSON.stringify({ value: update.value }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `Failed to update field ${update.fieldId} for instance ${instanceId} (${res.status})${body ? ": " + body : ""}`
+      );
+    }
+  }
+}
+
+/**
+ * Move a release instance to a different folder. Discogs requires two steps:
+ * 1. POST /users/{username}/collection/folders/{new_folder_id}/releases/{release_id}
+ *    — adds the release to the new folder, returns the new instance_id.
+ * 2. DELETE /users/{username}/collection/folders/{old_folder_id}/releases/{release_id}/instances/{instance_id}
+ *    — removes from the old folder.
+ *
+ * Returns the new instance_id so the caller can update local state.
+ */
+export async function moveToFolder(
+  username: string,
+  oldFolderId: number,
+  newFolderId: number,
+  releaseId: number,
+  instanceId: number,
+  auth: DiscogsAuth
+): Promise<{ newInstanceId: number }> {
+  // Step 1: Add to new folder
+  const addUrl = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${newFolderId}/releases/${releaseId}`;
+  const addRes = await discogsFetch(addUrl, {
+    method: "POST",
+    headers: { ...headers(auth), "Content-Type": "application/json" },
+  });
+  if (!addRes.ok) {
+    const body = await addRes.text().catch(() => "");
+    throw new Error(
+      `Failed to add release ${releaseId} to folder ${newFolderId} (${addRes.status})${body ? ": " + body : ""}`
+    );
+  }
+  const addData = await addRes.json();
+  const newInstanceId = addData.instance_id as number;
+
+  // Step 2: Remove from old folder
+  const delUrl = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${oldFolderId}/releases/${releaseId}/instances/${instanceId}`;
+  const delRes = await discogsFetch(delUrl, {
+    method: "DELETE",
+    headers: headers(auth),
+  });
+  if (delRes.status !== 404 && !delRes.ok) {
+    const body = await delRes.text().catch(() => "");
+    throw new Error(
+      `Failed to remove release ${releaseId} from folder ${oldFolderId} (${delRes.status})${body ? ": " + body : ""}`
+    );
+  }
+
+  return { newInstanceId };
+}
+
+/**
  * Remove a single release instance from the user's Discogs collection.
  * DELETE /users/{username}/collection/folders/{folder_id}/releases/{release_id}/instances/{instance_id}
  *
