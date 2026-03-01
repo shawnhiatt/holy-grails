@@ -161,6 +161,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       if (conditionOrNotesChanged) {
         await updateCollectionInstance(
           discogsUsername,
+          selectedAlbum.folder_id,
           selectedAlbum.release_id,
           selectedAlbum.instance_id,
           fieldsChanged,

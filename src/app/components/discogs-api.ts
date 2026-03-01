@@ -727,13 +727,13 @@ export function clearAllMarketData(): void {
 /**
  * Update media condition, sleeve condition, and/or notes for a specific
  * collection instance. Each field is updated via the custom fields endpoint:
- *   POST /users/{username}/collection/fields/{field_id}/releases/{release_id}/instances/{instance_id}
+ *   POST /users/{username}/collection/folders/{folder_id}/releases/{release_id}/instances/{instance_id}/fields/{field_id}?value={value}
  *
  * Fetches field definitions first to resolve field IDs from field names.
- * Note: the custom fields endpoint does not use folder_id in the URL.
  */
 export async function updateCollectionInstance(
   username: string,
+  folderId: number,
   releaseId: number,
   instanceId: number,
   fields: {
@@ -759,11 +759,10 @@ export async function updateCollectionInstance(
   }
 
   for (const update of updates) {
-    const url = `${BASE}/users/${encodeURIComponent(username)}/collection/fields/${update.fieldId}/releases/${releaseId}/instances/${instanceId}`;
+    const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}/fields/${update.fieldId}?value=${encodeURIComponent(update.value)}`;
     const res = await discogsFetch(url, {
       method: "POST",
-      headers: { ...headers(auth), "Content-Type": "application/json" },
-      body: JSON.stringify({ value: update.value }),
+      headers: headers(auth),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
