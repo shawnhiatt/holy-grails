@@ -759,10 +759,11 @@ export async function updateCollectionInstance(
   }
 
   for (const update of updates) {
-    const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}/fields/${update.fieldId}?value=${encodeURIComponent(update.value)}`;
+    const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}/fields/${update.fieldId}`;
     const res = await discogsFetch(url, {
       method: "POST",
-      headers: headers(auth),
+      headers: { ...headers(auth), "Content-Type": "application/json" },
+      body: JSON.stringify({ value: update.value }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
