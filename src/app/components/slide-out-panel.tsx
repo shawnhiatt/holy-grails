@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { motion, useMotionValue, animate } from "motion/react";
 import { useApp } from "./app-context";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
+import { getContentTokens } from "./theme";
 
 /* SlideOutPanel — shared bottom sheet with swipe-to-dismiss.
    Provides: backdrop, grab handle, optional title header, scrollable children
@@ -148,19 +149,7 @@ export function SlideOutPanel({
           boxShadow: isDarkMode
             ? "0 -8px 32px rgba(0,0,0,0.3)"
             : "0 -8px 32px rgba(12,40,74,0.1)",
-          "--c-bg": isDarkMode ? "#0C1A2E" : "#F9F9FA",
-          "--c-surface": isDarkMode ? "#132B44" : "#FFFFFF",
-          "--c-surface-hover": isDarkMode ? "#1A3350" : "#EFF1F3",
-          "--c-surface-alt": isDarkMode ? "#0F2238" : "#F9F9FA",
-          "--c-text": isDarkMode ? "#E2E8F0" : "#0C284A",
-          "--c-text-secondary": isDarkMode ? "#9EAFC2" : "#455B75",
-          "--c-text-tertiary": isDarkMode ? "#8A9BB0" : "#617489",
-          "--c-text-muted": isDarkMode ? "#7D92A8" : "#6B7B8E",
-          "--c-text-faint": isDarkMode ? "#6A8099" : "#8494A5",
-          "--c-border": isDarkMode ? "#1A3350" : "#D2D8DE",
-          "--c-border-strong": isDarkMode ? "#2D4A66" : "#74889C",
-          "--c-chip-bg": isDarkMode ? "#1A3350" : "#EFF1F3",
-          "--c-input-bg": isDarkMode ? "#0F2238" : "#F9F9FA",
+          ...getContentTokens(isDarkMode),
         } as React.CSSProperties}
       >
         {/* Grab handle — mobile only; desktop panels don't use bottom-sheet chrome */}

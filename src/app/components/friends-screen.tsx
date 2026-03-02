@@ -13,6 +13,7 @@ import type { Album, Friend, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
+import { formatActivityDate, getInitial } from "../utils/format";
 import {
   fetchUserProfile,
   fetchCollection,
@@ -912,22 +913,6 @@ interface ActivityItem {
   displayDate: string;
 }
 
-function formatActivityDate(iso: string): string {
-  const d = new Date(iso);
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-}
-
-function formatCollectionSince(dateStr: string): string {
-  const d = new Date(dateStr);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-function getInitial(username: string): string {
-  return username.charAt(0).toUpperCase();
-}
 
 function buildActivityFeed(friends: Friend[]): ActivityItem[] {
   const items: ActivityItem[] = [];
@@ -956,7 +941,7 @@ function buildActivityFeed(friends: Friend[]): ActivityItem[] {
   items.sort((a, b) => b.date.localeCompare(a.date));
   const capped = items.slice(0, 300);
   for (const item of capped) {
-    item.displayDate = item.date ? formatActivityDate(item.date) : "";
+    item.displayDate = item.date ? formatActivityDate(item.date, true) : "";
   }
   return capped;
 }

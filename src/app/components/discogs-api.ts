@@ -129,7 +129,6 @@ async function discogsFetch(url: string, init?: RequestInit): Promise<Response> 
 
 export async function fetchIdentity(auth: DiscogsAuth): Promise<string> {
   const url = `${BASE}/oauth/identity`;
-  console.log("[Discogs] Fetching identity...", url);
   const res = await discogsFetch(url, { headers: headers(auth) });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -137,7 +136,6 @@ export async function fetchIdentity(auth: DiscogsAuth): Promise<string> {
     throw new Error(`Discogs auth failed (${res.status}): ${body || "Check your token"}`);
   }
   const data = await res.json();
-  console.log("[Discogs] Identity:", data.username);
   return data.username as string;
 }
 

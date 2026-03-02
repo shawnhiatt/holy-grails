@@ -4,6 +4,7 @@ import { X, Search, Check } from "lucide-react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
+import { getContentTokens } from "./theme";
 
 /* Bottom sheet safe area standard:
    - Outer container bottom: 0, paddingBottom: env(safe-area-inset-bottom, 16px)
@@ -155,19 +156,7 @@ export function AddAlbumsDrawer({ sessionId, onClose }: AddAlbumsDrawerProps) {
               boxShadow: isDarkMode ? "0 4px 20px rgba(0,0,0,0.25)" : "0 4px 20px rgba(12,40,74,0.08)",
               borderRadius: 16,
               border: `1px solid ${isDarkMode ? "#1A3350" : "#D2D8DE"}`,
-              "--c-bg": isDarkMode ? "#0C1A2E" : "#F9F9FA",
-              "--c-surface": isDarkMode ? "#132B44" : "#FFFFFF",
-              "--c-surface-hover": isDarkMode ? "#1A3350" : "#EFF1F3",
-              "--c-surface-alt": isDarkMode ? "#0F2238" : "#F9F9FA",
-              "--c-text": isDarkMode ? "#E2E8F0" : "#0C284A",
-              "--c-text-secondary": isDarkMode ? "#9EAFC2" : "#455B75",
-              "--c-text-tertiary": isDarkMode ? "#8A9BB0" : "#617489",
-              "--c-text-muted": isDarkMode ? "#7D92A8" : "#6B7B8E",
-              "--c-text-faint": isDarkMode ? "#6A8099" : "#8494A5",
-              "--c-border": isDarkMode ? "#1A3350" : "#D2D8DE",
-              "--c-border-strong": isDarkMode ? "#2D4A66" : "#74889C",
-              "--c-chip-bg": isDarkMode ? "#1A3350" : "#EFF1F3",
-              "--c-input-bg": isDarkMode ? "#0F2238" : "#F9F9FA",
+              ...getContentTokens(isDarkMode),
             } as React.CSSProperties}
           >
             {content}
@@ -521,19 +510,7 @@ function MobileDrawerSheet({
           maxHeight: "calc(100vh - 58px)",
           backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
           boxShadow: isDarkMode ? "0 -8px 32px rgba(0,0,0,0.3)" : "0 -8px 32px rgba(12,40,74,0.1)",
-          "--c-bg": isDarkMode ? "#0C1A2E" : "#F9F9FA",
-          "--c-surface": isDarkMode ? "#132B44" : "#FFFFFF",
-          "--c-surface-hover": isDarkMode ? "#1A3350" : "#EFF1F3",
-          "--c-surface-alt": isDarkMode ? "#0F2238" : "#F9F9FA",
-          "--c-text": isDarkMode ? "#E2E8F0" : "#0C284A",
-          "--c-text-secondary": isDarkMode ? "#9EAFC2" : "#455B75",
-          "--c-text-tertiary": isDarkMode ? "#8A9BB0" : "#617489",
-          "--c-text-muted": isDarkMode ? "#7D92A8" : "#6B7B8E",
-          "--c-text-faint": isDarkMode ? "#6A8099" : "#8494A5",
-          "--c-border": isDarkMode ? "#1A3350" : "#D2D8DE",
-          "--c-border-strong": isDarkMode ? "#2D4A66" : "#74889C",
-          "--c-chip-bg": isDarkMode ? "#1A3350" : "#EFF1F3",
-          "--c-input-bg": isDarkMode ? "#0F2238" : "#F9F9FA",
+          ...getContentTokens(isDarkMode),
         } as React.CSSProperties}
       >
         {/* Grab handle */}

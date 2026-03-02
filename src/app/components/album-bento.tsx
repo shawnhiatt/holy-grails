@@ -2,6 +2,7 @@ import { Bookmark } from "lucide-react";
 import { useRef } from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
+import { purgeIndicatorColor } from "./purge-colors";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 
 interface AlbumArtworkProps {
@@ -131,7 +132,7 @@ export function AlbumArtwork({ albums }: AlbumArtworkProps) {
               <div
                 className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
                 style={{
-                  backgroundColor: album.purgeTag === "keep" ? "#3E9842" : album.purgeTag === "cut" ? "#FF33B6" : "#D1E21A",
+                  backgroundColor: purgeIndicatorColor(album.purgeTag, isDarkMode),
                 }}
               />
             )}

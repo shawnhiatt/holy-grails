@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as collection from "../collection.js";
 import type * as following from "../following.js";
 import type * as last_played from "../last_played.js";
 import type * as oauth from "../oauth.js";
@@ -24,6 +25,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  collection: typeof collection;
   following: typeof following;
   last_played: typeof last_played;
   oauth: typeof oauth;

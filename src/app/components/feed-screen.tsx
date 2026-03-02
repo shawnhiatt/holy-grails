@@ -19,6 +19,7 @@ import { purgeIndicatorColor, purgeTagColor, purgeButtonBg, purgeButtonText, pur
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
+import { formatActivityDate, getInitial } from "../utils/format";
 
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -109,24 +110,6 @@ function getRecommendedHeading(bucket: string, addedYear?: string): string {
   return addedYear ? pick.replace(/\[added year\]/g, addedYear) : pick;
 }
 
-function formatActivityDate(iso: string): string {
-  const d = new Date(iso);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[d.getMonth()]} ${d.getDate()}`;
-}
-
-function formatMonthYear(iso: string): string {
-  const d = new Date(iso);
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
-  return `Added to collection ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-function getInitial(username: string): string {
-  return username.charAt(0).toUpperCase();
-}
 
 interface FeedActivity {
   id: string;

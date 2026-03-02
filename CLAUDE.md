@@ -19,10 +19,10 @@ Primary users: Shawn (catxdad19 on Discogs) and his friend Tyler for QA. 430 alb
 - **Framework**: React + TypeScript
 - **Build tool**: Vite
 - **Styling**: Tailwind CSS + CSS custom properties
-- **Animation**: Framer Motion (imported as `motion` from `framer-motion`)
+- **Animation**: Framer Motion (imported as `motion` from `"motion/react"`)
 - **Icons**: Lucide React
 - **Charts**: Recharts
-- **UI components**: shadcn/ui (in `src/components/ui/`)
+- **UI components**: shadcn/ui (in `src/app/components/ui/`)
 - **Fonts**: Bricolage Grotesque (display/headings) + DM Sans (body/UI) via Google Fonts
 - **Backend**: Convex (all Holy Grails-exclusive data — purge tags, sessions, following, preferences, last played, want priorities)
 - **Auth**: Discogs OAuth 1.0a — the Discogs username is the primary key for all Convex data. There is no separate Holy Grails account system.
@@ -73,18 +73,17 @@ src/
   app/
     App.tsx              # Root layout, screen routing, splash flow, side panel
     components/
-      App.tsx            # (same as above)
       accordion-section.tsx
       add-albums-drawer.tsx
       album-bento.tsx
       album-detail.tsx
       album-grid.tsx
       album-list.tsx
+      alphabet-sidebar.tsx # Shared useAlphabetIndex hook + AlphabetSidebar component for album-grid and album-list
       app-context.tsx    # Global state — do not refactor without discussion
-      connect-discogs-prompt.tsx
+      auth-callback.tsx  # OAuth callback handler — processes Discogs redirect and exchanges tokens
       crate-browser.tsx
       crate-flip.tsx
-      create-account-screen.tsx
       depths-album-card.tsx
       discogs-api.ts     # All Discogs API calls live here
       feed-screen.tsx
@@ -97,13 +96,13 @@ src/
       motion-tokens.ts
       navigation.tsx
       no-discogs-card.tsx
+      oauth-helpers.ts   # OAuth 1.0a signing utilities for Discogs API calls
       purge-colors.ts
       purge-tracker.tsx
       reports-screen.tsx
       session-picker-sheet.tsx
       sessions.tsx
       settings-screen.tsx
-      sign-in-screen.tsx
       splash-screen.tsx
       slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
@@ -112,8 +111,10 @@ src/
       use-hide-header.ts
       use-shake.ts
       wantlist.tsx
-      loading-screen.tsx   # Unified full-screen loading component with splash video background, Disc3 spinner, and animated ellipsis message. Use this for all full-screen loading states — do not create new loading screens.
+      loading-screen.tsx   # Three-phase loading state machine with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. Use this for all full-screen loading states — do not create new loading screens.
       ui/                # shadcn components — do not modify directly
+    utils/
+      format.ts          # Shared formatting utilities (formatActivityDate, getInitial, etc.)
     imports/
     styles/
       fonts.css
@@ -121,8 +122,10 @@ src/
       tailwind.css
       theme.css
 convex/                  # Convex backend functions and schema
+  collection.ts
   schema.ts
   users.ts
+  oauth.ts
   purge_tags.ts
   sessions.ts
   last_played.ts
@@ -382,7 +385,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 1. **Read before writing.** Understand the existing pattern before adding new code. Check how similar components are built and match them.
 
-2. **Never modify `src/components/ui/`** unless explicitly asked. These are shadcn components.
+2. **Never modify `src/app/components/ui/`** unless explicitly asked. These are shadcn components.
 
 3. **Never change the design system.** Colors, typography, motion tokens, and spacing are locked. If something looks wrong, fix the implementation, not the tokens.
 

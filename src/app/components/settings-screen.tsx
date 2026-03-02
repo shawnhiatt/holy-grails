@@ -35,6 +35,10 @@ export function SettingsScreen() {
     setShakeToRandom,
     executePurgeCut,
     purgeProgress,
+    sessions,
+    deleteSession,
+    deletePurgeTag,
+    wipeAllData,
   } = useApp();
 
   const isOAuthUser = isAuthenticated && !discogsToken;
@@ -130,7 +134,18 @@ export function SettingsScreen() {
 
   const handleConfirmClear = () => {
     if (!confirmAction) return;
-    toast.success(`${confirmAction} cleared successfully`);
+    if (confirmAction === "Purge data") {
+      for (const a of albums) {
+        if (a.purgeTag) deletePurgeTag(a.release_id);
+      }
+    } else if (confirmAction === "Sessions") {
+      for (const s of sessions) {
+        deleteSession(s.id);
+      }
+    } else if (confirmAction === "All local data") {
+      wipeAllData();
+    }
+    toast.success(`${confirmAction} cleared.`);
     setConfirmAction(null);
   };
 
