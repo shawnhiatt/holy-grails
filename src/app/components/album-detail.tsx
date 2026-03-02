@@ -73,6 +73,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     folders,
     // Wantlist detail
     selectedWantItem, setSelectedWantItem,
+    // Wantlist add
+    isInWants, addToWantList,
   } = useApp();
   const [justPlayed, setJustPlayed] = useState(false);
 
@@ -92,6 +94,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     folder: "",
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingToWantlist, setIsAddingToWantlist] = useState(false);
 
   // Reset all state when album changes
   useEffect(() => {
@@ -237,6 +240,31 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setNewSessionName("");
     setShowNewSession(false);
   }, [newSessionName, selectedAlbum, createSessionDirect]);
+
+  const alreadyOnWantlist = selectedAlbum ? isInWants(selectedAlbum.release_id) : false;
+
+  const handleAddToWantlist = useCallback(async () => {
+    if (!selectedAlbum || alreadyOnWantlist || isAddingToWantlist) return;
+    setIsAddingToWantlist(true);
+    try {
+      await addToWantList({
+        id: `w-${selectedAlbum.release_id}`,
+        release_id: selectedAlbum.release_id,
+        title: selectedAlbum.title,
+        artist: selectedAlbum.artist,
+        year: selectedAlbum.year,
+        cover: selectedAlbum.cover,
+        label: selectedAlbum.label,
+        priority: false,
+      });
+      toast.info("Added to Wantlist.");
+    } catch (err: any) {
+      console.error("[AlbumDetail] Add to wantlist failed:", err);
+      toast.error("Failed to add. Try again.");
+    } finally {
+      setIsAddingToWantlist(false);
+    }
+  }, [selectedAlbum, alreadyOnWantlist, isAddingToWantlist, addToWantList]);
 
   if (!selectedAlbum && selectedWantItem) {
     return (
@@ -521,10 +549,39 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
         {!isEditMode && (
           <>
-            <div className="px-4 pb-4">
+            <div className="px-4 pb-4 flex items-center justify-between">
               <a href={selectedAlbum.discogsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#0078B4] hover:underline" style={{ fontSize: "14px", fontWeight: 500 }}>
                 View on Discogs<ExternalLink size={14} />
               </a>
+              {/* Add to Wantlist / On Wantlist indicator */}
+              <button
+                onClick={alreadyOnWantlist ? undefined : handleAddToWantlist}
+                disabled={isAddingToWantlist || alreadyOnWantlist}
+                className="flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-colors"
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  color: alreadyOnWantlist ? "#EBFD00" : "var(--c-text-tertiary)",
+                  backgroundColor: alreadyOnWantlist
+                    ? (isDarkMode ? "rgba(235,253,0,0.1)" : "rgba(235,253,0,0.15)")
+                    : "transparent",
+                  border: alreadyOnWantlist ? "none" : "1px solid var(--c-border)",
+                  cursor: alreadyOnWantlist ? "default" : "pointer",
+                  opacity: isAddingToWantlist ? 0.7 : 1,
+                }}
+              >
+                {isAddingToWantlist ? (
+                  <Disc3 size={14} className="disc-spinner" />
+                ) : (
+                  <Zap
+                    size={14}
+                    fill={alreadyOnWantlist ? "#EBFD00" : "none"}
+                    color={alreadyOnWantlist ? "#EBFD00" : "var(--c-text-tertiary)"}
+                  />
+                )}
+                {alreadyOnWantlist ? "On Wantlist" : "Add to Wantlist"}
+              </button>
             </div>
 
             {/* ═══ Mark as Played button ═══ */}
