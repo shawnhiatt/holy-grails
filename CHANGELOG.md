@@ -4,6 +4,24 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.3.0 — 2026-03-01
+
+### Wantlist Writes (Phase 6)
+- Added `addToWantlist` and `removeFromWantlist` API functions in `discogs-api.ts` — PUT and DELETE against `/users/{username}/wants/{releaseId}`
+- Wired `addToWantList` and `removeFromWantList` in `app-context.tsx` to Discogs API (Pattern A: API first, update local state on success)
+- `removeFromWantList` also cleans up Convex `want_priorities` on removal
+- Added `selectedWantItem: WantItem | null` to app context for wantlist detail panel routing
+- Wantlist items now open a detail panel (`WantItemDetailPanel`) with album art, title/artist, priority bolt toggle, year/label, Discogs link, market value, and two-tap "Remove from Wantlist" action
+- All 4 wantlist view modes (Grid, List, Artwork, Crate) wired with `onSelect` to open detail panel
+- Added "Add to Wantlist" Zap button in collection album detail panel — outline Zap when not on wantlist (tappable), filled yellow Zap when already on wantlist (informational)
+- Friends screen activity feed hearts now await async API calls with per-item Disc3 loading spinners and error handling
+- Friends screen wantlist removal dialog shows loading state during API call
+- Added "Now in your collection" crossover prompt — after sync, detects wantlist items whose release_id exists in the collection and queues them for user review
+- Crossover prompt floats above mobile tab bar, shows one item at a time with "Remove from Wantlist" and "Keep on Wantlist" actions
+- Queue count indicator shows remaining crossover items
+
+---
+
 ## 0.2.6 — 2026-03-01
 
 ### Collection caching

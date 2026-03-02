@@ -111,6 +111,7 @@ src/
       use-hide-header.ts
       use-shake.ts
       wantlist.tsx
+      wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
       loading-screen.tsx   # Three-phase loading state machine with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. Use this for all full-screen loading states — do not create new loading screens.
       ui/                # shadcn components — do not modify directly
     utils/
@@ -338,6 +339,7 @@ Horizontal top nav with 8 items split left/center/right. Logo centered. Both gro
 |---|---|---|
 | Confirm-removal dialog | `z-[200]` | friends-screen.tsx |
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
+| Wantlist crossover prompt | `z-[125]` | wantlist-crossover-prompt.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |
 | Album detail mobile backdrop | `z-[110]` | album-detail.tsx |
 | Desktop side panel | `z-[110]` | App.tsx |
