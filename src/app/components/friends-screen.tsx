@@ -13,7 +13,7 @@ import type { Album, Friend, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
-import { formatActivityDate, getInitial } from "../utils/format";
+import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import {
   fetchUserProfile,
   fetchCollection,

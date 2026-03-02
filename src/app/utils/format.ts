@@ -17,6 +17,14 @@ export function formatActivityDate(iso: string, includeDay = false): string {
 }
 
 /**
+ * Format an ISO date string as short month + year (e.g. "Jan 2024").
+ */
+export function formatCollectionSince(iso: string): string {
+  const d = new Date(iso);
+  return `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/**
  * Return the uppercase first character of a username (for avatar fallbacks).
  */
 export function getInitial(username: string): string {
