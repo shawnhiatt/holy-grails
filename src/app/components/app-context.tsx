@@ -147,6 +147,9 @@ interface AppState {
   firstSessionJustCreated: boolean;
   // Album instance editing
   updateAlbum: (albumId: string, fields: Partial<Album>) => void;
+  // Wantlist detail panel
+  selectedWantItem: WantItem | null;
+  setSelectedWantItem: (item: WantItem | null) => void;
   // OAuth / session management
   loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string }) => Promise<void>;
   signOut: () => void;
@@ -228,6 +231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [connectDiscogsRequested, setConnectDiscogsRequested] = useState(false);
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
+  const [selectedWantItem, setSelectedWantItem] = useState<WantItem | null>(null);
 
   // ── Convex queries ──
 
@@ -629,6 +633,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowAlbumDetail(false);
     setShowFilterDrawer(false);
     setSelectedAlbumId(null);
+    setSelectedWantItem(null);
     setSessionPickerAlbumId(null);
     setHeaderHidden(false);
   }, []);
@@ -1215,6 +1220,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFriends([]);
     setFolders([]);
     setSelectedAlbumId(null);
+    setSelectedWantItem(null);
     setSearchQuery("");
     setActiveFolder("All");
     setSortOption("artist-az");
@@ -1265,6 +1271,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFriends([]);
     setFolders([]);
     setSelectedAlbumId(null);
+    setSelectedWantItem(null);
     setSearchQuery("");
     setActiveFolder("All");
     setSortOption("artist-az");
@@ -1529,6 +1536,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       firstSessionJustCreated,
       // Album instance editing
       updateAlbum,
+      // Wantlist detail panel
+      selectedWantItem,
+      setSelectedWantItem,
       // OAuth / session management
       loginWithOAuth,
       signOut,
@@ -1568,6 +1578,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isInSession, toggleAlbumInSession, createSessionDirect,
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
       updateAlbum,
+      selectedWantItem,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
     ]
   );

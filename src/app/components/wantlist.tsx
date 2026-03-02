@@ -170,7 +170,12 @@ const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
 ];
 
 export function Wantlist() {
-  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, headerHidden, wantViewMode: viewMode, setWantViewMode: setViewMode } = useApp();
+  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, headerHidden, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
+
+  const handleSelectWant = useCallback((item: WantItem) => {
+    setSelectedWantItem(item);
+    setShowAlbumDetail(true);
+  }, [setSelectedWantItem, setShowAlbumDetail]);
 
   const filteredWants = useMemo(() => {
     let result = [...wants];
@@ -293,17 +298,17 @@ export function Wantlist() {
         </div>
       ) : (
         <>
-          {viewMode === "crate" && <WantCrateView key={`crate|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} />}
-          {viewMode === "list" && <WantlistView key={`list|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} />}
-          {viewMode === "grid" && <WantGridView key={`grid|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} />}
-          {viewMode === "artwork" && <WantArtworkView key={`artwork|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} />}
+          {viewMode === "crate" && <WantCrateView key={`crate|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
+          {viewMode === "list" && <WantlistView key={`list|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
+          {viewMode === "grid" && <WantGridView key={`grid|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
+          {viewMode === "artwork" && <WantArtworkView key={`artwork|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
         </>
       )}
     </div>
   );
 }
 
-function WantCrateView({ wants, togglePriority }: { wants: WantItem[]; togglePriority: (id: string) => void }) {
+function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
   const { hideGalleryMeta } = useApp();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [exitDirection, setExitDirection] = useState<-1 | 1 | 0>(0);
@@ -421,7 +426,7 @@ function WantCrateView({ wants, togglePriority }: { wants: WantItem[]; togglePri
               <div className="w-full h-full rounded-[14px] overflow-hidden relative shadow-[0_9px_37px_rgba(12,40,74,0.12)]">
                 <img src={currentItem.cover} alt={`${currentItem.artist} - ${currentItem.title}`} className="w-full h-full object-cover" draggable={false} />
                 {!hideGalleryMeta && (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-5 pt-16">
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-5 pt-16 cursor-pointer" onClick={(e) => { e.stopPropagation(); if (!isDraggingRef.current) onSelect(currentItem); }}>
                   <h3 className="text-white truncate" style={{
                     fontSize: "20px", fontWeight: 600, lineHeight: "1.2", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
                     textShadow: lightboxActive ? "0 2px 8px rgba(0,0,0,0.7)" : "none",
@@ -498,7 +503,7 @@ function WantCrateView({ wants, togglePriority }: { wants: WantItem[]; togglePri
   );
 }
 
-function WantGridView({ wants, togglePriority }: { wants: WantItem[]; togglePriority: (id: string) => void }) {
+function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
   const { isDarkMode, discogsToken } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
@@ -563,7 +568,7 @@ function WantGridView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
                 key={item.want.id}
                 className="relative min-w-0"
               >
-                <WantGridCard item={item.want} togglePriority={togglePriority} isDarkMode={isDarkMode} token={discogsToken} />
+                <WantGridCard item={item.want} togglePriority={togglePriority} isDarkMode={isDarkMode} token={discogsToken} onSelect={onSelect} />
               </div>
             );
           })}
@@ -579,7 +584,7 @@ function WantGridView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
 }
 
 // Intentionally separate from album list item — actions diverge in Phase 6
-function WantlistView({ wants, togglePriority }: { wants: WantItem[]; togglePriority: (id: string) => void }) {
+function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
   const { isDarkMode } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
@@ -647,8 +652,9 @@ function WantlistView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
             return (
               <div
                 key={want.id}
-                className="flex items-center gap-3 p-2.5 rounded-[10px] tappable transition-colors"
+                className="flex items-center gap-3 p-2.5 rounded-[10px] tappable transition-colors cursor-pointer"
                 style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+                onClick={() => onSelect(want)}
               >
                 <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0">
                   <img src={want.cover} alt={want.title} className="w-full h-full object-cover" />
@@ -697,7 +703,7 @@ function WantlistView({ wants, togglePriority }: { wants: WantItem[]; togglePrio
   );
 }
 
-function WantArtworkView({ wants, togglePriority }: { wants: WantItem[]; togglePriority: (id: string) => void }) {
+function WantArtworkView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
   if (wants.length === 0) return <div className="flex-1 flex items-center justify-center"><p style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>No items found</p></div>;
 
@@ -710,8 +716,9 @@ function WantArtworkView({ wants, togglePriority }: { wants: WantItem[]; toggleP
         {wants.map((item) => (
           <div
             key={item.id}
-            className="relative overflow-hidden group rounded-[10px]"
+            className="relative overflow-hidden group rounded-[10px] cursor-pointer"
             style={{ aspectRatio: "1 / 1" }}
+            onClick={() => onSelect(item)}
           >
             <img src={item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3">
@@ -732,11 +739,12 @@ function WantArtworkView({ wants, togglePriority }: { wants: WantItem[]; toggleP
 }
 
 /** Grid card with lazy-loaded marketplace data on hover */
-function WantGridCard({ item, togglePriority, isDarkMode, token }: {
+function WantGridCard({ item, togglePriority, isDarkMode, token, onSelect }: {
   item: WantItem;
   togglePriority: (id: string) => void;
   isDarkMode: boolean;
   token: string;
+  onSelect: (item: WantItem) => void;
 }) {
   const [marketStats, setMarketStats] = useState<{ numForSale: number; lowestPrice: number | null; currency: string } | null>(null);
   const [isLoadingMarket, setIsLoadingMarket] = useState(false);
@@ -771,8 +779,9 @@ function WantGridCard({ item, togglePriority, isDarkMode, token }: {
 
   return (
     <div
-      className="relative w-full min-w-0 rounded-[10px] overflow-hidden group"
+      className="relative w-full min-w-0 rounded-[10px] overflow-hidden group cursor-pointer"
       onMouseEnter={handleMouseEnter}
+      onClick={() => onSelect(item)}
       style={{
         backgroundColor: "var(--c-surface)",
         border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,

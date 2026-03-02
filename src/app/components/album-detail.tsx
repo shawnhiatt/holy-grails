@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, ExternalLink, Check, Plus, Play, Bookmark, Pencil, Loader2 } from "lucide-react";
+import { X, ExternalLink, Check, Plus, Play, Bookmark, Pencil, Loader2, Zap, Disc3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButto
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { AccordionSection } from "./accordion-section";
-import { CONDITION_GRADES, updateCollectionInstance, moveToFolder } from "./discogs-api";
+import { CONDITION_GRADES, updateCollectionInstance, moveToFolder, type WantItem } from "./discogs-api";
 
 /* ─── Condition grade → color spectrum ─── */
 /* Maps vinyl grading scale to a pink→blue→green spectrum using the purge palette:
@@ -71,6 +71,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     // Edit
     albums, isSyncing, discogsAuth, discogsUsername, updateAlbum,
     folders,
+    // Wantlist detail
+    selectedWantItem, setSelectedWantItem,
   } = useApp();
   const [justPlayed, setJustPlayed] = useState(false);
 
@@ -235,6 +237,17 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setNewSessionName("");
     setShowNewSession(false);
   }, [newSessionName, selectedAlbum, createSessionDirect]);
+
+  if (!selectedAlbum && selectedWantItem) {
+    return (
+      <WantItemDetailPanel
+        item={selectedWantItem}
+        hideHeader={hideHeader}
+        hideImage={hideImage}
+        onClose={() => { setShowAlbumDetail(false); setSelectedWantItem(null); }}
+      />
+    );
+  }
 
   if (!selectedAlbum) {
     return (
@@ -772,12 +785,147 @@ function InlineSessionRow({
   );
 }
 
+/* ─── Wantlist Item Detail Panel ─── */
+
+function WantItemDetailPanel({
+  item,
+  hideHeader = false,
+  hideImage = false,
+  onClose,
+}: {
+  item: WantItem;
+  hideHeader?: boolean;
+  hideImage?: boolean;
+  onClose: () => void;
+}) {
+  const { isDarkMode, toggleWantPriority, removeFromWantList, discogsToken } = useApp();
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const handleRemove = useCallback(async () => {
+    setIsRemoving(true);
+    try {
+      await removeFromWantList(item.release_id);
+      toast.info("Removed from Wantlist.");
+      onClose();
+    } catch (err: any) {
+      console.error("[WantDetail] Remove failed:", err);
+      toast.error("Remove failed. Try again.");
+    } finally {
+      setIsRemoving(false);
+      setConfirmRemove(false);
+    }
+  }, [item.release_id, removeFromWantList, onClose]);
+
+  return (
+    <div className="flex flex-col h-full">
+      {!hideHeader && (
+        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderColor: "var(--c-border-strong)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}>
+          <h3 style={{ fontSize: "15px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
+            Wantlist
+          </h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}><X size={18} /></button>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto">
+        {!hideImage && (
+          <div className="p-4">
+            <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+              <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
+            </div>
+          </div>
+        )}
+
+        <div className="px-4 pb-4">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{item.title}</h2>
+              <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{item.artist}</p>
+            </div>
+            {/* Priority bolt */}
+            <button
+              onClick={() => toggleWantPriority(item.id)}
+              className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 mt-1"
+            >
+              <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
+            </button>
+          </div>
+        </div>
+
+        {/* Detail rows */}
+        <div className="px-4 pb-4">
+          <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+            <DetailRow label="Year" value={String(item.year)} />
+            <DetailRow label="Label" value={item.label} />
+          </div>
+        </div>
+
+        <div className="px-4 pb-4">
+          <a href={`https://www.discogs.com/release/${item.release_id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#0078B4] hover:underline" style={{ fontSize: "14px", fontWeight: 500 }}>
+            View on Discogs<ExternalLink size={14} />
+          </a>
+        </div>
+
+        <MarketValueSection album={{ id: item.id, release_id: item.release_id, title: item.title, artist: item.artist, mediaCondition: "", cover: item.cover } as any} token={discogsToken} />
+
+        {/* Remove from Wantlist */}
+        <div className="px-4 pb-6">
+          {!confirmRemove ? (
+            <button
+              onClick={() => setConfirmRemove(true)}
+              className="w-full py-3 rounded-[10px] transition-colors"
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: isDarkMode ? "rgba(255,51,182,0.1)" : "rgba(255,51,182,0.08)",
+                color: "#FF33B6",
+                border: "1px solid rgba(255,51,182,0.2)",
+              }}
+            >
+              Remove from Wantlist
+            </button>
+          ) : (
+            <button
+              onClick={handleRemove}
+              disabled={isRemoving}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors"
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: "#FF33B6",
+                color: "#fff",
+                opacity: isRemoving ? 0.7 : 1,
+              }}
+            >
+              {isRemoving ? (
+                <>
+                  <Disc3 size={15} className="disc-spinner" />
+                  Removing...
+                </>
+              ) : (
+                "Confirm Remove"
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: boolean }) {
-  const { setShowAlbumDetail } = useApp();
+  const { setShowAlbumDetail, setSelectedWantItem } = useApp();
+  const handleClose = useCallback(() => {
+    setShowAlbumDetail(false);
+    setSelectedWantItem(null);
+  }, [setShowAlbumDetail, setSelectedWantItem]);
   return (
     <div className="lg:hidden">
       <SlideOutPanel
-        onClose={() => setShowAlbumDetail(false)}
+        onClose={handleClose}
         backdropZIndex={110}
         sheetZIndex={120}
         shakeEntrance={shakeEntrance}
