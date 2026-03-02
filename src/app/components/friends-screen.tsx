@@ -963,8 +963,8 @@ function PopulatedFriendsView({
   isDarkMode: boolean;
   albums: Album[];
   wants: WantItem[];
-  addToWantList: (item: WantItem) => void;
-  removeFromWantList: (releaseId: string | number) => void;
+  addToWantList: (item: WantItem) => Promise<void>;
+  removeFromWantList: (releaseId: string | number) => Promise<void>;
   setAppScreen: (s: Screen) => void;
 }) {
   const activityFeed = useMemo(() => buildActivityFeed(friends), [friends]);
@@ -976,6 +976,9 @@ function PopulatedFriendsView({
   const [justAddedWantIds, setJustAddedWantIds] = useState<Set<string>>(() => new Set());
   // Confirmation dialog for removing an item from the wantlist
   const [removeWantConfirm, setRemoveWantConfirm] = useState<ActivityItem | null>(null);
+  // Per-item in-flight tracking for API calls
+  const [inFlightIds, setInFlightIds] = useState<Set<number>>(() => new Set());
+  const [isRemovingWant, setIsRemovingWant] = useState(false);
 
   // Sets for quick lookups
   const ownReleaseIds = useMemo(() => new Set(userAlbumsForHeart.map((a) => a.release_id)), [userAlbumsForHeart]);
@@ -997,33 +1000,42 @@ function PopulatedFriendsView({
     return results;
   }, [friends]);
 
-  const handleHeartTap = useCallback((item: ActivityItem) => {
-    // Already in collection — no action
+  const handleHeartTap = useCallback(async (item: ActivityItem) => {
+    // Already in collection or already in flight — no action
     if (ownReleaseIds.has(item.albumReleaseId)) return;
+    if (inFlightIds.has(item.albumReleaseId)) return;
     // Already in wantlist — confirm removal
     if (wantReleaseIds.has(item.albumReleaseId) || justAddedWantIds.has(item.id)) {
       setRemoveWantConfirm(item);
       return;
     }
     // Add to wantlist
-    addToWantList({
-      id: `w-friend-${item.albumReleaseId}-${Date.now()}`,
-      release_id: item.albumReleaseId,
-      title: item.albumTitle,
-      artist: item.albumArtist,
-      year: item.albumYear,
-      cover: item.albumCover,
-      label: item.albumLabel,
-      priority: false,
-    });
-    setJustAddedWantIds((prev) => {
-      const next = new Set(prev);
-      next.add(item.id);
-      return next;
-    });
-    toast.dismiss();
-    toast.info("Added to your wantlist.", { duration: 2500 });
-  }, [ownReleaseIds, wantReleaseIds, justAddedWantIds, addToWantList]);
+    setInFlightIds((prev) => { const next = new Set(prev); next.add(item.albumReleaseId); return next; });
+    try {
+      await addToWantList({
+        id: `w-friend-${item.albumReleaseId}-${Date.now()}`,
+        release_id: item.albumReleaseId,
+        title: item.albumTitle,
+        artist: item.albumArtist,
+        year: item.albumYear,
+        cover: item.albumCover,
+        label: item.albumLabel,
+        priority: false,
+      });
+      setJustAddedWantIds((prev) => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+      toast.dismiss();
+      toast.info("Added to Wantlist.", { duration: 2500 });
+    } catch (err: any) {
+      console.error("[Friends] Add to wantlist failed:", err);
+      toast.error("Failed to add. Try again.");
+    } finally {
+      setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
+    }
+  }, [ownReleaseIds, wantReleaseIds, justAddedWantIds, inFlightIds, addToWantList]);
 
   return (
     <div className="flex flex-col">
@@ -1341,22 +1353,27 @@ function PopulatedFriendsView({
                 ) : (
                   <button
                     onClick={() => handleHeartTap(item)}
+                    disabled={inFlightIds.has(item.albumReleaseId)}
                     className="flex-shrink-0 cursor-pointer tappable"
                     style={{ padding: "4px", background: "none", border: "none" }}
                   >
-                    <motion.div
-                      key={inWantList ? "filled" : "outline"}
-                      initial={justAddedWantIds.has(item.id) ? { scale: 1.25 } : { scale: 0.7 }}
-                      animate={{ scale: 1 }}
-                      transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
-                    >
-                      <Heart
-                        size={18}
-                        fill={inWantList ? "#EBFD00" : "none"}
-                        color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
-                        strokeWidth={inWantList ? 0 : 1.5}
-                      />
-                    </motion.div>
+                    {inFlightIds.has(item.albumReleaseId) ? (
+                      <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
+                    ) : (
+                      <motion.div
+                        key={inWantList ? "filled" : "outline"}
+                        initial={justAddedWantIds.has(item.id) ? { scale: 1.25 } : { scale: 0.7 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
+                      >
+                        <Heart
+                          size={18}
+                          fill={inWantList ? "#EBFD00" : "none"}
+                          color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
+                          strokeWidth={inWantList ? 0 : 1.5}
+                        />
+                      </motion.div>
+                    )}
                   </button>
                 )}
               </div>
@@ -1416,20 +1433,34 @@ function PopulatedFriendsView({
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    removeFromWantList(removeWantConfirm.albumReleaseId);
-                    setJustAddedWantIds((prev) => {
-                      const next = new Set(prev);
-                      next.delete(removeWantConfirm.id);
-                      return next;
-                    });
-                    toast.success("Removed from wantlist.");
-                    setRemoveWantConfirm(null);
+                  onClick={async () => {
+                    setIsRemovingWant(true);
+                    try {
+                      await removeFromWantList(removeWantConfirm.albumReleaseId);
+                      setJustAddedWantIds((prev) => {
+                        const next = new Set(prev);
+                        next.delete(removeWantConfirm.id);
+                        return next;
+                      });
+                      toast.info("Removed from Wantlist.");
+                      setRemoveWantConfirm(null);
+                    } catch (err: any) {
+                      console.error("[Friends] Remove from wantlist failed:", err);
+                      toast.error("Remove failed. Try again.");
+                    } finally {
+                      setIsRemovingWant(false);
+                    }
                   }}
-                  className="flex-1 py-2.5 rounded-[10px] bg-[#FF33B6] text-white transition-colors hover:bg-[#E6009E] cursor-pointer"
-                  style={{ fontSize: "14px", fontWeight: 600 }}
+                  disabled={isRemovingWant}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] bg-[#FF33B6] text-white transition-colors hover:bg-[#E6009E] cursor-pointer"
+                  style={{ fontSize: "14px", fontWeight: 600, opacity: isRemovingWant ? 0.7 : 1 }}
                 >
-                  Remove
+                  {isRemovingWant ? (
+                    <>
+                      <Disc3 size={14} className="disc-spinner" />
+                      Removing...
+                    </>
+                  ) : "Remove"}
                 </button>
               </div>
             </motion.div>
