@@ -115,7 +115,7 @@ src/
       loading-screen.tsx   # Three-phase loading state machine with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. Use this for all full-screen loading states — do not create new loading screens.
       ui/                # shadcn components — do not modify directly
     utils/
-      format.ts          # Shared formatting utilities (formatActivityDate, getInitial, etc.)
+      format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial)
     imports/
     styles/
       fonts.css
@@ -313,23 +313,26 @@ The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCo
 ## Navigation Structure
 
 ### Mobile (< 1024px)
-Floating pill bottom tab bar with 4 items:
+Floating pill bottom tab bar with 5 items:
 
 | Order | Label | Icon | Screen |
 |---|---|---|---|
 | 1 | Feed | Newspaper | `feed` |
-| 2 | Collection | Library | `crate` |
+| 2 | Collection | GalleryVerticalEnd | `crate` |
 | 3 | Wants | Heart | `wants` |
 | 4 | Sessions | Headphones | `sessions` |
+| 5 | Insights | BarChart3 | `reports` |
 
 Mobile header right group (2 buttons): Following (Users icon, navigates to `friends`) + Settings avatar.
-**Purge and Insights are not in the mobile bottom bar** — Purge is accessed from the Feed screen card, Settings quick-access card, and Album Detail. Insights is accessible from the desktop nav only.
+**Purge is not in the mobile bottom bar** — Purge is accessed from the Feed screen card, Settings quick-access card, and Album Detail.
 
 ### Desktop (>= 1024px)
 Horizontal top nav with 8 items split left/center/right. Logo centered. Both groups are `flex-1`.
 
 **Left group:** Feed > Collection > Wants > Sessions
 **Right group:** Following > Purge > Insights > Settings > theme toggle
+
+Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarChart3`. Active state: `#EBFD00` icon + translucent background highlight.
 
 ---
 
@@ -373,6 +376,10 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Live Discogs API sync (collection, folders, wantlist, collection value)
 - All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
 - Album instance editing (media/sleeve condition, notes, folder) from album detail panel
+- Wantlist write operations (`addToWantlist` PUT, `removeFromWantlist` DELETE) in `discogs-api.ts`
+- `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`)
+- `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
+- Friends screen activity feed hearts call Discogs API (Pattern A) with per-item Disc3 loading spinners
 - Deployed to Vercel at holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope
@@ -437,6 +444,8 @@ Do NOT set a custom `User-Agent` header — browsers block it as a forbidden hea
 - Collection: `GET /users/{username}/collection/folders/0/releases`
 - Folders: `GET /users/{username}/collection/folders`
 - Want list: `GET /users/{username}/wants`
+- Add to wantlist: `PUT /users/{username}/wants/{release_id}`
+- Remove from wantlist: `DELETE /users/{username}/wants/{release_id}`
 - Collection value: `GET /users/{username}/collection/value`
 - Price suggestions: `GET /marketplace/price_suggestions/{release_id}`
 - Market stats: `GET /marketplace/stats/{release_id}`
