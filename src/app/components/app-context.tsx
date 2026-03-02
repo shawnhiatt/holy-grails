@@ -9,6 +9,8 @@ import {
   fetchUserProfile,
   fetchCollectionValue,
   removeFromCollection,
+  addToWantlist,
+  removeFromWantlist,
   type DiscogsAuth,
   type Album,
   type WantItem,
@@ -74,8 +76,8 @@ interface AppState {
   executePurgeCut: () => Promise<void>;
   purgeProgress: { running: boolean; current: number; total: number; failed: number[] } | null;
   toggleWantPriority: (wantId: string) => void;
-  addToWantList: (item: WantItem) => void;
-  removeFromWantList: (releaseId: string | number) => void;
+  addToWantList: (item: WantItem) => Promise<void>;
+  removeFromWantList: (releaseId: string | number) => Promise<void>;
   isInWants: (releaseId: string | number) => boolean;
   isInCollection: (releaseId: string | number) => boolean;
   deleteSession: (sessionId: string) => void;
@@ -853,18 +855,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [discogsUsername, upsertWantPriorityMut]);
 
-  const addToWantList = useCallback((item: WantItem) => {
+  const addToWantList = useCallback(async (item: WantItem): Promise<void> => {
+    if (!discogsAuth || !discogsUsername) {
+      // Fallback: local-only add (unauthenticated edge case)
+      setWants((prev) => {
+        const rid = Number(item.release_id);
+        if (prev.some((w) => Number(w.release_id) === rid)) return prev;
+        return [...prev, item];
+      });
+      return;
+    }
+    // Pattern A: API first, state update on success
+    const result = await addToWantlist(discogsUsername, item.release_id, discogsAuth);
     setWants((prev) => {
-      const rid = Number(item.release_id);
+      const rid = Number(result.release_id);
       if (prev.some((w) => Number(w.release_id) === rid)) return prev;
-      return [...prev, item];
+      return [...prev, result];
     });
-  }, []);
+  }, [discogsAuth, discogsUsername]);
 
-  const removeFromWantList = useCallback((releaseId: string | number) => {
+  const removeFromWantList = useCallback(async (releaseId: string | number): Promise<void> => {
     const rid = Number(releaseId);
+    if (!discogsAuth || !discogsUsername) {
+      // Fallback: local-only remove
+      setWants((prev) => prev.filter((w) => Number(w.release_id) !== rid));
+      return;
+    }
+    // Pattern A: API first, state update on success
+    await removeFromWantlist(discogsUsername, rid, discogsAuth);
     setWants((prev) => prev.filter((w) => Number(w.release_id) !== rid));
-  }, []);
+    // Also clean up want priority in Convex if it exists
+    upsertWantPriorityMut({
+      discogs_username: discogsUsername,
+      release_id: rid,
+      is_priority: false,
+    }).catch(() => {});
+  }, [discogsAuth, discogsUsername, upsertWantPriorityMut]);
 
   const isInWants = useCallback((releaseId: string | number) => {
     const rid = Number(releaseId);
