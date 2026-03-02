@@ -847,3 +847,71 @@ export async function removeFromCollection(
     );
   }
 }
+
+/* ─── Wantlist Mutations ─── */
+
+/**
+ * Add a release to the user's Discogs wantlist.
+ * PUT /users/{username}/wants/{release_id}
+ *
+ * No request body required. Returns the created want object on success.
+ * If the release is already on the wantlist, Discogs returns it as-is (idempotent).
+ */
+export async function addToWantlist(
+  username: string,
+  releaseId: number,
+  auth: DiscogsAuth
+): Promise<WantItem> {
+  const url = `${BASE}/users/${encodeURIComponent(username)}/wants/${releaseId}`;
+  const res = await discogsFetch(url, {
+    method: "PUT",
+    headers: { ...headers(auth), "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to add release ${releaseId} to wantlist (${res.status})${body ? ": " + body : ""}`
+    );
+  }
+  const data = await res.json();
+  const bi = data.basic_information;
+  const artist = (bi?.artists || [])
+    .map((a: { name: string; anv: string }) => formatArtistName(a.anv || a.name))
+    .join(", ");
+  return {
+    id: `w-${bi?.id ?? releaseId}`,
+    release_id: bi?.id ?? releaseId,
+    title: bi?.title ?? "",
+    artist,
+    year: bi?.year ?? 0,
+    cover: bi?.cover_image || bi?.thumb || "",
+    label: bi?.labels?.[0]?.name || "Unknown",
+    priority: false,
+  };
+}
+
+/**
+ * Remove a release from the user's Discogs wantlist.
+ * DELETE /users/{username}/wants/{release_id}
+ *
+ * 204 No Content on success.
+ * 404 is treated as success — the release was already removed.
+ */
+export async function removeFromWantlist(
+  username: string,
+  releaseId: number,
+  auth: DiscogsAuth
+): Promise<void> {
+  const url = `${BASE}/users/${encodeURIComponent(username)}/wants/${releaseId}`;
+  const res = await discogsFetch(url, {
+    method: "DELETE",
+    headers: headers(auth),
+  });
+  if (res.status === 404) return; // Already removed — treat as success
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to remove release ${releaseId} from wantlist (${res.status})${body ? ": " + body : ""}`
+    );
+  }
+}
