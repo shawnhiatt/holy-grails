@@ -51,6 +51,8 @@ interface AppState {
   setScreen: (s: Screen) => void;
   viewMode: ViewMode;
   setViewMode: (v: ViewMode) => void;
+  wantViewMode: ViewMode;
+  setWantViewMode: (v: ViewMode) => void;
   albums: Album[];
   wants: WantItem[];
   sessions: Session[];
@@ -162,7 +164,8 @@ export function useApp(): AppState {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Screen & view state ──
   const [screen, setScreenRaw] = useState<Screen>("feed");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [viewMode, setViewModeRaw] = useState<ViewMode>("grid");
+  const [wantViewMode, setWantViewModeRaw] = useState<ViewMode>("grid");
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState("All");
@@ -559,6 +562,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHidePurgeIndicatorsRaw(convexPreferences.hide_purge_indicators);
       setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
       setShakeToRandomRaw(convexPreferences.shake_to_random ?? false);
+      if (convexPreferences.view_mode) setViewModeRaw(convexPreferences.view_mode as ViewMode);
+      if (convexPreferences.want_view_mode) setWantViewModeRaw(convexPreferences.want_view_mode as ViewMode);
     }
   }, [convexPreferences]);
 
@@ -675,6 +680,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         discogs_username: discogsUsername,
         shake_to_random: v,
       });
+    }
+  }, [discogsUsername, upsertPreferencesMut]);
+
+  const setViewMode = useCallback((v: ViewMode) => {
+    setViewModeRaw(v);
+    if (discogsUsername) {
+      upsertPreferencesMut({ discogs_username: discogsUsername, view_mode: v });
+    }
+  }, [discogsUsername, upsertPreferencesMut]);
+
+  const setWantViewMode = useCallback((v: ViewMode) => {
+    setWantViewModeRaw(v);
+    if (discogsUsername) {
+      upsertPreferencesMut({ discogs_username: discogsUsername, want_view_mode: v });
     }
   }, [discogsUsername, upsertPreferencesMut]);
 
@@ -1391,6 +1410,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setScreen,
       viewMode,
       setViewMode,
+      wantViewMode,
+      setWantViewMode,
       albums,
       wants,
       sessions,
@@ -1490,7 +1511,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       discogsAuth,
     }),
     [
-      screen, setScreen, viewMode, albums, wants, sessions, friends,
+      screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, friends,
       addFriend, removeFriend,
       selectedAlbumId, selectedAlbum,
       searchQuery, activeFolder, sortOption, filteredAlbums,

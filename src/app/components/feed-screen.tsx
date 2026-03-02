@@ -1534,7 +1534,7 @@ export function FeedScreen() {
       <div className="flex-1 overflow-y-auto overlay-scroll">
         <div className="flex flex-col" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
 
-          {/* ═══ DESKTOP BENTO GRID ═══ */}
+          {/* ═══ DESKTOP ARTWORK GRID ═══ */}
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
               <div className="flex flex-col gap-[24px]">

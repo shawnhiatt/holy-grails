@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"from.*ui/\" src/app/components/*.tsx src/app/components/*.ts src/app/*.tsx src/app/*.ts src/*.tsx src/*.ts)",
+      "Bash(npm install)",
+      "Bash(cmd.exe /c \"npm install\")",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs\")",
+      "Bash(npm --version)",
+      "Bash(powershell.exe -Command \"Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell.exe -Command \"where.exe npm\")",
+      "Bash(where.exe npx)",
+      "Bash(PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/sshaw/AppData/Roaming/npm\" npm install)"
+    ]
+  }
+}

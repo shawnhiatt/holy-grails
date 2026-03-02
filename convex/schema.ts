@@ -80,5 +80,7 @@ export default defineSchema({
     hide_purge_indicators: v.boolean(),
     hide_gallery_meta: v.boolean(),
     shake_to_random: v.optional(v.boolean()),
+    view_mode: v.optional(v.string()),
+    want_view_mode: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
 });

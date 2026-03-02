@@ -155,7 +155,7 @@ Shared animation constants live in `motion-tokens.ts` and are used across all co
 - `DURATION_MICRO: 0.1s`, `DURATION_FAST: 0.175s`, `DURATION_NORMAL: 0.225s`, `DURATION_SLOW: 0.3s`
 
 ### Hide-on-Scroll Mobile Header
-The `useHideHeaderOnScroll` hook (`use-hide-header.ts`) hides the mobile header bar when scrolling down and reveals it when scrolling up or at the top. Active on screens: `crate`, `wants`, `friends`, `reports`. Uses an 8px scroll threshold to prevent flicker. Applied in: album-grid, album-list, album-bento, wantlist, friends-screen, reports-screen.
+The `useHideHeaderOnScroll` hook (`use-hide-header.ts`) hides the mobile header bar when scrolling down and reveals it when scrolling up or at the top. Active on screens: `crate`, `wants`, `friends`, `reports`. Uses an 8px scroll threshold to prevent flicker. Applied in: album-grid, album-list, album-artwork-grid, wantlist, friends-screen, reports-screen.
 
 ### Shake-to-Random
 The `useShake` hook (`use-shake.ts`) opens a random album in Album Detail when the user shakes their mobile device. Desktop-only disabled. Threshold: 12, timeout: 1000ms.
@@ -194,7 +194,7 @@ The primary screen for browsing albums.
 The `ViewMode` type is `"crate" | "list" | "grid" | "artwork"`. Toggle order in the UI: **Grid** (Grid2x2 icon) -> **Artwork** (Grid3x3 icon) -> **List** (List icon) -> **Swiper** (Disc3 icon). Default view is `"grid"`.
 
 1. **Grid** (`album-grid.tsx`): 2-column (mobile) / 4-column (desktop) grid of square album covers with card styling (surface background, border, shadow). Card layout: title (`line-clamp-1`, 13px Bricolage Grotesque weight 600), artist (`line-clamp-1`, 12px DM Sans), year on its own row (11px DM Sans), then folder pill + bookmark icon on the bottom row. Folder pill sizes to content width with inner text truncation (inline styles for iOS Safari). Bookmark icon uses `marginLeft: "auto"` to flush right, with 12px tap padding and negative margins for a larger touch target. Purge indicator dot in top-left corner of artwork. Full `min-w-0` ancestor chain for truncation. Alphabetical index sidebar on mobile (see Cross-Cutting Patterns).
-2. **Artwork** (`album-bento.tsx`): 4-column grid of square album covers. Artwork only — no text below cards. Metadata (title, artist) appears via hover overlay (desktop) or tap (mobile). Same gap spacing as old Bento view (`gap-2 lg:gap-[10px]`). Padding: `px-[16px] lg:px-[24px]`. Bookmark icon in corner. Purge indicator dot.
+2. **Artwork** (`album-artwork-grid.tsx`): 4-column (mobile) / 8-column (desktop) grid of square album covers. Artwork only — no text below cards. Metadata (title, artist) appears via hover overlay (desktop) or tap (mobile). Gap: `gap-2 lg:gap-[10px]`. Padding: `px-[16px] lg:px-[24px]`. Bookmark icon in corner. Purge indicator dot.
 3. **List** (`album-list.tsx`): Compact rows with 64x64px thumbnail (`w-16 h-16`), artist, title (both with inline truncation styles), last-played relative date, purge indicator (8px circle at 50% opacity), year, and folder pill. Folder pills use blue chip palette. Purge indicator positioned as absolute `top-1.5 right-1.5`. Bookmark icon below year/folder. Alphabetical index sidebar on mobile (see Cross-Cutting Patterns). Container padding: `pl-[16px] pr-[32px]` on mobile when sidebar visible, `lg:pr-[24px]` on desktop.
 4. **Swiper / Crate Flip** (`crate-flip.tsx`): Stacked-card interaction using Motion (Framer Motion). Cards stacked with slight vertical offset and scale. Swipe up/down (vertical drag) to flip through. Current card front and center, next cards peek behind. Folder pill on crate cards uses white-on-translucent styling since it overlays album art. Last-played text shown on cards. Text uses inline truncation styles. **Lightbox dimming**: Swiping activates a dark overlay (`rgba(0, 0, 0, 0.7)`) at `z-[100]` with the current card elevated to `z-101`. The lightbox auto-dismisses after 3 seconds of inactivity. Close button (X icon) in top-right. Card scales up 1.05x when lightbox is active. Stack cards dim to 0.08 base opacity during lightbox (vs 0.15 normally). `hideGalleryMeta` setting (from app context) can hide the metadata overlay on swiper cards.
 
@@ -548,7 +548,7 @@ Active text color: `#E2E8F0` (dark) / `#0C284A` (light). Inactive: `rgba(226,232
 | `navigation.tsx` | Mobile header, bottom tab bar, desktop top nav, SVG wordmark logo |
 | `crate-browser.tsx` | Collection screen with view mode toggle, search, filters, `ViewModeToggle` component |
 | `album-grid.tsx` | Grid view with alphabetical index sidebar |
-| `album-bento.tsx` | Artwork-only grid view |
+| `album-artwork-grid.tsx` | Artwork-only grid view |
 | `album-list.tsx` | List view with alphabetical index sidebar |
 | `crate-flip.tsx` | Swiper/Crate Flip stacked-card view with lightbox |
 | `album-detail.tsx` | Album detail bottom sheet (mobile) and panel content |

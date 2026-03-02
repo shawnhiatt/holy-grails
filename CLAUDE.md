@@ -75,7 +75,7 @@ src/
     components/
       accordion-section.tsx
       add-albums-drawer.tsx
-      album-bento.tsx
+      album-artwork-grid.tsx
       album-detail.tsx
       album-grid.tsx
       album-list.tsx

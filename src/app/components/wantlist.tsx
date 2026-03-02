@@ -170,8 +170,7 @@ const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
 ];
 
 export function Wantlist() {
-  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, headerHidden } = useApp();
-  const [viewMode, setViewMode] = useState<WantViewMode>("grid");
+  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, headerHidden, wantViewMode: viewMode, setWantViewMode: setViewMode } = useApp();
 
   const filteredWants = useMemo(() => {
     let result = [...wants];

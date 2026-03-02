@@ -4,7 +4,7 @@ import { useApp, type ViewMode } from "./app-context";
 import { CrateFlip } from "./crate-flip";
 import { AlbumList } from "./album-list";
 import { AlbumGrid } from "./album-grid";
-import { AlbumArtwork } from "./album-bento";
+import { AlbumArtwork } from "./album-artwork-grid";
 import { setReportEntryScreen } from "./reports-screen";
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";

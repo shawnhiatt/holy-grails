@@ -22,6 +22,8 @@ export const upsert = mutation({
     hide_purge_indicators: v.optional(v.boolean()),
     hide_gallery_meta: v.optional(v.boolean()),
     shake_to_random: v.optional(v.boolean()),
+    view_mode: v.optional(v.string()),
+    want_view_mode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -40,6 +42,8 @@ export const upsert = mutation({
         updates.hide_gallery_meta = args.hide_gallery_meta;
       if (args.shake_to_random !== undefined)
         updates.shake_to_random = args.shake_to_random;
+      if (args.view_mode !== undefined) updates.view_mode = args.view_mode;
+      if (args.want_view_mode !== undefined) updates.want_view_mode = args.want_view_mode;
 
       await ctx.db.patch(existing._id, updates);
       return existing._id;

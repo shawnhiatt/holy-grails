@@ -48,7 +48,7 @@ export function AlbumArtwork({ albums }: AlbumArtworkProps) {
   return (
     <div className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
       <div
-        className="px-[16px] lg:px-[24px] pt-3 grid grid-cols-4 gap-2 lg:gap-[10px]"
+        className="px-[16px] lg:px-[24px] pt-3 grid grid-cols-4 lg:grid-cols-8 gap-2 lg:gap-[10px]"
         style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}
       >
         {albums.map((album) => (
