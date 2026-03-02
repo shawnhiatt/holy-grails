@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useApp, type Screen } from "./app-context";
+import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
 
 /** Desktop top nav — left group */
 const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
@@ -259,6 +260,8 @@ export function BottomTabBar() {
   const { screen, setScreen } = useApp();
 
   return (
+    <>
+    <WantlistCrossoverPrompt />
     <nav
       className="fixed z-[130] flex items-center justify-between lg:hidden bottom-tab-bar"
       style={{
@@ -304,6 +307,7 @@ export function BottomTabBar() {
         );
       })}
     </nav>
+    </>
   );
 }
 

@@ -150,6 +150,9 @@ interface AppState {
   // Wantlist detail panel
   selectedWantItem: WantItem | null;
   setSelectedWantItem: (item: WantItem | null) => void;
+  // Wantlist crossover (wantlist items now in collection after sync)
+  collectionCrossoverQueue: WantItem[];
+  dismissCrossover: (releaseId: number) => void;
   // OAuth / session management
   loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string }) => Promise<void>;
   signOut: () => void;
@@ -232,6 +235,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
   const [selectedWantItem, setSelectedWantItem] = useState<WantItem | null>(null);
+  const [collectionCrossoverQueue, setCollectionCrossoverQueue] = useState<WantItem[]>([]);
 
   // ── Convex queries ──
 
@@ -907,6 +911,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return albums.some((a) => Number(a.release_id) === rid);
   }, [albums]);
 
+  const dismissCrossover = useCallback((releaseId: number) => {
+    setCollectionCrossoverQueue((prev) => prev.filter((w) => w.release_id !== releaseId));
+  }, []);
+
   const markPlayed = useCallback((albumId: string) => {
     const now = new Date();
     setLastPlayed((prev) => ({
@@ -1034,6 +1042,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         hydratedRef.current.wantPriorities = true;
       } else {
         setWants(newWants);
+      }
+
+      // Detect wantlist items that are now in the collection
+      const collectionRids = new Set(newAlbums.map(a => a.release_id));
+      const crossovers = newWants.filter(w => collectionRids.has(w.release_id));
+      if (crossovers.length > 0) {
+        setCollectionCrossoverQueue(crossovers);
       }
 
       // Merge last played from current Convex data
@@ -1221,6 +1236,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFolders([]);
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
+    setCollectionCrossoverQueue([]);
     setSearchQuery("");
     setActiveFolder("All");
     setSortOption("artist-az");
@@ -1272,6 +1288,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFolders([]);
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
+    setCollectionCrossoverQueue([]);
     setSearchQuery("");
     setActiveFolder("All");
     setSortOption("artist-az");
@@ -1539,6 +1556,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Wantlist detail panel
       selectedWantItem,
       setSelectedWantItem,
+      // Wantlist crossover
+      collectionCrossoverQueue,
+      dismissCrossover,
       // OAuth / session management
       loginWithOAuth,
       signOut,
@@ -1579,6 +1599,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
       updateAlbum,
       selectedWantItem,
+      collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
     ]
   );
