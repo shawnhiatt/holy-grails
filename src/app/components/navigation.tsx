@@ -3,7 +3,7 @@ import {
   Headphones,
   Heart,
   UserRound,
-  Library,
+  GalleryVerticalEnd,
   SquareArrowOutUpRight,
   Sun,
   Moon,
@@ -18,7 +18,7 @@ import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
 /** Desktop top nav — left group */
 const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
-  { id: "crate", label: "Collection", icon: Library },
+  { id: "crate", label: "Collection", icon: GalleryVerticalEnd },
   { id: "wants", label: "Wants", icon: Heart },
   { id: "sessions", label: "Sessions", icon: Headphones },
 ];
@@ -34,9 +34,10 @@ const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
 /** Mobile bottom bar */
 const MOBILE_NAV_ITEMS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
-  { id: "crate", label: "Collection", icon: Library },
+  { id: "crate", label: "Collection", icon: GalleryVerticalEnd },
   { id: "wants", label: "Wants", icon: Heart },
   { id: "sessions", label: "Sessions", icon: Headphones },
+  { id: "reports", label: "Insights", icon: BarChart3 },
 ];
 
 /** SVG wordmark logo — "Holy Grails" with integrated vinyl record icon */

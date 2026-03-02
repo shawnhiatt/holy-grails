@@ -1,11 +1,11 @@
 import { useState, useCallback, useMemo } from "react";
-import { Search, SlidersHorizontal, List, Disc3, Grid2x2, Grid3x3, BarChart3, X, Compass } from "lucide-react";
+import { Search, SlidersHorizontal, List, Disc3, Grid2x2, Grid3x3, X, Compass } from "lucide-react";
 import { useApp, type ViewMode } from "./app-context";
 import { CrateFlip } from "./crate-flip";
 import { AlbumList } from "./album-list";
 import { AlbumGrid } from "./album-grid";
 import { AlbumArtwork } from "./album-artwork-grid";
-import { setReportEntryScreen } from "./reports-screen";
+
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 
@@ -75,7 +75,6 @@ export function CrateBrowser() {
     setActiveFolder,
     sortOption,
     setSortOption,
-    setScreen,
     albums,
     isDarkMode,
     neverPlayedFilter,
@@ -192,15 +191,6 @@ export function CrateBrowser() {
               <p style={{ fontSize: "13px", fontWeight: 400, color: isDarkMode ? "#617489" : "#9BA4B2" }}>No collection synced</p>
             )}
           </div>
-          {/* Reports icon */}
-          <button
-            onClick={() => { setReportEntryScreen("crate"); setScreen("reports"); }}
-            title="Reports & Insights"
-            className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors flex-shrink-0"
-            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-          >
-            <BarChart3 size={18} />
-          </button>
         </div>
       </div>
 
@@ -251,14 +241,6 @@ export function CrateBrowser() {
       >
         <div className="flex items-center justify-between">
           <h2 style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Collection</h2>
-          <button
-            onClick={() => { setReportEntryScreen("crate"); setScreen("reports"); }}
-            title="Reports & Insights"
-            className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center transition-colors flex-shrink-0"
-            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-          >
-            <BarChart3 size={18} />
-          </button>
         </div>
       </div>
 
