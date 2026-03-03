@@ -1256,8 +1256,6 @@ function PopulatedFollowingView({
   const visibleActivity = useMemo(() => activityFeed.slice(0, visibleCount), [activityFeed, visibleCount]);
   const hasMore = activityFeed.length > visibleCount;
 
-  // Track items that were just added to wantlist (for heart animation)
-  const [justAddedWantIds, setJustAddedWantIds] = useState<Set<string>>(() => new Set());
   // Confirmation dialog for removing an item from the wantlist
   const [removeWantConfirm, setRemoveWantConfirm] = useState<ActivityItem | null>(null);
   // Per-item in-flight tracking for API calls
@@ -1289,7 +1287,7 @@ function PopulatedFollowingView({
     if (ownReleaseIds.has(item.albumReleaseId)) return;
     if (inFlightIds.has(item.albumReleaseId)) return;
     // Already in wantlist — confirm removal
-    if (wantReleaseIds.has(item.albumReleaseId) || justAddedWantIds.has(item.id)) {
+    if (wantReleaseIds.has(item.albumReleaseId)) {
       setRemoveWantConfirm(item);
       return;
     }
@@ -1306,11 +1304,6 @@ function PopulatedFollowingView({
         label: item.albumLabel,
         priority: false,
       });
-      setJustAddedWantIds((prev) => {
-        const next = new Set(prev);
-        next.add(item.id);
-        return next;
-      });
       toast.dismiss();
       toast.info("Added to Wantlist.", { duration: 2500 });
     } catch (err: any) {
@@ -1319,7 +1312,7 @@ function PopulatedFollowingView({
     } finally {
       setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
     }
-  }, [ownReleaseIds, wantReleaseIds, justAddedWantIds, inFlightIds, addToWantList]);
+  }, [ownReleaseIds, wantReleaseIds, inFlightIds, addToWantList]);
 
   return (
     <div className="flex flex-col">
@@ -1513,7 +1506,7 @@ function PopulatedFollowingView({
         <div className="flex flex-col">
           {visibleActivity.map((item) => {
             const inCollection = ownReleaseIds.has(item.albumReleaseId);
-            const inWantList = wantReleaseIds.has(item.albumReleaseId) || justAddedWantIds.has(item.id);
+            const inWantList = wantReleaseIds.has(item.albumReleaseId);
             return (
               <div
                 key={item.id}
@@ -1646,7 +1639,7 @@ function PopulatedFollowingView({
                     ) : (
                       <motion.div
                         key={inWantList ? "filled" : "outline"}
-                        initial={justAddedWantIds.has(item.id) ? { scale: 1.25 } : { scale: 0.7 }}
+                        initial={{ scale: 0.7 }}
                         animate={{ scale: 1 }}
                         transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
                       >
@@ -1721,11 +1714,6 @@ function PopulatedFollowingView({
                     setIsRemovingWant(true);
                     try {
                       await removeFromWantList(removeWantConfirm.albumReleaseId);
-                      setJustAddedWantIds((prev) => {
-                        const next = new Set(prev);
-                        next.delete(removeWantConfirm.id);
-                        return next;
-                      });
                       toast.info("Removed from Wantlist.");
                       setRemoveWantConfirm(null);
                     } catch (err: any) {
