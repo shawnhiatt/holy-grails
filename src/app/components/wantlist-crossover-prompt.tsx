@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useApp } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL, DURATION_FAST } from "./motion-tokens";
 import { getContentTokens } from "./theme";
-import { toastTitle } from "../utils/format";
+
 
 /* Wantlist Crossover Prompt — shows after sync when a wantlist item
    is now in the user's collection. Floats above the bottom tab bar on
@@ -28,7 +28,7 @@ export function WantlistCrossoverPrompt() {
     setIsRemoving(true);
     try {
       await removeFromWantList(current.release_id);
-      toast.info(`"${toastTitle(current.title)}" removed.`);
+      toast.info(`"${current.title}" removed.`);
       dismissCrossover(current.release_id);
     } catch (err: any) {
       console.error("[Crossover] Remove failed:", err);

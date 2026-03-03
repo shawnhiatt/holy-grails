@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useApp } from "./app-context";
 import { SlideOutPanel } from "./slide-out-panel";
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
-import { toastTitle } from "../utils/format";
+
 
 const truncStyle: React.CSSProperties = {
   display: "block",
@@ -76,7 +76,7 @@ export function WantlistHeartButton({
         priority: false,
       });
       toast.dismiss();
-      toast.info(`"${toastTitle(title)}" added to Wantlist.`, { duration: 2500 });
+      toast.info(`"${title}" added to Wantlist.`, { duration: 2500 });
       setShowAddConfirm(false);
     } catch (err: any) {
       console.error("[WantlistHeart] Add failed:", err);
@@ -91,7 +91,7 @@ export function WantlistHeartButton({
     try {
       await removeFromWantList(releaseId);
       toast.dismiss();
-      toast.info(`"${toastTitle(title)}" removed.`, { duration: 2500 });
+      toast.info(`"${title}" removed.`, { duration: 2500 });
       setShowRemoveConfirm(false);
     } catch (err: any) {
       console.error("[WantlistHeart] Remove failed:", err);

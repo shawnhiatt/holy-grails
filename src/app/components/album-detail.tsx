@@ -11,7 +11,7 @@ import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { AccordionSection } from "./accordion-section";
 import { CONDITION_GRADES, updateCollectionInstance, moveToFolder, type WantItem } from "./discogs-api";
-import { toastTitle } from "../utils/format";
+
 
 /* ─── Condition grade → color spectrum ─── */
 /* Maps vinyl grading scale to a pink→blue→green spectrum using the purge palette:
@@ -258,7 +258,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         label: selectedAlbum.label,
         priority: false,
       });
-      toast.info(`"${toastTitle(selectedAlbum.title)}" added to Wantlist.`);
+      toast.info(`"${selectedAlbum.title}" added to Wantlist.`);
     } catch (err: any) {
       console.error("[AlbumDetail] Add to wantlist failed:", err);
       toast.error("Failed to add. Try again.");
@@ -864,7 +864,7 @@ function WantItemDetailPanel({
     setIsRemoving(true);
     try {
       await removeFromWantList(item.release_id);
-      toast.info(`"${toastTitle(item.title)}" removed.`);
+      toast.info(`"${item.title}" removed.`);
       onClose();
     } catch (err: any) {
       console.error("[WantDetail] Remove failed:", err);

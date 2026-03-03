@@ -21,7 +21,7 @@ import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
-import { formatActivityDate, getInitial, toastTitle } from "../utils/format";
+import { formatActivityDate, getInitial } from "../utils/format";
 
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -1697,7 +1697,7 @@ export function FeedScreen() {
                     try {
                       await removeFromWantList(removeWantConfirm.albumReleaseId);
                       toast.dismiss();
-                      toast.info(`"${toastTitle(removeWantConfirm.albumTitle)}" removed.`, { duration: 2500 });
+                      toast.info(`"${removeWantConfirm.albumTitle}" removed.`, { duration: 2500 });
                       setRemoveWantConfirm(null);
                     } catch (err: any) {
                       console.error("[Feed] Remove from wantlist failed:", err);
@@ -1790,7 +1790,7 @@ export function FeedScreen() {
                         priority: false,
                       });
                       toast.dismiss();
-                      toast.info(`"${toastTitle(addWantConfirm.albumTitle)}" added to Wantlist.`, { duration: 2500 });
+                      toast.info(`"${addWantConfirm.albumTitle}" added to Wantlist.`, { duration: 2500 });
                       setAddWantConfirm(null);
                     } catch (err: any) {
                       console.error("[Feed] Add to wantlist failed:", err);
