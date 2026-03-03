@@ -88,8 +88,8 @@ interface AppState {
   toggleWantPriority: (wantId: string) => void;
   addToWantList: (item: WantItem) => Promise<void>;
   removeFromWantList: (releaseId: string | number) => Promise<void>;
-  isInWants: (releaseId: string | number) => boolean;
-  isInCollection: (releaseId: string | number) => boolean;
+  isInWants: (releaseId: string | number, masterId?: number) => boolean;
+  isInCollection: (releaseId: string | number, masterId?: number) => boolean;
   deleteSession: (sessionId: string) => void;
   renameSession: (sessionId: string, name: string) => void;
   reorderSessionAlbums: (sessionId: string, albumIds: string[]) => void;
@@ -440,6 +440,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const cachedAlbums: Album[] = convexCollection.map((row) => ({
           id: String(row.releaseId),
           release_id: row.releaseId,
+          master_id: (row as any).masterId || undefined,
           instance_id: row.instanceId,
           folder_id: row.folderId ?? 1,
           title: row.title,
@@ -517,6 +518,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const wantsFromCache: WantItem[] = cachedWants.map((row) => ({
             id: String(row.release_id),
             release_id: row.release_id,
+            master_id: (row as any).master_id || undefined,
             title: row.title,
             artist: row.artist,
             year: row.year,
@@ -535,6 +537,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               discogs_username: discogsUsername,
               items: newWants.map((w) => ({
                 release_id: w.release_id,
+                master_id: w.master_id || undefined,
                 title: w.title,
                 artist: w.artist,
                 year: w.year,
@@ -991,6 +994,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addWantlistItemMut({
       discogs_username: discogsUsername,
       release_id: result.release_id,
+      master_id: result.master_id || undefined,
       title: result.title,
       artist: result.artist,
       year: result.year,
@@ -1024,14 +1028,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }).catch((e) => console.warn("[Convex] Wantlist remove failed:", e));
   }, [discogsAuth, discogsUsername, upsertWantPriorityMut, removeWantlistItemMut]);
 
-  const isInWants = useCallback((releaseId: string | number) => {
+  const isInWants = useCallback((releaseId: string | number, masterId?: number) => {
     const rid = Number(releaseId);
-    return wants.some((w) => Number(w.release_id) === rid);
+    if (wants.some((w) => Number(w.release_id) === rid)) return true;
+    if (masterId && masterId > 0) {
+      return wants.some((w) => w.master_id && w.master_id === masterId);
+    }
+    return false;
   }, [wants]);
 
-  const isInCollection = useCallback((releaseId: string | number) => {
+  const isInCollection = useCallback((releaseId: string | number, masterId?: number) => {
     const rid = Number(releaseId);
-    return albums.some((a) => Number(a.release_id) === rid);
+    if (albums.some((a) => Number(a.release_id) === rid)) return true;
+    if (masterId && masterId > 0) {
+      return albums.some((a) => a.master_id && a.master_id === masterId);
+    }
+    return false;
   }, [albums]);
 
   const dismissCrossover = useCallback((releaseId: number) => {
@@ -1194,6 +1206,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           discogsUsername: username,
           albums: newAlbums.map((a) => ({
             releaseId: a.release_id,
+            masterId: a.master_id || undefined,
             instanceId: a.instance_id,
             folderId: a.folder_id,
             artist: a.artist,
@@ -1223,6 +1236,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           discogs_username: username,
           items: newWants.map((w) => ({
             release_id: w.release_id,
+            master_id: w.master_id || undefined,
             title: w.title,
             artist: w.artist,
             year: w.year,

@@ -123,6 +123,7 @@ interface FeedActivity {
   albumThumb: string;
   albumCover: string;
   albumReleaseId: number;
+  albumMasterId?: number;
   albumYear: number;
   albumLabel: string;
   date: string;
@@ -147,6 +148,7 @@ function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number): Feed
         albumThumb: album.thumb || "",
         albumCover: album.cover,
         albumReleaseId: album.release_id,
+        albumMasterId: album.master_id,
         albumYear: album.year,
         albumLabel: album.label,
         date: album.dateAdded || "",
@@ -365,17 +367,29 @@ export function FeedScreen() {
   const cardBg = "var(--c-surface)";
   const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
 
-  // Sets for quick lookups in Following Activity heart logic
+  // Sets for quick lookups in Following Activity heart logic (release_id + master_id)
   const ownReleaseIds = useMemo(() => new Set(albums.map((a) => a.release_id)), [albums]);
+  const ownMasterIds = useMemo(() => {
+    const s = new Set<number>();
+    for (const a of albums) if (a.master_id) s.add(a.master_id);
+    return s;
+  }, [albums]);
   const wantReleaseIds = useMemo(() => new Set(wants.map((w) => w.release_id)), [wants]);
+  const wantMasterIds = useMemo(() => {
+    const s = new Set<number>();
+    for (const w of wants) if (w.master_id) s.add(w.master_id);
+    return s;
+  }, [wants]);
 
   const handleHeartTap = useCallback(
     (item: FeedActivity) => {
       // Already in collection or already in flight — no action
-      if (ownReleaseIds.has(item.albumReleaseId)) return;
+      const inOwn = ownReleaseIds.has(item.albumReleaseId) || (item.albumMasterId && ownMasterIds.has(item.albumMasterId));
+      if (inOwn) return;
       if (inFlightIds.has(item.albumReleaseId)) return;
 
-      if (wantReleaseIds.has(item.albumReleaseId)) {
+      const inWant = wantReleaseIds.has(item.albumReleaseId) || (item.albumMasterId && wantMasterIds.has(item.albumMasterId));
+      if (inWant) {
         // Show remove confirmation
         setRemoveWantConfirm(item);
         return;
@@ -384,7 +398,7 @@ export function FeedScreen() {
       // Show add confirmation prompt
       setAddWantConfirm(item);
     },
-    [ownReleaseIds, wantReleaseIds, inFlightIds]
+    [ownReleaseIds, ownMasterIds, wantReleaseIds, wantMasterIds, inFlightIds]
   );
 
   /* ── Shared card style ── */
@@ -452,6 +466,7 @@ export function FeedScreen() {
                 overlay={
                   <WantlistHeartButton
                     releaseId={album.release_id}
+                    masterId={album.master_id}
                     title={album.title}
                     artist={album.artist}
                     cover={album.cover}
@@ -486,6 +501,7 @@ export function FeedScreen() {
               overlay={
                 <WantlistHeartButton
                   releaseId={album.release_id}
+                  masterId={album.master_id}
                   title={album.title}
                   artist={album.artist}
                   cover={album.cover}
@@ -530,8 +546,8 @@ export function FeedScreen() {
       {hasFollowing && followingActivity.length > 0 ? (
         <>
           {followingActivity.map((item) => {
-            const inCollection = ownReleaseIds.has(item.albumReleaseId);
-            const inWantList = wantReleaseIds.has(item.albumReleaseId);
+            const inCollection = ownReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && ownMasterIds.has(item.albumMasterId));
+            const inWantList = wantReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && wantMasterIds.has(item.albumMasterId));
             return (
               <div
                 key={item.id}

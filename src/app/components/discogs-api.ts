@@ -16,6 +16,7 @@ export type PurgeTag = "keep" | "cut" | "maybe" | null;
 export interface Album {
   id: string;
   release_id: number;
+  master_id?: number;
   instance_id: number;
   folder_id: number;
   title: string;
@@ -41,6 +42,7 @@ export interface Album {
 export interface WantItem {
   id: string;
   release_id: number;
+  master_id?: number;
   title: string;
   artist: string;
   year: number;
@@ -262,6 +264,7 @@ interface DiscogsRelease {
   rating: number;
   basic_information: {
     id: number;
+    master_id?: number;
     title: string;
     year: number;
     artists: { name: string; anv: string }[];
@@ -364,6 +367,7 @@ function mapRelease(
   return {
     id: String(bi.id),
     release_id: bi.id,
+    master_id: bi.master_id || undefined,
     instance_id: r.instance_id,
     folder_id: r.folder_id,
     title: bi.title,
@@ -440,6 +444,7 @@ interface DiscogsWant {
   id: number;
   basic_information: {
     id: number;
+    master_id?: number;
     title: string;
     year: number;
     artists: { name: string; anv: string }[];
@@ -482,6 +487,7 @@ export async function fetchWantlist(
       wants.push({
         id: `w-${bi.id}`,
         release_id: bi.id,
+        master_id: bi.master_id || undefined,
         title: bi.title,
         artist,
         year: bi.year || 0,
@@ -892,6 +898,7 @@ export async function addToWantlist(
   return {
     id: `w-${bi?.id ?? releaseId}`,
     release_id: bi?.id ?? releaseId,
+    master_id: bi?.master_id || undefined,
     title: bi?.title ?? "",
     artist,
     year: bi?.year ?? 0,
@@ -932,6 +939,7 @@ export async function removeFromWantlist(
 
 export interface FeedAlbum {
   release_id: number;
+  master_id?: number;
   title: string;
   artist: string;
   year: number;
@@ -963,6 +971,7 @@ export async function fetchUserCollectionPage(
     const bi = r.basic_information;
     return {
       release_id: bi.id,
+      master_id: bi.master_id || undefined,
       title: bi.title,
       artist: bi.artists.map((a) => formatArtistName(a.anv || a.name)).join(", "),
       year: bi.year || 0,

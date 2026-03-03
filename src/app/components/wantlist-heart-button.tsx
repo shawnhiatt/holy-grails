@@ -19,6 +19,7 @@ const truncStyle: React.CSSProperties = {
 
 export interface WantlistHeartButtonProps {
   releaseId: number;
+  masterId?: number;
   title: string;
   artist: string;
   cover: string;
@@ -33,6 +34,7 @@ export interface WantlistHeartButtonProps {
 
 export function WantlistHeartButton({
   releaseId,
+  masterId,
   title,
   artist,
   cover,
@@ -44,8 +46,8 @@ export function WantlistHeartButton({
 }: WantlistHeartButtonProps) {
   const { isInWants, isInCollection, addToWantList, removeFromWantList } = useApp();
 
-  const inCollection = isInCollection(releaseId);
-  const inWantlist = isInWants(releaseId);
+  const inCollection = isInCollection(releaseId, masterId);
+  const inWantlist = isInWants(releaseId, masterId);
   const [inFlight, setInFlight] = useState(false);
   const [showAddConfirm, setShowAddConfirm] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);

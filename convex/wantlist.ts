@@ -19,6 +19,7 @@ export const replaceAll = mutation({
     items: v.array(
       v.object({
         release_id: v.number(),
+        master_id: v.optional(v.number()),
         title: v.string(),
         artist: v.string(),
         year: v.number(),
@@ -54,6 +55,7 @@ export const addItem = mutation({
   args: {
     discogs_username: v.string(),
     release_id: v.number(),
+    master_id: v.optional(v.number()),
     title: v.string(),
     artist: v.string(),
     year: v.number(),
@@ -76,6 +78,7 @@ export const addItem = mutation({
     await ctx.db.insert("wantlist", {
       discogs_username: args.discogs_username,
       release_id: args.release_id,
+      master_id: args.master_id,
       title: args.title,
       artist: args.artist,
       year: args.year,

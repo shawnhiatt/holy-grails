@@ -20,6 +20,7 @@ export const upsert = mutation({
     recent_albums: v.array(
       v.object({
         release_id: v.number(),
+        master_id: v.optional(v.number()),
         title: v.string(),
         artist: v.string(),
         year: v.number(),

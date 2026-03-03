@@ -56,6 +56,7 @@ export default defineSchema({
   collection: defineTable({
     discogsUsername: v.string(),
     releaseId: v.number(),
+    masterId: v.optional(v.number()),
     instanceId: v.number(),
     folderId: v.optional(v.number()),
     artist: v.string(),
@@ -80,6 +81,7 @@ export default defineSchema({
   wantlist: defineTable({
     discogs_username: v.string(),
     release_id: v.number(),
+    master_id: v.optional(v.number()),
     title: v.string(),
     artist: v.string(),
     year: v.number(),
@@ -108,6 +110,7 @@ export default defineSchema({
     recent_albums: v.array(
       v.object({
         release_id: v.number(),
+        master_id: v.optional(v.number()),
         title: v.string(),
         artist: v.string(),
         year: v.number(),

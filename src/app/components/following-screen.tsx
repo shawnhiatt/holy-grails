@@ -1112,6 +1112,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
               )}
               <WantlistHeartButton
                 releaseId={item.release_id}
+                masterId={item.master_id}
                 title={item.title}
                 artist={item.artist}
                 cover={item.cover}
@@ -1148,6 +1149,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
               )}
               <WantlistHeartButton
                 releaseId={item.release_id}
+                masterId={item.master_id}
                 title={item.title}
                 artist={item.artist}
                 cover={item.cover}
@@ -1194,6 +1196,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds 
             )}
             <WantlistHeartButton
               releaseId={item.release_id}
+              masterId={item.master_id}
               title={item.title}
               artist={item.artist}
               cover={item.cover}
@@ -1229,6 +1232,7 @@ interface ActivityItem {
   albumArtist: string;
   albumCover: string;
   albumReleaseId: number;
+  albumMasterId?: number;
   albumYear: number;
   albumLabel: string;
   date: string;
@@ -1253,6 +1257,7 @@ function buildActivityFeed(users: FollowedUser[]): ActivityItem[] {
         albumArtist: album.artist,
         albumCover: album.cover,
         albumReleaseId: album.release_id,
+        albumMasterId: album.master_id,
         albumYear: album.year,
         albumLabel: album.label,
         date: album.dateAdded || "",
@@ -1302,9 +1307,19 @@ function PopulatedFollowingView({
   const [isRemovingWant, setIsRemovingWant] = useState(false);
   const [isAddingWant, setIsAddingWant] = useState(false);
 
-  // Sets for quick lookups
+  // Sets for quick lookups (release_id + master_id)
   const ownReleaseIds = useMemo(() => new Set(userAlbumsForHeart.map((a) => a.release_id)), [userAlbumsForHeart]);
+  const ownMasterIds = useMemo(() => {
+    const s = new Set<number>();
+    for (const a of userAlbumsForHeart) if (a.master_id) s.add(a.master_id);
+    return s;
+  }, [userAlbumsForHeart]);
   const wantReleaseIds = useMemo(() => new Set(userWantsForHeart.map((w) => w.release_id)), [userWantsForHeart]);
+  const wantMasterIds = useMemo(() => {
+    const s = new Set<number>();
+    for (const w of userWantsForHeart) if (w.master_id) s.add(w.master_id);
+    return s;
+  }, [userWantsForHeart]);
 
   // From the Depths — 2–4 random albums per followed user; re-derives when followedUsers list changes
   const MAX_CARDS_PER_USER = 4;
@@ -1324,16 +1339,18 @@ function PopulatedFollowingView({
 
   const handleHeartTap = useCallback(async (item: ActivityItem) => {
     // Already in collection or already in flight — no action
-    if (ownReleaseIds.has(item.albumReleaseId)) return;
+    const inOwn = ownReleaseIds.has(item.albumReleaseId) || (item.albumMasterId && ownMasterIds.has(item.albumMasterId));
+    if (inOwn) return;
     if (inFlightIds.has(item.albumReleaseId)) return;
     // Already in wantlist — confirm removal
-    if (wantReleaseIds.has(item.albumReleaseId)) {
+    const inWant = wantReleaseIds.has(item.albumReleaseId) || (item.albumMasterId && wantMasterIds.has(item.albumMasterId));
+    if (inWant) {
       setRemoveWantConfirm(item);
       return;
     }
     // Show add confirmation prompt
     setAddWantConfirm(item);
-  }, [ownReleaseIds, wantReleaseIds, inFlightIds]);
+  }, [ownReleaseIds, ownMasterIds, wantReleaseIds, wantMasterIds, inFlightIds]);
 
   return (
     <div className="flex flex-col">
@@ -1436,6 +1453,7 @@ function PopulatedFollowingView({
                     overlay={
                       <WantlistHeartButton
                         releaseId={album.release_id}
+                        masterId={album.master_id}
                         title={album.title}
                         artist={album.artist}
                         cover={album.cover}
@@ -1538,8 +1556,8 @@ function PopulatedFollowingView({
       ) : (
         <div className="flex flex-col">
           {visibleActivity.map((item) => {
-            const inCollection = ownReleaseIds.has(item.albumReleaseId);
-            const inWantList = wantReleaseIds.has(item.albumReleaseId);
+            const inCollection = ownReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && ownMasterIds.has(item.albumMasterId));
+            const inWantList = wantReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && wantMasterIds.has(item.albumMasterId));
             return (
               <div
                 key={item.id}

@@ -19,6 +19,7 @@ export const replaceAll = mutation({
     albums: v.array(
       v.object({
         releaseId: v.number(),
+        masterId: v.optional(v.number()),
         instanceId: v.number(),
         folderId: v.optional(v.number()),
         artist: v.string(),
