@@ -13,6 +13,7 @@ import { useApp, type ViewMode, type Screen } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { Album, FollowedUser, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, DURATION_NORMAL, DURATION_FAST } from "./motion-tokens";
+import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { Skeleton } from "./ui/skeleton";
@@ -847,36 +848,31 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
 }) {
   const { isDarkMode } = useApp();
   const isArtwork = viewMode === "artwork";
-  const gridClass = isArtwork
-    ? "grid grid-cols-4 gap-2 lg:gap-[10px] px-[16px] lg:px-[24px] pt-3 pb-4"
-    : "grid grid-cols-2 lg:grid-cols-4 gap-3 px-[16px] lg:px-[24px] pt-3 pb-4";
 
-  return (
-    <div className={gridClass}>
-      {items.map((item) => {
-        const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
-
-        if (isArtwork) {
+  if (isArtwork) {
+    return (
+      <AlbumArtwork<ArtworkGridItem & { release_id: number }>
+        items={items.map((item) => ({ id: item.id, title: item.title, artist: item.artist, thumb: ("thumb" in item ? item.thumb : undefined) || undefined, cover: item.cover, release_id: item.release_id }))}
+        bare
+        onItemClick={() => {}}
+        renderAction={() => null}
+        renderIndicator={(item) => {
+          const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
+          if (!badge) return null;
           return (
-            <div
-              key={item.id}
-              className="relative overflow-hidden group rounded-[10px]"
-              style={{ aspectRatio: "1 / 1" }}
-            >
-              <img src={item.cover} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3">
-                <p className="text-white" style={{ fontSize: "13px", fontWeight: 600, lineHeight: "1.2", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
-                <p className="text-[rgba(255,255,255,0.75)]" style={{ fontSize: "11px", fontWeight: 400, lineHeight: "1.3", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist}</p>
-              </div>
-              {badge && (
-                <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff" }}>
-                  {badge.label}
-                </div>
-              )}
+            <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff" }}>
+              {badge.label}
             </div>
           );
-        }
+        }}
+      />
+    );
+  }
 
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-[16px] lg:px-[24px] pt-3 pb-4">
+      {items.map((item) => {
+        const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
           <div key={item.id} className="relative rounded-[10px] overflow-hidden group"
             style={{

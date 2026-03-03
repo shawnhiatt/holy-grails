@@ -9,6 +9,7 @@ import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from
 import { fetchMarketData, getCachedMarketData } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { useHideHeaderOnScroll } from "./use-hide-header";
+import { AlbumArtwork } from "./album-artwork-grid";
 
 /* ─── Alphabet Index Sidebar (mobile only, wantlist) ─── */
 
@@ -704,37 +705,22 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
 }
 
 function WantArtworkView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
-  const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
-  if (wants.length === 0) return <div className="flex-1 flex items-center justify-center"><p style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>No items found</p></div>;
-
   return (
-    <div className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
-      <div
-        className="grid grid-cols-4 gap-2 lg:gap-[10px] px-[16px] lg:px-[24px] pt-[24px]"
-        style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
-      >
-        {wants.map((item) => (
-          <div
-            key={item.id}
-            className="relative overflow-hidden group rounded-[10px] cursor-pointer"
-            style={{ aspectRatio: "1 / 1" }}
-            onClick={() => onSelect(item)}
-          >
-            <img src={item.thumb || item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3">
-              <p className="text-white truncate" style={{ fontSize: "13px", fontWeight: 600, lineHeight: "1.2", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>{item.title}</p>
-              <p className="text-[rgba(255,255,255,0.75)] truncate" style={{ fontSize: "11px", fontWeight: 400, lineHeight: "1.3" }}>{item.artist}</p>
-            </div>
-            <button
-              onClick={() => togglePriority(item.id)}
-              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform hover:scale-110"
-            >
-              <Zap size={14} className={item.priority ? "text-[#EEFC0F]" : "text-white/50"} fill={item.priority ? "#EEFC0F" : "none"} />
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
+    <AlbumArtwork<WantItem>
+      items={wants}
+      onItemClick={onSelect}
+      emptyMessage="No items found"
+      emptySubMessage=""
+      renderIndicator={(item) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); togglePriority(item.id); }}
+          className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform hover:scale-110"
+        >
+          <Zap size={14} className={item.priority ? "text-[#EEFC0F]" : "text-white/50"} fill={item.priority ? "#EEFC0F" : "none"} />
+        </button>
+      )}
+      renderAction={() => null}
+    />
   );
 }
 
