@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails
+# CLAUDE.md — Holy Grails v0.3.1
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -41,11 +41,13 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 ### What lives in Convex (Holy Grails-exclusive)
 - Purge tags (keep / cut / maybe + timestamps), keyed by `discogs_username` + `release_id`
 - Listening sessions (name, album order, created/modified timestamps), keyed by `discogs_username`
-- Following list (other Discogs users being followed in-app), keyed by `discogs_username`
+- Following list (other Discogs users being followed in-app + `avatar_url`), keyed by `discogs_username`
+- Following feed cache (`following_feed` table — 50 most recent albums per followed user, 24h TTL per user, up to 25 users)
+- Wantlist cache (`wantlist` table — mirrors Discogs wantlist for offline/fast reads, 24h TTL synced alongside collection)
 - Want list priority bolts, keyed by `discogs_username` + `release_id`
 - Last-played timestamps, keyed by `discogs_username` + `release_id`
 - User preferences (theme, hide purge indicators, hide gallery meta), keyed by `discogs_username`
-- OAuth tokens (access token + token secret), stored in the `users` table
+- OAuth tokens (access token + token secret), `collection_value`, `collection_value_synced_at`, stored in the `users` table
 
 ### Rules
 - Never use localStorage for any persistent data
@@ -111,8 +113,9 @@ src/
       use-hide-header.ts
       use-shake.ts
       wantlist.tsx
+      wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
       wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
-      loading-screen.tsx   # Three-phase loading state machine with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. Use this for all full-screen loading states — do not create new loading screens.
+      loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
       ui/                # shadcn components — do not modify directly
     utils/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial)
@@ -132,6 +135,8 @@ convex/                  # Convex backend functions and schema
   last_played.ts
   want_priorities.ts
   following.ts
+  following_feed.ts  # Following feed cache: getByFollower, upsert, deleteEntry
+  wantlist.ts        # Wantlist cache: getByUsername, replaceAll, addItem, removeItem
   preferences.ts
 src/
   main.tsx
@@ -308,6 +313,20 @@ The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCo
 - Condition grades for the dropdowns: use `CONDITION_GRADES` exported from `discogs-api.ts` — do not hardcode them.
 - Custom field ID resolution for the Discogs update happens inside `updateCollectionInstance` — it fetches the user's field definitions to map field names to IDs.
 
+### Image Sizing Convention
+Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
+- `thumb` — 150x150px — use for small display contexts (list rows, artwork grid, session thumbnails, feed compact cards, drawer thumbnails)
+- `cover` — 500x500px — use for large/focal displays (detail panels, crate/swiper, depths cards, grid cards)
+
+### master_id Matching
+`master_id` is stored on `Album`, `WantItem`, and `FeedAlbum` objects. "In Collection" and heart filled state check both `release_id` and `master_id` to match across different pressings of the same recording. `master_id` of 0 means no master exists — skip matching on 0. The `isInWants` and `isInCollection` context helpers accept an optional `masterId` parameter. Feed and Following screens build `ownMasterIds` / `wantMasterIds` Sets for O(1) lookups.
+
+### Following Feed Cache
+The `following_feed` Convex table caches the 50 most recent albums per followed user (up to 25 users, most recently followed first). 24h TTL per user — bypassed when cached data lacks `master_id` (one-time migration). Powers Feed Recent Activity and From the Depths without requiring Following screen hydration. Avatar URLs for followed users are stored in the `following` Convex table and exposed via the `followingAvatars` map in context.
+
+### Wantlist Caching
+The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as the collection. `convex/wantlist.ts` handles persistence (`getByUsername`, `replaceAll`, `addItem`, `removeItem`). Wantlist write operations (add/remove) update both local state and the Convex wantlist cache on success.
+
 ---
 
 ## Navigation Structure
@@ -380,6 +399,9 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`)
 - `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
 - Following screen activity feed hearts call Discogs API (Pattern A) with per-item Disc3 loading spinners
+- Following feed cache in Convex — powers Feed Recent Activity without requiring Following screen hydration
+- Wantlist cached in Convex — synced alongside collection with 24h TTL
+- `master_id` matching for "In Collection" and heart state across different pressings
 - Deployed to Vercel at holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope
@@ -424,7 +446,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Use vinyl vocabulary naturally: pressing, crate, grail, side A, VG+
 - No exclamation points, no emoji, no "Hey there!" energy
 - Avoid: "seamlessly," "powerful," "experience," "journey"
-- Toast notifications: under 4 words where possible, no punctuation except a period for emphasis
+- Toast notifications: under 4 words where possible, no punctuation except a period for emphasis. Album-specific toasts include the full title with no truncation: `"[Title]" kept.` / `"[Title]" added to Wantlist.` / `"[Title]" removed.` Error toasts, session toasts, sync toasts, and settings toasts remain generic.
 - The plural of vinyl is vinyl
 - "Wantlist" is one word — never "want list" or "want-list"
 
@@ -454,6 +476,10 @@ Do NOT set a custom `User-Agent` header — browsers block it as a forbidden hea
 All API integration code goes in `discogs-api.ts`. No Discogs fetch calls anywhere else.
 
 **sessionStorage** is permitted in one place only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`. No other sessionStorage usage is permitted anywhere in the codebase.
+
+**skipPrivateFields**
+
+`fetchCollection` accepts an optional `{ skipPrivateFields: true }` param. When set, skips `fetchCustomFields` and `fetchFolderMap` calls which always return 403 for other users' collections. Always pass this when fetching followed users' collections.
 
 **Multi-folder dedup behavior**
 

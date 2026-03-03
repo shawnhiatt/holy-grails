@@ -4,35 +4,48 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
-## 0.3.2 — 2026-03-02
+## 0.3.1 — 2026-03-03
 
-### API Optimization — Pass 2
+### Following Feed Cache
+- Added `following_feed` Convex table caching the 50 most recent albums per followed user (up to 25 users, 24h TTL per user)
+- Feed Recent Activity and From the Depths cards now render from Convex cache at startup, no longer requiring the Following screen to be visited first
+- Following feed sync runs during startup after collection/wantlist sync with rate-limited sequential fetches
 
-#### Performance
-- Cache wantlist in Convex with 24h TTL — on cache-fresh loads, wantlist hydrates from Convex instead of fetching from Discogs
-- Cache collection value in Convex with 24h TTL — skip Discogs `/collection/value` fetch on cache-fresh loads
-- Wantlist add/remove operations keep Convex cache in sync (fire-and-forget mutations)
-- New Convex `wantlist` table with `by_username` and `by_username_release` indexes
-- New `collection_value` and `collection_value_synced_at` fields on Convex `users` table
+### API Optimization (Passes 1 + 2)
+- **Image sizes**: `thumb` (150px) for list rows, artwork grid, compact cards; `cover` (500px) for detail panels, grid cards, depths cards. Added `thumb` field to `Album` type, Convex `collection` schema, and all grid/list components.
+- **skipPrivateFields**: `fetchCollection` skips `fetchCustomFields` and `fetchFolderMap` for other users' collections (always 403). Skip `fetchUserProfile` on cache load when avatar is already stored in Convex.
+- **Avatar cache**: Followed user avatars stored in `following` Convex table (`avatar_url` field), populated on first follow and refreshed during Following screen hydration
+- **Wantlist cache**: Wantlist mirrored in `wantlist` Convex table with 24h TTL synced alongside collection. Write operations (add/remove) update both local state and Convex on success. New Convex `wantlist` table with `by_username` and `by_username_release` indexes.
+- **Collection value cache**: `collection_value` and `collection_value_synced_at` stored on the Convex `users` table — skip Discogs `/collection/value` fetch on cache-fresh loads
 
-#### Fixed
-- Wantlist and following artwork grids now use shared `AlbumArtworkGrid` component — consistent 4 cols mobile, 8 cols desktop
-- Wantlist artwork view text truncation switched from `truncate` class to inline styles (iOS Safari fix)
-- Following artwork view now uses `thumb` field for grid images (was using full-size `cover` only)
+### Terminology
+- Renamed "Friends" to "Following" across all screens, routes, and Convex tables (`friends-screen.tsx` → `following-screen.tsx`, `friends` → `following`)
 
----
+### Shared Components
+- **AlbumArtworkGrid**: Unified artwork grid component used across Collection, Following, and Wantlist screens for consistent card sizing and layout. Wantlist and Following artwork grids now use shared component — consistent 4 cols mobile, 8 cols desktop. Following artwork view now uses `thumb` field for grid images.
+- **WantlistHeartButton**: Shared wantlist add/remove button with `"overlay"` and `"inline"` variants. Handles state check, confirmation SlideOutPanel, Discogs API call, Disc3 loading spinner, and toast notifications. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
 
-## 0.3.1 — 2026-03-02
+### master_id Matching
+- `master_id` now stored on `Album`, `WantItem`, and `FeedAlbum` objects
+- "In Collection" and heart filled state check both `release_id` and `master_id` to match across different pressings of the same recording
+- `isInWants` and `isInCollection` context helpers accept optional `masterId` parameter
+- Feed and Following screens build `ownMasterIds` / `wantMasterIds` Sets for O(1) lookups
+- Following feed cache bypasses 24h TTL when stored data lacks `master_id` (one-time migration)
 
-### API Optimization — Pass 1
+### Toast Notifications
+- Album-specific toasts now include the full title with no truncation: `"[Title]" kept.` / `"[Title]" added to Wantlist.` / `"[Title]" removed.`
+- Removed hardcoded 20-character truncation from purge and wantlist toasts
 
-#### Performance
-- Use `thumb` field from Discogs API for grid/list views, reducing image payload
-- Skip private collection fields during sync (`skipPrivateFields` option on `fetchCollection`)
-- Skip `fetchUserProfile` on cache load when avatar is already stored in Convex
+### Wantlist Confirmation Dialogs
+- All wantlist add/remove confirmations standardized on SlideOutPanel bottom-sheet pattern
+- Following screen remove confirmation migrated from fixed centered modal to SlideOutPanel matching Feed screen pattern
 
-#### Infrastructure
-- Added `thumb` field to `Album` type, Convex `collection` schema, and all grid/list components
+### Feed Recent Activity
+- Followed user avatars now render in Recent Activity cards (previously always showed text initial fallback)
+- Avatar URLs read from `following` Convex table via `followingAvatars` context map
+
+### iOS Safari
+- Wantlist artwork view text truncation switched from `truncate` class to inline styles
 
 ---
 
