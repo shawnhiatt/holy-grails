@@ -11,7 +11,7 @@ import {
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import type { Friend } from "./discogs-api";
+import type { FollowingFeedEntry } from "./app-context";
 import type { Screen } from "./app-context";
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
@@ -126,19 +126,19 @@ interface FeedActivity {
   displayDate: string;
 }
 
-function buildFeedActivity(friends: Friend[], max: number): FeedActivity[] {
+function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number): FeedActivity[] {
   const items: FeedActivity[] = [];
-  for (const friend of friends) {
-    if (friend.isPrivate || friend.collection.length === 0) continue;
-    const sorted = [...friend.collection]
+  for (const entry of feedEntries) {
+    if (entry.recent_albums.length === 0) continue;
+    const sorted = [...entry.recent_albums]
       .sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""))
       .slice(0, 4);
     sorted.forEach((album) => {
       items.push({
-        id: `feed-${friend.id}-${album.id}`,
-        friendId: friend.id,
-        friendUsername: friend.username,
-        friendAvatar: friend.avatar,
+        id: `feed-${entry.followed_username}-${album.release_id}`,
+        friendId: `f-${entry.followed_username}`,
+        friendUsername: entry.followed_username,
+        friendAvatar: "",
         albumTitle: album.title,
         albumArtist: album.artist,
         albumCover: album.cover,
@@ -173,7 +173,7 @@ export function FeedScreen() {
   const {
     albums,
     wants,
-    friends,
+    followingFeed,
     lastPlayed,
     setScreen,
     setSelectedAlbumId,
@@ -188,6 +188,7 @@ export function FeedScreen() {
     addToWantList,
     discogsUsername,
     setPurgeTag,
+    isSyncing,
   } = useApp();
 
   // Track items that were just added to want list (for heart animation)
@@ -218,7 +219,7 @@ export function FeedScreen() {
     return shuffled.slice(0, Math.min(10, shuffled.length));
   });
 
-  const friendActivity = useMemo(() => buildFeedActivity(friends, 5), [friends]);
+  const friendActivity = useMemo(() => buildFeedActivity(followingFeed, 5), [followingFeed]);
 
   const unratedCount = useMemo(
     () => albums.filter((a) => !a.purgeTag).length,
@@ -349,7 +350,7 @@ export function FeedScreen() {
   }, [purgeEvalAlbum, setPurgeTag, getNextPurgeAlbum, isDarkMode]);
 
   const hasData = albums.length > 0;
-  const hasFriends = friends.length > 0;
+  const hasFriends = followingFeed.length > 0;
 
   const cardBg = "var(--c-surface)";
   const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
@@ -648,6 +649,17 @@ export function FeedScreen() {
             );
           })}
         </>
+      ) : isSyncing ? (
+        <div
+          className="flex items-center justify-center px-[16px] py-[24px]"
+          style={{
+            borderColor: "var(--c-border)",
+            borderTopWidth: "1px",
+            borderTopStyle: "solid" as const,
+          }}
+        >
+          <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
+        </div>
       ) : (
         <div
           className="flex flex-col items-center justify-center px-[16px] py-[20px]"
