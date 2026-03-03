@@ -21,6 +21,8 @@ import {
   type FeedAlbum,
   clearCollectionValue,
   clearAllMarketData,
+  setCollectionValueCache,
+  type CollectionValue,
 } from "./discogs-api";
 
 // --- HMR-safe context singleton ---
@@ -322,6 +324,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearSessionMut = useMutation(api.users.clearSession);
   const replaceCollectionMut = useMutation(api.collection.replaceAll);
   const updateInstanceMut = useMutation(api.collection.updateInstance);
+  const updateCollectionValueMut = useMutation(api.users.updateCollectionValue);
   const replaceWantlistMut = useMutation(api.wantlist.replaceAll);
   const addWantlistItemMut = useMutation(api.wantlist.addItem);
   const removeWantlistItemMut = useMutation(api.wantlist.removeItem);
@@ -551,10 +554,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         }
 
-        // Fetch collection value in background
-        fetchCollectionValue(discogsUsername, auth).catch((e) => {
-          console.warn("[Cache load] Collection value fetch failed:", e);
-        });
+        // Restore collection value from Convex cache, or fetch from Discogs
+        const cachedValue = convexUser?.collection_value;
+        const valueSyncedAt = convexUser?.collection_value_synced_at;
+        if (cachedValue && valueSyncedAt && (Date.now() - valueSyncedAt) < TWENTY_FOUR_HOURS) {
+          try {
+            const parsed: CollectionValue = JSON.parse(cachedValue);
+            setCollectionValueCache(parsed);
+          } catch { /* invalid JSON — fall through to Discogs fetch */ }
+        } else {
+          fetchCollectionValue(discogsUsername, auth).then((val) => {
+            updateCollectionValueMut({
+              discogs_username: discogsUsername,
+              collection_value: JSON.stringify(val),
+            }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
+          }).catch((e) => {
+            console.warn("[Cache load] Collection value fetch failed:", e);
+          });
+        }
 
         // Fetch avatar in background — skip if already set from Convex
         if (!convexUser?.discogs_avatar_url) {
@@ -1231,10 +1248,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       setSyncProgress("");
 
-      // Fetch collection value
+      // Fetch collection value and cache in Convex
       setSyncProgress("Fetching collection value...");
       try {
-        await fetchCollectionValue(username, auth);
+        const val = await fetchCollectionValue(username, auth);
+        updateCollectionValueMut({
+          discogs_username: username,
+          collection_value: JSON.stringify(val),
+        }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
       } catch (e) {
         console.warn("[Discogs] Collection value fetch failed:", e);
       }
@@ -1344,7 +1365,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, upsertFollowingFeedMut]);
+  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, updateCollectionValueMut, upsertFollowingFeedMut]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);

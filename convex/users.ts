@@ -72,6 +72,28 @@ export const updateLastSynced = mutation({
   },
 });
 
+export const updateCollectionValue = mutation({
+  args: {
+    discogs_username: v.string(),
+    collection_value: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", args.discogs_username)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        collection_value: args.collection_value,
+        collection_value_synced_at: Date.now(),
+      });
+    }
+  },
+});
+
 export const clearSession = mutation({
   args: { discogs_username: v.string() },
   handler: async (ctx, args) => {

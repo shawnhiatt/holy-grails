@@ -9,6 +9,8 @@ export default defineSchema({
     token_secret: v.string(),
     created_at: v.number(),
     last_synced_at: v.optional(v.number()),
+    collection_value: v.optional(v.string()),
+    collection_value_synced_at: v.optional(v.number()),
   }).index("by_username", ["discogs_username"]),
 
   purge_tags: defineTable({

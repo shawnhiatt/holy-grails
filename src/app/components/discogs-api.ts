@@ -716,6 +716,11 @@ export async function fetchCollectionValue(
   return value;
 }
 
+/** Pre-populate the in-memory collection value cache (used when restoring from Convex) */
+export function setCollectionValueCache(value: CollectionValue): void {
+  _collectionValue = value;
+}
+
 /** Clear the cached collection value entirely (returns getCachedCollectionValue → null) */
 export function clearCollectionValue(): void {
   _collectionValue = null;
