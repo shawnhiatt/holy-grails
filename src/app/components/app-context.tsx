@@ -172,6 +172,7 @@ interface AppState {
   discogsAuth: DiscogsAuth | null;
   // Following feed cache (startup-synced)
   followingFeed: FollowingFeedEntry[];
+  followingAvatars: Map<string, string>;
 }
 
 const AppContext = getOrCreateContext();
@@ -319,6 +320,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsertWantPriorityMut = useMutation(api.want_priorities.upsert);
   const addFollowingMut = useMutation(api.following.add);
   const removeFollowingMut = useMutation(api.following.remove);
+  const updateAvatarMut = useMutation(api.following.updateAvatar);
   const upsertPreferencesMut = useMutation(api.preferences.upsert);
   const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
@@ -344,6 +346,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   wantlistRef.current = convexWantlist;
   const followingFeedRef = useRef(convexFollowingFeed);
   followingFeedRef.current = convexFollowingFeed;
+
+  // Avatar lookup for followed users (username → avatar_url)
+  const followingAvatars = useMemo(() => {
+    const map = new Map<string, string>();
+    if (convexFollowing) {
+      for (const entry of convexFollowing) {
+        const avatar = (entry as any).avatar_url as string | undefined;
+        if (avatar) map.set(entry.following_username, avatar);
+      }
+    }
+    return map;
+  }, [convexFollowing]);
 
   // Track one-time hydration from Convex → local state
   const hydratedRef = useRef({
@@ -713,6 +727,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (prev.some(f => f.username.toLowerCase() === followedUser.username.toLowerCase())) return prev;
             return [...prev, followedUser];
           });
+          // Persist avatar to Convex following table for feed usage
+          if (profile.avatar && discogsUsername) {
+            updateAvatarMut({
+              discogs_username: discogsUsername,
+              following_username: username,
+              avatar_url: profile.avatar,
+            }).catch(() => {});
+          }
         } catch (e) {
           console.warn(`[Following] Could not restore @${username}:`, e);
         }
@@ -1110,7 +1132,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addFollowedUser = useCallback((user: FollowedUser) => {
     setFollowedUsers((prev) => [...prev, user]);
     if (discogsUsername) {
-      addFollowingMut({ discogs_username: discogsUsername, following_username: user.username });
+      addFollowingMut({
+        discogs_username: discogsUsername,
+        following_username: user.username,
+        avatar_url: user.avatar || undefined,
+      });
     }
   }, [discogsUsername, addFollowingMut]);
 
@@ -1825,6 +1851,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAuthLoading,
       discogsAuth,
       followingFeed,
+      followingAvatars,
     }),
     [
       screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, followedUsers,
@@ -1861,7 +1888,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedWantItem,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
-      followingFeed,
+      followingFeed, followingAvatars,
     ]
   );
 

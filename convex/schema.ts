@@ -51,6 +51,7 @@ export default defineSchema({
     discogs_username: v.string(),
     following_username: v.string(),
     followed_at: v.number(),
+    avatar_url: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
 
   collection: defineTable({

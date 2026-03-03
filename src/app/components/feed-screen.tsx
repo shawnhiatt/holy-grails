@@ -130,7 +130,7 @@ interface FeedActivity {
   displayDate: string;
 }
 
-function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number): FeedActivity[] {
+function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number, avatarMap?: Map<string, string>): FeedActivity[] {
   const items: FeedActivity[] = [];
   for (const entry of feedEntries) {
     if (entry.recent_albums.length === 0) continue;
@@ -142,7 +142,7 @@ function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number): Feed
         id: `feed-${entry.followed_username}-${album.release_id}`,
         followedId: `f-${entry.followed_username}`,
         followedUsername: entry.followed_username,
-        followedAvatar: "",
+        followedAvatar: avatarMap?.get(entry.followed_username) || "",
         albumTitle: album.title,
         albumArtist: album.artist,
         albumThumb: album.thumb || "",
@@ -196,6 +196,7 @@ export function FeedScreen() {
     discogsUsername,
     setPurgeTag,
     isSyncing,
+    followingAvatars,
   } = useApp();
 
   // Per-item in-flight tracking for wantlist API calls
@@ -231,7 +232,7 @@ export function FeedScreen() {
     return shuffled.slice(0, Math.min(10, shuffled.length));
   });
 
-  const followingActivity = useMemo(() => buildFeedActivity(followingFeed, 5), [followingFeed]);
+  const followingActivity = useMemo(() => buildFeedActivity(followingFeed, 5, followingAvatars), [followingFeed, followingAvatars]);
 
   const unratedCount = useMemo(
     () => albums.filter((a) => !a.purgeTag).length,
