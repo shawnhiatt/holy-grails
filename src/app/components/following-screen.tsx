@@ -1,18 +1,18 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
   UserPlus, ArrowLeft, Search, ChevronRight, UserMinus, Lock,
   Disc3, Users, Grid2x2, List, ExternalLink, Grid3x3,
-  Heart,
+  Heart, X,
 } from "lucide-react";
-import { motion, AnimatePresence, type PanInfo } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
 import { toast } from "sonner";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useApp, type ViewMode, type Screen } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { Album, FollowedUser, WantItem } from "./discogs-api";
-import { EASE_IN_OUT, EASE_OUT, DURATION_NORMAL, DURATION_FAST } from "./motion-tokens";
+import { EASE_IN_OUT, EASE_OUT, EASE_IN, DURATION_NORMAL, DURATION_FAST, DURATION_SLOW } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
@@ -397,7 +397,6 @@ function FollowedUserProfile({
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [crateIndex, setCrateIndex] = useState(0);
   const { isDarkMode } = useApp();
 
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
@@ -725,7 +724,7 @@ function FollowedUserProfile({
             )}
 
             {viewMode === "crate" ? (
-              <FollowedUserCrateView items={displayItems} crateIndex={crateIndex} setCrateIndex={setCrateIndex} />
+              <FollowedUserCrateView items={displayItems} />
             ) : viewMode === "list" ? (
               <FollowedUserListView items={displayItems} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} />
             ) : (
@@ -784,57 +783,301 @@ function FollowedUserProfile({
   );
 }
 
-/* ====== Crate (single-card) view ====== */
-function FollowedUserCrateView({ items, crateIndex, setCrateIndex }: {
-  items: (Album | WantItem)[];
-  crateIndex: number;
-  setCrateIndex: (i: number) => void;
-}) {
-  const safeIndex = Math.min(crateIndex, items.length - 1);
-  const current = items[safeIndex];
-  if (!current) return null;
+/* ====== Crate (swiper) view ====== */
+function FollowedUserCrateView({ items }: { items: (Album | WantItem)[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const dragY = useMotionValue(0);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
+  const suppressNextClick = useRef(false);
+  const [lightboxActive, setLightboxActive] = useState(false);
+
+  // Reset index when items change
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [items]);
+
+  // Clamp index to valid range
+  const safeIndex = Math.min(currentIndex, Math.max(0, items.length - 1));
+
+  // Idle timer: auto-dismiss lightbox after 3s of inactivity
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => { setLightboxActive(false); }, 3000);
+  }, []);
+
+  useEffect(() => {
+    if (!lightboxActive && idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
+    if (lightboxActive) resetIdleTimer();
+    return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
+  }, [lightboxActive, resetIdleTimer]);
+
+  const goNext = useCallback(() => {
+    setCurrentIndex((prev) => Math.min(prev + 1, items.length - 1));
+  }, [items.length]);
+
+  const goPrev = useCallback(() => {
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      const threshold = 60;
+      let didSwipe = false;
+      if (info.offset.y < -threshold) {
+        goNext();
+        didSwipe = true;
+      } else if (info.offset.y > threshold) {
+        goPrev();
+        didSwipe = true;
+      }
+      if (didSwipe) {
+        if (!lightboxActive) setLightboxActive(true);
+        resetIdleTimer();
+      }
+    },
+    [goNext, goPrev, lightboxActive, resetIdleTimer]
+  );
+
+  const handleCardTap = useCallback((item: Album | WantItem) => {
+    window.open(`https://www.discogs.com/release/${item.release_id}`, "_blank", "noopener,noreferrer");
+  }, []);
+
+  if (items.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center px-[24px]">
+        <p style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-muted)" }}>No albums to flip through</p>
+      </div>
+    );
+  }
+
+  const currentItem = items[safeIndex];
+
+  // Stack: show current + up to 2 behind
+  const stackIndices: number[] = [];
+  for (let i = 0; i < Math.min(3, items.length - safeIndex); i++) {
+    stackIndices.push(safeIndex + i);
+  }
+
+  const baseOpacity = lightboxActive ? 0.08 : 0.15;
 
   return (
-    <div className="flex flex-col items-center px-[16px] lg:px-[24px] py-6 gap-4">
-      <div className="relative w-full max-w-[calc(100vw-32px)] lg:max-w-[620px]">
+    <div className="flex-1 flex flex-col items-center overflow-hidden relative">
+      {/* Lightbox overlay */}
+      <AnimatePresence>
+        {lightboxActive && (
+          <motion.div
+            className="fixed inset-x-0 top-0 bottom-[72px] lg:bottom-0 z-[100] cursor-pointer"
+            style={{ backgroundColor: "rgba(0, 0, 0, 0.7)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: DURATION_SLOW, ease: EASE_IN } }}
+            transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+            onClick={(e) => { if (e.target === e.currentTarget) setLightboxActive(false); }}
+          >
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxActive(false); }}
+              className="absolute right-5 w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/80 hover:text-white hover:bg-white/25 transition-all z-10"
+              style={{ top: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+            >
+              <X size={20} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Card stack area */}
+      <div className="relative w-full flex-1 flex items-center justify-center px-[16px] lg:px-[24px]">
         <motion.div
-          key={current.id}
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.25 }}
-          className="rounded-[14px] overflow-hidden"
-          style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}
+          className="relative w-full max-w-[calc(100vw-32px)] lg:max-w-[620px]"
+          style={{ aspectRatio: "1 / 1", zIndex: lightboxActive ? 101 : "auto" }}
+          animate={{ scale: lightboxActive ? 1.05 : 1 }}
+          transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         >
-          <img src={current.cover} alt={current.title} className="w-full aspect-square object-cover" />
+          <AnimatePresence mode="popLayout">
+            {stackIndices.reverse().map((idx, stackPos) => {
+              const reversePos = stackIndices.length - 1 - stackPos;
+              const item = items[idx];
+              const isCurrent = idx === safeIndex;
+              const offsetY = reversePos * 8;
+              const scale = 1 - reversePos * 0.04;
+
+              return (
+                <motion.div
+                  key={item.id}
+                  className="absolute inset-0 rounded-[14px] overflow-hidden cursor-pointer"
+                  style={{
+                    boxShadow: isCurrent
+                      ? "0 8px 32px rgba(0,0,0,0.25)"
+                      : "0 4px 16px rgba(0,0,0,0.15)",
+                    zIndex: 10 - reversePos,
+                    y: isCurrent ? dragY : offsetY,
+                    scale: isCurrent ? 1 : scale,
+                    pointerEvents: isCurrent ? "auto" : "none",
+                    opacity: isCurrent ? 1 : Math.max(baseOpacity, 1 - reversePos * (1 - baseOpacity) / 1.5),
+                  }}
+                  initial={{ scale: 0.92, opacity: 0 }}
+                  animate={{ scale: isCurrent ? 1 : scale, opacity: 1, y: isCurrent ? 0 : offsetY }}
+                  exit={{ scale: 0.92, opacity: 0, y: -100 }}
+                  transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+                  {...(isCurrent
+                    ? {
+                        drag: "y",
+                        dragConstraints: { top: 0, bottom: 0 },
+                        dragElastic: 0.4,
+                        onDragEnd: handleDragEnd,
+                      }
+                    : {})}
+                  onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; suppressNextClick.current = false; }}
+                  onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                  onTouchEnd={() => { if (isCurrent && touchState.current && !touchState.current.moved) { suppressNextClick.current = true; handleCardTap(item); } touchState.current = null; }}
+                  onClick={() => { if (suppressNextClick.current) { suppressNextClick.current = false; return; } if (isCurrent) handleCardTap(item); }}
+                >
+                  {/* Cover art */}
+                  <img
+                    src={item.cover}
+                    alt={`${item.artist} - ${item.title}`}
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
+
+                  {/* Bottom gradient overlay */}
+                  <div
+                    className="absolute inset-x-0 bottom-0 pointer-events-none"
+                    style={{
+                      height: "55%",
+                      background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)",
+                    }}
+                  />
+
+                  {/* Metadata overlay */}
+                  <div className="absolute inset-x-0 bottom-0 p-4" style={{ minWidth: 0, overflow: "hidden" }}>
+                    <p
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 600,
+                        fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                        color: "#FFFFFF",
+                        lineHeight: 1.25,
+                        textShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                        display: "block",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        WebkitTextOverflow: "ellipsis",
+                        maxWidth: "100%",
+                      } as React.CSSProperties}
+                    >
+                      {item.title}
+                    </p>
+                    <p
+                      className="mt-0.5"
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 400,
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        color: "rgba(255,255,255,0.85)",
+                        textShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                        display: "block",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        WebkitTextOverflow: "ellipsis",
+                        maxWidth: "100%",
+                      } as React.CSSProperties}
+                    >
+                      {item.artist}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1.5" style={{ minWidth: 0, overflow: "hidden" }}>
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 400,
+                          fontFamily: "'DM Sans', system-ui, sans-serif",
+                          color: "rgba(255,255,255,0.65)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {item.year}
+                      </span>
+                      {/* Discogs link */}
+                      <a
+                        href={`https://www.discogs.com/release/${item.release_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 transition-opacity hover:opacity-80 pointer-events-auto"
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        style={{ flexShrink: 0 }}
+                      >
+                        <span style={{ fontSize: "11px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "rgba(255,255,255,0.55)" }}>Discogs</span>
+                        <ExternalLink size={9} style={{ color: "rgba(255,255,255,0.45)" }} />
+                      </a>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </motion.div>
       </div>
-      <div className="text-center max-w-[calc(100vw-32px)] lg:max-w-[620px]">
-        <p style={{ fontSize: "18px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-          {current.title}
-        </p>
-        <p className="mt-0.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-          {current.artist} &middot; {current.year}
-        </p>
-      </div>
-      <div className="flex items-center gap-4">
+
+      {/* Navigation controls */}
+      <div className="flex items-center gap-4 pb-3 pt-2" style={{ paddingBottom: "calc(12px + var(--nav-clearance, 0px))", zIndex: lightboxActive ? 101 : "auto" }}>
         <button
-          onClick={() => setCrateIndex(Math.max(0, safeIndex - 1))}
+          onClick={() => { goPrev(); if (lightboxActive) resetIdleTimer(); }}
           disabled={safeIndex === 0}
-          className="w-10 h-10 rounded-full flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer"
-          style={{ backgroundColor: "var(--c-chip-bg)", color: "var(--c-text)" }}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all tappable ${
+            lightboxActive ? "bg-white/10 border border-white/20 text-white/70 hover:bg-white/20 hover:text-white" : ""
+          }`}
+          style={!lightboxActive ? {
+            backgroundColor: "var(--c-chip-bg)",
+            color: "var(--c-text-secondary)",
+            opacity: safeIndex === 0 ? 0.35 : 1,
+            transform: "rotate(90deg)",
+          } : {
+            opacity: safeIndex === 0 ? 0.35 : 1,
+            transform: "rotate(90deg)",
+          }}
         >
-          <ArrowLeft size={18} />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </button>
-        <span style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-muted)" }}>
+
+        <span
+          style={{
+            fontSize: "13px",
+            fontWeight: 500,
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            color: lightboxActive ? "rgba(255,255,255,0.7)" : "var(--c-text-muted)",
+            minWidth: "60px",
+            textAlign: "center",
+            transition: "color 200ms ease-out",
+          }}
+        >
           {safeIndex + 1} / {items.length}
         </span>
+
         <button
-          onClick={() => setCrateIndex(Math.min(items.length - 1, safeIndex + 1))}
+          onClick={() => { goNext(); if (lightboxActive) resetIdleTimer(); }}
           disabled={safeIndex >= items.length - 1}
-          className="w-10 h-10 rounded-full flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer"
-          style={{ backgroundColor: "var(--c-chip-bg)", color: "var(--c-text)", transform: "rotate(180deg)" }}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all tappable ${
+            lightboxActive ? "bg-white/10 border border-white/20 text-white/70 hover:bg-white/20 hover:text-white" : ""
+          }`}
+          style={!lightboxActive ? {
+            backgroundColor: "var(--c-chip-bg)",
+            color: "var(--c-text-secondary)",
+            opacity: safeIndex >= items.length - 1 ? 0.35 : 1,
+            transform: "rotate(90deg)",
+          } : {
+            opacity: safeIndex >= items.length - 1 ? 0.35 : 1,
+            transform: "rotate(90deg)",
+          }}
         >
-          <ArrowLeft size={18} />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </button>
       </div>
     </div>

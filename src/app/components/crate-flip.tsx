@@ -16,7 +16,7 @@ interface CrateFlipProps {
 export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightboxDeactivate }: CrateFlipProps) {
   const {
     setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed,
-    openSessionPicker, isAlbumInAnySession,
+    openSessionPicker, isAlbumInAnySession, hideGalleryMeta,
   } = useApp();
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -180,15 +180,18 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
                   />
 
                   {/* Bottom gradient overlay */}
-                  <div
-                    className="absolute inset-x-0 bottom-0 pointer-events-none"
-                    style={{
-                      height: "55%",
-                      background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)",
-                    }}
-                  />
+                  {!hideGalleryMeta && (
+                    <div
+                      className="absolute inset-x-0 bottom-0 pointer-events-none"
+                      style={{
+                        height: "55%",
+                        background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)",
+                      }}
+                    />
+                  )}
 
                   {/* Metadata overlay */}
+                  {!hideGalleryMeta && (
                   <div className="absolute inset-x-0 bottom-0 p-4" style={{ minWidth: 0, overflow: "hidden" }}>
                     <p
                       style={{
@@ -284,6 +287,7 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
                       )}
                     </div>
                   </div>
+                  )}
 
                   {/* Bookmark icon */}
                   <button
