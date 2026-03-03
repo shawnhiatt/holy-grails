@@ -1021,10 +1021,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const friend = prev.find(f => f.id === friendId);
       if (friend && discogsUsername) {
         removeFollowingMut({ discogs_username: discogsUsername, following_username: friend.username });
+        deleteFollowingFeedMut({ follower_username: discogsUsername, followed_username: friend.username });
+        setFollowingFeed((feedPrev) => feedPrev.filter(e => e.followed_username !== friend.username));
       }
       return prev.filter((f) => f.id !== friendId);
     });
-  }, [discogsUsername, removeFollowingMut]);
+  }, [discogsUsername, removeFollowingMut, deleteFollowingFeedMut]);
 
   // ── Sync from Discogs ──
 
