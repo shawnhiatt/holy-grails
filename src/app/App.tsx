@@ -57,25 +57,21 @@ function AppContent() {
     setScreen, discogsToken,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     headerHidden, sessionPickerAlbumId,
-    isAuthenticated, isAuthLoading, isSyncing, syncProgress, loginWithOAuth,
+    isAuthenticated, isAuthLoading, isSyncing, isSyncingFollowing, syncProgress, loginWithOAuth,
     shakeToRandom,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
   const [shakeEntrance, setShakeEntrance] = useState(false);
 
-  // Three-phase state machine for the initial loading screen:
-  //   'idle'     — not started or fully done; no loading screen
-  //   'syncing'  — isAuthLoading was true; keep loading screen up even after
-  //               albums arrive (isAuthLoading→false), because isSyncing is
-  //               still true (fetchCollectionValue etc. still running)
-  //   'complete' — isSyncing just went false; show progress=100 for 500ms
-  //               then transition back to 'idle'
-  //
-  // The key fix: syncComplete used to fire when isAuthLoading→false, which
-  // happens mid-sync (right after setAlbums). Now we wait for isSyncing→false,
-  // which is the true end-of-sync signal (set in performSync's finally block).
-  const [loadPhase, setLoadPhase] = useState<'idle' | 'syncing' | 'complete'>('idle');
+  // Four-phase state machine for the initial loading screen:
+  //   'idle'               — not started or fully done; no loading screen
+  //   'syncing'            — isAuthLoading was true; keep loading screen up even
+  //                         after albums arrive, because isSyncing is still true
+  //   'syncing_following'  — collection sync done, now syncing followed users' feeds
+  //   'complete'           — isSyncing just went false; show progress=100 for 500ms
+  //                         then transition back to 'idle'
+  const [loadPhase, setLoadPhase] = useState<'idle' | 'syncing' | 'syncing_following' | 'complete'>('idle');
   // Guards against the ~1ms window where isAuthLoading and isSyncing are both
   // false before the actual sync has started. Prevents premature 'complete'.
   const hasSeenSyncingRef = useRef(false);
@@ -90,12 +86,19 @@ function AppContent() {
   // Track when isSyncing goes true during the 'syncing' phase so we know the
   // real sync has actually started and it's safe to complete later.
   useEffect(() => {
-    if (loadPhase === 'syncing' && isSyncing) {
+    if ((loadPhase === 'syncing' || loadPhase === 'syncing_following') && isSyncing) {
       hasSeenSyncingRef.current = true;
     }
   }, [loadPhase, isSyncing]);
 
-  // Exit 'syncing' once isAuthLoading and isSyncing are both false.
+  // Transition syncing → syncing_following when the following feed sync starts
+  useEffect(() => {
+    if (loadPhase === 'syncing' && isSyncingFollowing) {
+      setLoadPhase('syncing_following');
+    }
+  }, [loadPhase, isSyncingFollowing]);
+
+  // Exit 'syncing' or 'syncing_following' once isAuthLoading and isSyncing are both false.
   // Two exit paths:
   //   Authenticated: hasSeenSyncingRef is true (sync ran) → go to 'complete'
   //                  so the progress bar can animate to 100% before dismissing.
@@ -103,7 +106,7 @@ function AppContent() {
   //                  sync never started) → go straight to 'idle' so the splash
   //                  screen is not blocked by a 'syncing' phase that never ends.
   useEffect(() => {
-    if (loadPhase !== 'syncing') return;
+    if (loadPhase !== 'syncing' && loadPhase !== 'syncing_following') return;
     if (isSyncing || isAuthLoading) return;
     if (hasSeenSyncingRef.current) {
       // Authenticated path: sync ran and finished — advance to complete
@@ -316,7 +319,7 @@ function AppContent() {
   // Show loading screen while: albums haven't loaded (isAuthLoading), or the
   // full sync is still running after albums arrive (loadPhase='syncing'), or
   // we're in the 500ms completion window (loadPhase='complete').
-  if (isAuthLoading || loadPhase === 'syncing' || loadPhase === 'complete') {
+  if (isAuthLoading || loadPhase === 'syncing' || loadPhase === 'syncing_following' || loadPhase === 'complete') {
     return <LoadingScreen message={syncProgress || "Syncing collection"} progress={loadPhase === 'complete' ? 100 : undefined} />;
   }
 

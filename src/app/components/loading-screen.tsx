@@ -97,7 +97,7 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
                 whiteSpace: "nowrap",
               }}
             >
-              Fetching your profile...
+              Syncing users you follow (25 of 25)...
             </span>
 
             {/* Centered label + animated ellipsis, overlaid on the ghost */}

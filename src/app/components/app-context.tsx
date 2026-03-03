@@ -131,6 +131,7 @@ interface AppState {
   discogsUsername: string;
   setDiscogsUsername: (u: string) => void;
   isSyncing: boolean;
+  isSyncingFollowing: boolean;
   syncProgress: string;
   lastSynced: string;
   syncFromDiscogs: () => Promise<{ albums: number; folders: number; wants: number }>;
@@ -235,6 +236,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [folders, setFolders] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingFollowing, setIsSyncingFollowing] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
   const [syncFailed, setSyncFailed] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
@@ -1155,6 +1157,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Sync recent albums from followed users for the feed cache.
       // Up to 25 users, most recently followed first. Skips users
       // whose cache is less than 24 hours old.
+      setIsSyncingFollowing(true);
       setSyncProgress("Syncing users you follow");
       try {
         const followingList = followingRef.current;
@@ -1232,6 +1235,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.warn("[FollowingFeed] Sync failed:", e);
+      } finally {
+        setIsSyncingFollowing(false);
       }
 
       setSyncProgress("");
@@ -1649,6 +1654,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       discogsUsername,
       setDiscogsUsername,
       isSyncing,
+      isSyncingFollowing,
       syncProgress,
       lastSynced,
       syncFromDiscogs,
@@ -1710,7 +1716,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       folders,
       discogsToken, setDiscogsToken,
       discogsUsername, setDiscogsUsername,
-      isSyncing, syncProgress, lastSynced,
+      isSyncing, isSyncingFollowing, syncProgress, lastSynced,
       syncFromDiscogs, syncStats,
       userAvatar,
       wipeAllData,
