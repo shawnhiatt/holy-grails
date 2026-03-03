@@ -19,6 +19,7 @@ import { purgeIndicatorColor, purgeTagColor, purgeButtonBg, purgeButtonText, pur
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
+import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial, toastTitle } from "../utils/format";
 
@@ -455,7 +456,22 @@ export function FeedScreen() {
                 minWidth: 0,
               }}
             >
-              <DepthsAlbumCard album={album} onTap={handleDepthsTap} />
+              <DepthsAlbumCard
+                album={album}
+                onTap={handleDepthsTap}
+                overlay={
+                  <WantlistHeartButton
+                    releaseId={album.release_id}
+                    title={album.title}
+                    artist={album.artist}
+                    cover={album.cover}
+                    thumb={album.thumb}
+                    year={album.year}
+                    label={album.label}
+                    variant="overlay"
+                  />
+                }
+              />
             </div>
           ))}
           {/* Spacer div to enforce right padding in scroll container */}
@@ -473,7 +489,23 @@ export function FeedScreen() {
           }}
         >
           {depthsAlbums.slice(0, 4).map((album) => (
-            <DepthsAlbumCard key={`depths-desk-${album.id}`} album={album} onTap={handleDepthsTap} />
+            <DepthsAlbumCard
+              key={`depths-desk-${album.id}`}
+              album={album}
+              onTap={handleDepthsTap}
+              overlay={
+                <WantlistHeartButton
+                  releaseId={album.release_id}
+                  title={album.title}
+                  artist={album.artist}
+                  cover={album.cover}
+                  thumb={album.thumb}
+                  year={album.year}
+                  label={album.label}
+                  variant="overlay"
+                />
+              }
+            />
           ))}
         </div>
       </div>

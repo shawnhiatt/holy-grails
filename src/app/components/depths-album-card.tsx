@@ -27,6 +27,8 @@ export interface DepthsAlbumCardProps {
   eyebrow?: ReactNode;
   /** Optional content rendered below metadata (e.g. "View their collection" link) */
   footer?: ReactNode;
+  /** Optional content rendered as an overlay on the artwork (e.g. heart button) */
+  overlay?: ReactNode;
   /** Override the date line text. Defaults to "Added [Month Year]" */
   dateLine?: string;
   /** If true, artwork has horizontal padding (used in following cards) */
@@ -38,6 +40,7 @@ export function DepthsAlbumCard({
   onTap,
   eyebrow,
   footer,
+  overlay,
   dateLine,
   artworkPadded = false,
 }: DepthsAlbumCardProps) {
@@ -64,12 +67,14 @@ export function DepthsAlbumCard({
           overflow: "hidden",
           borderRadius: artworkPadded ? "8px" : "8px 8px 0 0",
           flexShrink: 0,
+          position: "relative",
         }}>
           <img
             src={album.cover}
             alt={`${album.title} by ${album.artist}`}
             className="w-full h-full object-cover object-center block"
           />
+          {overlay}
         </div>
       </div>
 

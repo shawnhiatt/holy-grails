@@ -16,6 +16,7 @@ import { EASE_IN_OUT, EASE_OUT, EASE_IN, DURATION_NORMAL, DURATION_FAST, DURATIO
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
+import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
 import { Skeleton } from "./ui/skeleton";
 import { formatActivityDate, formatCollectionSince, getInitial, toastTitle } from "../utils/format";
@@ -1102,11 +1103,25 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
         renderAction={() => null}
         renderIndicator={(item) => {
           const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
-          if (!badge) return null;
           return (
-            <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff" }}>
-              {badge.label}
-            </div>
+            <>
+              {badge && (
+                <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff", zIndex: 1 }}>
+                  {badge.label}
+                </div>
+              )}
+              <WantlistHeartButton
+                releaseId={item.release_id}
+                title={item.title}
+                artist={item.artist}
+                cover={item.cover}
+                thumb={item.thumb}
+                year={0}
+                label=""
+                size={16}
+                variant="overlay"
+              />
+            </>
           );
         }}
       />
@@ -1127,10 +1142,21 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
             <div className="relative aspect-square overflow-hidden">
               <img src={item.cover} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
               {badge && (
-                <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff" }}>
+                <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff", zIndex: 1 }}>
                   {badge.label}
                 </div>
               )}
+              <WantlistHeartButton
+                releaseId={item.release_id}
+                title={item.title}
+                artist={item.artist}
+                cover={item.cover}
+                thumb={"thumb" in item ? (item as any).thumb : undefined}
+                year={item.year}
+                label={"label" in item ? (item as any).label : ""}
+                size={16}
+                variant="overlay"
+              />
             </div>
             <div className="px-2.5 pt-2 pb-2.5" style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: "13px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: "1.25", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
@@ -1166,6 +1192,17 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds 
                 {badge.label}
               </span>
             )}
+            <WantlistHeartButton
+              releaseId={item.release_id}
+              title={item.title}
+              artist={item.artist}
+              cover={item.cover}
+              thumb={"thumb" in item ? (item as any).thumb : undefined}
+              year={item.year}
+              label={"label" in item ? (item as any).label : ""}
+              size={16}
+              variant="inline"
+            />
           </div>
         );
       })}
@@ -1396,6 +1433,18 @@ function PopulatedFollowingView({
                     onTap={() => onSelectUser(followedUser.id)}
                     artworkPadded
                     dateLine={album.dateAdded ? `In their collection since ${formatCollectionSince(album.dateAdded)}` : undefined}
+                    overlay={
+                      <WantlistHeartButton
+                        releaseId={album.release_id}
+                        title={album.title}
+                        artist={album.artist}
+                        cover={album.cover}
+                        thumb={album.thumb}
+                        year={album.year}
+                        label={album.label}
+                        variant="overlay"
+                      />
+                    }
                     eyebrow={
                       <div className="flex items-center gap-[8px] px-[12px] pt-[12px] pb-[8px]">
                         <div
