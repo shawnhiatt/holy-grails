@@ -1715,28 +1715,45 @@ function PopulatedFollowingView({
       {/* Wantlist removal confirmation */}
       <AnimatePresence>
         {removeWantConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center px-6"
-            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-            onClick={() => setRemoveWantConfirm(null)}
+          <SlideOutPanel
+            onClose={() => { setRemoveWantConfirm(null); setIsRemovingWant(false); }}
+            backdropZIndex={110}
+            sheetZIndex={120}
           >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[320px] rounded-[14px] p-5"
-              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
-            >
-              <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-                Remove {removeWantConfirm.albumTitle} from your wantlist?
+            <div className="flex flex-col items-center px-6 pt-2 pb-4 gap-4">
+              <img
+                src={removeWantConfirm.albumCover}
+                alt={removeWantConfirm.albumTitle}
+                className="w-[80px] h-[80px] rounded-[8px] object-cover"
+              />
+              <div className="text-center" style={{ minWidth: 0, maxWidth: "100%" }}>
+                <p style={{
+                  fontSize: "16px", fontWeight: 600, color: "var(--c-text)",
+                  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                  lineHeight: 1.3,
+                  display: "block", whiteSpace: "nowrap", overflow: "hidden",
+                  textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
+                } as React.CSSProperties}>
+                  {removeWantConfirm.albumTitle}
+                </p>
+                <p className="mt-0.5" style={{
+                  fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  display: "block", whiteSpace: "nowrap", overflow: "hidden",
+                  textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
+                } as React.CSSProperties}>
+                  {removeWantConfirm.albumArtist}
+                </p>
+              </div>
+              <p style={{
+                fontSize: "15px", fontWeight: 500, color: "var(--c-text)",
+                fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "center",
+              }}>
+                Remove from your Wantlist?
               </p>
-              <div className="flex gap-2 mt-4">
+              <div className="flex gap-3 w-full">
                 <button
-                  onClick={() => setRemoveWantConfirm(null)}
+                  onClick={() => { setRemoveWantConfirm(null); setIsRemovingWant(false); }}
                   className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer"
                   style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text)" }}
                 >
@@ -1747,7 +1764,8 @@ function PopulatedFollowingView({
                     setIsRemovingWant(true);
                     try {
                       await removeFromWantList(removeWantConfirm.albumReleaseId);
-                      toast.info(`"${removeWantConfirm.albumTitle}" removed.`);
+                      toast.dismiss();
+                      toast.info(`"${removeWantConfirm.albumTitle}" removed.`, { duration: 2500 });
                       setRemoveWantConfirm(null);
                     } catch (err: any) {
                       console.error("[Following] Remove from wantlist failed:", err);
@@ -1757,8 +1775,12 @@ function PopulatedFollowingView({
                     }
                   }}
                   disabled={isRemovingWant}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] bg-[#FF33B6] text-white transition-colors hover:bg-[#E6009E] cursor-pointer"
-                  style={{ fontSize: "14px", fontWeight: 600, opacity: isRemovingWant ? 0.7 : 1 }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
+                  style={{
+                    fontSize: "14px", fontWeight: 600,
+                    backgroundColor: "#FF33B6", color: "#FFFFFF",
+                    opacity: isRemovingWant ? 0.7 : 1,
+                  }}
                 >
                   {isRemovingWant ? (
                     <>
@@ -1768,8 +1790,8 @@ function PopulatedFollowingView({
                   ) : "Remove"}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </SlideOutPanel>
         )}
       </AnimatePresence>
 
