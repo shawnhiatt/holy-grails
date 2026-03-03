@@ -56,7 +56,7 @@ export interface Session {
   lastModified: string;
 }
 
-export interface Friend {
+export interface FollowedUser {
   id: string;
   username: string;
   avatar: string;

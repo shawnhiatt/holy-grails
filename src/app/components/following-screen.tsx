@@ -9,7 +9,7 @@ import { motion, AnimatePresence, type PanInfo } from "motion/react";
 import { toast } from "sonner";
 import { useApp, type ViewMode, type Screen } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
-import type { Album, Friend, WantItem } from "./discogs-api";
+import type { Album, FollowedUser, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
@@ -20,29 +20,29 @@ import {
   fetchWantlist,
 } from "./discogs-api";
 
-type FriendFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
-type FriendTab = "collection" | "wants";
+type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
+type FollowingTab = "collection" | "wants";
 
-const FRIEND_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
+const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
   { id: "grid", icon: Grid2x2, label: "Grid" },
   { id: "artwork", icon: Grid3x3, label: "Artwork Grid" },
   { id: "list", icon: List, label: "List" },
   { id: "crate", icon: Disc3, label: "Swiper" },
 ];
 
-export function FriendsScreen() {
-  const { friends, addFriend, removeFriend, albums, wants, isAuthenticated, discogsAuth, isDarkMode, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
+export function FollowingScreen() {
+  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, discogsAuth, isDarkMode, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
-  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUsername, setAddUsername] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [addProgress, setAddProgress] = useState("");
   const [addError, setAddError] = useState("");
 
-  const selectedFriend = useMemo(
-    () => friends.find((f) => f.id === selectedFriendId) || null,
-    [friends, selectedFriendId]
+  const selectedUser = useMemo(
+    () => followedUsers.find((f) => f.id === selectedUserId) || null,
+    [followedUsers, selectedUserId]
   );
 
   const handleConnect = useCallback(async () => {
@@ -52,7 +52,7 @@ export function FriendsScreen() {
       setAddError("Connect your Discogs account in Settings first.");
       return;
     }
-    if (friends.some((f) => f.username.toLowerCase() === username.toLowerCase())) {
+    if (followedUsers.some((f) => f.username.toLowerCase() === username.toLowerCase())) {
       setAddError("You're already following this collector.");
       return;
     }
@@ -67,22 +67,22 @@ export function FriendsScreen() {
 
       // 2. Fetch their collection
       setAddProgress("Fetching collection...");
-      let friendAlbums: Album[] = [];
-      let friendFolders: string[] = ["All"];
+      let collectedAlbums: Album[] = [];
+      let collectedFolders: string[] = ["All"];
       try {
         const result = await fetchCollection(
           profile.username,
           discogsAuth,
           (loaded, total) => setAddProgress(`Fetching collection... ${loaded}/${total}`)
         );
-        friendAlbums = result.albums;
-        friendFolders = result.folders;
+        collectedAlbums = result.albums;
+        collectedFolders = result.folders;
       } catch (e: any) {
         // Collection may be private — continue with empty
-        console.warn("[Friends] Could not fetch collection:", e.message);
+        console.warn("[Following] Could not fetch collection:", e.message);
         if (e.message?.includes("403")) {
           // Private collection
-          const newFriend: Friend = {
+          const newUser: FollowedUser = {
             id: "f-" + Date.now(),
             username: profile.username,
             avatar: profile.avatar,
@@ -92,7 +92,7 @@ export function FriendsScreen() {
             collection: [],
             wants: [],
           };
-          addFriend(newFriend);
+          addFollowedUser(newUser);
           setAddUsername("");
           setShowAddForm(false);
           setAddProgress("");
@@ -103,51 +103,51 @@ export function FriendsScreen() {
 
       // 3. Fetch their want list
       setAddProgress("Fetching wantlist...");
-      let friendWants: WantItem[] = [];
+      let collectedWants: WantItem[] = [];
       try {
-        friendWants = await fetchWantlist(
+        collectedWants = await fetchWantlist(
           profile.username,
           discogsAuth,
           (loaded, total) => setAddProgress(`Fetching wants... ${loaded}/${total}`)
         );
       } catch (e: any) {
-        console.warn("[Friends] Could not fetch want list:", e.message);
+        console.warn("[Following] Could not fetch want list:", e.message);
       }
 
-      // 4. Create the friend entry
-      const newFriend: Friend = {
+      // 4. Create the followed user entry
+      const newUser: FollowedUser = {
         id: "f-" + Date.now(),
         username: profile.username,
         avatar: profile.avatar,
         isPrivate: false,
-        folders: friendFolders,
+        folders: collectedFolders,
         lastSynced: new Date().toISOString().split("T")[0],
-        collection: friendAlbums,
-        wants: friendWants,
+        collection: collectedAlbums,
+        wants: collectedWants,
       };
-      addFriend(newFriend);
+      addFollowedUser(newUser);
       setAddUsername("");
       setShowAddForm(false);
       setAddProgress("");
-      toast.success(`Connected with @${profile.username} — ${friendAlbums.length} albums, ${friendWants.length} wants`);
+      toast.success(`Connected with @${profile.username} — ${collectedAlbums.length} albums, ${collectedWants.length} wants`);
     } catch (err: any) {
-      console.error("[Friends] Connect error:", err);
+      console.error("[Following] Connect error:", err);
       setAddError(err?.message || "Failed to connect. Check the username and try again.");
       setAddProgress("");
     } finally {
       setAddLoading(false);
     }
-  }, [addUsername, friends, addFriend, isAuthenticated, discogsAuth]);
+  }, [addUsername, followedUsers, addFollowedUser, isAuthenticated, discogsAuth]);
 
-  if (selectedFriend) {
+  if (selectedUser) {
     return (
-      <FriendProfile
-        friend={selectedFriend}
-        onBack={() => setSelectedFriendId(null)}
+      <FollowedUserProfile
+        user={selectedUser}
+        onBack={() => setSelectedUserId(null)}
         onRemove={() => {
-          removeFriend(selectedFriend.id);
-          setSelectedFriendId(null);
-          toast.success("Unfollowed @" + selectedFriend.username);
+          removeFollowedUser(selectedUser.id);
+          setSelectedUserId(null);
+          toast.success("Unfollowed @" + selectedUser.username);
         }}
         userAlbums={albums}
         userWants={wants}
@@ -175,7 +175,7 @@ export function FriendsScreen() {
         </div>
       </div>
 
-      {/* Add Friend Form */}
+      {/* Add User Form */}
       <AnimatePresence>
         {showAddForm && (
           <motion.div
@@ -236,7 +236,7 @@ export function FriendsScreen() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 80px))" }} onScroll={onHeaderScroll}>
-        {friends.length === 0 ? (
+        {followedUsers.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 py-20">
             <Users size={48} style={{ color: "var(--c-text-faint)" }} />
             <p className="mt-4 text-center" style={{ fontSize: "16px", fontWeight: 500, color: "var(--c-text-muted)" }}>You're not following anyone yet.</p>
@@ -245,9 +245,9 @@ export function FriendsScreen() {
             </p>
           </div>
         ) : (
-          <PopulatedFriendsView
-            friends={friends}
-            onSelectFriend={setSelectedFriendId}
+          <PopulatedFollowingView
+            followedUsers={followedUsers}
+            onSelectUser={setSelectedUserId}
             isDarkMode={isDarkMode}
             albums={albums}
             wants={wants}
@@ -261,14 +261,14 @@ export function FriendsScreen() {
   );
 }
 
-/* ====== Friend Row with swipe-to-delete ====== */
+/* ====== Followed User Row with swipe-to-delete ====== */
 
-function FriendRow({
-  friend,
+function FollowedUserRow({
+  user,
   onTap,
   onRemove,
 }: {
-  friend: Friend;
+  user: FollowedUser;
   onTap: () => void;
   onRemove: () => void;
 }) {
@@ -294,10 +294,10 @@ function FriendRow({
           onClick={onTap}
           className="w-full flex items-center gap-3 px-[16px] lg:px-[24px] py-3 text-left transition-colors hover:opacity-90 cursor-pointer"
         >
-          {friend.avatar ? (
+          {user.avatar ? (
             <img
-              src={friend.avatar}
-              alt={friend.username}
+              src={user.avatar}
+              alt={user.username}
               className="w-11 h-11 rounded-full object-cover flex-shrink-0"
               style={{ border: "2px solid var(--c-border)" }}
             />
@@ -311,15 +311,15 @@ function FriendRow({
           )}
           <div className="flex-1 min-w-0">
             <p style={{ fontSize: "15px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-              @{friend.username}
+              @{user.username}
             </p>
-            {friend.isPrivate ? (
+            {user.isPrivate ? (
               <p className="flex items-center gap-1 mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "#FF33B6" }}>
                 <Lock size={11} /> Private collection
               </p>
             ) : (
               <p className="mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                {friend.collection.length} albums &middot; {friend.wants.length} wants
+                {user.collection.length} albums &middot; {user.wants.length} wants
               </p>
             )}
           </div>
@@ -330,23 +330,23 @@ function FriendRow({
   );
 }
 
-/* ====== Friend Profile View ====== */
+/* ====== Followed User Profile View ====== */
 
-function FriendProfile({
-  friend,
+function FollowedUserProfile({
+  user,
   onBack,
   onRemove,
   userAlbums,
   userWants,
 }: {
-  friend: Friend;
+  user: FollowedUser;
   onBack: () => void;
   onRemove: () => void;
   userAlbums: Album[];
   userWants: WantItem[];
 }) {
-  const [tab, setTab] = useState<FriendTab>("collection");
-  const [filter, setFilter] = useState<FriendFilter>("all");
+  const [tab, setTab] = useState<FollowingTab>("collection");
+  const [filter, setFilter] = useState<FollowingFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -357,29 +357,29 @@ function FriendProfile({
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
   const userCutReleaseIds = useMemo(() => new Set(userAlbums.filter((a) => a.purgeTag === "cut").map((a) => a.release_id)), [userAlbums]);
   const userWantReleaseIds = useMemo(() => new Set(userWants.map((w) => w.release_id)), [userWants]);
-  const friendReleaseIds = useMemo(() => new Set(friend.collection.map((a) => a.release_id)), [friend.collection]);
+  const followedReleaseIds = useMemo(() => new Set(user.collection.map((a) => a.release_id)), [user.collection]);
 
-  const inCommonCount = useMemo(() => friend.collection.filter((a) => userReleaseIds.has(a.release_id)).length, [friend.collection, userReleaseIds]);
-  const theyWantYouCutCount = useMemo(() => friend.wants.filter((w) => userCutReleaseIds.has(w.release_id)).length, [friend.wants, userCutReleaseIds]);
-  const youWantTheyHaveCount = useMemo(() => userWants.filter((w) => friendReleaseIds.has(w.release_id)).length, [userWants, friendReleaseIds]);
+  const inCommonCount = useMemo(() => user.collection.filter((a) => userReleaseIds.has(a.release_id)).length, [user.collection, userReleaseIds]);
+  const theyWantYouCutCount = useMemo(() => user.wants.filter((w) => userCutReleaseIds.has(w.release_id)).length, [user.wants, userCutReleaseIds]);
+  const youWantTheyHaveCount = useMemo(() => userWants.filter((w) => followedReleaseIds.has(w.release_id)).length, [userWants, followedReleaseIds]);
 
   const displayItems = useMemo(() => {
     if (tab === "wants") {
-      let items = [...friend.wants];
+      let items = [...user.wants];
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         items = items.filter((w) => w.artist.toLowerCase().includes(q) || w.title.toLowerCase().includes(q));
       }
       return items;
     }
-    let items: Album[] = [...friend.collection];
+    let items: Album[] = [...user.collection];
     switch (filter) {
       case "in-common":
         items = items.filter((a) => userReleaseIds.has(a.release_id));
         break;
       case "they-want-you-cut": {
-        const friendWantIds = new Set(friend.wants.map((w) => w.release_id));
-        items = userAlbums.filter((a) => a.purgeTag === "cut" && friendWantIds.has(a.release_id));
+        const followedWantIds = new Set(user.wants.map((w) => w.release_id));
+        items = userAlbums.filter((a) => a.purgeTag === "cut" && followedWantIds.has(a.release_id));
         break;
       }
       case "you-want-they-have":
@@ -391,9 +391,9 @@ function FriendProfile({
       items = items.filter((a) => a.artist.toLowerCase().includes(q) || a.title.toLowerCase().includes(q));
     }
     return items;
-  }, [tab, filter, friend, searchQuery, userReleaseIds, userCutReleaseIds, userWantReleaseIds, userAlbums]);
+  }, [tab, filter, user, searchQuery, userReleaseIds, userCutReleaseIds, userWantReleaseIds, userAlbums]);
 
-  if (friend.isPrivate) {
+  if (user.isPrivate) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex-shrink-0 px-[16px] lg:px-[24px] py-[12px] lg:pt-[16px] lg:pb-[17px]">
@@ -401,8 +401,8 @@ function FriendProfile({
             <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer" style={{ color: "var(--c-text)" }}>
               <ArrowLeft size={20} />
             </button>
-            {friend.avatar ? (
-              <img src={friend.avatar} alt={friend.username} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: "2px solid var(--c-border)" }} />
+            {user.avatar ? (
+              <img src={user.avatar} alt={user.username} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: "2px solid var(--c-border)" }} />
             ) : (
               <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}>
                 <Users size={14} style={{ color: "var(--c-text-muted)" }} />
@@ -410,10 +410,10 @@ function FriendProfile({
             )}
             <div className="flex-1 min-w-0">
               <h2 className="text-[22px] lg:text-[36px] leading-[1.2]" style={{ fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                @{friend.username}
+                @{user.username}
               </h2>
             </div>
-            <a href={"https://www.discogs.com/user/" + friend.username} target="_blank" rel="noopener noreferrer"
+            <a href={"https://www.discogs.com/user/" + user.username} target="_blank" rel="noopener noreferrer"
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}>
               <ExternalLink size={16} />
             </a>
@@ -431,7 +431,7 @@ function FriendProfile({
           <Lock size={48} style={{ color: "var(--c-text-faint)" }} />
           <p className="mt-4 text-center" style={{ fontSize: "16px", fontWeight: 500, color: "var(--c-text-muted)" }}>Private Collection</p>
           <p className="mt-2 text-center max-w-[320px]" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: "1.5" }}>
-            This collection is set to private on Discogs. Ask @{friend.username} to make it public in their Discogs privacy settings.
+            This collection is set to private on Discogs. Ask @{user.username} to make it public in their Discogs privacy settings.
           </p>
         </div>
         {/* Remove confirmation dialog */}
@@ -454,7 +454,7 @@ function FriendProfile({
                 style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
               >
                 <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-                  Unfollow @{friend.username}?
+                  Unfollow @{user.username}?
                 </p>
                 <p className="mt-2" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: 1.5 }}>
                   Their collection and wantlist data will be removed from your app.
@@ -483,8 +483,8 @@ function FriendProfile({
     );
   }
 
-  const FILTER_CHIPS: { id: FriendFilter; label: string; count: number }[] = [
-    { id: "all", label: "All", count: friend.collection.length },
+  const FILTER_CHIPS: { id: FollowingFilter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: user.collection.length },
     { id: "in-common", label: "In Common", count: inCommonCount },
     { id: "they-want-you-cut", label: "They Want / You Cut", count: theyWantYouCutCount },
     { id: "you-want-they-have", label: "You Want / They Have", count: youWantTheyHaveCount },
@@ -498,8 +498,8 @@ function FriendProfile({
           <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer" style={{ color: "var(--c-text)" }}>
             <ArrowLeft size={20} />
           </button>
-          {friend.avatar ? (
-            <img src={friend.avatar} alt={friend.username} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: "2px solid var(--c-border)" }} />
+          {user.avatar ? (
+            <img src={user.avatar} alt={user.username} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: "2px solid var(--c-border)" }} />
           ) : (
             <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}>
               <Users size={14} style={{ color: "var(--c-text-muted)" }} />
@@ -507,10 +507,10 @@ function FriendProfile({
           )}
           <div className="flex-1 min-w-0">
             <h2 className="text-[22px] lg:text-[36px] leading-[1.2]" style={{ fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-              @{friend.username}
+              @{user.username}
             </h2>
           </div>
-          <a href={"https://www.discogs.com/user/" + friend.username} target="_blank" rel="noopener noreferrer"
+          <a href={"https://www.discogs.com/user/" + user.username} target="_blank" rel="noopener noreferrer"
             className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}>
             <ExternalLink size={16} />
           </a>
@@ -536,7 +536,7 @@ function FriendProfile({
               color: tab === "collection" ? "#0C284A" : "var(--c-text-muted)",
             }}
           >
-            Collection ({friend.collection.length})
+            Collection ({user.collection.length})
           </button>
           <button
             onClick={() => { setTab("wants"); setFilter("all"); }}
@@ -549,7 +549,7 @@ function FriendProfile({
               borderLeft: "1px solid var(--c-border-strong)",
             }}
           >
-            Wantlist ({friend.wants.length})
+            Wantlist ({user.wants.length})
           </button>
         </div>
       </div>
@@ -596,7 +596,7 @@ function FriendProfile({
               })}
             </div>
           )}
-          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FRIEND_VIEW_MODES} />
+          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FOLLOWING_VIEW_MODES} />
         </div>
 
         {/* Mobile: search + view toggle row, then filter chips row */}
@@ -612,7 +612,7 @@ function FriendProfile({
               />
               {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
             </div>
-            <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FRIEND_VIEW_MODES} compact />
+            <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FOLLOWING_VIEW_MODES} compact />
           </div>
           {tab === "collection" && (
             <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-1 no-scrollbar">
@@ -665,7 +665,7 @@ function FriendProfile({
               <div className="mx-[16px] lg:mx-[24px] mt-3 p-3 rounded-[10px]"
                 style={{ backgroundColor: "rgba(255, 51, 182, 0.06)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
                 <span style={{ fontSize: "13px", fontWeight: 500, color: "#FF33B6", lineHeight: 1.5 }}>
-                  {theyWantYouCutCount} album{theyWantYouCutCount !== 1 ? "s" : ""} you tagged as Purge that @{friend.username} wants. Reach out!
+                  {theyWantYouCutCount} album{theyWantYouCutCount !== 1 ? "s" : ""} you tagged as Purge that @{user.username} wants. Reach out!
                 </span>
               </div>
             )}
@@ -673,17 +673,17 @@ function FriendProfile({
               <div className="mx-[16px] lg:mx-[24px] mt-3 p-3 rounded-[10px]"
                 style={{ backgroundColor: "rgba(255, 51, 182, 0.06)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
                 <span style={{ fontSize: "13px", fontWeight: 500, color: "#FF33B6", lineHeight: 1.5 }}>
-                  {youWantTheyHaveCount} album{youWantTheyHaveCount !== 1 ? "s" : ""} from your wantlist in @{friend.username}&apos;s collection.
+                  {youWantTheyHaveCount} album{youWantTheyHaveCount !== 1 ? "s" : ""} from your wantlist in @{user.username}&apos;s collection.
                 </span>
               </div>
             )}
 
             {viewMode === "crate" ? (
-              <FriendCrateView items={displayItems} crateIndex={crateIndex} setCrateIndex={setCrateIndex} />
+              <FollowedUserCrateView items={displayItems} crateIndex={crateIndex} setCrateIndex={setCrateIndex} />
             ) : viewMode === "list" ? (
-              <FriendListView items={displayItems} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} />
+              <FollowedUserListView items={displayItems} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} />
             ) : (
-              <FriendGridView items={displayItems} viewMode={viewMode} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} />
+              <FollowedUserGridView items={displayItems} viewMode={viewMode} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} />
             )}
           </>
         )}
@@ -709,7 +709,7 @@ function FriendProfile({
               style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
             >
               <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-                Unfollow @{friend.username}?
+                Unfollow @{user.username}?
               </p>
               <p className="mt-2" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: 1.5 }}>
                 Their collection and wantlist data will be removed from your app.
@@ -739,7 +739,7 @@ function FriendProfile({
 }
 
 /* ====== Crate (single-card) view ====== */
-function FriendCrateView({ items, crateIndex, setCrateIndex }: {
+function FollowedUserCrateView({ items, crateIndex, setCrateIndex }: {
   items: (Album | WantItem)[];
   crateIndex: number;
   setCrateIndex: (i: number) => void;
@@ -796,8 +796,8 @@ function FriendCrateView({ items, crateIndex, setCrateIndex }: {
 }
 
 /* ====== Grid view ====== */
-function FriendGridView({ items, viewMode, filter, userCutIds, userWantIds, userIds }: {
-  items: (Album | WantItem)[]; viewMode: string; filter: FriendFilter;
+function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds, userIds }: {
+  items: (Album | WantItem)[]; viewMode: string; filter: FollowingFilter;
   userCutIds: Set<number>; userWantIds: Set<number>; userIds: Set<number>;
 }) {
   const { isDarkMode } = useApp();
@@ -860,8 +860,8 @@ function FriendGridView({ items, viewMode, filter, userCutIds, userWantIds, user
 }
 
 /* ====== List view ====== */
-function FriendListView({ items, filter, userCutIds, userWantIds, userIds }: {
-  items: (Album | WantItem)[]; filter: FriendFilter;
+function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds }: {
+  items: (Album | WantItem)[]; filter: FollowingFilter;
   userCutIds: Set<number>; userWantIds: Set<number>; userIds: Set<number>;
 }) {
   return (
@@ -888,7 +888,7 @@ function FriendListView({ items, filter, userCutIds, userWantIds, userIds }: {
   );
 }
 
-function getBadge(releaseId: number, filter: FriendFilter, userCutIds: Set<number>, userWantIds: Set<number>, userIds: Set<number>): { label: string; color: string } | null {
+function getBadge(releaseId: number, filter: FollowingFilter, userCutIds: Set<number>, userWantIds: Set<number>, userIds: Set<number>): { label: string; color: string } | null {
   if (filter !== "all") return null;
   if (userCutIds.has(releaseId)) return null;
   if (userIds.has(releaseId)) return { label: "In Common", color: "#0078B4" };
@@ -900,9 +900,9 @@ function getBadge(releaseId: number, filter: FriendFilter, userCutIds: Set<numbe
 
 interface ActivityItem {
   id: string;
-  friendId: string;
-  friendUsername: string;
-  friendAvatar: string;
+  followedId: string;
+  followedUsername: string;
+  followedAvatar: string;
   albumTitle: string;
   albumArtist: string;
   albumCover: string;
@@ -914,19 +914,19 @@ interface ActivityItem {
 }
 
 
-function buildActivityFeed(friends: Friend[]): ActivityItem[] {
+function buildActivityFeed(users: FollowedUser[]): ActivityItem[] {
   const items: ActivityItem[] = [];
-  for (const friend of friends) {
-    if (friend.isPrivate || friend.collection.length === 0) continue;
-    const sorted = [...friend.collection]
+  for (const followedUser of users) {
+    if (followedUser.isPrivate || followedUser.collection.length === 0) continue;
+    const sorted = [...followedUser.collection]
       .sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""))
       .slice(0, 30);
     sorted.forEach((album) => {
       items.push({
-        id: `act-${friend.id}-${album.id}`,
-        friendId: friend.id,
-        friendUsername: friend.username,
-        friendAvatar: friend.avatar,
+        id: `act-${followedUser.id}-${album.id}`,
+        followedId: followedUser.id,
+        followedUsername: followedUser.username,
+        followedAvatar: followedUser.avatar,
         albumTitle: album.title,
         albumArtist: album.artist,
         albumCover: album.cover,
@@ -946,11 +946,11 @@ function buildActivityFeed(friends: Friend[]): ActivityItem[] {
   return capped;
 }
 
-/* ====== Populated Friends View ====== */
+/* ====== Populated Following View ====== */
 
-function PopulatedFriendsView({
-  friends,
-  onSelectFriend,
+function PopulatedFollowingView({
+  followedUsers,
+  onSelectUser,
   isDarkMode,
   albums: userAlbumsForHeart,
   wants: userWantsForHeart,
@@ -958,8 +958,8 @@ function PopulatedFriendsView({
   removeFromWantList,
   setAppScreen,
 }: {
-  friends: Friend[];
-  onSelectFriend: (id: string) => void;
+  followedUsers: FollowedUser[];
+  onSelectUser: (id: string) => void;
   isDarkMode: boolean;
   albums: Album[];
   wants: WantItem[];
@@ -967,7 +967,7 @@ function PopulatedFriendsView({
   removeFromWantList: (releaseId: string | number) => Promise<void>;
   setAppScreen: (s: Screen) => void;
 }) {
-  const activityFeed = useMemo(() => buildActivityFeed(friends), [friends]);
+  const activityFeed = useMemo(() => buildActivityFeed(followedUsers), [followedUsers]);
   const [visibleCount, setVisibleCount] = useState(30);
   const visibleActivity = useMemo(() => activityFeed.slice(0, visibleCount), [activityFeed, visibleCount]);
   const hasMore = activityFeed.length > visibleCount;
@@ -984,21 +984,21 @@ function PopulatedFriendsView({
   const ownReleaseIds = useMemo(() => new Set(userAlbumsForHeart.map((a) => a.release_id)), [userAlbumsForHeart]);
   const wantReleaseIds = useMemo(() => new Set(userWantsForHeart.map((w) => w.release_id)), [userWantsForHeart]);
 
-  // From the Depths — 2–4 random albums per followed user; re-derives when friends list changes
+  // From the Depths — 2–4 random albums per followed user; re-derives when followedUsers list changes
   const MAX_CARDS_PER_USER = 4;
   const depthsPicks = useMemo(() => {
-    const results: { friend: Friend; album: Album; cardKey: string }[] = [];
-    friends
+    const results: { followedUser: FollowedUser; album: Album; cardKey: string }[] = [];
+    followedUsers
       .filter((f) => !f.isPrivate && f.collection.length > 0)
-      .forEach((friend) => {
-        const shuffled = [...friend.collection].sort(() => Math.random() - 0.5);
+      .forEach((followedUser) => {
+        const shuffled = [...followedUser.collection].sort(() => Math.random() - 0.5);
         const picks = shuffled.slice(0, MAX_CARDS_PER_USER);
         picks.forEach((album, idx) => {
-          results.push({ friend, album, cardKey: `${friend.id}-${album.id}-${idx}` });
+          results.push({ followedUser, album, cardKey: `${followedUser.id}-${album.id}-${idx}` });
         });
       });
     return results;
-  }, [friends]);
+  }, [followedUsers]);
 
   const handleHeartTap = useCallback(async (item: ActivityItem) => {
     // Already in collection or already in flight — no action
@@ -1013,7 +1013,7 @@ function PopulatedFriendsView({
     setInFlightIds((prev) => { const next = new Set(prev); next.add(item.albumReleaseId); return next; });
     try {
       await addToWantList({
-        id: `w-friend-${item.albumReleaseId}-${Date.now()}`,
+        id: `w-following-${item.albumReleaseId}-${Date.now()}`,
         release_id: item.albumReleaseId,
         title: item.albumTitle,
         artist: item.albumArtist,
@@ -1030,7 +1030,7 @@ function PopulatedFriendsView({
       toast.dismiss();
       toast.info("Added to Wantlist.", { duration: 2500 });
     } catch (err: any) {
-      console.error("[Friends] Add to wantlist failed:", err);
+      console.error("[Following] Add to wantlist failed:", err);
       toast.error("Failed to add. Try again.");
     } finally {
       setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
@@ -1042,17 +1042,17 @@ function PopulatedFriendsView({
       {/* ── Horizontal avatar row ── */}
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[10px] pb-[14px]">
         <div className="flex items-start gap-[16px] overflow-x-auto no-scrollbar pb-1">
-          {friends.map((friend) => (
+          {followedUsers.map((followedUser) => (
             <button
-              key={friend.id}
-              onClick={() => onSelectFriend(friend.id)}
+              key={followedUser.id}
+              onClick={() => onSelectUser(followedUser.id)}
               className="flex flex-col items-center gap-[5px] shrink-0 cursor-pointer group"
               style={{ width: "56px" }}
             >
-              {friend.avatar ? (
+              {followedUser.avatar ? (
                 <img
-                  src={friend.avatar}
-                  alt={friend.username}
+                  src={followedUser.avatar}
+                  alt={followedUser.username}
                   className="w-[48px] h-[48px] rounded-full object-cover transition-transform group-hover:scale-105"
                   style={{ border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}` }}
                 />
@@ -1065,7 +1065,7 @@ function PopulatedFriendsView({
                   }}
                 >
                   <span style={{ fontSize: "18px", fontWeight: 600, color: isDarkMode ? "#ACDEF2" : "#0C284A", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                    {getInitial(friend.username)}
+                    {getInitial(followedUser.username)}
                   </span>
                 </div>
               )}
@@ -1073,7 +1073,7 @@ function PopulatedFriendsView({
                 className="w-full text-center"
                 style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
               >
-                {friend.username}
+                {followedUser.username}
               </span>
             </button>
           ))}
@@ -1121,7 +1121,7 @@ function PopulatedFriendsView({
           >
             <style>{`.depths-scroll::-webkit-scrollbar { display: none; }`}</style>
             <div className="flex gap-[12px] px-[16px] lg:px-[24px]">
-              {depthsPicks.map(({ friend, album, cardKey }) => (
+              {depthsPicks.map(({ followedUser, album, cardKey }) => (
                 <motion.div
                   key={`depths-${cardKey}`}
                   initial={{ opacity: 0 }}
@@ -1132,7 +1132,7 @@ function PopulatedFriendsView({
                 >
                   <DepthsAlbumCard
                     album={album}
-                    onTap={() => onSelectFriend(friend.id)}
+                    onTap={() => onSelectUser(followedUser.id)}
                     artworkPadded
                     dateLine={album.dateAdded ? `In their collection since ${formatCollectionSince(album.dateAdded)}` : undefined}
                     eyebrow={
@@ -1146,10 +1146,10 @@ function PopulatedFriendsView({
                             backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
                           }}
                         >
-                          {friend.avatar ? (
+                          {followedUser.avatar ? (
                             <img
-                              src={friend.avatar}
-                              alt={friend.username}
+                              src={followedUser.avatar}
+                              alt={followedUser.username}
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -1162,7 +1162,7 @@ function PopulatedFriendsView({
                                 lineHeight: 1,
                               }}
                             >
-                              {getInitial(friend.username)}
+                              {getInitial(followedUser.username)}
                             </span>
                           )}
                         </div>
@@ -1180,14 +1180,14 @@ function PopulatedFriendsView({
                             maxWidth: "100%",
                           } as React.CSSProperties}
                         >
-                          From {friend.username}&rsquo;s crates
+                          From {followedUser.username}&rsquo;s crates
                         </p>
                       </div>
                     }
                     footer={
                       <div className="flex justify-end mt-[8px]">
                         <button
-                          onClick={(e) => { e.stopPropagation(); onSelectFriend(friend.id); }}
+                          onClick={(e) => { e.stopPropagation(); onSelectUser(followedUser.id); }}
                           className="cursor-pointer tappable"
                           style={{
                             fontSize: "12px",
@@ -1260,10 +1260,10 @@ function PopulatedFriendsView({
                       backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
                     }}
                   >
-                    {item.friendAvatar ? (
+                    {item.followedAvatar ? (
                       <img
-                        src={item.friendAvatar}
-                        alt={item.friendUsername}
+                        src={item.followedAvatar}
+                        alt={item.followedUsername}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -1276,7 +1276,7 @@ function PopulatedFriendsView({
                           lineHeight: 1,
                         }}
                       >
-                        {getInitial(item.friendUsername)}
+                        {getInitial(item.followedUsername)}
                       </span>
                     )}
                   </div>
@@ -1299,7 +1299,7 @@ function PopulatedFriendsView({
                       maxWidth: "100%",
                     } as React.CSSProperties}
                   >
-                    <span style={{ fontWeight: 600 }}>{item.friendUsername}</span>
+                    <span style={{ fontWeight: 600 }}>{item.followedUsername}</span>
                     {" added "}
                     <span style={{ fontWeight: 400 }}>{item.albumTitle}</span>
                   </p>
@@ -1445,7 +1445,7 @@ function PopulatedFriendsView({
                       toast.info("Removed from Wantlist.");
                       setRemoveWantConfirm(null);
                     } catch (err: any) {
-                      console.error("[Friends] Remove from wantlist failed:", err);
+                      console.error("[Following] Remove from wantlist failed:", err);
                       toast.error("Remove failed. Try again.");
                     } finally {
                       setIsRemovingWant(false);

@@ -90,7 +90,7 @@ src/
       figma/
         ImageWithFallback.tsx  # Origin unclear, not currently referenced elsewhere. Flagged for future audit — do not delete until confirmed unused.
       filter-drawer.tsx
-      friends-screen.tsx
+      following-screen.tsx
       last-played-utils.ts
       market-value.tsx
       motion-tokens.ts
@@ -323,7 +323,7 @@ Floating pill bottom tab bar with 5 items:
 | 4 | Sessions | Headphones | `sessions` |
 | 5 | Insights | BarChart3 | `reports` |
 
-Mobile header right group (2 buttons): Following (Users icon, navigates to `friends`) + Settings avatar.
+Mobile header right group (2 buttons): Following (Users icon, navigates to `following`) + Settings avatar.
 **Purge is not in the mobile bottom bar** — Purge is accessed from the Feed screen card, Settings quick-access card, and Album Detail.
 
 ### Desktop (>= 1024px)
@@ -340,7 +340,7 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 
 | Layer | Z-Index | Component |
 |---|---|---|
-| Confirm-removal dialog | `z-[200]` | friends-screen.tsx |
+| Confirm-removal dialog | `z-[200]` | following-screen.tsx |
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
 | Wantlist crossover prompt | `z-[125]` | wantlist-crossover-prompt.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |
@@ -379,7 +379,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Wantlist write operations (`addToWantlist` PUT, `removeFromWantlist` DELETE) in `discogs-api.ts`
 - `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`)
 - `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
-- Friends screen activity feed hearts call Discogs API (Pattern A) with per-item Disc3 loading spinners
+- Following screen activity feed hearts call Discogs API (Pattern A) with per-item Disc3 loading spinners
 - Deployed to Vercel at holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope

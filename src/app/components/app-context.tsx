@@ -17,7 +17,7 @@ import {
   type WantItem,
   type Session,
   type PurgeTag,
-  type Friend,
+  type FollowedUser,
   type FeedAlbum,
   clearCollectionValue,
   clearAllMarketData,
@@ -38,7 +38,7 @@ function getOrCreateContext(): React.Context<AppState | null> {
   return g[APP_CONTEXT_KEY];
 }
 
-export type Screen = "crate" | "purge" | "sessions" | "wants" | "friends" | "settings" | "reports" | "feed";
+export type Screen = "crate" | "purge" | "sessions" | "wants" | "following" | "settings" | "reports" | "feed";
 export type ViewMode = "crate" | "list" | "grid" | "artwork";
 export type SortOption =
   | "artist-az"
@@ -66,9 +66,9 @@ interface AppState {
   albums: Album[];
   wants: WantItem[];
   sessions: Session[];
-  friends: Friend[];
-  addFriend: (friend: Friend) => void;
-  removeFriend: (friendId: string) => void;
+  followedUsers: FollowedUser[];
+  addFollowedUser: (user: FollowedUser) => void;
+  removeFollowedUser: (userId: string) => void;
   selectedAlbumId: string | null;
   setSelectedAlbumId: (id: string | null) => void;
   selectedAlbum: Album | null;
@@ -227,7 +227,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [wants, setWants] = useState<WantItem[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [friends, setFriends] = useState<Friend[]>([]);
+  const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
   const [lastPlayed, setLastPlayed] = useState<Record<string, string>>({});
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
   const [rediscoverMode, setRediscoverMode] = useState(false);
@@ -603,7 +603,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Hydrate following from Convex — deferred until the user navigates to
   // the Following screen so we don't burn rate-limit budget on app load.
   useEffect(() => {
-    if (screen !== "friends") return;
+    if (screen !== "following") return;
     if (hydratedRef.current.following) return;
     if (convexFollowing === undefined) return; // still loading
     if (!discogsAuth) return; // wait for credentials
@@ -618,36 +618,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       (async () => {
         try {
           const profile = await fetchUserProfile(username, authSnapshot);
-          let friendAlbums: Album[] = [];
-          let friendFolders: string[] = ["All"];
-          let friendWants: WantItem[] = [];
+          let userAlbums: Album[] = [];
+          let userFolders: string[] = ["All"];
+          let userWants: WantItem[] = [];
           let isPrivate = false;
           try {
             const result = await fetchCollection(username, authSnapshot);
-            friendAlbums = result.albums;
-            friendFolders = result.folders;
+            userAlbums = result.albums;
+            userFolders = result.folders;
           } catch (e: any) {
             if (e?.message?.includes("403")) isPrivate = true;
           }
           try {
-            friendWants = await fetchWantlist(username, authSnapshot);
+            userWants = await fetchWantlist(username, authSnapshot);
           } catch { /* wantlist may be unavailable — skip */ }
-          const friend: Friend = {
+          const followedUser: FollowedUser = {
             id: `f-${username}`,
             username: profile.username,
             avatar: profile.avatar,
             isPrivate,
-            folders: friendFolders,
+            folders: userFolders,
             lastSynced: new Date().toISOString().split("T")[0],
-            collection: friendAlbums,
-            wants: friendWants,
+            collection: userAlbums,
+            wants: userWants,
           };
-          setFriends(prev => {
-            if (prev.some(f => f.username.toLowerCase() === friend.username.toLowerCase())) return prev;
-            return [...prev, friend];
+          setFollowedUsers(prev => {
+            if (prev.some(f => f.username.toLowerCase() === followedUser.username.toLowerCase())) return prev;
+            return [...prev, followedUser];
           });
         } catch (e) {
-          console.warn(`[Friends] Could not restore @${username}:`, e);
+          console.warn(`[Following] Could not restore @${username}:`, e);
         }
       })();
     }
@@ -1007,24 +1007,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [discogsUsername, updateSessionMut]);
 
-  // ── Friends ──
+  // ── Following ──
 
-  const addFriend = useCallback((friend: Friend) => {
-    setFriends((prev) => [...prev, friend]);
+  const addFollowedUser = useCallback((user: FollowedUser) => {
+    setFollowedUsers((prev) => [...prev, user]);
     if (discogsUsername) {
-      addFollowingMut({ discogs_username: discogsUsername, following_username: friend.username });
+      addFollowingMut({ discogs_username: discogsUsername, following_username: user.username });
     }
   }, [discogsUsername, addFollowingMut]);
 
-  const removeFriend = useCallback((friendId: string) => {
-    setFriends((prev) => {
-      const friend = prev.find(f => f.id === friendId);
-      if (friend && discogsUsername) {
-        removeFollowingMut({ discogs_username: discogsUsername, following_username: friend.username });
-        deleteFollowingFeedMut({ follower_username: discogsUsername, followed_username: friend.username });
-        setFollowingFeed((feedPrev) => feedPrev.filter(e => e.followed_username !== friend.username));
+  const removeFollowedUser = useCallback((userId: string) => {
+    setFollowedUsers((prev) => {
+      const user = prev.find(f => f.id === userId);
+      if (user && discogsUsername) {
+        removeFollowingMut({ discogs_username: discogsUsername, following_username: user.username });
+        deleteFollowingFeedMut({ follower_username: discogsUsername, followed_username: user.username });
+        setFollowingFeed((feedPrev) => feedPrev.filter(e => e.followed_username !== user.username));
       }
-      return prev.filter((f) => f.id !== friendId);
+      return prev.filter((f) => f.id !== userId);
     });
   }, [discogsUsername, removeFollowingMut, deleteFollowingFeedMut]);
 
@@ -1357,7 +1357,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAlbums([]);
     setWants([]);
     setSessions([]);
-    setFriends([]);
+    setFollowedUsers([]);
     setFollowingFeed([]);
     setFolders([]);
     setSelectedAlbumId(null);
@@ -1410,7 +1410,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAlbums([]);
     setWants([]);
     setSessions([]);
-    setFriends([]);
+    setFollowedUsers([]);
     setFollowingFeed([]);
     setFolders([]);
     setSelectedAlbumId(null);
@@ -1592,9 +1592,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       albums,
       wants,
       sessions,
-      friends,
-      addFriend,
-      removeFriend,
+      followedUsers,
+      addFollowedUser,
+      removeFollowedUser,
       selectedAlbumId,
       setSelectedAlbumId,
       selectedAlbum,
@@ -1696,8 +1696,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       followingFeed,
     }),
     [
-      screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, friends,
-      addFriend, removeFriend,
+      screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, followedUsers,
+      addFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
       searchQuery, activeFolder, sortOption, filteredAlbums,
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,

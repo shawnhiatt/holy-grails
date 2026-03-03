@@ -23,13 +23,13 @@ const truncStyle: React.CSSProperties = {
 export interface DepthsAlbumCardProps {
   album: Album;
   onTap: (albumId: string) => void;
-  /** Optional content rendered above the artwork (e.g. avatar row for friends) */
+  /** Optional content rendered above the artwork (e.g. avatar row for followed users) */
   eyebrow?: ReactNode;
   /** Optional content rendered below metadata (e.g. "View their collection" link) */
   footer?: ReactNode;
   /** Override the date line text. Defaults to "Added [Month Year]" */
   dateLine?: string;
-  /** If true, artwork has horizontal padding (used in friends cards) */
+  /** If true, artwork has horizontal padding (used in following cards) */
   artworkPadded?: boolean;
 }
 

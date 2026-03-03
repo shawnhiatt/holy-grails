@@ -8,7 +8,7 @@ import { PurgeTracker } from "./components/purge-tracker";
 import { Sessions } from "./components/sessions";
 import { Wantlist } from "./components/wantlist";
 import { SettingsScreen } from "./components/settings-screen";
-import { FriendsScreen } from "./components/friends-screen";
+import { FollowingScreen } from "./components/following-screen";
 import { AlbumDetailPanel, AlbumDetailSheet } from "./components/album-detail";
 import { FilterDrawer } from "./components/filter-drawer";
 import { getContentTokens } from "./components/theme";
@@ -249,8 +249,8 @@ function AppContent() {
         return <Sessions />;
       case "wants":
         return <Wantlist />;
-      case "friends":
-        return <FriendsScreen />;
+      case "following":
+        return <FollowingScreen />;
       case "settings":
         return <SettingsScreen />;
       case "reports":

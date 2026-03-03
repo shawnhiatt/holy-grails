@@ -145,7 +145,7 @@ All sync/loading spinners tied to collection sync and API calls use the `Disc3` 
   transform-origin: center center;
 }
 ```
-Respects `prefers-reduced-motion: reduce` (animation disabled). Used in: settings-screen.tsx (Sync Now button), friends-screen.tsx (Connect button, progress text), splash-screen.tsx (loading states).
+Respects `prefers-reduced-motion: reduce` (animation disabled). Used in: settings-screen.tsx (Sync Now button), following-screen.tsx (Connect button, progress text), splash-screen.tsx (loading states).
 
 ### Motion Tokens
 Shared animation constants live in `motion-tokens.ts` and are used across all components for consistent timing:
@@ -155,7 +155,7 @@ Shared animation constants live in `motion-tokens.ts` and are used across all co
 - `DURATION_MICRO: 0.1s`, `DURATION_FAST: 0.175s`, `DURATION_NORMAL: 0.225s`, `DURATION_SLOW: 0.3s`
 
 ### Hide-on-Scroll Mobile Header
-The `useHideHeaderOnScroll` hook (`use-hide-header.ts`) hides the mobile header bar when scrolling down and reveals it when scrolling up or at the top. Active on screens: `crate`, `wants`, `friends`, `reports`. Uses an 8px scroll threshold to prevent flicker. Applied in: album-grid, album-list, album-artwork-grid, wantlist, friends-screen, reports-screen.
+The `useHideHeaderOnScroll` hook (`use-hide-header.ts`) hides the mobile header bar when scrolling down and reveals it when scrolling up or at the top. Active on screens: `crate`, `wants`, `following`, `reports`. Uses an 8px scroll threshold to prevent flicker. Applied in: album-grid, album-list, album-artwork-grid, wantlist, following-screen, reports-screen.
 
 ### Shake-to-Random
 The `useShake` hook (`use-shake.ts`) opens a random album in Album Detail when the user shakes their mobile device. Desktop-only disabled. Threshold: 12, timeout: 1000ms.
@@ -358,9 +358,9 @@ Same four view modes as Collection (Grid, Artwork, List, Swiper). Default is Gri
 
 **Tap to detail**: Same bottom sheet / side panel pattern.
 
-### 6. Following — `friends-screen.tsx`
+### 6. Following — `following-screen.tsx`
 
-Browse other Discogs users' collections. The user-facing label is **"Following"** everywhere (nav items, section titles, feed activity header), though the internal screen ID and file name remain `friends` / `friends-screen.tsx` for code continuity.
+Browse other Discogs users' collections. The user-facing label is **"Following"** everywhere (nav items, section titles, feed activity header). The internal screen ID is `following` and the file is `following-screen.tsx`.
 
 **Following list**: Shows avatar, username, album/want count. Swipe-to-delete (Motion drag) reveals red delete action.
 
@@ -560,7 +560,7 @@ Active text color: `#E2E8F0` (dark) / `#0C284A` (light). Inactive: `rgba(226,232
 | `add-albums-drawer.tsx` | Add Albums bottom sheet / modal with sections |
 | `session-picker-sheet.tsx` | Bookmark session picker bottom sheet / popover |
 | `wantlist.tsx` | Wantlist screen with four views, marketplace hover, alphabetical index |
-| `friends-screen.tsx` | Following screen with user profiles and smart filters |
+| `following-screen.tsx` | Following screen with user profiles and smart filters |
 | `feed-screen.tsx` | Feed home screen with collection summary and nudges |
 | `reports-screen.tsx` | Reports & Insights dashboard with recharts |
 | `settings-screen.tsx` | Settings with Discogs connection, appearance, data management |

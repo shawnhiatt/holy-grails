@@ -61,7 +61,7 @@ but the inconsistency should be normalized. All URL interpolations of
 
 **`.screen-title` font-size contradiction**
 
-6 elements across `friends-screen.tsx`, `purge-tracker.tsx`, `sessions.tsx`,
+6 elements across `following-screen.tsx`, `purge-tracker.tsx`, `sessions.tsx`,
 `settings-screen.tsx`, `reports-screen.tsx` apply both the `.screen-title`
 class and `style={{ fontSize: "36px" }}` to the same element. The class
 uses `font-size: 48px !important` at desktop breakpoints — the `!important`

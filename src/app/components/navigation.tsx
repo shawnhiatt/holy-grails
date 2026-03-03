@@ -25,7 +25,7 @@ const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
 
 /** Desktop top nav — right group */
 const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
-  { id: "friends", label: "Following", icon: Users },
+  { id: "following", label: "Following", icon: Users },
   { id: "purge", label: "Purge", icon: SquareArrowOutUpRight },
   { id: "reports", label: "Insights", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: UserRound },
@@ -220,15 +220,15 @@ export function MobileHeader() {
       {/* Right: Following + Settings icons */}
       <div className="flex-1 flex items-center justify-end gap-1">
         <button
-          onClick={() => setScreen("friends")}
+          onClick={() => setScreen("following")}
           className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer"
           title="Following"
           style={{
-            color: screen === "friends" ? "#EBFD00" : "var(--c-text-muted)",
-            backgroundColor: screen === "friends" ? activeBg : inactiveBg,
+            color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
+            backgroundColor: screen === "following" ? activeBg : inactiveBg,
           }}
         >
-          <Users size={18} strokeWidth={screen === "friends" ? 1.83 : 1.3125} />
+          <Users size={18} strokeWidth={screen === "following" ? 1.83 : 1.3125} />
         </button>
         <button
           onClick={() => setScreen("settings")}

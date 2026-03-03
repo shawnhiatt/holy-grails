@@ -9,7 +9,8 @@
       "Bash(powershell.exe -Command \"Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
       "Bash(powershell.exe -Command \"where.exe npm\")",
       "Bash(where.exe npx)",
-      "Bash(PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/sshaw/AppData/Roaming/npm\" npm install)"
+      "Bash(PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/sshaw/AppData/Roaming/npm\" npm install)",
+      "mcp__figma-remote-mcp__generate_figma_design"
     ]
   }
 }

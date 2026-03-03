@@ -113,9 +113,9 @@ function getRecommendedHeading(bucket: string, addedYear?: string): string {
 
 interface FeedActivity {
   id: string;
-  friendId: string;
-  friendUsername: string;
-  friendAvatar: string;
+  followedId: string;
+  followedUsername: string;
+  followedAvatar: string;
   albumTitle: string;
   albumArtist: string;
   albumCover: string;
@@ -136,9 +136,9 @@ function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number): Feed
     sorted.forEach((album) => {
       items.push({
         id: `feed-${entry.followed_username}-${album.release_id}`,
-        friendId: `f-${entry.followed_username}`,
-        friendUsername: entry.followed_username,
-        friendAvatar: "",
+        followedId: `f-${entry.followed_username}`,
+        followedUsername: entry.followed_username,
+        followedAvatar: "",
         albumTitle: album.title,
         albumArtist: album.artist,
         albumCover: album.cover,
@@ -219,7 +219,7 @@ export function FeedScreen() {
     return shuffled.slice(0, Math.min(10, shuffled.length));
   });
 
-  const friendActivity = useMemo(() => buildFeedActivity(followingFeed, 5), [followingFeed]);
+  const followingActivity = useMemo(() => buildFeedActivity(followingFeed, 5), [followingFeed]);
 
   const unratedCount = useMemo(
     () => albums.filter((a) => !a.purgeTag).length,
@@ -350,7 +350,7 @@ export function FeedScreen() {
   }, [purgeEvalAlbum, setPurgeTag, getNextPurgeAlbum, isDarkMode]);
 
   const hasData = albums.length > 0;
-  const hasFriends = followingFeed.length > 0;
+  const hasFollowing = followingFeed.length > 0;
 
   const cardBg = "var(--c-surface)";
   const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
@@ -480,9 +480,9 @@ export function FeedScreen() {
       {/* Section header inside card */}
       <div className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px]">
         <p style={sectionTitleStyle}>Following Activity</p>
-        {hasFriends && (
+        {hasFollowing && (
           <button
-            onClick={() => setScreen("friends")}
+            onClick={() => setScreen("following")}
             className="cursor-pointer"
             style={{
               fontSize: "12px",
@@ -499,9 +499,9 @@ export function FeedScreen() {
         )}
       </div>
 
-      {hasFriends && friendActivity.length > 0 ? (
+      {hasFollowing && followingActivity.length > 0 ? (
         <>
-          {friendActivity.map((item) => {
+          {followingActivity.map((item) => {
             const inCollection = ownReleaseIds.has(item.albumReleaseId);
             const inWantList = wantReleaseIds.has(item.albumReleaseId) || justAddedWantIds.has(item.id);
             return (
@@ -534,10 +534,10 @@ export function FeedScreen() {
                       backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
                     }}
                   >
-                    {item.friendAvatar ? (
+                    {item.followedAvatar ? (
                       <img
-                        src={item.friendAvatar}
-                        alt={item.friendUsername}
+                        src={item.followedAvatar}
+                        alt={item.followedUsername}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -550,7 +550,7 @@ export function FeedScreen() {
                           lineHeight: 1,
                         }}
                       >
-                        {getInitial(item.friendUsername)}
+                        {getInitial(item.followedUsername)}
                       </span>
                     )}
                   </div>
@@ -573,7 +573,7 @@ export function FeedScreen() {
                       maxWidth: "100%",
                     } as React.CSSProperties}
                   >
-                    <span style={{ fontWeight: 600 }}>{item.friendUsername}</span>
+                    <span style={{ fontWeight: 600 }}>{item.followedUsername}</span>
                     {" added "}
                     <span style={{ fontWeight: 400 }}>{item.albumTitle}</span>
                   </p>
@@ -681,7 +681,7 @@ export function FeedScreen() {
             No activity yet from collectors you follow.
           </p>
           <button
-            onClick={() => setScreen("friends")}
+            onClick={() => setScreen("following")}
             className="cursor-pointer tappable mt-[6px]"
             style={{
               fontSize: "13px",
