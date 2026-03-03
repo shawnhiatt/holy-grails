@@ -188,13 +188,14 @@ export function FeedScreen() {
     isAlbumInAnySession,
     hidePurgeIndicators,
     addToWantList,
+    removeFromWantList,
     discogsUsername,
     setPurgeTag,
     isSyncing,
   } = useApp();
 
-  // Track items that were just added to want list (for heart animation)
-  const [justAddedWantIds, setJustAddedWantIds] = useState<Set<string>>(() => new Set());
+  // Per-item in-flight tracking for wantlist API calls
+  const [inFlightIds, setInFlightIds] = useState<Set<number>>(() => new Set());
 
   // Purge evaluator — current album for inline rating
   const [purgeEvalAlbumId, setPurgeEvalAlbumId] = useState<string | null>(() => {
@@ -362,35 +363,51 @@ export function FeedScreen() {
   const wantReleaseIds = useMemo(() => new Set(wants.map((w) => w.release_id)), [wants]);
 
   const handleHeartTap = useCallback(
-    (item: FeedActivity) => {
-      // Already in collection — no action
+    async (item: FeedActivity) => {
+      // Already in collection or already in flight — no action
       if (ownReleaseIds.has(item.albumReleaseId)) return;
-      // Already in want list — navigate to Wants
+      if (inFlightIds.has(item.albumReleaseId)) return;
+
+      setInFlightIds((prev) => { const next = new Set(prev); next.add(item.albumReleaseId); return next; });
+
       if (wantReleaseIds.has(item.albumReleaseId)) {
-        setScreen("wants");
+        // Remove from wantlist
+        try {
+          await removeFromWantList(item.albumReleaseId);
+          toast.dismiss();
+          toast.info("Removed from Wantlist.", { duration: 2500 });
+        } catch (err: any) {
+          console.error("[Feed] Remove from wantlist failed:", err);
+          toast.error("Remove failed. Try again.");
+        } finally {
+          setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
+        }
         return;
       }
-      // Add to want list
-      addToWantList({
-        id: `w-feed-${item.albumReleaseId}-${Date.now()}`,
-        release_id: item.albumReleaseId,
-        title: item.albumTitle,
-        artist: item.albumArtist,
-        year: item.albumYear,
-        thumb: item.albumThumb,
-        cover: item.albumCover,
-        label: item.albumLabel,
-        priority: false,
-      });
-      setJustAddedWantIds((prev) => {
-        const next = new Set(prev);
-        next.add(item.id);
-        return next;
-      });
-      toast.dismiss();
-      toast.info("Added to your wantlist.", { duration: 2500 });
+
+      // Add to wantlist
+      try {
+        await addToWantList({
+          id: `w-feed-${item.albumReleaseId}-${Date.now()}`,
+          release_id: item.albumReleaseId,
+          title: item.albumTitle,
+          artist: item.albumArtist,
+          year: item.albumYear,
+          thumb: item.albumThumb,
+          cover: item.albumCover,
+          label: item.albumLabel,
+          priority: false,
+        });
+        toast.dismiss();
+        toast.info("Added to Wantlist.", { duration: 2500 });
+      } catch (err: any) {
+        console.error("[Feed] Add to wantlist failed:", err);
+        toast.error("Failed to add. Try again.");
+      } finally {
+        setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
+      }
     },
-    [ownReleaseIds, wantReleaseIds, addToWantList, setScreen]
+    [ownReleaseIds, wantReleaseIds, inFlightIds, addToWantList, removeFromWantList]
   );
 
   /* ── Shared card style ── */
@@ -506,7 +523,7 @@ export function FeedScreen() {
         <>
           {followingActivity.map((item) => {
             const inCollection = ownReleaseIds.has(item.albumReleaseId);
-            const inWantList = wantReleaseIds.has(item.albumReleaseId) || justAddedWantIds.has(item.id);
+            const inWantList = wantReleaseIds.has(item.albumReleaseId);
             return (
               <div
                 key={item.id}
@@ -630,22 +647,27 @@ export function FeedScreen() {
                 ) : (
                   <button
                     onClick={() => handleHeartTap(item)}
+                    disabled={inFlightIds.has(item.albumReleaseId)}
                     className="flex-shrink-0 cursor-pointer tappable"
                     style={{ padding: "4px", background: "none", border: "none" }}
                   >
-                    <motion.div
-                      key={inWantList ? "filled" : "outline"}
-                      initial={justAddedWantIds.has(item.id) ? { scale: 1.25 } : { scale: 0.7 }}
-                      animate={{ scale: 1 }}
-                      transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
-                    >
-                      <Heart
-                        size={18}
-                        fill={inWantList ? "#EBFD00" : "none"}
-                        color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
-                        strokeWidth={inWantList ? 0 : 1.5}
-                      />
-                    </motion.div>
+                    {inFlightIds.has(item.albumReleaseId) ? (
+                      <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
+                    ) : (
+                      <motion.div
+                        key={inWantList ? "filled" : "outline"}
+                        initial={{ scale: 0.7 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
+                      >
+                        <Heart
+                          size={18}
+                          fill={inWantList ? "#EBFD00" : "none"}
+                          color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
+                          strokeWidth={inWantList ? 0 : 1.5}
+                        />
+                      </motion.div>
+                    )}
                   </button>
                 )}
               </div>
