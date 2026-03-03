@@ -613,9 +613,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     hydratedRef.current.following = true;
     const authSnapshot = discogsAuth;
-    for (const record of convexFollowing) {
-      const username = record.following_username;
-      (async () => {
+    (async () => {
+      for (let i = 0; i < convexFollowing.length; i++) {
+        const username = convexFollowing[i].following_username;
         try {
           const profile = await fetchUserProfile(username, authSnapshot);
           let userAlbums: Album[] = [];
@@ -649,8 +649,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           console.warn(`[Following] Could not restore @${username}:`, e);
         }
-      })();
-    }
+
+        // 1-second delay between Discogs fetches to respect rate limits
+        if (i < convexFollowing.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    })();
   }, [screen, convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate following feed cache from Convex on cold load
