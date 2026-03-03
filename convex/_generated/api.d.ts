@@ -10,6 +10,7 @@
 
 import type * as collection from "../collection.js";
 import type * as following from "../following.js";
+import type * as following_feed from "../following_feed.js";
 import type * as last_played from "../last_played.js";
 import type * as oauth from "../oauth.js";
 import type * as preferences from "../preferences.js";
@@ -27,6 +28,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   collection: typeof collection;
   following: typeof following;
+  following_feed: typeof following_feed;
   last_played: typeof last_played;
   oauth: typeof oauth;
   preferences: typeof preferences;

@@ -83,4 +83,23 @@ export default defineSchema({
     view_mode: v.optional(v.string()),
     want_view_mode: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
+
+  following_feed: defineTable({
+    follower_username: v.string(),
+    followed_username: v.string(),
+    lastSyncedAt: v.number(),
+    recent_albums: v.array(
+      v.object({
+        release_id: v.number(),
+        title: v.string(),
+        artist: v.string(),
+        year: v.number(),
+        cover: v.string(),
+        label: v.string(),
+        dateAdded: v.string(),
+      })
+    ),
+  })
+    .index("by_follower", ["follower_username"])
+    .index("by_follower_and_followed", ["follower_username", "followed_username"]),
 });
