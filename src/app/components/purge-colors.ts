@@ -107,7 +107,7 @@ const purgeToastLabels: Record<string, string> = {
 export function purgeToast(tag: string, isDark: boolean, title?: string): void {
   const verb = purgeToastLabels[tag] ?? "Tag cleared.";
   const label = title
-    ? `"${title.length > 20 ? title.slice(0, 20) + "\u2026" : title}" ${verb}`
+    ? `"${title}" ${verb}`
     : verb.charAt(0).toUpperCase() + verb.slice(1);
   const bg = purgeButtonBg(tag, isDark);
   const text = purgeButtonText(tag, isDark);
