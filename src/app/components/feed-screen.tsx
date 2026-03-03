@@ -8,7 +8,7 @@ import {
   TrendingUp,
   Bookmark,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
 import type { FollowingFeedEntry } from "./app-context";
@@ -19,6 +19,7 @@ import { purgeIndicatorColor, purgeTagColor, purgeButtonBg, purgeButtonText, pur
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
+import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial } from "../utils/format";
 
 function formatCurrency(n: number): string {
@@ -196,6 +197,9 @@ export function FeedScreen() {
 
   // Per-item in-flight tracking for wantlist API calls
   const [inFlightIds, setInFlightIds] = useState<Set<number>>(() => new Set());
+  // Confirmation prompts for wantlist add/remove
+  const [addWantConfirm, setAddWantConfirm] = useState<FeedActivity | null>(null);
+  const [isAddingWant, setIsAddingWant] = useState(false);
 
   // Purge evaluator — current album for inline rating
   const [purgeEvalAlbumId, setPurgeEvalAlbumId] = useState<string | null>(() => {
@@ -385,27 +389,9 @@ export function FeedScreen() {
         return;
       }
 
-      // Add to wantlist
-      try {
-        await addToWantList({
-          id: `w-feed-${item.albumReleaseId}-${Date.now()}`,
-          release_id: item.albumReleaseId,
-          title: item.albumTitle,
-          artist: item.albumArtist,
-          year: item.albumYear,
-          thumb: item.albumThumb,
-          cover: item.albumCover,
-          label: item.albumLabel,
-          priority: false,
-        });
-        toast.dismiss();
-        toast.info("Added to Wantlist.", { duration: 2500 });
-      } catch (err: any) {
-        console.error("[Feed] Add to wantlist failed:", err);
-        toast.error("Failed to add. Try again.");
-      } finally {
-        setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
-      }
+      // Show add confirmation prompt
+      setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
+      setAddWantConfirm(item);
     },
     [ownReleaseIds, wantReleaseIds, inFlightIds, addToWantList, removeFromWantList]
   );
@@ -1635,6 +1621,99 @@ export function FeedScreen() {
         </div>
       </div>
       )}
+
+      {/* ── Add to Wantlist confirmation ── */}
+      <AnimatePresence>
+        {addWantConfirm && (
+          <SlideOutPanel
+            onClose={() => { setAddWantConfirm(null); setIsAddingWant(false); }}
+            backdropZIndex={110}
+            sheetZIndex={120}
+          >
+            <div className="flex flex-col items-center px-6 pt-2 pb-4 gap-4">
+              <img
+                src={addWantConfirm.albumThumb || addWantConfirm.albumCover}
+                alt={addWantConfirm.albumTitle}
+                className="w-[80px] h-[80px] rounded-[8px] object-cover"
+              />
+              <div className="text-center" style={{ minWidth: 0, maxWidth: "100%" }}>
+                <p style={{
+                  fontSize: "16px", fontWeight: 600, color: "var(--c-text)",
+                  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                  lineHeight: 1.3,
+                  display: "block", whiteSpace: "nowrap", overflow: "hidden",
+                  textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
+                } as React.CSSProperties}>
+                  {addWantConfirm.albumTitle}
+                </p>
+                <p className="mt-0.5" style={{
+                  fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  display: "block", whiteSpace: "nowrap", overflow: "hidden",
+                  textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
+                } as React.CSSProperties}>
+                  {addWantConfirm.albumArtist}
+                </p>
+              </div>
+              <p style={{
+                fontSize: "15px", fontWeight: 500, color: "var(--c-text)",
+                fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "center",
+              }}>
+                Add to your Wantlist?
+              </p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => { setAddWantConfirm(null); setIsAddingWant(false); }}
+                  className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer"
+                  style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsAddingWant(true);
+                    try {
+                      await addToWantList({
+                        id: `w-feed-${addWantConfirm.albumReleaseId}-${Date.now()}`,
+                        release_id: addWantConfirm.albumReleaseId,
+                        title: addWantConfirm.albumTitle,
+                        artist: addWantConfirm.albumArtist,
+                        year: addWantConfirm.albumYear,
+                        thumb: addWantConfirm.albumThumb,
+                        cover: addWantConfirm.albumCover,
+                        label: addWantConfirm.albumLabel,
+                        priority: false,
+                      });
+                      toast.dismiss();
+                      toast.info("Added to Wantlist.", { duration: 2500 });
+                      setAddWantConfirm(null);
+                    } catch (err: any) {
+                      console.error("[Feed] Add to wantlist failed:", err);
+                      toast.error("Failed to add. Try again.");
+                    } finally {
+                      setIsAddingWant(false);
+                    }
+                  }}
+                  disabled={isAddingWant}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
+                  style={{
+                    fontSize: "14px", fontWeight: 600,
+                    backgroundColor: "#EBFD00", color: "#0C284A",
+                    opacity: isAddingWant ? 0.7 : 1,
+                  }}
+                >
+                  {isAddingWant ? (
+                    <>
+                      <Disc3 size={14} className="disc-spinner" />
+                      Adding...
+                    </>
+                  ) : "Add to Wantlist"}
+                </button>
+              </div>
+            </div>
+          </SlideOutPanel>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
