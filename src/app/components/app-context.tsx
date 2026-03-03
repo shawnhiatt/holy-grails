@@ -512,8 +512,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           console.warn("[Cache load] Collection value fetch failed:", e);
         });
 
-        // Fetch avatar in background
-        fetchUserProfile(discogsUsername, auth).then((p) => setUserAvatar(p.avatar)).catch(() => {});
+        // Fetch avatar in background — skip if already set from Convex
+        if (!convexUser?.discogs_avatar_url) {
+          fetchUserProfile(discogsUsername, auth).then((p) => setUserAvatar(p.avatar)).catch(() => {});
+        }
       } else {
         // Cache is empty despite being "fresh" — fall back to full sync
         initialSyncDoneRef.current = true;
