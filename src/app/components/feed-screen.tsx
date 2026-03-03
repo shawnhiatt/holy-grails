@@ -201,6 +201,8 @@ export function FeedScreen() {
   // Confirmation prompts for wantlist add/remove
   const [addWantConfirm, setAddWantConfirm] = useState<FeedActivity | null>(null);
   const [isAddingWant, setIsAddingWant] = useState(false);
+  const [removeWantConfirm, setRemoveWantConfirm] = useState<FeedActivity | null>(null);
+  const [isRemovingWant, setIsRemovingWant] = useState(false);
 
   // Purge evaluator — current album for inline rating
   const [purgeEvalAlbumId, setPurgeEvalAlbumId] = useState<string | null>(() => {
@@ -368,33 +370,21 @@ export function FeedScreen() {
   const wantReleaseIds = useMemo(() => new Set(wants.map((w) => w.release_id)), [wants]);
 
   const handleHeartTap = useCallback(
-    async (item: FeedActivity) => {
+    (item: FeedActivity) => {
       // Already in collection or already in flight — no action
       if (ownReleaseIds.has(item.albumReleaseId)) return;
       if (inFlightIds.has(item.albumReleaseId)) return;
 
-      setInFlightIds((prev) => { const next = new Set(prev); next.add(item.albumReleaseId); return next; });
-
       if (wantReleaseIds.has(item.albumReleaseId)) {
-        // Remove from wantlist
-        try {
-          await removeFromWantList(item.albumReleaseId);
-          toast.dismiss();
-          toast.info(`"${toastTitle(item.albumTitle)}" removed.`, { duration: 2500 });
-        } catch (err: any) {
-          console.error("[Feed] Remove from wantlist failed:", err);
-          toast.error("Remove failed. Try again.");
-        } finally {
-          setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
-        }
+        // Show remove confirmation
+        setRemoveWantConfirm(item);
         return;
       }
 
       // Show add confirmation prompt
-      setInFlightIds((prev) => { const next = new Set(prev); next.delete(item.albumReleaseId); return next; });
       setAddWantConfirm(item);
     },
-    [ownReleaseIds, wantReleaseIds, inFlightIds, addToWantList, removeFromWantList]
+    [ownReleaseIds, wantReleaseIds, inFlightIds]
   );
 
   /* ── Shared card style ── */
@@ -1653,6 +1643,89 @@ export function FeedScreen() {
         </div>
       </div>
       )}
+
+      {/* ── Remove from Wantlist confirmation ── */}
+      <AnimatePresence>
+        {removeWantConfirm && (
+          <SlideOutPanel
+            onClose={() => { setRemoveWantConfirm(null); setIsRemovingWant(false); }}
+            backdropZIndex={110}
+            sheetZIndex={120}
+          >
+            <div className="flex flex-col items-center px-6 pt-2 pb-4 gap-4">
+              <img
+                src={removeWantConfirm.albumThumb || removeWantConfirm.albumCover}
+                alt={removeWantConfirm.albumTitle}
+                className="w-[80px] h-[80px] rounded-[8px] object-cover"
+              />
+              <div className="text-center" style={{ minWidth: 0, maxWidth: "100%" }}>
+                <p style={{
+                  fontSize: "16px", fontWeight: 600, color: "var(--c-text)",
+                  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                  lineHeight: 1.3,
+                  display: "block", whiteSpace: "nowrap", overflow: "hidden",
+                  textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
+                } as React.CSSProperties}>
+                  {removeWantConfirm.albumTitle}
+                </p>
+                <p className="mt-0.5" style={{
+                  fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  display: "block", whiteSpace: "nowrap", overflow: "hidden",
+                  textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
+                } as React.CSSProperties}>
+                  {removeWantConfirm.albumArtist}
+                </p>
+              </div>
+              <p style={{
+                fontSize: "15px", fontWeight: 500, color: "var(--c-text)",
+                fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "center",
+              }}>
+                Remove from your Wantlist?
+              </p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => { setRemoveWantConfirm(null); setIsRemovingWant(false); }}
+                  className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer"
+                  style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsRemovingWant(true);
+                    try {
+                      await removeFromWantList(removeWantConfirm.albumReleaseId);
+                      toast.dismiss();
+                      toast.info(`"${toastTitle(removeWantConfirm.albumTitle)}" removed.`, { duration: 2500 });
+                      setRemoveWantConfirm(null);
+                    } catch (err: any) {
+                      console.error("[Feed] Remove from wantlist failed:", err);
+                      toast.error("Remove failed. Try again.");
+                    } finally {
+                      setIsRemovingWant(false);
+                    }
+                  }}
+                  disabled={isRemovingWant}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
+                  style={{
+                    fontSize: "14px", fontWeight: 600,
+                    backgroundColor: "#FF33B6", color: "#FFFFFF",
+                    opacity: isRemovingWant ? 0.7 : 1,
+                  }}
+                >
+                  {isRemovingWant ? (
+                    <>
+                      <Disc3 size={14} className="disc-spinner" />
+                      Removing...
+                    </>
+                  ) : "Remove"}
+                </button>
+              </div>
+            </div>
+          </SlideOutPanel>
+        )}
+      </AnimatePresence>
 
       {/* ── Add to Wantlist confirmation ── */}
       <AnimatePresence>
