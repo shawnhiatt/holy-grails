@@ -8,6 +8,7 @@ import {
   fetchWantlist,
   fetchUserProfile,
   fetchCollectionValue,
+  fetchUserCollectionPage,
   removeFromCollection,
   addToWantlist,
   removeFromWantlist,
@@ -17,6 +18,7 @@ import {
   type Session,
   type PurgeTag,
   type Friend,
+  type FeedAlbum,
   clearCollectionValue,
   clearAllMarketData,
 } from "./discogs-api";
@@ -47,6 +49,12 @@ export type SortOption =
   | "added-new"
   | "added-old"
   | "last-played-oldest";
+
+export interface FollowingFeedEntry {
+  followed_username: string;
+  lastSyncedAt: number;
+  recent_albums: FeedAlbum[];
+}
 
 interface AppState {
   screen: Screen;
@@ -159,6 +167,8 @@ interface AppState {
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   discogsAuth: DiscogsAuth | null;
+  // Following feed cache (startup-synced)
+  followingFeed: FollowingFeedEntry[];
 }
 
 const AppContext = getOrCreateContext();
@@ -236,6 +246,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
   const [selectedWantItem, setSelectedWantItem] = useState<WantItem | null>(null);
   const [collectionCrossoverQueue, setCollectionCrossoverQueue] = useState<WantItem[]>([]);
+  const [followingFeed, setFollowingFeed] = useState<FollowingFeedEntry[]>([]);
 
   // ── Convex queries ──
 
@@ -275,6 +286,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     api.collection.getByUsername,
     discogsUsername ? { discogsUsername } : "skip"
   );
+  const convexFollowingFeed = useQuery(
+    api.following_feed.getByFollower,
+    discogsUsername ? { follower_username: discogsUsername } : "skip"
+  );
 
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
@@ -301,6 +316,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearSessionMut = useMutation(api.users.clearSession);
   const replaceCollectionMut = useMutation(api.collection.replaceAll);
   const updateInstanceMut = useMutation(api.collection.updateInstance);
+  const upsertFollowingFeedMut = useMutation(api.following_feed.upsert);
+  const deleteFollowingFeedMut = useMutation(api.following_feed.deleteEntry);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -309,6 +326,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   wantPrioritiesRef.current = convexWantPriorities;
   const lastPlayedRef = useRef(convexLastPlayed);
   lastPlayedRef.current = convexLastPlayed;
+  const followingRef = useRef(convexFollowing);
+  followingRef.current = convexFollowing;
+  const followingFeedRef = useRef(convexFollowingFeed);
+  followingFeedRef.current = convexFollowingFeed;
 
   // Track one-time hydration from Convex → local state
   const hydratedRef = useRef({
@@ -629,6 +650,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })();
     }
   }, [screen, convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hydrate following feed cache from Convex on cold load
+  useEffect(() => {
+    if (convexFollowingFeed === undefined) return;
+    if (followingFeed.length > 0) return; // already populated (e.g. from performSync)
+    if (convexFollowingFeed.length === 0) return;
+    setFollowingFeed(
+      convexFollowingFeed.map((entry) => ({
+        followed_username: entry.followed_username,
+        lastSyncedAt: entry.lastSyncedAt,
+        recent_albums: entry.recent_albums as FeedAlbum[],
+      }))
+    );
+  }, [convexFollowingFeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Screen navigation ──
 
@@ -1116,6 +1151,89 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateLastSyncedMut({ discogs_username: username });
       }
 
+      // ── Following feed sync ──
+      // Sync recent albums from followed users for the feed cache.
+      // Up to 25 users, most recently followed first. Skips users
+      // whose cache is less than 24 hours old.
+      setSyncProgress("Syncing users you follow");
+      try {
+        const followingList = followingRef.current;
+        const cachedFeed = followingFeedRef.current;
+        if (followingList && followingList.length > 0) {
+          // Sort by followed_at descending, cap at 25
+          const sorted = [...followingList]
+            .sort((a, b) => b.followed_at - a.followed_at)
+            .slice(0, 25);
+
+          // Build lookup of existing cache entries
+          const cacheMap = new Map<string, number>();
+          if (cachedFeed) {
+            for (const entry of cachedFeed) {
+              cacheMap.set(entry.followed_username, entry.lastSyncedAt);
+            }
+          }
+
+          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+          const now = Date.now();
+          const feedEntries: FollowingFeedEntry[] = [];
+
+          // Pre-populate from cache for users we won't re-fetch
+          if (cachedFeed) {
+            for (const entry of cachedFeed) {
+              feedEntries.push({
+                followed_username: entry.followed_username,
+                lastSyncedAt: entry.lastSyncedAt,
+                recent_albums: entry.recent_albums as FeedAlbum[],
+              });
+            }
+          }
+
+          for (let i = 0; i < sorted.length; i++) {
+            const record = sorted[i];
+            const followedUser = record.following_username;
+            setSyncProgress(`Syncing users you follow (${i + 1} of ${sorted.length})`);
+
+            const lastSynced = cacheMap.get(followedUser);
+            if (lastSynced && (now - lastSynced) < TWENTY_FOUR_HOURS) {
+              continue; // Cache is fresh — skip
+            }
+
+            try {
+              const recentAlbums = await fetchUserCollectionPage(followedUser, auth, 1, 50);
+              await upsertFollowingFeedMut({
+                follower_username: username,
+                followed_username: followedUser,
+                recent_albums: recentAlbums,
+              });
+
+              // Update or add to local feed state
+              const existingIdx = feedEntries.findIndex(e => e.followed_username === followedUser);
+              const entry: FollowingFeedEntry = {
+                followed_username: followedUser,
+                lastSyncedAt: Date.now(),
+                recent_albums: recentAlbums,
+              };
+              if (existingIdx >= 0) {
+                feedEntries[existingIdx] = entry;
+              } else {
+                feedEntries.push(entry);
+              }
+            } catch (e) {
+              console.warn(`[FollowingFeed] Could not sync @${followedUser}:`, e);
+            }
+
+            // 1-second delay between Discogs fetches to respect rate limits
+            if (i < sorted.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+
+          setFollowingFeed(feedEntries);
+        }
+      } catch (e) {
+        console.warn("[FollowingFeed] Sync failed:", e);
+      }
+
       setSyncProgress("");
 
       return {
@@ -1130,7 +1248,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut]);
+  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, upsertFollowingFeedMut]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);
@@ -1233,6 +1351,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWants([]);
     setSessions([]);
     setFriends([]);
+    setFollowingFeed([]);
     setFolders([]);
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
@@ -1285,6 +1404,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWants([]);
     setSessions([]);
     setFriends([]);
+    setFollowingFeed([]);
     setFolders([]);
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
@@ -1565,6 +1685,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       isAuthLoading,
       discogsAuth,
+      followingFeed,
     }),
     [
       screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, friends,
@@ -1601,6 +1722,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedWantItem,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
+      followingFeed,
     ]
   );
 

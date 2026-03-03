@@ -915,3 +915,47 @@ export async function removeFromWantlist(
     );
   }
 }
+
+/* ─── Following Feed — lightweight collection page fetch ─── */
+
+export interface FeedAlbum {
+  release_id: number;
+  title: string;
+  artist: string;
+  year: number;
+  cover: string;
+  label: string;
+  dateAdded: string;
+}
+
+/**
+ * Fetch a single page of a user's collection, returning only the lightweight
+ * fields needed for the following feed cache. Used during startup sync to
+ * populate the following_feed Convex table without the overhead of full
+ * collection parsing (folders, custom fields, conditions).
+ */
+export async function fetchUserCollectionPage(
+  username: string,
+  auth: DiscogsAuth,
+  page = 1,
+  perPage = 50
+): Promise<FeedAlbum[]> {
+  const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/0/releases?page=${page}&per_page=${perPage}&sort=added&sort_order=desc`;
+  const res = await discogsFetch(url, { headers: headers(auth) });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch collection page for @${username} (${res.status})`);
+  }
+  const data: CollectionPage = await res.json();
+  return data.releases.map((r) => {
+    const bi = r.basic_information;
+    return {
+      release_id: bi.id,
+      title: bi.title,
+      artist: bi.artists.map((a) => formatArtistName(a.anv || a.name)).join(", "),
+      year: bi.year || 0,
+      cover: bi.cover_image || bi.thumb || "",
+      label: bi.labels?.[0]?.name || "Unknown",
+      dateAdded: r.date_added || "",
+    };
+  });
+}
