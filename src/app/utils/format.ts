@@ -30,3 +30,11 @@ export function formatCollectionSince(iso: string): string {
 export function getInitial(username: string): string {
   return username.charAt(0).toUpperCase();
 }
+
+/**
+ * Truncate a title for toast messages. Keeps toasts under ~6 words.
+ */
+export function toastTitle(title: string, maxLen = 25): string {
+  if (title.length <= maxLen) return title;
+  return title.slice(0, maxLen) + "\u2026";
+}

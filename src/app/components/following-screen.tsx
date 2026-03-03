@@ -18,7 +18,7 @@ import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
 import { Skeleton } from "./ui/skeleton";
-import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
+import { formatActivityDate, formatCollectionSince, getInitial, toastTitle } from "../utils/format";
 import {
   fetchUserProfile,
   fetchCollection,
@@ -1698,7 +1698,7 @@ function PopulatedFollowingView({
                     setIsRemovingWant(true);
                     try {
                       await removeFromWantList(removeWantConfirm.albumReleaseId);
-                      toast.info("Removed from Wantlist.");
+                      toast.info(`"${toastTitle(removeWantConfirm.albumTitle)}" removed.`);
                       setRemoveWantConfirm(null);
                     } catch (err: any) {
                       console.error("[Following] Remove from wantlist failed:", err);
@@ -1786,7 +1786,7 @@ function PopulatedFollowingView({
                         priority: false,
                       });
                       toast.dismiss();
-                      toast.info("Added to Wantlist.", { duration: 2500 });
+                      toast.info(`"${toastTitle(addWantConfirm.albumTitle)}" added to Wantlist.`, { duration: 2500 });
                       setAddWantConfirm(null);
                     } catch (err: any) {
                       console.error("[Following] Add to wantlist failed:", err);

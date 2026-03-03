@@ -8,6 +8,7 @@ import type { WantItem } from "./discogs-api";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { fetchMarketData, getCachedMarketData } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { toastTitle } from "../utils/format";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { AlbumArtwork } from "./album-artwork-grid";
 
@@ -194,7 +195,7 @@ export function Wantlist() {
     const item = wants.find((w) => w.id === id);
     if (item) {
       toggleWantPriority(id);
-      toast.info(item.priority ? "Removed from priority." : "Marked as priority.", { duration: 1500 });
+      toast.info(item.priority ? `"${toastTitle(item.title, 20)}" priority removed.` : `"${toastTitle(item.title, 20)}" prioritized.`, { duration: 1500 });
     }
   }, [wants, toggleWantPriority]);
 

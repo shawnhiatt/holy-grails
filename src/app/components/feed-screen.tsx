@@ -20,7 +20,7 @@ import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
-import { formatActivityDate, getInitial } from "../utils/format";
+import { formatActivityDate, getInitial, toastTitle } from "../utils/format";
 
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -345,7 +345,7 @@ export function FeedScreen() {
   const handlePurgeDecision = useCallback((tag: "keep" | "cut" | "maybe") => {
     if (!purgeEvalAlbum) return;
     setPurgeTag(purgeEvalAlbum.id, tag);
-    purgeToast(tag, isDarkMode);
+    purgeToast(tag, isDarkMode, purgeEvalAlbum.title);
 
     // Crossfade to next album
     setPurgeEvalFading(true);
@@ -379,7 +379,7 @@ export function FeedScreen() {
         try {
           await removeFromWantList(item.albumReleaseId);
           toast.dismiss();
-          toast.info("Removed from Wantlist.", { duration: 2500 });
+          toast.info(`"${toastTitle(item.albumTitle)}" removed.`, { duration: 2500 });
         } catch (err: any) {
           console.error("[Feed] Remove from wantlist failed:", err);
           toast.error("Remove failed. Try again.");
@@ -1685,7 +1685,7 @@ export function FeedScreen() {
                         priority: false,
                       });
                       toast.dismiss();
-                      toast.info("Added to Wantlist.", { duration: 2500 });
+                      toast.info(`"${toastTitle(addWantConfirm.albumTitle)}" added to Wantlist.`, { duration: 2500 });
                       setAddWantConfirm(null);
                     } catch (err: any) {
                       console.error("[Feed] Add to wantlist failed:", err);

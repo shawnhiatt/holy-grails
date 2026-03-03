@@ -117,13 +117,14 @@ export function PurgeTracker() {
   const handlePurgeTag = useCallback((albumId: string, tag: PurgeTag) => {
     setPurgeTag(albumId, tag);
     if (tag) {
-      purgeToast(tag, isDarkMode);
+      const album = albums.find((a) => a.id === albumId);
+      purgeToast(tag, isDarkMode, album?.title);
       // If tagged as Cut, trigger background pricing fetch
       if (tag === "cut") {
         backgroundFetchForCut(albumId);
       }
     }
-  }, [setPurgeTag, isDarkMode, backgroundFetchForCut]);
+  }, [albums, setPurgeTag, isDarkMode, backgroundFetchForCut]);
 
   return (
     <div className="flex flex-col h-full">
