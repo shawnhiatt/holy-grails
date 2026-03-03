@@ -389,10 +389,12 @@ function mapRelease(
 export async function fetchCollection(
   username: string,
   auth: DiscogsAuth,
-  onProgress?: (loaded: number, total: number) => void
+  onProgress?: (loaded: number, total: number) => void,
+  opts?: { skipPrivateFields?: boolean }
 ): Promise<{ albums: Album[]; folders: string[] }> {
-  const folderMap = await fetchFolderMap(username, auth);
-  const fields = await fetchCustomFields(username, auth);
+  const skip = opts?.skipPrivateFields === true;
+  const folderMap = skip ? new Map<number, string>() : await fetchFolderMap(username, auth);
+  const fields = skip ? [] : await fetchCustomFields(username, auth);
   const fieldMap = buildFieldMap(fields);
 
   const albums: Album[] = [];

@@ -624,7 +624,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           let userWants: WantItem[] = [];
           let isPrivate = false;
           try {
-            const result = await fetchCollection(username, authSnapshot);
+            const result = await fetchCollection(username, authSnapshot, undefined, { skipPrivateFields: true });
             userAlbums = result.albums;
             userFolders = result.folders;
           } catch (e: any) {
