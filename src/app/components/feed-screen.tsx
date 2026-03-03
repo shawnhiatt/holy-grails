@@ -118,6 +118,7 @@ interface FeedActivity {
   followedAvatar: string;
   albumTitle: string;
   albumArtist: string;
+  albumThumb: string;
   albumCover: string;
   albumReleaseId: number;
   albumYear: number;
@@ -141,6 +142,7 @@ function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number): Feed
         followedAvatar: "",
         albumTitle: album.title,
         albumArtist: album.artist,
+        albumThumb: album.thumb || "",
         albumCover: album.cover,
         albumReleaseId: album.release_id,
         albumYear: album.year,
@@ -375,6 +377,7 @@ export function FeedScreen() {
         title: item.albumTitle,
         artist: item.albumArtist,
         year: item.albumYear,
+        thumb: item.albumThumb,
         cover: item.albumCover,
         label: item.albumLabel,
         priority: false,
@@ -517,7 +520,7 @@ export function FeedScreen() {
                 {/* Album cover with avatar overlay */}
                 <div className="relative flex-shrink-0" style={{ width: "60px", height: "60px" }}>
                   <img
-                    src={item.albumCover}
+                    src={item.albumThumb || item.albumCover}
                     alt={item.albumTitle}
                     className="w-full h-full rounded-[8px] object-cover"
                   />
@@ -730,7 +733,7 @@ export function FeedScreen() {
         {/* Cover art */}
         <div className="relative aspect-square overflow-hidden">
           <img
-            src={album.cover}
+            src={album.thumb || album.cover}
             alt={`${album.artist} - ${album.title}`}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             draggable={false}

@@ -657,7 +657,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 onClick={() => onSelect(want)}
               >
                 <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0">
-                  <img src={want.cover} alt={want.title} className="w-full h-full object-cover" />
+                  <img src={want.thumb || want.cover} alt={want.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{want.title}</p>
@@ -720,7 +720,7 @@ function WantArtworkView({ wants, togglePriority, onSelect }: { wants: WantItem[
             style={{ aspectRatio: "1 / 1" }}
             onClick={() => onSelect(item)}
           >
-            <img src={item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
+            <img src={item.thumb || item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3">
               <p className="text-white truncate" style={{ fontSize: "13px", fontWeight: 600, lineHeight: "1.2", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>{item.title}</p>
               <p className="text-[rgba(255,255,255,0.75)] truncate" style={{ fontSize: "11px", fontWeight: 400, lineHeight: "1.3" }}>{item.artist}</p>

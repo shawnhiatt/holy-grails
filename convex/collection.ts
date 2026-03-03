@@ -24,6 +24,7 @@ export const replaceAll = mutation({
         artist: v.string(),
         title: v.string(),
         year: v.number(),
+        thumb: v.optional(v.string()),
         cover: v.string(),
         folder: v.string(),
         label: v.string(),

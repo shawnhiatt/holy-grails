@@ -23,6 +23,7 @@ export const upsert = mutation({
         title: v.string(),
         artist: v.string(),
         year: v.number(),
+        thumb: v.optional(v.string()),
         cover: v.string(),
         label: v.string(),
         dateAdded: v.string(),

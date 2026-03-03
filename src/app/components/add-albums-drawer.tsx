@@ -369,7 +369,7 @@ function DrawerContent({
                     }}
                   >
                     <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                      <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+                      <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                       <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
@@ -415,7 +415,7 @@ function ThumbnailCard({ album, isAdded, onToggle, isDarkMode }: {
       style={{ width: 88 }}
     >
       <div className="w-[88px] h-[88px] rounded-[8px] overflow-hidden relative">
-        <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+        <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
         {isAdded && (
           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
             <div

@@ -127,7 +127,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                 style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
               >
                 <div className="w-16 h-16 rounded-[8px] overflow-hidden flex-shrink-0">
-                  <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+                  <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>

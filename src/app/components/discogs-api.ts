@@ -21,6 +21,7 @@ export interface Album {
   title: string;
   artist: string;
   year: number;
+  thumb: string;
   cover: string;
   folder: string;
   label: string;
@@ -43,6 +44,7 @@ export interface WantItem {
   title: string;
   artist: string;
   year: number;
+  thumb: string;
   cover: string;
   label: string;
   priority: boolean;
@@ -367,6 +369,7 @@ function mapRelease(
     title: bi.title,
     artist,
     year: bi.year || 0,
+    thumb: bi.thumb || "",
     cover: bi.cover_image || bi.thumb || "",
     folder: folderName(r.folder_id, folderMap),
     label,
@@ -480,6 +483,7 @@ export async function fetchWantlist(
         title: bi.title,
         artist,
         year: bi.year || 0,
+        thumb: bi.thumb || "",
         cover: bi.cover_image || bi.thumb || "",
         label: bi.labels?.[0]?.name || "Unknown",
         priority: false,
@@ -884,6 +888,7 @@ export async function addToWantlist(
     title: bi?.title ?? "",
     artist,
     year: bi?.year ?? 0,
+    thumb: bi?.thumb || "",
     cover: bi?.cover_image || bi?.thumb || "",
     label: bi?.labels?.[0]?.name || "Unknown",
     priority: false,
@@ -923,6 +928,7 @@ export interface FeedAlbum {
   title: string;
   artist: string;
   year: number;
+  thumb: string;
   cover: string;
   label: string;
   dateAdded: string;
@@ -953,6 +959,7 @@ export async function fetchUserCollectionPage(
       title: bi.title,
       artist: bi.artists.map((a) => formatArtistName(a.anv || a.name)).join(", "),
       year: bi.year || 0,
+      thumb: bi.thumb || "",
       cover: bi.cover_image || bi.thumb || "",
       label: bi.labels?.[0]?.name || "Unknown",
       dateAdded: r.date_added || "",
