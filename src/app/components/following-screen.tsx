@@ -796,19 +796,19 @@ function FollowedUserCrateView({ items, crateIndex, setCrateIndex }: {
 
   return (
     <div className="flex flex-col items-center px-[16px] lg:px-[24px] py-6 gap-4">
-      <div className="relative w-full max-w-[400px]">
+      <div className="relative w-full max-w-[calc(100vw-32px)] lg:max-w-[620px]">
         <motion.div
           key={current.id}
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.25 }}
-          className="rounded-[12px] overflow-hidden"
+          className="rounded-[14px] overflow-hidden"
           style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}
         >
           <img src={current.cover} alt={current.title} className="w-full aspect-square object-cover" />
         </motion.div>
       </div>
-      <div className="text-center max-w-[400px]">
+      <div className="text-center max-w-[calc(100vw-32px)] lg:max-w-[620px]">
         <p style={{ fontSize: "18px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
           {current.title}
         </p>

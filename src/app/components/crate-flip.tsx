@@ -127,8 +127,8 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
       {/* Card stack area */}
       <div className="relative w-full flex-1 flex items-center justify-center px-[16px] lg:px-[24px]">
         <motion.div
-          className="relative"
-          style={{ width: "min(320px, 80vw)", aspectRatio: "1 / 1", zIndex: lightboxActive ? 101 : "auto" }}
+          className="relative w-full max-w-[calc(100vw-32px)] lg:max-w-[620px]"
+          style={{ aspectRatio: "1 / 1", zIndex: lightboxActive ? 101 : "auto" }}
           animate={{ scale: lightboxActive ? 1.05 : 1 }}
           transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         >
@@ -143,7 +143,7 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
               return (
                 <motion.div
                   key={album.id}
-                  className="absolute inset-0 rounded-[16px] overflow-hidden cursor-pointer"
+                  className="absolute inset-0 rounded-[14px] overflow-hidden cursor-pointer"
                   style={{
                     boxShadow: isCurrent
                       ? "0 8px 32px rgba(0,0,0,0.25)"

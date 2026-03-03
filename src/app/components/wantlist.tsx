@@ -389,7 +389,7 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
       {/* Centered card + nav group */}
       <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full">
         <motion.div
-          className="w-full max-w-[361px] lg:max-w-[620px] aspect-square relative"
+          className="w-full max-w-[calc(100vw-32px)] lg:max-w-[620px] aspect-square relative"
           style={{ zIndex: lightboxActive ? 101 : "auto" }}
           animate={{ scale: lightboxActive ? 1.05 : 1 }}
           transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
