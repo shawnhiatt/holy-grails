@@ -4,6 +4,38 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.3.2 — 2026-03-02
+
+### API Optimization — Pass 2
+
+#### Performance
+- Cache wantlist in Convex with 24h TTL — on cache-fresh loads, wantlist hydrates from Convex instead of fetching from Discogs
+- Cache collection value in Convex with 24h TTL — skip Discogs `/collection/value` fetch on cache-fresh loads
+- Wantlist add/remove operations keep Convex cache in sync (fire-and-forget mutations)
+- New Convex `wantlist` table with `by_username` and `by_username_release` indexes
+- New `collection_value` and `collection_value_synced_at` fields on Convex `users` table
+
+#### Fixed
+- Wantlist and following artwork grids now use shared `AlbumArtworkGrid` component — consistent 4 cols mobile, 8 cols desktop
+- Wantlist artwork view text truncation switched from `truncate` class to inline styles (iOS Safari fix)
+- Following artwork view now uses `thumb` field for grid images (was using full-size `cover` only)
+
+---
+
+## 0.3.1 — 2026-03-02
+
+### API Optimization — Pass 1
+
+#### Performance
+- Use `thumb` field from Discogs API for grid/list views, reducing image payload
+- Skip private collection fields during sync (`skipPrivateFields` option on `fetchCollection`)
+- Skip `fetchUserProfile` on cache load when avatar is already stored in Convex
+
+#### Infrastructure
+- Added `thumb` field to `Album` type, Convex `collection` schema, and all grid/list components
+
+---
+
 ## 0.3.0 — 2026-03-01
 
 ### Wantlist Writes (Phase 6)
