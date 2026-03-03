@@ -7,12 +7,15 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence, type PanInfo } from "motion/react";
 import { toast } from "sonner";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { useApp, type ViewMode, type Screen } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { Album, FollowedUser, WantItem } from "./discogs-api";
-import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { EASE_IN_OUT, EASE_OUT, DURATION_NORMAL, DURATION_FAST } from "./motion-tokens";
 import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
+import { Skeleton } from "./ui/skeleton";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import {
   fetchUserProfile,
@@ -31,8 +34,18 @@ const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[
 ];
 
 export function FollowingScreen() {
-  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, discogsAuth, isDarkMode, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
+  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, discogsAuth, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
+
+  // Direct Convex query to know if the user has followed users persisted
+  // (before the slower Discogs API hydration fills followedUsers state)
+  const convexFollowing = useQuery(
+    api.following.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
+  const isHydrating = followedUsers.length === 0
+    && convexFollowing !== undefined
+    && convexFollowing.length > 0;
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUsername, setAddUsername] = useState("");
@@ -236,7 +249,9 @@ export function FollowingScreen() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 80px))" }} onScroll={onHeaderScroll}>
-        {followedUsers.length === 0 ? (
+        {isHydrating ? (
+          <FollowingSkeletonRows />
+        ) : followedUsers.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 py-20">
             <Users size={48} style={{ color: "var(--c-text-faint)" }} />
             <p className="mt-4 text-center" style={{ fontSize: "16px", fontWeight: 500, color: "var(--c-text-muted)" }}>You're not following anyone yet.</p>
@@ -245,18 +260,48 @@ export function FollowingScreen() {
             </p>
           </div>
         ) : (
-          <PopulatedFollowingView
-            followedUsers={followedUsers}
-            onSelectUser={setSelectedUserId}
-            isDarkMode={isDarkMode}
-            albums={albums}
-            wants={wants}
-            addToWantList={addToWantList}
-            removeFromWantList={removeFromWantList}
-            setAppScreen={setAppScreen}
-          />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+          >
+            <PopulatedFollowingView
+              followedUsers={followedUsers}
+              onSelectUser={setSelectedUserId}
+              isDarkMode={isDarkMode}
+              albums={albums}
+              wants={wants}
+              addToWantList={addToWantList}
+              removeFromWantList={removeFromWantList}
+              setAppScreen={setAppScreen}
+            />
+          </motion.div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ====== Skeleton Loading Rows ====== */
+
+function FollowingSkeletonRows() {
+  return (
+    <div>
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 px-[16px] lg:px-[24px] py-3"
+          style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}
+        >
+          {/* Avatar */}
+          <Skeleton className="w-11 h-11 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--c-surface-alt)" }} />
+          {/* Text lines */}
+          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+            <Skeleton className="h-[15px] rounded-[4px]" style={{ width: "40%", backgroundColor: "var(--c-surface-alt)" }} />
+            <Skeleton className="h-[13px] rounded-[4px]" style={{ width: "28%", backgroundColor: "var(--c-surface-alt)" }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
