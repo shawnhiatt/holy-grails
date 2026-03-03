@@ -288,6 +288,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     api.collection.getByUsername,
     discogsUsername ? { discogsUsername } : "skip"
   );
+  const convexWantlist = useQuery(
+    api.wantlist.getByUsername,
+    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+  );
   const convexFollowingFeed = useQuery(
     api.following_feed.getByFollower,
     discogsUsername ? { follower_username: discogsUsername } : "skip"
@@ -318,6 +322,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearSessionMut = useMutation(api.users.clearSession);
   const replaceCollectionMut = useMutation(api.collection.replaceAll);
   const updateInstanceMut = useMutation(api.collection.updateInstance);
+  const replaceWantlistMut = useMutation(api.wantlist.replaceAll);
+  const addWantlistItemMut = useMutation(api.wantlist.addItem);
+  const removeWantlistItemMut = useMutation(api.wantlist.removeItem);
   const upsertFollowingFeedMut = useMutation(api.following_feed.upsert);
   const deleteFollowingFeedMut = useMutation(api.following_feed.deleteEntry);
 
@@ -330,6 +337,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   lastPlayedRef.current = convexLastPlayed;
   const followingRef = useRef(convexFollowing);
   followingRef.current = convexFollowing;
+  const wantlistRef = useRef(convexWantlist);
+  wantlistRef.current = convexWantlist;
   const followingFeedRef = useRef(convexFollowingFeed);
   followingFeedRef.current = convexFollowingFeed;
 
@@ -467,8 +476,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         setFolders(cachedFolders);
 
-        // Still need wantlist from Discogs (not cached)
-        fetchWantlist(discogsUsername, auth).then((newWants) => {
+        // Load wantlist from Convex cache, fall back to Discogs if empty
+        const cachedWants = wantlistRef.current;
+        const hydrateWants = (newWants: WantItem[]) => {
           const prios = wantPrioritiesRef.current;
           if (prios !== undefined) {
             const prioMap = new Map(prios.map((p) => [p.release_id, p.is_priority]));
@@ -497,15 +507,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             folders: cachedFolders.filter((f) => f !== "All").length,
             wants: newWants.length,
           });
-        }).catch((err) => {
-          console.warn("[Cache load] Wantlist fetch failed:", err);
-          // Albums are still loaded from cache — app is usable
-          setSyncStats({
-            albums: cachedAlbums.length,
-            folders: cachedFolders.filter((f) => f !== "All").length,
-            wants: 0,
+        };
+
+        if (cachedWants !== undefined && cachedWants.length > 0) {
+          // Hydrate wantlist from Convex cache
+          const wantsFromCache: WantItem[] = cachedWants.map((row) => ({
+            id: String(row.release_id),
+            release_id: row.release_id,
+            title: row.title,
+            artist: row.artist,
+            year: row.year,
+            thumb: row.thumb ?? "",
+            cover: row.cover,
+            label: row.label,
+            priority: row.priority,
+          }));
+          hydrateWants(wantsFromCache);
+        } else {
+          // Convex wantlist empty — fall back to Discogs fetch
+          fetchWantlist(discogsUsername, auth).then((newWants) => {
+            hydrateWants(newWants);
+            // Populate Convex cache for next load
+            replaceWantlistMut({
+              discogs_username: discogsUsername,
+              items: newWants.map((w) => ({
+                release_id: w.release_id,
+                title: w.title,
+                artist: w.artist,
+                year: w.year,
+                cover: w.cover,
+                thumb: w.thumb || undefined,
+                label: w.label,
+                priority: w.priority,
+              })),
+            }).catch((e) => console.warn("[Convex] Wantlist cache write failed:", e));
+          }).catch((err) => {
+            console.warn("[Cache load] Wantlist fetch failed:", err);
+            setSyncStats({
+              albums: cachedAlbums.length,
+              folders: cachedFolders.filter((f) => f !== "All").length,
+              wants: 0,
+            });
           });
-        });
+        }
 
         // Fetch collection value in background
         fetchCollectionValue(discogsUsername, auth).catch((e) => {
@@ -926,7 +970,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (prev.some((w) => Number(w.release_id) === rid)) return prev;
       return [...prev, result];
     });
-  }, [discogsAuth, discogsUsername]);
+    // Keep Convex wantlist cache in sync
+    addWantlistItemMut({
+      discogs_username: discogsUsername,
+      release_id: result.release_id,
+      title: result.title,
+      artist: result.artist,
+      year: result.year,
+      cover: result.cover,
+      thumb: result.thumb || undefined,
+      label: result.label,
+      priority: result.priority,
+    }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
+  }, [discogsAuth, discogsUsername, addWantlistItemMut]);
 
   const removeFromWantList = useCallback(async (releaseId: string | number): Promise<void> => {
     const rid = Number(releaseId);
@@ -944,7 +1000,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       release_id: rid,
       is_priority: false,
     }).catch(() => {});
-  }, [discogsAuth, discogsUsername, upsertWantPriorityMut]);
+    // Keep Convex wantlist cache in sync
+    removeWantlistItemMut({
+      discogs_username: discogsUsername,
+      release_id: rid,
+    }).catch((e) => console.warn("[Convex] Wantlist remove failed:", e));
+  }, [discogsAuth, discogsUsername, upsertWantPriorityMut, removeWantlistItemMut]);
 
   const isInWants = useCallback((releaseId: string | number) => {
     const rid = Number(releaseId);
@@ -1139,6 +1200,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn("[Convex] Collection cache write failed:", e);
       }
 
+      // Write wantlist to Convex cache
+      try {
+        await replaceWantlistMut({
+          discogs_username: username,
+          items: newWants.map((w) => ({
+            release_id: w.release_id,
+            title: w.title,
+            artist: w.artist,
+            year: w.year,
+            cover: w.cover,
+            thumb: w.thumb || undefined,
+            label: w.label,
+            priority: w.priority,
+          })),
+        });
+      } catch (e) {
+        console.warn("[Convex] Wantlist cache write failed:", e);
+      }
+
       // Update sync metadata
       const now = new Date();
       const formatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -1264,7 +1344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, upsertFollowingFeedMut]);
+  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, upsertFollowingFeedMut]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);

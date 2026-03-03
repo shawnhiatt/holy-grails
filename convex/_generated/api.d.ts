@@ -18,6 +18,7 @@ import type * as purge_tags from "../purge_tags.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
 import type * as want_priorities from "../want_priorities.js";
+import type * as wantlist from "../wantlist.js";
 
 import type {
   ApiFromModules,
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   sessions: typeof sessions;
   users: typeof users;
   want_priorities: typeof want_priorities;
+  wantlist: typeof wantlist;
 }>;
 
 /**

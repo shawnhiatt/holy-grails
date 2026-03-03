@@ -75,6 +75,20 @@ export default defineSchema({
     .index("by_username", ["discogsUsername"])
     .index("by_username_and_release", ["discogsUsername", "releaseId"]),
 
+  wantlist: defineTable({
+    discogs_username: v.string(),
+    release_id: v.number(),
+    title: v.string(),
+    artist: v.string(),
+    year: v.number(),
+    cover: v.string(),
+    thumb: v.optional(v.string()),
+    label: v.string(),
+    priority: v.boolean(),
+  })
+    .index("by_username", ["discogs_username"])
+    .index("by_username_release", ["discogs_username", "release_id"]),
+
   preferences: defineTable({
     discogs_username: v.string(),
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("system")),
