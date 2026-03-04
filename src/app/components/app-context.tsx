@@ -659,6 +659,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexPreferences]);
 
+  // Pre-populate followedUsers with partial entries from Convex as soon as
+  // convexFollowing loads — renders username + avatar instantly on the
+  // Following screen before API hydration begins.
+  useEffect(() => {
+    if (convexFollowing === undefined || convexFollowing.length === 0) return;
+    setFollowedUsers(prev => {
+      // Only add entries that aren't already present
+      const existingUsernames = new Set(prev.map(f => f.username.toLowerCase()));
+      const newPartials: FollowedUser[] = [];
+      for (const entry of convexFollowing) {
+        if (!existingUsernames.has(entry.following_username.toLowerCase())) {
+          newPartials.push({
+            id: `f-${entry.following_username}`,
+            username: entry.following_username,
+            avatar: (entry as any).avatar_url || "",
+            isPrivate: false,
+            folders: ["All"],
+            lastSynced: "",
+            collection: [],
+            wants: [],
+            hydrated: false,
+          });
+        }
+      }
+      return newPartials.length > 0 ? [...prev, ...newPartials] : prev;
+    });
+  }, [convexFollowing]);
+
   // Hydrate following from Convex — deferred until the user navigates to
   // the Following screen so we don't burn rate-limit budget on app load.
   useEffect(() => {
@@ -700,9 +728,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             lastSynced: new Date().toISOString().split("T")[0],
             collection: userAlbums,
             wants: userWants,
+            hydrated: true,
           };
           setFollowedUsers(prev => {
-            if (prev.some(f => f.username.toLowerCase() === followedUser.username.toLowerCase())) return prev;
+            // Replace partial entry or add new
+            const idx = prev.findIndex(f => f.username.toLowerCase() === followedUser.username.toLowerCase());
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = followedUser;
+              return updated;
+            }
             return [...prev, followedUser];
           });
           // Persist avatar to Convex following table for feed usage
@@ -1099,7 +1134,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Following ──
 
   const addFollowedUser = useCallback((user: FollowedUser) => {
-    setFollowedUsers((prev) => [...prev, user]);
+    setFollowedUsers((prev) => [...prev, { ...user, hydrated: true }]);
     if (sessionToken) {
       addFollowingMut({
         sessionToken,

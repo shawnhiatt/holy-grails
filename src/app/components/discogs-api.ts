@@ -69,6 +69,8 @@ export interface FollowedUser {
   wants: WantItem[];
   folders: string[];
   lastSynced: string;
+  /** false while API hydration is in progress; true (or undefined for legacy) once complete */
+  hydrated?: boolean;
 }
 
 export interface FeedAlbum {

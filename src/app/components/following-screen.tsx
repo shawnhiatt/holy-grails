@@ -7,9 +7,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
 import { toast } from "sonner";
-import { useApp, type ViewMode, type Screen } from "./app-context";
+import { useApp, type ViewMode, type Screen, type FollowingFeedEntry } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
-import type { Album, FollowedUser, WantItem } from "./discogs-api";
+import type { Album, FollowedUser, FeedAlbum, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, EASE_IN, DURATION_NORMAL, DURATION_FAST, DURATION_SLOW } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { useHideHeaderOnScroll } from "./use-hide-header";
@@ -32,7 +32,7 @@ const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[
 ];
 
 export function FollowingScreen() {
-  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
+  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing } = useApp();
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
   const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
@@ -269,6 +269,9 @@ export function FollowingScreen() {
               addToWantList={addToWantList}
               removeFromWantList={removeFromWantList}
               setAppScreen={setAppScreen}
+              followingFeed={followingFeed}
+              followingAvatars={followingAvatars}
+              isSyncingFollowing={isSyncingFollowing}
             />
           </motion.div>
         )}
@@ -356,6 +359,10 @@ function FollowedUserRow({
             {user.isPrivate ? (
               <p className="flex items-center gap-1 mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "#FF33B6" }}>
                 <Lock size={11} /> Private collection
+              </p>
+            ) : user.hydrated === false ? (
+              <p className="mt-0.5 flex items-center gap-1.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+                <Disc3 size={11} className="disc-spinner" /> Syncing
               </p>
             ) : (
               <p className="mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
@@ -575,7 +582,7 @@ function FollowedUserProfile({
               color: tab === "collection" ? "#0C284A" : "var(--c-text-muted)",
             }}
           >
-            Collection ({user.collection.length})
+            Collection ({user.hydrated === false ? "…" : user.collection.length})
           </button>
           <button
             onClick={() => { setTab("wants"); setFilter("all"); }}
@@ -588,7 +595,7 @@ function FollowedUserProfile({
               borderLeft: "1px solid var(--c-border-strong)",
             }}
           >
-            Wantlist ({user.wants.length})
+            Wantlist ({user.hydrated === false ? "…" : user.wants.length})
           </button>
         </div>
       </div>
@@ -686,7 +693,14 @@ function FollowedUserProfile({
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
-        {displayItems.length === 0 ? (
+        {user.hydrated === false ? (
+          <div className="flex flex-col items-center justify-center px-8 py-16">
+            <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
+            <p className="mt-3" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+              Syncing @{user.username}
+            </p>
+          </div>
+        ) : displayItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-8 py-16">
             <p style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text-muted)" }}>
               {filter === "they-want-you-cut" ? "No matches found" :
@@ -1232,19 +1246,25 @@ interface ActivityItem {
 }
 
 
-function buildActivityFeed(users: FollowedUser[]): ActivityItem[] {
+function buildActivityFeedFromCache(
+  feedEntries: FollowingFeedEntry[],
+  avatarMap: Map<string, string>,
+  userIdMap: Map<string, string>,
+): ActivityItem[] {
   const items: ActivityItem[] = [];
-  for (const followedUser of users) {
-    if (followedUser.isPrivate || followedUser.collection.length === 0) continue;
-    const sorted = [...followedUser.collection]
+  for (const entry of feedEntries) {
+    if (entry.recent_albums.length === 0) continue;
+    const sorted = [...entry.recent_albums]
       .sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""))
       .slice(0, 30);
+    const avatar = avatarMap.get(entry.followed_username) || "";
+    const userId = userIdMap.get(entry.followed_username.toLowerCase()) || `f-${entry.followed_username}`;
     sorted.forEach((album) => {
       items.push({
-        id: `act-${followedUser.id}-${album.id}`,
-        followedId: followedUser.id,
-        followedUsername: followedUser.username,
-        followedAvatar: followedUser.avatar,
+        id: `act-${entry.followed_username}-${album.release_id}`,
+        followedId: userId,
+        followedUsername: entry.followed_username,
+        followedAvatar: avatar,
         albumTitle: album.title,
         albumArtist: album.artist,
         albumCover: album.cover,
@@ -1276,6 +1296,9 @@ function PopulatedFollowingView({
   addToWantList,
   removeFromWantList,
   setAppScreen,
+  followingFeed,
+  followingAvatars,
+  isSyncingFollowing,
 }: {
   followedUsers: FollowedUser[];
   onSelectUser: (id: string) => void;
@@ -1285,8 +1308,13 @@ function PopulatedFollowingView({
   addToWantList: (item: WantItem) => Promise<void>;
   removeFromWantList: (releaseId: string | number) => Promise<void>;
   setAppScreen: (s: Screen) => void;
+  followingFeed: FollowingFeedEntry[];
+  followingAvatars: Map<string, string>;
+  isSyncingFollowing: boolean;
 }) {
-  const activityFeed = useMemo(() => buildActivityFeed(followedUsers), [followedUsers]);
+  // Build a username → followedUser.id lookup for activity items
+  const userIdMap = useMemo(() => new Map(followedUsers.map(f => [f.username.toLowerCase(), f.id])), [followedUsers]);
+  const activityFeed = useMemo(() => buildActivityFeedFromCache(followingFeed, followingAvatars, userIdMap), [followingFeed, followingAvatars, userIdMap]);
   const [visibleCount, setVisibleCount] = useState(30);
   const visibleActivity = useMemo(() => activityFeed.slice(0, visibleCount), [activityFeed, visibleCount]);
   const hasMore = activityFeed.length > visibleCount;
@@ -1313,21 +1341,51 @@ function PopulatedFollowingView({
     return s;
   }, [userWantsForHeart]);
 
-  // From the Depths — 2–4 random albums per followed user; re-derives when followedUsers list changes
+  // From the Depths — uses followingFeed cache (available immediately from Convex)
+  // rather than followedUsers[].collection which requires API hydration.
   const MAX_CARDS_PER_USER = 4;
   const depthsPicks = useMemo(() => {
-    const results: { followedUser: FollowedUser; album: Album; cardKey: string }[] = [];
-    followedUsers
-      .filter((f) => !f.isPrivate && f.collection.length > 0)
-      .forEach((followedUser) => {
-        const shuffled = [...followedUser.collection].sort(() => Math.random() - 0.5);
-        const picks = shuffled.slice(0, MAX_CARDS_PER_USER);
-        picks.forEach((album, idx) => {
-          results.push({ followedUser, album, cardKey: `${followedUser.id}-${album.id}-${idx}` });
+    const results: { username: string; avatar: string; userId: string; album: Album; cardKey: string }[] = [];
+    // Build a username → followedUser.id lookup
+    const userIdMap = new Map(followedUsers.map(f => [f.username.toLowerCase(), f.id]));
+    for (const entry of followingFeed) {
+      if (entry.recent_albums.length === 0) continue;
+      const shuffled = [...entry.recent_albums].sort(() => Math.random() - 0.5);
+      const picks = shuffled.slice(0, MAX_CARDS_PER_USER);
+      const avatar = followingAvatars.get(entry.followed_username) || "";
+      const userId = userIdMap.get(entry.followed_username.toLowerCase()) || `f-${entry.followed_username}`;
+      for (let idx = 0; idx < picks.length; idx++) {
+        const fa = picks[idx];
+        // Adapt FeedAlbum to Album shape for DepthsAlbumCard
+        const album: Album = {
+          id: String(fa.release_id),
+          release_id: fa.release_id,
+          master_id: fa.master_id || 0,
+          title: fa.title,
+          artist: fa.artist,
+          year: fa.year,
+          thumb: fa.thumb,
+          cover: fa.cover,
+          label: fa.label,
+          dateAdded: fa.dateAdded,
+          folder: "",
+          mediaCondition: "",
+          sleeveCondition: "",
+          notes: "",
+          pricePaid: "",
+          instance_id: 0,
+        };
+        results.push({
+          username: entry.followed_username,
+          avatar,
+          userId,
+          album,
+          cardKey: `${entry.followed_username}-${fa.release_id}-${idx}`,
         });
-      });
+      }
+    }
     return results;
-  }, [followedUsers]);
+  }, [followingFeed, followingAvatars, followedUsers]);
 
   const handleHeartTap = useCallback(async (item: ActivityItem) => {
     // Already in collection or already in flight — no action
@@ -1428,7 +1486,7 @@ function PopulatedFollowingView({
           >
             <style>{`.depths-scroll::-webkit-scrollbar { display: none; }`}</style>
             <div className="flex gap-[12px] px-[16px] lg:px-[24px]">
-              {depthsPicks.map(({ followedUser, album, cardKey }) => (
+              {depthsPicks.map(({ username, avatar, userId, album, cardKey }) => (
                 <motion.div
                   key={`depths-${cardKey}`}
                   initial={{ opacity: 0 }}
@@ -1439,7 +1497,7 @@ function PopulatedFollowingView({
                 >
                   <DepthsAlbumCard
                     album={album}
-                    onTap={() => onSelectUser(followedUser.id)}
+                    onTap={() => onSelectUser(userId)}
                     artworkPadded
                     dateLine={album.dateAdded ? `In their collection since ${formatCollectionSince(album.dateAdded)}` : undefined}
                     overlay={
@@ -1466,10 +1524,10 @@ function PopulatedFollowingView({
                             backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
                           }}
                         >
-                          {followedUser.avatar ? (
+                          {avatar ? (
                             <img
-                              src={followedUser.avatar}
-                              alt={followedUser.username}
+                              src={avatar}
+                              alt={username}
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -1482,7 +1540,7 @@ function PopulatedFollowingView({
                                 lineHeight: 1,
                               }}
                             >
-                              {getInitial(followedUser.username)}
+                              {getInitial(username)}
                             </span>
                           )}
                         </div>
@@ -1500,14 +1558,14 @@ function PopulatedFollowingView({
                             maxWidth: "100%",
                           } as React.CSSProperties}
                         >
-                          From {followedUser.username}&rsquo;s crates
+                          From {username}&rsquo;s crates
                         </p>
                       </div>
                     }
                     footer={
                       <div className="flex justify-end mt-[8px]">
                         <button
-                          onClick={(e) => { e.stopPropagation(); onSelectUser(followedUser.id); }}
+                          onClick={(e) => { e.stopPropagation(); onSelectUser(userId); }}
                           className="cursor-pointer tappable"
                           style={{
                             fontSize: "12px",
@@ -1540,11 +1598,20 @@ function PopulatedFollowingView({
 
       {/* ── Activity feed ── */}
       {activityFeed.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-8 py-16">
-          <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-            No recent activity from collectors you follow.
-          </p>
-        </div>
+        isSyncingFollowing ? (
+          <div className="flex flex-col items-center justify-center px-8 py-16">
+            <Disc3 size={24} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
+            <p className="mt-3" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+              Syncing activity
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center px-8 py-16">
+            <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+              No recent activity from collectors you follow.
+            </p>
+          </div>
+        )
       ) : (
         <div className="flex flex-col">
           {visibleActivity.map((item) => {
@@ -1717,6 +1784,14 @@ function PopulatedFollowingView({
               >
                 Load more
               </button>
+            </div>
+          )}
+          {isSyncingFollowing && (
+            <div className="flex items-center justify-center gap-2 py-[12px]" style={{ borderTopWidth: "1px", borderTopStyle: "solid", borderColor: "var(--c-border)" }}>
+              <Disc3 size={14} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
+              <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-faint)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                Loading more activity
+              </p>
             </div>
           )}
         </div>
