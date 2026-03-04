@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.3.1
+# CLAUDE.md — Holy Grails v0.4.0
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -59,13 +59,16 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 ## Authentication Architecture
 
 **Session token auth pattern:**
-All Convex queries and mutations (except `oauth.ts` and `users.getLatestUser` / `users.upsert`) require a valid `sessionToken`. A central `authenticateUser()` helper in `convex/authHelper.ts` handles validation and returns the authenticated user record. The `discogs_username` is always derived server-side from the authenticated user — never accepted as a client-supplied argument.
+All Convex queries and mutations (except `oauth.ts` and `users.upsert`) require a valid `sessionToken`. A central `authenticateUser()` helper in `convex/authHelper.ts` handles validation and returns the authenticated user record. The `discogs_username` is always derived server-side from the authenticated user — never accepted as a client-supplied argument.
 
 **Session token flow:**
-`sessionToken` is generated on `users.upsert` during OAuth callback, extracted in `auth-callback.tsx`, stored in `app-context.tsx` state, and threaded through all ~37 Convex mutation/query call sites.
+`sessionToken` is generated on `users.upsert` during OAuth callback, extracted in `auth-callback.tsx`, stored in `app-context.tsx` state, persisted to `localStorage` as `hg_session_token`, and threaded through all ~37 Convex mutation/query call sites.
+
+**Session token persistence (`hg_session_token`):**
+The `setSessionToken` wrapper in `app-context.tsx` syncs every token change to `localStorage`. On cold load, `sessionToken` state initializes from `localStorage.getItem("hg_session_token")`. If a stored token exists, it is passed to `getLatestUser` to look up the user by `by_session_token` index. If no stored token exists (fresh visitor, incognito, post-logout), `getLatestUser` is skipped entirely and the visitor sees the login screen. If the stored token is invalid (no matching user), the token is cleared from localStorage and the visitor sees the login screen. This is the only permitted use of `localStorage` in the app — do not add other localStorage usage without discussion.
 
 **users.ts function split:**
-- `getLatestUser` — public bootstrap query, strips `access_token` and `token_secret` before returning
+- `getLatestUser` — session restore query, requires `sessionToken` argument, looks up user by `by_session_token` index (never returns data without a valid token)
 - `getMe` — authenticated query, returns user record without tokens
 
 **Schema change:**
@@ -150,8 +153,6 @@ src/
       depths-album-card.tsx
       discogs-api.ts     # Types, constants, pure utilities, and in-memory caches (HTTP functions removed — see Discogs API Proxy)
       feed-screen.tsx
-      figma/
-        ImageWithFallback.tsx  # Origin unclear, not currently referenced elsewhere. Flagged for future audit — do not delete until confirmed unused.
       filter-drawer.tsx
       following-screen.tsx
       last-played-utils.ts
@@ -171,7 +172,6 @@ src/
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD). Project ID: `cnsv252lbgNqAPR7Odzz`. Falls back to `#01294D` if WebGL is unavailable.
-      use-hide-header.ts
       use-shake.ts
       wantlist.tsx
       wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
@@ -382,6 +382,8 @@ Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
 - `thumb` — 150x150px — use for small display contexts (list rows, artwork grid, session thumbnails, feed compact cards, drawer thumbnails)
 - `cover` — 500x500px — use for large/focal displays (detail panels, crate/swiper, depths cards, grid cards)
 
+Never use `cover` in contexts smaller than ~200px — always prefer `thumb || cover` for thumbnails. Loading a 500px image into a 40px element wastes bandwidth.
+
 ### master_id Matching
 `master_id` is stored on `Album`, `WantItem`, and `FeedAlbum` objects. "In Collection" and heart filled state check both `release_id` and `master_id` to match across different pressings of the same recording. `master_id` of 0 means no master exists — skip matching on 0. The `isInWants` and `isInCollection` context helpers accept an optional `masterId` parameter. Feed and Following screens build `ownMasterIds` / `wantMasterIds` Sets for O(1) lookups.
 
@@ -475,8 +477,14 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Full Discogs database browsing (link out to Discogs instead)
 - Native iOS app — this is a PWA only
 
-### Pending / Known Issues
-- **Post-1b re-login required:** Existing users must re-authenticate once after the security migration. First app open will redirect to the auth screen. This is expected — `upsert` generates the `session_token` on login. One-time only.
+### Known Issues (do not fix without explicit instruction)
+- `FollowingSkeletonRows` and `FollowedUserRow` components deleted in Phase 7 QA — replaced by partial hydration pattern introduced in Phase 7 Prompt 2a. Do not recreate these components.
+
+### Backlog
+- Empty state standardization — icon sizes, vertical padding, and icon-to-text spacing are inconsistent across screens. Needs a dedicated design pass with visual references before normalizing.
+- Purge Cut confirmation icon — Minus vs X icon flagged during Phase 7 QA for visual review.
+- Startup Convex auth errors — `Unauthorized` errors appear briefly in terminal/logs during app startup (race condition between proxy actions firing and sessionToken populating). Cosmetic, non-blocking. Queued for investigation.
+- Sync progress granularity — paginated collection/wantlist sync no longer reports specific page counts after the 1b proxy migration. Shows static "Syncing" message. Consider restoring progress feedback via a different mechanism.
 
 ---
 
@@ -544,6 +552,8 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Discogs fetch calls in client code.
 
 **sessionStorage** is permitted in one place only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`. No other sessionStorage usage is permitted anywhere in the codebase.
+
+**localStorage** is permitted in one place only: `hg_session_token` in `app-context.tsx`, persisting the session token for cold load restore (see Session token persistence above). No other localStorage usage is permitted anywhere in the codebase.
 
 **skipPrivateFields**
 

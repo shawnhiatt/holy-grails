@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, Loader2 } from "lucide-react";
+import { Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3 } from "lucide-react";
 import { PurgeCutDialog } from "./purge-tracker";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -256,7 +256,7 @@ export function SettingsScreen() {
               {purgeProgress && (
                 <div style={{ borderTop: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}` }}>
                   <div className="px-4 py-2.5 flex items-center gap-1.5">
-                    <Loader2 size={13} className="animate-spin flex-shrink-0" style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} />
+                    <Disc3 size={13} className="disc-spinner flex-shrink-0" style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} />
                     <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                       Removing {purgeProgress.current} of {purgeProgress.total}...
                     </span>
@@ -440,7 +440,7 @@ export function SettingsScreen() {
         <section className="mt-6 mb-4">
           <div className="flex items-center gap-2" style={{ color: "var(--c-text-muted)" }}>
             <Info size={14} />
-            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v0.3.0. A Discogs companion app.</span>
+            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v0.4.0. A Discogs companion app.</span>
           </div>
         </section>
       </div>

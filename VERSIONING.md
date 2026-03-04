@@ -56,7 +56,7 @@ The version lives in the About section of `settings-screen.tsx`. Update it there
 | `0.2.5` | QA round: loading screen, nav restructure, SlideOutPanel, iOS Safari polish, feed/following fixes, color mode |
 | `0.2.6` | Phase 5: collection caching, Purge Cut, album field editing, Insights redesign, Following screen performance |
 | `0.3.0` | Phase 6 — Wantlist writes ship |
-| `0.4.0` | Phase 7 — Look Up feature ships |
+| `0.4.0` | Phase 7 — Security, performance & polish |
 | `0.5.0` | TBD |
 | `1.0.0` | App feels complete for daily use — no known bugs, all core phases done |
 

@@ -4,6 +4,41 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.4.0 — 2026-03-04
+
+### Security
+- Convex auth guards added to all queries and mutations via central `authenticateUser()` helper in `convex/authHelper.ts`
+- Discogs consumer secret migrated server-side — removed from client bundle entirely. All Discogs API calls now proxied through Convex actions in `convex/discogs.ts` with HMAC-SHA1 signing
+- Fixed critical auto-authentication vulnerability — `getLatestUser` now requires a session token argument; session token persisted to localStorage (`hg_session_token`) for returning user restore
+- OAuth token fields no longer returned to client
+- `.gitignore` hardened for `.env.production` / `.env.development`
+
+### Performance
+- Service Worker image caching — Discogs artwork and avatars cached via `discogs-images-v1` (CacheFirst, 500 entries, 30-day TTL). Images load instantly on repeat visits
+- Fixed 3 image sizing mismatches using `cover` where `thumb` was appropriate
+
+### Following screen
+- Followed user rows now render instantly from Convex cache on navigation — no longer waits for full API hydration
+- Recent Activity and From the Depths sections now read from `following_feed` Convex cache (available at startup) instead of waiting for hydration
+
+### UI & Design system
+- Hide-on-scroll header animation removed — header is now statically fixed on all screens
+- Replaced 5 `Loader2` spinner instances with `Disc3` + `disc-spinner` per design system
+- Fixed 7 toast message inconsistencies (periods, format, verbosity)
+- Added `screen-title` class to Wantlist header for consistent desktop scaling
+- Deleted orphaned `ImageWithFallback.tsx` and empty `figma/` directory
+- Removed dead code: `FollowingSkeletonRows`, `FollowedUserRow`, `isHydrating`, `useHideHeaderOnScroll` hook and all call sites
+
+### Architecture
+- `convex/discogs.ts` — 13 server-side Discogs proxy actions
+- `convex/discogsHelpers.ts` — internal credential lookup (separated due to Convex `"use node"` constraint)
+- `convex/oauth.ts` — consumer credentials now read from Convex env vars, not client args
+- `discogs-api.ts` — HTTP functions removed, types/constants/caches retained
+- `DiscogsAuth` type and `getAuthCredentials` query removed
+- `hg_session_token` is the only permitted localStorage usage
+
+---
+
 ## 0.3.1 — 2026-03-03
 
 ### Following Feed Cache

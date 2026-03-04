@@ -41,6 +41,6 @@ You'll need a Discogs account to use the app. Auth is OAuth 1.0a via Discogs, no
 
 ## Status
 
-v0.3.0 — Active development. Github: @shawnhiatt — Discogs: catxdad19
+v0.4.0 — Active development. Github: @shawnhiatt — Discogs: catxdad19
 
 Live at [holygrails.app](https://holygrails.app).

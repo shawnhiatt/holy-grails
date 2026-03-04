@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, ExternalLink, Check, Plus, Play, Bookmark, Pencil, Loader2, Zap, Disc3 } from "lucide-react";
+import { X, ExternalLink, Check, Plus, Play, Bookmark, Pencil, Zap, Disc3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -305,7 +305,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const handlePlayedToday = () => {
     markPlayed(selectedAlbum.id);
     setJustPlayed(true);
-    toast.info(`Played "${selectedAlbum.title}"`, { duration: 1500 });
+    toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
     setTimeout(() => setJustPlayed(false), 1200);
   };
 
@@ -514,7 +514,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               >
                 {isSaving ? (
                   <>
-                    <Loader2 size={15} className="animate-spin" />
+                    <Disc3 size={15} className="disc-spinner" />
                     Saving...
                   </>
                 ) : (

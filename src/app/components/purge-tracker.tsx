@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { Check, Minus, HelpCircle, Loader2, Trash2 } from "lucide-react";
+import { Check, Minus, HelpCircle, Disc3, Trash2 } from "lucide-react";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
@@ -174,7 +174,7 @@ export function PurgeTracker() {
       {purgeProgress && (
         <div className="flex-shrink-0 px-[16px] lg:px-[24px] pb-[8px]">
           <div className="rounded-[10px] py-3 px-4 flex items-center gap-3" style={{ backgroundColor: purgeTagBg("cut", isDarkMode), border: `1px solid ${purgeTagBorder("cut", isDarkMode)}` }}>
-            <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: purgeTagColor("cut", isDarkMode) }} />
+            <Disc3 size={16} className="disc-spinner flex-shrink-0" style={{ color: purgeTagColor("cut", isDarkMode) }} />
             <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>
               Removing {purgeProgress.current} of {purgeProgress.total}...
             </span>
@@ -192,7 +192,7 @@ export function PurgeTracker() {
                 <p className="mt-1" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
                   {cutValueLoading ? (
                     <span className="flex items-center justify-center gap-2">
-                      <Loader2 size={16} className="animate-spin" /> Loading pricing estimates...
+                      <Disc3 size={16} className="disc-spinner" /> Loading pricing estimates...
                     </span>
                   ) : (
                     "Browse your Cut records to load pricing estimates."
@@ -212,7 +212,7 @@ export function PurgeTracker() {
                 {cutPileValue.pricedCount < cutPileValue.albumCount ? (
                   <p className="mt-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
                     {cutPileValue.pricedCount} of {cutPileValue.albumCount} Cut records priced — browse unpriced records to complete the estimate.
-                    {cutValueLoading && <Loader2 size={10} className="inline-block animate-spin ml-1" />}
+                    {cutValueLoading && <Disc3 size={10} className="inline-block disc-spinner ml-1" />}
                   </p>
                 ) : (
                   <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
@@ -371,7 +371,7 @@ export function PurgeCutDialog({
             {cutAlbums.map((album) => (
               <div key={album.release_id} className="flex items-center gap-2.5 py-1.5">
                 <div className="w-8 h-8 rounded-[6px] overflow-hidden flex-shrink-0">
-                  <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+                  <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
@@ -502,7 +502,7 @@ function SwipeableAlbumRow({ album, onTag, onTap, showPrice, priceTrigger, isDar
           <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full" style={{ backgroundColor: purgeIndicatorColor(album.purgeTag, isDark ?? false) }} />
         )}
         <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0 ml-1">
-          <img src={album.cover} alt={album.title} className="w-full h-full object-cover" draggable={false} />
+          <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" draggable={false} />
         </div>
         <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
           <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>

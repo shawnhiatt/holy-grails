@@ -703,7 +703,7 @@ function ListeningActivitySection({
               }}
             >
               <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                <img src={item.album.cover} alt="" className="w-full h-full object-cover" />
+                <img src={item.album.thumb || item.album.cover} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                 <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>

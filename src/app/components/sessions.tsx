@@ -55,7 +55,7 @@ export function Sessions() {
           onDelete={() => {
             deleteSession(activeSession.id);
             setActiveSessionId(null);
-            toast.warning(`"${activeSession.name}" deleted`, { duration: 1500 });
+            toast.warning(`"${activeSession.name}" deleted.`, { duration: 1500 });
           }}
           onRename={(name) => renameSession(activeSession.id, name)}
           onOpenDrawer={() => setShowAddDrawer(true)}
@@ -129,7 +129,7 @@ export function Sessions() {
                     key={session.id}
                     onDelete={() => {
                       deleteSession(session.id);
-                      toast.warning(`"${session.name}" deleted`, { duration: 1500 });
+                      toast.warning(`"${session.name}" deleted.`, { duration: 1500 });
                     }}
                   >
                     <button

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
-  UserPlus, ArrowLeft, Search, ChevronRight, UserMinus, Lock,
+  UserPlus, ArrowLeft, Search, UserMinus, Lock,
   Disc3, Users, Grid2x2, List, ExternalLink, Grid3x3,
   Heart, X,
 } from "lucide-react";
@@ -15,7 +15,6 @@ import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
-import { Skeleton } from "./ui/skeleton";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -35,10 +34,6 @@ export function FollowingScreen() {
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
   const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
-  // The following list hydration status is derived from context.
-  // The Convex query runs in app-context with auth guards — we rely on
-  // followedUsers being populated after the Discogs API hydration.
-  const isHydrating = false;
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUsername, setAddUsername] = useState("");
@@ -102,7 +97,7 @@ export function FollowingScreen() {
           setAddUsername("");
           setShowAddForm(false);
           setAddProgress("");
-          toast.warning("@" + profile.username + "'s collection is private", { duration: 3000 });
+          toast.warning("@" + profile.username + "'s collection is private.", { duration: 3000 });
           return;
         }
       }
@@ -134,7 +129,7 @@ export function FollowingScreen() {
       setAddUsername("");
       setShowAddForm(false);
       setAddProgress("");
-      toast.success(`Connected with @${profile.username} — ${collectedAlbums.length} albums, ${collectedWants.length} wants`);
+      toast.success(`Connected with @${profile.username}.`);
     } catch (err: any) {
       console.error("[Following] Connect error:", err);
       setAddError(err?.message || "Failed to connect. Check the username and try again.");
@@ -152,7 +147,7 @@ export function FollowingScreen() {
         onRemove={() => {
           removeFollowedUser(selectedUser.id);
           setSelectedUserId(null);
-          toast.success("Unfollowed @" + selectedUser.username);
+          toast.success("Unfollowed @" + selectedUser.username + ".");
         }}
         userAlbums={albums}
         userWants={wants}
@@ -241,9 +236,7 @@ export function FollowingScreen() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 80px))" }}>
-        {isHydrating ? (
-          <FollowingSkeletonRows />
-        ) : followedUsers.length === 0 ? (
+        {followedUsers.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 py-20">
             <Users size={48} style={{ color: "var(--c-text-faint)" }} />
             <p className="mt-4 text-center" style={{ fontSize: "16px", fontWeight: 500, color: "var(--c-text-muted)" }}>You're not following anyone yet.</p>
@@ -273,103 +266,6 @@ export function FollowingScreen() {
           </motion.div>
         )}
       </div>
-    </div>
-  );
-}
-
-/* ====== Skeleton Loading Rows ====== */
-
-function FollowingSkeletonRows() {
-  return (
-    <div>
-      {[0, 1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 px-[16px] lg:px-[24px] py-3"
-          style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}
-        >
-          {/* Avatar */}
-          <Skeleton className="w-11 h-11 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--c-surface-alt)" }} />
-          {/* Text lines */}
-          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-            <Skeleton className="h-[15px] rounded-[4px]" style={{ width: "40%", backgroundColor: "var(--c-surface-alt)" }} />
-            <Skeleton className="h-[13px] rounded-[4px]" style={{ width: "28%", backgroundColor: "var(--c-surface-alt)" }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ====== Followed User Row with swipe-to-delete ====== */
-
-function FollowedUserRow({
-  user,
-  onTap,
-  onRemove,
-}: {
-  user: FollowedUser;
-  onTap: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="relative overflow-hidden" style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}>
-      <div className="absolute inset-y-0 right-0 flex items-center px-5 bg-[#FF33B6]">
-        <UserMinus size={18} color="white" />
-      </div>
-
-      <motion.div
-        drag="x"
-        dragConstraints={{ left: -80, right: 0 }}
-        dragElastic={0.1}
-        onDragEnd={(event: any, info: PanInfo) => {
-          if (info.offset.x < -60) {
-            onRemove();
-          }
-        }}
-        className="relative z-10"
-        style={{ backgroundColor: "var(--c-surface)" }}
-      >
-        <button
-          onClick={onTap}
-          className="w-full flex items-center gap-3 px-[16px] lg:px-[24px] py-3 text-left transition-colors hover:opacity-90 cursor-pointer"
-        >
-          {user.avatar ? (
-            <img
-              src={user.avatar}
-              alt={user.username}
-              className="w-11 h-11 rounded-full object-cover flex-shrink-0"
-              style={{ border: "2px solid var(--c-border)" }}
-            />
-          ) : (
-            <div
-              className="w-11 h-11 rounded-full flex-shrink-0 flex items-center justify-center"
-              style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}
-            >
-              <Users size={18} style={{ color: "var(--c-text-muted)" }} />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p style={{ fontSize: "15px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-              @{user.username}
-            </p>
-            {user.isPrivate ? (
-              <p className="flex items-center gap-1 mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "#FF33B6" }}>
-                <Lock size={11} /> Private collection
-              </p>
-            ) : user.hydrated === false ? (
-              <p className="mt-0.5 flex items-center gap-1.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-faint)" }}>
-                <Disc3 size={11} className="disc-spinner" /> Syncing
-              </p>
-            ) : (
-              <p className="mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                {user.collection.length} albums &middot; {user.wants.length} wants
-              </p>
-            )}
-          </div>
-          <ChevronRight size={18} style={{ color: "var(--c-text-faint)" }} />
-        </button>
-      </motion.div>
     </div>
   );
 }
