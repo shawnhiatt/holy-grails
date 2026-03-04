@@ -7,11 +7,14 @@ export default defineSchema({
     discogs_avatar_url: v.optional(v.string()),
     access_token: v.string(),
     token_secret: v.string(),
+    session_token: v.optional(v.string()),
     created_at: v.number(),
     last_synced_at: v.optional(v.number()),
     collection_value: v.optional(v.string()),
     collection_value_synced_at: v.optional(v.number()),
-  }).index("by_username", ["discogs_username"]),
+  })
+    .index("by_username", ["discogs_username"])
+    .index("by_session_token", ["session_token"]),
 
   purge_tags: defineTable({
     discogs_username: v.string(),

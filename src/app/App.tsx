@@ -54,7 +54,7 @@ function AppContent() {
   const {
     screen, showAlbumDetail, selectedAlbum, showFilterDrawer,
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail,
-    setScreen, discogsToken,
+    setScreen,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     headerHidden, sessionPickerAlbumId,
     isAuthenticated, isAuthLoading, isSyncing, isSyncingFollowing, syncProgress, loginWithOAuth,
@@ -193,14 +193,14 @@ function AppContent() {
   }, []);
 
   // Show splash when no data loaded and user hasn't authenticated or dismissed
-  const showSplash = !splashDismissed && albums.length === 0 && !discogsToken && !isAuthenticated;
+  const showSplash = !splashDismissed && albums.length === 0 && !isAuthenticated;
 
   // Re-show splash if all data is wiped (e.g. "Wipe All Data" or sign out)
   useEffect(() => {
-    if (albums.length === 0 && !discogsToken && !isAuthenticated) {
+    if (albums.length === 0 && !isAuthenticated) {
       setSplashDismissed(false);
     }
-  }, [albums.length, discogsToken, isAuthenticated]);
+  }, [albums.length, isAuthenticated]);
 
   // React to in-app "Connect Discogs" requests (e.g. from Feed empty state)
   useEffect(() => {

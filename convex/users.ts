@@ -1,27 +1,60 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { authenticateUser } from "./authHelper";
 
-export const getByUsername = query({
-  args: { discogs_username: v.string() },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
-      )
-      .first();
-  },
-});
-
-// Returns the most recently created user record — used on cold load to restore
-// a session without needing to know the username upfront.
+/**
+ * Bootstrap query for session restore on cold load.
+ *
+ * Returns the most recently created user record WITHOUT OAuth tokens.
+ * Includes session_token so the client can authenticate subsequent requests.
+ * Intentionally unauthenticated — this is the entry point before a token exists.
+ */
 export const getLatestUser = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("users").order("desc").first();
+    const user = await ctx.db.query("users").order("desc").first();
+    if (!user) return null;
+    return {
+      _id: user._id,
+      _creationTime: user._creationTime,
+      discogs_username: user.discogs_username,
+      discogs_avatar_url: user.discogs_avatar_url,
+      session_token: user.session_token,
+      created_at: user.created_at,
+      last_synced_at: user.last_synced_at,
+      collection_value: user.collection_value,
+      collection_value_synced_at: user.collection_value_synced_at,
+    };
   },
 });
 
+/**
+ * Authenticated query: returns current user's info WITHOUT OAuth tokens.
+ */
+export const getMe = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    return {
+      _id: user._id,
+      _creationTime: user._creationTime,
+      discogs_username: user.discogs_username,
+      discogs_avatar_url: user.discogs_avatar_url,
+      created_at: user.created_at,
+      last_synced_at: user.last_synced_at,
+      collection_value: user.collection_value,
+      collection_value_synced_at: user.collection_value_synced_at,
+    };
+  },
+});
+
+/**
+ * Create or update a user record during OAuth login.
+ *
+ * Intentionally unauthenticated — called after OAuth completes, before
+ * a session token exists. Generates a new session_token on every call
+ * (token rotation on login).
+ */
 export const upsert = mutation({
   args: {
     discogs_username: v.string(),
@@ -30,6 +63,8 @@ export const upsert = mutation({
     token_secret: v.string(),
   },
   handler: async (ctx, args) => {
+    const sessionToken = crypto.randomUUID();
+
     const existing = await ctx.db
       .query("users")
       .withIndex("by_username", (q) =>
@@ -42,70 +77,49 @@ export const upsert = mutation({
         access_token: args.access_token,
         token_secret: args.token_secret,
         discogs_avatar_url: args.discogs_avatar_url,
+        session_token: sessionToken,
       });
-      return existing._id;
+      return { _id: existing._id, session_token: sessionToken };
     }
 
-    return await ctx.db.insert("users", {
+    const id = await ctx.db.insert("users", {
       discogs_username: args.discogs_username,
       discogs_avatar_url: args.discogs_avatar_url,
       access_token: args.access_token,
       token_secret: args.token_secret,
+      session_token: sessionToken,
       created_at: Date.now(),
     });
+    return { _id: id, session_token: sessionToken };
   },
 });
 
 export const updateLastSynced = mutation({
-  args: { discogs_username: v.string() },
+  args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, { last_synced_at: Date.now() });
-    }
+    const user = await authenticateUser(ctx, args.sessionToken);
+    await ctx.db.patch(user._id, { last_synced_at: Date.now() });
   },
 });
 
 export const updateCollectionValue = mutation({
   args: {
-    discogs_username: v.string(),
+    sessionToken: v.string(),
     collection_value: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        collection_value: args.collection_value,
-        collection_value_synced_at: Date.now(),
-      });
-    }
+    const user = await authenticateUser(ctx, args.sessionToken);
+    await ctx.db.patch(user._id, {
+      collection_value: args.collection_value,
+      collection_value_synced_at: Date.now(),
+    });
   },
 });
 
 export const clearSession = mutation({
-  args: { discogs_username: v.string() },
+  args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.delete(existing._id);
-    }
+    const user = await authenticateUser(ctx, args.sessionToken);
+    await ctx.db.delete(user._id);
   },
 });

@@ -7,12 +7,29 @@ const DISCOGS_BASE = "https://api.discogs.com";
 const USER_AGENT = "HolyGrails/1.0";
 
 /**
+ * Consumer credentials are read from Convex environment variables.
+ * Set via `npx convex env set DISCOGS_CONSUMER_KEY <value>` and
+ * `npx convex env set DISCOGS_CONSUMER_SECRET <value>` for both
+ * dev and prod deployments.
+ */
+function getConsumerKey(): string {
+  const k = process.env.DISCOGS_CONSUMER_KEY;
+  if (!k) throw new Error("DISCOGS_CONSUMER_KEY env var not set");
+  return k;
+}
+
+function getConsumerSecret(): string {
+  const s = process.env.DISCOGS_CONSUMER_SECRET;
+  if (!s) throw new Error("DISCOGS_CONSUMER_SECRET env var not set");
+  return s;
+}
+
+/**
  * Build an OAuth 1.0a Authorization header.
  *
  * Discogs OAuth 1.0a requires these parameters in the Authorization header.
- * For the request-token and access-token exchange steps we use an empty
- * oauth_signature (consumer secret + "&" + token secret) since Discogs
- * uses PLAINTEXT signature method for simplicity.
+ * For the request-token and access-token exchange steps we use PLAINTEXT
+ * signature method (consumer secret + "&" + token secret).
  */
 function buildOAuthHeader(params: Record<string, string>): string {
   const parts = Object.entries(params)
@@ -31,18 +48,18 @@ function buildOAuthHeader(params: Record<string, string>): string {
  */
 export const requestToken = action({
   args: {
-    consumer_key: v.string(),
-    consumer_secret: v.string(),
     callback_url: v.string(),
   },
   handler: async (_ctx, args) => {
+    const consumerKey = getConsumerKey();
+    const consumerSecret = getConsumerSecret();
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = crypto.randomUUID().replace(/-/g, "");
 
     const authHeader = buildOAuthHeader({
-      oauth_consumer_key: args.consumer_key,
+      oauth_consumer_key: consumerKey,
       oauth_nonce: nonce,
-      oauth_signature: `${args.consumer_secret}&`,
+      oauth_signature: `${consumerSecret}&`,
       oauth_signature_method: "PLAINTEXT",
       oauth_timestamp: timestamp,
       oauth_callback: args.callback_url,
@@ -93,21 +110,21 @@ export const requestToken = action({
  */
 export const accessToken = action({
   args: {
-    consumer_key: v.string(),
-    consumer_secret: v.string(),
     oauth_token: v.string(),
     oauth_token_secret: v.string(),
     oauth_verifier: v.string(),
   },
   handler: async (_ctx, args) => {
+    const consumerKey = getConsumerKey();
+    const consumerSecret = getConsumerSecret();
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = crypto.randomUUID().replace(/-/g, "");
 
     const authHeader = buildOAuthHeader({
-      oauth_consumer_key: args.consumer_key,
+      oauth_consumer_key: consumerKey,
       oauth_nonce: nonce,
       oauth_token: args.oauth_token,
-      oauth_signature: `${args.consumer_secret}&${args.oauth_token_secret}`,
+      oauth_signature: `${consumerSecret}&${args.oauth_token_secret}`,
       oauth_signature_method: "PLAINTEXT",
       oauth_timestamp: timestamp,
       oauth_verifier: args.oauth_verifier,
@@ -157,20 +174,20 @@ export const accessToken = action({
  */
 export const fetchIdentity = action({
   args: {
-    consumer_key: v.string(),
-    consumer_secret: v.string(),
     access_token: v.string(),
     token_secret: v.string(),
   },
   handler: async (_ctx, args) => {
+    const consumerKey = getConsumerKey();
+    const consumerSecret = getConsumerSecret();
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = crypto.randomUUID().replace(/-/g, "");
 
     const authHeader = buildOAuthHeader({
-      oauth_consumer_key: args.consumer_key,
+      oauth_consumer_key: consumerKey,
       oauth_nonce: nonce,
       oauth_token: args.access_token,
-      oauth_signature: `${args.consumer_secret}&${args.token_secret}`,
+      oauth_signature: `${consumerSecret}&${args.token_secret}`,
       oauth_signature_method: "PLAINTEXT",
       oauth_timestamp: timestamp,
     });
@@ -202,10 +219,10 @@ export const fetchIdentity = action({
     const profileTimestamp = Math.floor(Date.now() / 1000).toString();
 
     const profileAuthHeader = buildOAuthHeader({
-      oauth_consumer_key: args.consumer_key,
+      oauth_consumer_key: consumerKey,
       oauth_nonce: profileNonce,
       oauth_token: args.access_token,
-      oauth_signature: `${args.consumer_secret}&${args.token_secret}`,
+      oauth_signature: `${consumerSecret}&${args.token_secret}`,
       oauth_signature_method: "PLAINTEXT",
       oauth_timestamp: profileTimestamp,
     });

@@ -3,7 +3,9 @@ import { Check, Minus, HelpCircle, Loader2, Trash2 } from "lucide-react";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
-import { getCachedMarketData, fetchMarketData } from "./discogs-api";
+import { getCachedMarketData } from "./discogs-api";
+import { useAction } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { getPriceAtCondition } from "./market-value";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeTagTint, purgeIndicatorColor, purgeToast } from "./purge-colors";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
@@ -13,10 +15,11 @@ export function PurgeTracker() {
   const {
     albums, purgeFilter, setPurgeFilter, setPurgeTag,
     setSelectedAlbumId, setShowAlbumDetail,
-    discogsToken, discogsUsername,
+    sessionToken, discogsUsername,
     isDarkMode, isAuthenticated, isSyncing,
     executePurgeCut, purgeProgress,
   } = useApp();
+  const proxyFetchMarketData = useAction(api.discogs.proxyFetchMarketData);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +78,7 @@ export function PurgeTracker() {
 
   // Auto-fetch prices for Cut albums when Cut filter is active (batched, rate-limited)
   useEffect(() => {
-    if (purgeFilter !== "cut" || !discogsToken || cutAlbums.length === 0) return;
+    if (purgeFilter !== "cut" || !sessionToken || cutAlbums.length === 0) return;
     let cancelled = false;
 
     const fetchBatch = async () => {
@@ -86,7 +89,7 @@ export function PurgeTracker() {
       for (const album of unfetched) {
         if (cancelled) break;
         try {
-          await fetchMarketData(album.release_id, discogsToken);
+          await proxyFetchMarketData({ sessionToken, releaseId: album.release_id });
           setCutValueTrigger((t) => t + 1);
         } catch (e) {
           console.warn("[Purge] Failed to fetch market data for", album.release_id);
@@ -99,20 +102,20 @@ export function PurgeTracker() {
 
     fetchBatch();
     return () => { cancelled = true; };
-  }, [purgeFilter, cutAlbums, discogsToken]);
+  }, [purgeFilter, cutAlbums, sessionToken, proxyFetchMarketData]);
 
   // Background fetch pricing when an album is tagged as Cut
   const backgroundFetchForCut = useCallback(async (albumId: string) => {
     const album = albums.find((a) => a.id === albumId);
-    if (!album || !discogsToken) return;
+    if (!album || !sessionToken) return;
     if (getCachedMarketData(album.release_id)) return; // already cached
     try {
-      await fetchMarketData(album.release_id, discogsToken);
+      await proxyFetchMarketData({ sessionToken, releaseId: album.release_id });
       setCutValueTrigger((t) => t + 1);
     } catch (e) {
       console.warn("[Purge] Background fetch failed for", album.release_id);
     }
-  }, [albums, discogsToken]);
+  }, [albums, sessionToken, proxyFetchMarketData]);
 
   const handlePurgeTag = useCallback((albumId: string, tag: PurgeTag) => {
     setPurgeTag(albumId, tag);

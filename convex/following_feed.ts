@@ -1,13 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { authenticateUser } from "./authHelper";
 
 export const getByFollower = query({
-  args: { follower_username: v.string() },
+  args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     return await ctx.db
       .query("following_feed")
       .withIndex("by_follower", (q) =>
-        q.eq("follower_username", args.follower_username)
+        q.eq("follower_username", user.discogs_username)
       )
       .collect();
   },
@@ -15,7 +17,7 @@ export const getByFollower = query({
 
 export const upsert = mutation({
   args: {
-    follower_username: v.string(),
+    sessionToken: v.string(),
     followed_username: v.string(),
     recent_albums: v.array(
       v.object({
@@ -32,11 +34,12 @@ export const upsert = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     const existing = await ctx.db
       .query("following_feed")
       .withIndex("by_follower_and_followed", (q) =>
         q
-          .eq("follower_username", args.follower_username)
+          .eq("follower_username", user.discogs_username)
           .eq("followed_username", args.followed_username)
       )
       .first();
@@ -50,7 +53,7 @@ export const upsert = mutation({
     }
 
     return await ctx.db.insert("following_feed", {
-      follower_username: args.follower_username,
+      follower_username: user.discogs_username,
       followed_username: args.followed_username,
       recent_albums: args.recent_albums,
       lastSyncedAt: Date.now(),
@@ -60,15 +63,16 @@ export const upsert = mutation({
 
 export const deleteEntry = mutation({
   args: {
-    follower_username: v.string(),
+    sessionToken: v.string(),
     followed_username: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     const existing = await ctx.db
       .query("following_feed")
       .withIndex("by_follower_and_followed", (q) =>
         q
-          .eq("follower_username", args.follower_username)
+          .eq("follower_username", user.discogs_username)
           .eq("followed_username", args.followed_username)
       )
       .first();

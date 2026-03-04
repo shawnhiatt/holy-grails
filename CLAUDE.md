@@ -23,7 +23,7 @@ The app is a passion project and portfolio piece built by a designer (Shawn) usi
 - **UI components**: shadcn/ui (in `src/app/components/ui/`)
 - **Fonts**: Bricolage Grotesque (display/headings) + DM Sans (body/UI) via Google Fonts
 - **Backend**: Convex (all Holy Grails-exclusive data — purge tags, sessions, following, preferences, last played, want priorities)
-- **Auth**: Discogs OAuth 1.0a — the Discogs username is the primary key for all Convex data. There is no separate Holy Grails account system.
+- **Auth**: Discogs OAuth 1.0a — the Discogs username is the primary key for all Convex data. Session-token-based auth guards on all Convex functions (see Authentication Architecture). There is no separate Holy Grails account system.
 
 Do not introduce new dependencies without flagging it first. The existing stack is intentional.
 
@@ -44,14 +44,77 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - Wantlist cache (`wantlist` table — mirrors Discogs wantlist for offline/fast reads, 24h TTL synced alongside collection)
 - Want list priority bolts, keyed by `discogs_username` + `release_id`
 - Last-played timestamps, keyed by `discogs_username` + `release_id`
-- User preferences (theme, hide purge indicators, hide gallery meta), keyed by `discogs_username`
-- OAuth tokens (access token + token secret), `collection_value`, `collection_value_synced_at`, stored in the `users` table
+- Collection cache (`collection` table — mirrors Discogs collection for offline/fast reads, synced alongside wantlist with 24h TTL)
+- User preferences (theme, hide purge indicators, hide gallery meta, shake to random, view mode, want view mode), keyed by `discogs_username`
+- OAuth tokens (access token + token secret), `session_token`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
 
 ### Rules
 - Never use localStorage for any persistent data
 - All Convex reads use `useQuery`, all writes use `useMutation`
 - Use optimistic updates for writes wherever Convex supports it
 - The public API of `app-context.tsx` must not change when wiring Convex — components should not need to update
+
+---
+
+## Authentication Architecture
+
+**Session token auth pattern:**
+All Convex queries and mutations (except `oauth.ts` and `users.getLatestUser` / `users.upsert`) require a valid `sessionToken`. A central `authenticateUser()` helper in `convex/authHelper.ts` handles validation and returns the authenticated user record. The `discogs_username` is always derived server-side from the authenticated user — never accepted as a client-supplied argument.
+
+**Session token flow:**
+`sessionToken` is generated on `users.upsert` during OAuth callback, extracted in `auth-callback.tsx`, stored in `app-context.tsx` state, and threaded through all ~37 Convex mutation/query call sites.
+
+**users.ts function split:**
+- `getLatestUser` — public bootstrap query, strips `access_token` and `token_secret` before returning
+- `getMe` — authenticated query, returns user record without tokens
+
+**Schema change:**
+`users` table has a `session_token` field and a `by_session_token` index.
+
+**Exempt from auth guards:**
+`convex/oauth.ts` functions (`requestToken`, `accessToken`, `fetchIdentity`) are intentionally public — they are part of the OAuth handshake and must remain unauthenticated.
+
+**`discogsAuth` removed from AppState.** Components that previously used `discogsAuth` to make Discogs API calls now get `sessionToken` from `useApp()` and pass it to Convex proxy actions instead.
+
+**`oauthCredentials` state and `convexAuthCredentials` query removed** from `app-context.tsx`. Tokens are resolved server-side.
+
+**`discogsToken` dev flow removed.** All authentication now goes through OAuth. There is no longer a personal access token fallback.
+
+---
+
+## Discogs API Proxy
+
+All authenticated Discogs API calls go through server-side Convex actions in `convex/discogs.ts`. The client never calls the Discogs API directly. Actions look up the user's credentials server-side via `getUserCredentials` (an internalQuery in `convex/discogsHelpers.ts`) and sign requests using HMAC-SHA1.
+
+**convex/discogs.ts** — `"use node"` directive. Contains 13 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchUserCollectionPage`, `proxyFetchCustomFields`. All take `sessionToken` as the first argument.
+
+**convex/discogsHelpers.ts** — Contains `getUserCredentials` (internalQuery). Separated from `convex/discogs.ts` because Convex does not allow queries in `"use node"` runtime files. If adding new internal queries needed by Discogs actions, they must live here, not in `discogs.ts`.
+
+**convex/oauth.ts** — OAuth handshake actions (`requestToken`, `accessToken`, `fetchIdentity`). Now read `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` from `process.env` — no longer accept them as client arguments. Still uses PLAINTEXT signing (acceptable for transient token exchange over HTTPS).
+
+**discogs-api.ts** — HTTP functions removed. File now contains only: exported types (`Album`, `WantItem`, `Session`, `FollowedUser`, `FeedAlbum`, `PurgeTag`, `CollectionValue`, `MarketData`, `ConditionPrice`, `MarketplaceStats`), constants (`CONDITION_GRADES`, `CONDITION_SHORT`), pure utility functions (`normalizeCondition`, `buildFieldMap`), and in-memory market/collection value cache functions. Do not re-add HTTP functions here.
+
+**`DiscogsAuth` type removed.** The client no longer holds raw OAuth credentials. Auth is identified entirely by `sessionToken`.
+
+**`getAuthCredentials` removed from `convex/users.ts`.** Raw OAuth tokens are never returned to the client. Token lookup is internal only via `getUserCredentials` in `convex/discogsHelpers.ts`.
+
+**Convex "use node" constraint:** Files with the `"use node"` directive (like `convex/discogs.ts`) cannot contain queries or mutations — only actions. Any internalQuery needed by a Node.js action must live in a separate file (e.g. `convex/discogsHelpers.ts`) and be called via `ctx.runQuery(internal.discogsHelpers.functionName, args)`.
+
+**Sync progress granularity:** After the 1b migration, paginated sync no longer reports specific page counts ("Fetching 150/300"). The loading phase shows "Syncing" without per-page progress. This is a known tradeoff of server-side proxying — progress callbacks are not available across Convex action boundaries.
+
+---
+
+## Environment Variables
+
+**Client-side (`.env.local`):**
+- `VITE_CONVEX_URL` — Convex deployment URL (safe to expose)
+- `VITE_DISCOGS_CONSUMER_KEY` and `VITE_DISCOGS_CONSUMER_SECRET` have been removed. These now live exclusively in Convex environment variables.
+
+**Convex environment variables (set via Convex dashboard):**
+- `DISCOGS_CONSUMER_KEY` — set on both `adventurous-crow-499` (dev) and `unique-sturgeon-566` (prod)
+- `DISCOGS_CONSUMER_SECRET` — set on both deployments
+
+Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (Settings > Environment Variables) or `npx convex env set KEY value`.
 
 ---
 
@@ -85,7 +148,7 @@ src/
       crate-browser.tsx
       crate-flip.tsx
       depths-album-card.tsx
-      discogs-api.ts     # All Discogs API calls live here
+      discogs-api.ts     # Types, constants, pure utilities, and in-memory caches (HTTP functions removed — see Discogs API Proxy)
       feed-screen.tsx
       figma/
         ImageWithFallback.tsx  # Origin unclear, not currently referenced elsewhere. Flagged for future audit — do not delete until confirmed unused.
@@ -96,7 +159,7 @@ src/
       motion-tokens.ts
       navigation.tsx
       no-discogs-card.tsx
-      oauth-helpers.ts   # OAuth 1.0a signing utilities for Discogs API calls
+      oauth-helpers.ts   # OAuth 1.0a initiation — kicks off Discogs redirect (no signing, just calls convex/oauth.ts)
       purge-colors.ts
       purge-tracker.tsx
       reports-screen.tsx
@@ -124,10 +187,13 @@ src/
       tailwind.css
       theme.css
 convex/                  # Convex backend functions and schema
+  authHelper.ts        # Central session-token auth guard — used by all guarded queries/mutations
   collection.ts
   schema.ts
-  users.ts
-  oauth.ts
+  users.ts             # getLatestUser (public bootstrap), getMe, upsert, updateLastSynced, updateCollectionValue, clearSession
+  oauth.ts             # Public OAuth handshake — reads credentials from process.env, intentionally unauthenticated
+  discogs.ts           # "use node" — 13 server-side Discogs API proxy actions (see Discogs API Proxy)
+  discogsHelpers.ts    # getUserCredentials internalQuery — separated from discogs.ts due to "use node" constraint
   purge_tags.ts
   sessions.ts
   last_played.ts
@@ -305,11 +371,11 @@ The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCo
 - Edit mode is entered via a `Pencil` (16px) icon button in the panel header. For desktop (`hideHeader=false`) it sits beside the X close button. For mobile (`hideHeader=true`) it sits in the album title row.
 - Edit mode is not accessible while `isSyncing` — the button is hidden during sync.
 - `isEditMode` state resets whenever `selectedAlbum` changes.
-- On Save: Discogs API calls first (`updateCollectionInstance` / `moveToFolder` from `discogs-api.ts`), then local state + Convex cache update via `updateAlbum` from context. On failure: error toast, stay in edit mode so the user can retry. Never trigger a full re-sync.
+- On Save: Convex proxy actions first (`proxyUpdateCollectionInstance` / `proxyMoveToFolder`), then local state + Convex cache update via `updateAlbum` from context. On failure: error toast, stay in edit mode so the user can retry. Never trigger a full re-sync.
 - Folder moves use the two-step Discogs API process: add to new folder → delete from old folder. The new `instance_id` returned by the add call must be stored in local state and Convex.
 - `updateAlbum(albumId, fields)` in `app-context.tsx` updates local albums state and fires `collection.updateInstance` Convex mutation. Pattern mirrors `setPurgeTag`.
 - Condition grades for the dropdowns: use `CONDITION_GRADES` exported from `discogs-api.ts` — do not hardcode them.
-- Custom field ID resolution for the Discogs update happens inside `updateCollectionInstance` — it fetches the user's field definitions to map field names to IDs.
+- Custom field ID resolution for the Discogs update happens inside `proxyUpdateCollectionInstance` — it fetches the user's field definitions server-side to map field names to IDs.
 
 ### Image Sizing Convention
 Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
@@ -336,7 +402,7 @@ Floating pill bottom tab bar with 5 items:
 |---|---|---|---|
 | 1 | Feed | Newspaper | `feed` |
 | 2 | Collection | GalleryVerticalEnd | `crate` |
-| 3 | Wants | Heart | `wants` |
+| 3 | Wantlist | Heart | `wants` |
 | 4 | Sessions | Headphones | `sessions` |
 | 5 | Insights | BarChart3 | `reports` |
 
@@ -346,7 +412,7 @@ Mobile header right group (2 buttons): Following (Users icon, navigates to `foll
 ### Desktop (>= 1024px)
 Horizontal top nav with 8 items split left/center/right. Logo centered. Both groups are `flex-1`.
 
-**Left group:** Feed > Collection > Wants > Sessions
+**Left group:** Feed > Collection > Wantlist > Sessions
 **Right group:** Following > Purge > Insights > Settings > theme toggle
 
 Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarChart3`. Active state: `#EBFD00` icon + translucent background highlight.
@@ -369,7 +435,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Delete confirmation modals | `z-[90]` | sessions.tsx |
 | Session picker mobile sheet | `z-[85]` | session-picker-sheet.tsx |
 | Session picker mobile backdrop | `z-[80]` | session-picker-sheet.tsx |
-| Add Albums drawer | `z-[80]` | add-albums-drawer.tsx |
+| Add Albums drawer sheet | `z-[85]` | add-albums-drawer.tsx |
+| Add Albums drawer backdrop | `z-[80]` | add-albums-drawer.tsx |
 | Filter drawer panel | `z-[70]` | filter-drawer.tsx |
 | Filter drawer backdrop | `z-[60]` | filter-drawer.tsx |
 | Desktop session picker | `z-50` | session-picker-sheet.tsx |
@@ -390,13 +457,13 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Navigation structure
 - Four view modes (Grid, Artwork, List, Swiper/Crate Flip)
 - Discogs OAuth 1.0a authentication (real login via Discogs)
-- Live Discogs API sync (collection, folders, wantlist, collection value)
+- Live Discogs API sync via server-side Convex proxy actions (collection, folders, wantlist, collection value)
 - All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
 - Album instance editing (media/sleeve condition, notes, folder) from album detail panel
-- Wantlist write operations (`addToWantlist` PUT, `removeFromWantlist` DELETE) in `discogs-api.ts`
+- Wantlist write operations (`proxyAddToWantlist`, `proxyRemoveFromWantlist`) via Convex proxy actions
 - `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`)
 - `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
-- Following screen activity feed hearts call Discogs API (Pattern A) with per-item Disc3 loading spinners
+- Following screen activity feed hearts call Convex proxy actions with per-item Disc3 loading spinners
 - Following feed cache in Convex — powers Feed Recent Activity without requiring Following screen hydration
 - Wantlist cached in Convex — synced alongside collection with 24h TTL
 - `master_id` matching for "In Collection" and heart state across different pressings
@@ -407,6 +474,9 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Seller/marketplace tools
 - Full Discogs database browsing (link out to Discogs instead)
 - Native iOS app — this is a PWA only
+
+### Pending / Known Issues
+- **Post-1b re-login required:** Existing users must re-authenticate once after the security migration. First app open will redirect to the auth screen. This is expected — `upsert` generates the `session_token` on login. One-time only.
 
 ---
 
@@ -428,7 +498,9 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 8. **Flag before refactoring.** The following files are load-bearing. Do not refactor their APIs without explicit instruction:
    - `app-context.tsx` — global state and Convex wiring
-   - `discogs-api.ts` — all Discogs API calls
+   - `convex/discogs.ts` — all Discogs API proxy actions
+   - `convex/discogsHelpers.ts` — credential lookup for proxy actions
+   - `discogs-api.ts` — shared types, constants, and caches
    - `convex/schema.ts` — database schema
    - `auth-callback.tsx` — OAuth callback handler
    - `App.tsx` — root layout and auth state routing
@@ -454,9 +526,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 **Base URL**: `https://api.discogs.com`
 
-**Auth method**: OAuth 1.0a. Access token and token secret are stored in the Convex `users` table and passed to all authenticated API calls via the `DiscogsAuth` type in `discogs-api.ts`. Personal access token auth is still supported as a fallback for development — pass a token string directly to any function that accepts `DiscogsAuth`.
-
-Do NOT set a custom `User-Agent` header — browsers block it as a forbidden header and it causes CORS preflight failures.
+**Auth method**: OAuth 1.0a. Access token and token secret are stored in the Convex `users` table and used server-side only by `convex/discogs.ts` proxy actions. HMAC-SHA1 signing. The client never sees raw OAuth credentials — it passes `sessionToken` to Convex actions which resolve credentials internally.
 
 **Rate limit**: 60 requests/minute authenticated.
 
@@ -471,17 +541,17 @@ Do NOT set a custom `User-Agent` header — browsers block it as a forbidden hea
 - Market stats: `GET /marketplace/stats/{release_id}`
 - User profile: `GET /users/{username}`
 
-All API integration code goes in `discogs-api.ts`. No Discogs fetch calls anywhere else.
+All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Discogs fetch calls in client code.
 
 **sessionStorage** is permitted in one place only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`. No other sessionStorage usage is permitted anywhere in the codebase.
 
 **skipPrivateFields**
 
-`fetchCollection` accepts an optional `{ skipPrivateFields: true }` param. When set, skips `fetchCustomFields` and `fetchFolderMap` calls which always return 403 for other users' collections. Always pass this when fetching followed users' collections.
+`proxyFetchCollection` accepts an optional `skipPrivateFields: true` argument. When set, skips `fetchCustomFields` and `fetchFolderMap` calls which always return 403 for other users' collections. Always pass this when fetching followed users' collections.
 
 **Multi-folder dedup behavior**
 
-`discogs-api.ts` deduplicates collection items by `release_id` after
+`proxyFetchCollection` in `convex/discogs.ts` deduplicates collection items by `release_id` after
 fetching all pages. If a release exists in more than one folder, only
 the first instance is kept. The second instance's folder assignment,
 condition notes, and grading are silently discarded. This is a known

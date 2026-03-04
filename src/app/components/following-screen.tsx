@@ -7,8 +7,6 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
 import { toast } from "sonner";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { useApp, type ViewMode, type Screen } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { Album, FollowedUser, WantItem } from "./discogs-api";
@@ -20,11 +18,8 @@ import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
 import { Skeleton } from "./ui/skeleton";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
-import {
-  fetchUserProfile,
-  fetchCollection,
-  fetchWantlist,
-} from "./discogs-api";
+import { useAction } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
 type FollowingTab = "collection" | "wants";
@@ -37,18 +32,16 @@ const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[
 ];
 
 export function FollowingScreen() {
-  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, discogsAuth, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
+  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen } = useApp();
+  const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
+  const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
+  const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
-  // Direct Convex query to know if the user has followed users persisted
-  // (before the slower Discogs API hydration fills followedUsers state)
-  const convexFollowing = useQuery(
-    api.following.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
-  );
-  const isHydrating = followedUsers.length === 0
-    && convexFollowing !== undefined
-    && convexFollowing.length > 0;
+  // The following list hydration status is derived from context.
+  // The Convex query runs in app-context with auth guards — we rely on
+  // followedUsers being populated after the Discogs API hydration.
+  const isHydrating = false;
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUsername, setAddUsername] = useState("");
@@ -64,7 +57,7 @@ export function FollowingScreen() {
   const handleConnect = useCallback(async () => {
     const username = addUsername.trim();
     if (!username) return;
-    if (!isAuthenticated || !discogsAuth) {
+    if (!isAuthenticated || !sessionToken) {
       setAddError("Connect your Discogs account in Settings first.");
       return;
     }
@@ -79,18 +72,18 @@ export function FollowingScreen() {
 
     try {
       // 1. Check user exists and get their canonical username + avatar
-      const profile = await fetchUserProfile(username, discogsAuth);
+      const profile = await proxyFetchUserProfile({ sessionToken, username });
 
       // 2. Fetch their collection
       setAddProgress("Fetching collection...");
       let collectedAlbums: Album[] = [];
       let collectedFolders: string[] = ["All"];
       try {
-        const result = await fetchCollection(
-          profile.username,
-          discogsAuth,
-          (loaded, total) => setAddProgress(`Fetching collection... ${loaded}/${total}`)
-        );
+        const result = await proxyFetchCollection({
+          sessionToken,
+          username: profile.username,
+          skipPrivateFields: true,
+        });
         collectedAlbums = result.albums;
         collectedFolders = result.folders;
       } catch (e: any) {
@@ -121,11 +114,10 @@ export function FollowingScreen() {
       setAddProgress("Fetching wantlist...");
       let collectedWants: WantItem[] = [];
       try {
-        collectedWants = await fetchWantlist(
-          profile.username,
-          discogsAuth,
-          (loaded, total) => setAddProgress(`Fetching wants... ${loaded}/${total}`)
-        );
+        collectedWants = await proxyFetchWantlist({
+          sessionToken,
+          username: profile.username,
+        });
       } catch (e: any) {
         console.warn("[Following] Could not fetch want list:", e.message);
       }
@@ -153,7 +145,7 @@ export function FollowingScreen() {
     } finally {
       setAddLoading(false);
     }
-  }, [addUsername, followedUsers, addFollowedUser, isAuthenticated, discogsAuth]);
+  }, [addUsername, followedUsers, addFollowedUser, isAuthenticated, sessionToken, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist]);
 
   if (selectedUser) {
     return (

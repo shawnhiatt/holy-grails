@@ -1,18 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
 import {
-  fetchIdentity,
-  fetchCollection,
-  fetchWantlist,
-  fetchUserProfile,
-  fetchCollectionValue,
-  fetchUserCollectionPage,
-  removeFromCollection,
-  addToWantlist,
-  removeFromWantlist,
-  type DiscogsAuth,
   type Album,
   type WantItem,
   type Session,
@@ -128,8 +118,7 @@ interface AppState {
   setHeaderHidden: (v: boolean) => void;
   // Discogs sync
   folders: string[];
-  discogsToken: string;
-  setDiscogsToken: (t: string) => void;
+  sessionToken: string | null;
   discogsUsername: string;
   setDiscogsUsername: (u: string) => void;
   isSyncing: boolean;
@@ -165,11 +154,10 @@ interface AppState {
   collectionCrossoverQueue: WantItem[];
   dismissCrossover: (releaseId: number) => void;
   // OAuth / session management
-  loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string }) => Promise<void>;
+  loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string; sessionToken: string }) => Promise<void>;
   signOut: () => void;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
-  discogsAuth: DiscogsAuth | null;
   // Following feed cache (startup-synced)
   followingFeed: FollowingFeedEntry[];
   followingAvatars: Map<string, string>;
@@ -200,11 +188,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [headerHidden, setHeaderHidden] = useState(false);
 
   // ── Auth state ──
-  // Personal access token (dev QA flow) — in-memory only (no sessionStorage)
-  const [discogsToken, setDiscogsTokenRaw] = useState("");
-  const setDiscogsToken = useCallback((t: string) => {
-    setDiscogsTokenRaw(t);
-  }, []);
 
   // Discogs username — in-memory only; Convex is the source of truth
   const [discogsUsername, setDiscogsUsernameRaw] = useState("");
@@ -212,12 +195,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDiscogsUsernameRaw(u);
   }, []);
 
-  // OAuth credentials (populated from Convex user record or OAuth callback)
-  const [oauthCredentials, setOauthCredentials] = useState<{ accessToken: string; tokenSecret: string } | null>(null);
+  // Session token for authenticated Convex queries/mutations + server-side API proxy
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
-  // Derived auth for Discogs API calls
-  const discogsAuth: DiscogsAuth | null = oauthCredentials || (discogsToken || null);
-  const isAuthenticated = !!discogsUsername && !!discogsAuth;
+  const isAuthenticated = !!discogsUsername && !!sessionToken;
 
 
   // ── Theme state ──
@@ -260,44 +241,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const convexLatestUser = useQuery(api.users.getLatestUser);
 
   const convexUser = useQuery(
-    api.users.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    api.users.getMe,
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexPurgeTags = useQuery(
     api.purge_tags.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexSessions = useQuery(
     api.sessions.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexLastPlayed = useQuery(
     api.last_played.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexWantPriorities = useQuery(
     api.want_priorities.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexFollowing = useQuery(
     api.following.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexPreferences = useQuery(
     api.preferences.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexCollection = useQuery(
     api.collection.getByUsername,
-    discogsUsername ? { discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexWantlist = useQuery(
     api.wantlist.getByUsername,
-    discogsUsername ? { discogs_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
   const convexFollowingFeed = useQuery(
     api.following_feed.getByFollower,
-    discogsUsername ? { follower_username: discogsUsername } : "skip"
+    sessionToken ? { sessionToken } : "skip"
   );
 
   // isAuthLoading: true when a returning user's session is being restored
@@ -307,7 +288,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // isRestoringSession: true on cold load while we're checking Convex for an
   // existing user — before discogsUsername is known.
   const isRestoringSession = !discogsUsername && convexLatestUser === undefined;
-  const isConvexUserGone = !discogsToken && convexUser === null;
+  const isConvexUserGone = !sessionToken && convexLatestUser === null;
   const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
@@ -332,6 +313,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeWantlistItemMut = useMutation(api.wantlist.removeItem);
   const upsertFollowingFeedMut = useMutation(api.following_feed.upsert);
   const deleteFollowingFeedMut = useMutation(api.following_feed.deleteEntry);
+
+  // ── Convex actions (server-side Discogs API proxy) ──
+  const proxyFetchIdentity = useAction(api.discogs.proxyFetchIdentity);
+  const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
+  const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
+  const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
+  const proxyFetchCollectionValue = useAction(api.discogs.proxyFetchCollectionValue);
+  const proxyFetchUserCollectionPage = useAction(api.discogs.proxyFetchUserCollectionPage);
+  const proxyRemoveFromCollection = useAction(api.discogs.proxyRemoveFromCollection);
+  const proxyAddToWantlist = useAction(api.discogs.proxyAddToWantlist);
+  const proxyRemoveFromWantlist = useAction(api.discogs.proxyRemoveFromWantlist);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -394,16 +386,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (hasSignedOutRef.current) return;
     if (!discogsUsername && convexLatestUser) {
       setDiscogsUsernameRaw(convexLatestUser.discogs_username);
+      if (convexLatestUser.session_token) {
+        setSessionToken(convexLatestUser.session_token);
+      }
     }
   }, [convexLatestUser, discogsUsername]);
 
-  // Load OAuth credentials from Convex user record
+  // Load user info (avatar, last synced) from Convex user record
   useEffect(() => {
     if (convexUser) {
-      setOauthCredentials({
-        accessToken: convexUser.access_token,
-        tokenSecret: convexUser.token_secret,
-      });
       if (convexUser.discogs_avatar_url) {
         setUserAvatar(convexUser.discogs_avatar_url);
       }
@@ -413,12 +404,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           + " \u00b7 " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
         setLastSynced(formatted);
       }
-    } else if (convexUser === null && discogsUsername && !discogsToken) {
-      // User record was deleted (signed out on another tab) or never existed for this OAuth user
-      // Only clear if there's no personal token fallback
-      setOauthCredentials(null);
     }
-  }, [convexUser, discogsUsername, discogsToken]);
+  }, [convexUser]);
 
   // Auto-sync on initial load for returning users (OAuth or personal token).
   // If the collection was synced within the last 24 hours, load from
@@ -428,19 +415,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (initialSyncDoneRef.current) return;
     if (!discogsUsername) return;
+    if (!sessionToken) return; // wait for session token
 
-    // For OAuth users: wait for Convex user record to load
-    if (!discogsToken && convexUser === undefined) return; // still loading
-    if (!discogsToken && convexUser === null) return; // no user record
-
-    // We have auth — decide whether to use cache or full sync
-    const auth: DiscogsAuth = convexUser
-      ? { accessToken: convexUser.access_token, tokenSecret: convexUser.token_secret }
-      : discogsToken;
-
-    if (!auth) return;
-
-    const lastSync = convexUser?.last_synced_at ?? null;
+    const lastSync = convexUser?.last_synced_at ?? convexLatestUser?.last_synced_at ?? null;
     const isFresh = lastSync != null && Date.now() - lastSync < TWENTY_FOUR_HOURS;
 
     if (isFresh) {
@@ -543,12 +520,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }));
           hydrateWants(wantsFromCache);
         } else {
-          // Convex wantlist empty — fall back to Discogs fetch
-          fetchWantlist(discogsUsername, auth).then((newWants) => {
+          // Convex wantlist empty — fall back to Discogs fetch via server proxy
+          proxyFetchWantlist({ sessionToken, username: discogsUsername }).then((newWants) => {
             hydrateWants(newWants);
             // Populate Convex cache for next load
             replaceWantlistMut({
-              discogs_username: discogsUsername,
+              sessionToken,
               items: newWants.map((w) => ({
                 release_id: w.release_id,
                 master_id: w.master_id || undefined,
@@ -572,17 +549,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Restore collection value from Convex cache, or fetch from Discogs
-        const cachedValue = convexUser?.collection_value;
-        const valueSyncedAt = convexUser?.collection_value_synced_at;
+        const cachedValue = convexUser?.collection_value ?? convexLatestUser?.collection_value;
+        const valueSyncedAt = convexUser?.collection_value_synced_at ?? convexLatestUser?.collection_value_synced_at;
         if (cachedValue && valueSyncedAt && (Date.now() - valueSyncedAt) < TWENTY_FOUR_HOURS) {
           try {
             const parsed: CollectionValue = JSON.parse(cachedValue);
             setCollectionValueCache(parsed);
           } catch { /* invalid JSON — fall through to Discogs fetch */ }
         } else {
-          fetchCollectionValue(discogsUsername, auth).then((val) => {
+          proxyFetchCollectionValue({ sessionToken, username: discogsUsername }).then((val) => {
+            setCollectionValueCache(val);
             updateCollectionValueMut({
-              discogs_username: discogsUsername,
+              sessionToken,
               collection_value: JSON.stringify(val),
             }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
           }).catch((e) => {
@@ -591,13 +569,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fetch avatar in background — skip if already set from Convex
-        if (!convexUser?.discogs_avatar_url) {
-          fetchUserProfile(discogsUsername, auth).then((p) => setUserAvatar(p.avatar)).catch(() => {});
+        if (!convexUser?.discogs_avatar_url && !convexLatestUser?.discogs_avatar_url) {
+          proxyFetchUserProfile({ sessionToken, username: discogsUsername }).then((p) => setUserAvatar(p.avatar)).catch(() => {});
         }
       } else {
         // Cache is empty despite being "fresh" — fall back to full sync
         initialSyncDoneRef.current = true;
-        performSync(discogsUsername, auth).catch((err) => {
+        performSync(discogsUsername, sessionToken).catch((err) => {
           console.error("[Auto-sync] Failed:", err);
           setSyncFailed(true);
           toast.error("Sync failed. Try again in Settings.");
@@ -606,13 +584,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Cache is stale or missing — full sync from Discogs
       initialSyncDoneRef.current = true;
-      performSync(discogsUsername, auth).catch((err) => {
+      performSync(discogsUsername, sessionToken).catch((err) => {
         console.error("[Auto-sync] Failed:", err);
         setSyncFailed(true);
         toast.error("Sync failed. Try again in Settings.");
       });
     }
-  }, [discogsUsername, discogsToken, convexUser, convexCollection]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [discogsUsername, convexCollection, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate purge tags from Convex into albums (one-time, after albums are populated)
   useEffect(() => {
@@ -687,31 +665,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (screen !== "following") return;
     if (hydratedRef.current.following) return;
     if (convexFollowing === undefined) return; // still loading
-    if (!discogsAuth) return; // wait for credentials
+    if (!sessionToken) return; // wait for session token
     if (convexFollowing.length === 0) {
       hydratedRef.current.following = true;
       return;
     }
     hydratedRef.current.following = true;
-    const authSnapshot = discogsAuth;
+    const tokenSnapshot = sessionToken;
     (async () => {
       for (let i = 0; i < convexFollowing.length; i++) {
         const username = convexFollowing[i].following_username;
         try {
-          const profile = await fetchUserProfile(username, authSnapshot);
+          const profile = await proxyFetchUserProfile({ sessionToken: tokenSnapshot, username });
           let userAlbums: Album[] = [];
           let userFolders: string[] = ["All"];
           let userWants: WantItem[] = [];
           let isPrivate = false;
           try {
-            const result = await fetchCollection(username, authSnapshot, undefined, { skipPrivateFields: true });
+            const result = await proxyFetchCollection({ sessionToken: tokenSnapshot, username, skipPrivateFields: true });
             userAlbums = result.albums;
             userFolders = result.folders;
           } catch (e: any) {
             if (e?.message?.includes("403")) isPrivate = true;
           }
           try {
-            userWants = await fetchWantlist(username, authSnapshot);
+            userWants = await proxyFetchWantlist({ sessionToken: tokenSnapshot, username });
           } catch { /* wantlist may be unavailable — skip */ }
           const followedUser: FollowedUser = {
             id: `f-${username}`,
@@ -728,9 +706,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return [...prev, followedUser];
           });
           // Persist avatar to Convex following table for feed usage
-          if (profile.avatar && discogsUsername) {
+          if (profile.avatar) {
             updateAvatarMut({
-              discogs_username: discogsUsername,
+              sessionToken: tokenSnapshot,
               following_username: username,
               avatar_url: profile.avatar,
             }).catch(() => {});
@@ -745,7 +723,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
     })();
-  }, [screen, convexFollowing, discogsAuth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [screen, convexFollowing, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hydrate following feed cache from Convex on cold load
   useEffect(() => {
@@ -780,64 +758,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setColorMode = useCallback((mode: "light" | "dark" | "system") => {
     setColorModeRaw(mode);
-    if (discogsUsername) {
-      upsertPreferencesMut({ discogs_username: discogsUsername, theme: mode });
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, theme: mode });
     }
-  }, [discogsUsername, upsertPreferencesMut]);
+  }, [sessionToken, upsertPreferencesMut]);
 
   const toggleDarkMode = useCallback(() => {
     const next: "light" | "dark" = isDarkMode ? "light" : "dark";
     setColorModeRaw(next);
-    if (discogsUsername) {
-      upsertPreferencesMut({ discogs_username: discogsUsername, theme: next });
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, theme: next });
     }
-  }, [isDarkMode, discogsUsername, upsertPreferencesMut]);
+  }, [isDarkMode, sessionToken, upsertPreferencesMut]);
 
   // ── Display preferences with Convex persistence ──
 
   const setHidePurgeIndicators = useCallback((v: boolean) => {
     setHidePurgeIndicatorsRaw(v);
-    if (discogsUsername) {
-      upsertPreferencesMut({
-        discogs_username: discogsUsername,
-        hide_purge_indicators: v,
-      });
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, hide_purge_indicators: v });
     }
-  }, [discogsUsername, upsertPreferencesMut]);
+  }, [sessionToken, upsertPreferencesMut]);
 
   const setHideGalleryMeta = useCallback((v: boolean) => {
     setHideGalleryMetaRaw(v);
-    if (discogsUsername) {
-      upsertPreferencesMut({
-        discogs_username: discogsUsername,
-        hide_gallery_meta: v,
-      });
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, hide_gallery_meta: v });
     }
-  }, [discogsUsername, upsertPreferencesMut]);
+  }, [sessionToken, upsertPreferencesMut]);
 
   const setShakeToRandom = useCallback((v: boolean) => {
     setShakeToRandomRaw(v);
-    if (discogsUsername) {
-      upsertPreferencesMut({
-        discogs_username: discogsUsername,
-        shake_to_random: v,
-      });
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, shake_to_random: v });
     }
-  }, [discogsUsername, upsertPreferencesMut]);
+  }, [sessionToken, upsertPreferencesMut]);
 
   const setViewMode = useCallback((v: ViewMode) => {
     setViewModeRaw(v);
-    if (discogsUsername) {
-      upsertPreferencesMut({ discogs_username: discogsUsername, view_mode: v });
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, view_mode: v });
     }
-  }, [discogsUsername, upsertPreferencesMut]);
+  }, [sessionToken, upsertPreferencesMut]);
 
   const setWantViewMode = useCallback((v: ViewMode) => {
     setWantViewModeRaw(v);
-    if (discogsUsername) {
-      upsertPreferencesMut({ discogs_username: discogsUsername, want_view_mode: v });
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, want_view_mode: v });
     }
-  }, [discogsUsername, upsertPreferencesMut]);
+  }, [sessionToken, upsertPreferencesMut]);
 
   // ── Derived state ──
 
@@ -938,38 +907,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAlbums((prev) =>
       prev.map((a) => (a.id === albumId ? { ...a, purgeTag: tag } : a))
     );
-    if (discogsUsername) {
+    if (sessionToken) {
       if (tag) {
         upsertPurgeTagMut({
-          discogs_username: discogsUsername,
+          sessionToken,
           release_id: Number(albumId),
           tag,
         });
       } else {
         removePurgeTagMut({
-          discogs_username: discogsUsername,
+          sessionToken,
           release_id: Number(albumId),
         });
       }
     }
-  }, [discogsUsername, upsertPurgeTagMut, removePurgeTagMut]);
+  }, [sessionToken, upsertPurgeTagMut, removePurgeTagMut]);
 
   const deletePurgeTag = useCallback((releaseId: number) => {
     setAlbums((prev) =>
       prev.map((a) => (a.release_id === releaseId ? { ...a, purgeTag: null } : a))
     );
-    if (discogsUsername) {
-      removePurgeTagMut({ discogs_username: discogsUsername, release_id: releaseId });
+    if (sessionToken) {
+      removePurgeTagMut({ sessionToken, release_id: releaseId });
     }
-  }, [discogsUsername, removePurgeTagMut]);
+  }, [sessionToken, removePurgeTagMut]);
 
   const updateAlbum = useCallback((albumId: string, fields: Partial<Album>) => {
     setAlbums((prev) =>
       prev.map((a) => (a.id === albumId ? { ...a, ...fields } : a))
     );
-    if (discogsUsername) {
+    if (sessionToken) {
       updateInstanceMut({
-        discogsUsername,
+        sessionToken,
         releaseId: Number(albumId),
         ...(fields.mediaCondition !== undefined && { mediaCondition: fields.mediaCondition }),
         ...(fields.sleeveCondition !== undefined && { sleeveCondition: fields.sleeveCondition }),
@@ -979,24 +948,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...(fields.instance_id !== undefined && { instanceId: fields.instance_id }),
       }).catch(console.error);
     }
-  }, [discogsUsername, updateInstanceMut]);
+  }, [sessionToken, updateInstanceMut]);
 
   const toggleWantPriority = useCallback((wantId: string) => {
     setWants((prev) => {
       const want = prev.find((w) => w.id === wantId);
-      if (want && discogsUsername) {
+      if (want && sessionToken) {
         upsertWantPriorityMut({
-          discogs_username: discogsUsername,
+          sessionToken,
           release_id: want.release_id,
           is_priority: !want.priority,
         });
       }
       return prev.map((w) => (w.id === wantId ? { ...w, priority: !w.priority } : w));
     });
-  }, [discogsUsername, upsertWantPriorityMut]);
+  }, [sessionToken, upsertWantPriorityMut]);
 
   const addToWantList = useCallback(async (item: WantItem): Promise<void> => {
-    if (!discogsAuth || !discogsUsername) {
+    if (!sessionToken || !discogsUsername) {
       // Fallback: local-only add (unauthenticated edge case)
       setWants((prev) => {
         const rid = Number(item.release_id);
@@ -1005,8 +974,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       return;
     }
-    // Pattern A: API first, state update on success
-    const result = await addToWantlist(discogsUsername, item.release_id, discogsAuth);
+    // Pattern A: API first (via server proxy), state update on success
+    const result = await proxyAddToWantlist({ sessionToken, username: discogsUsername, releaseId: item.release_id });
     setWants((prev) => {
       const rid = Number(result.release_id);
       if (prev.some((w) => Number(w.release_id) === rid)) return prev;
@@ -1014,7 +983,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     // Keep Convex wantlist cache in sync
     addWantlistItemMut({
-      discogs_username: discogsUsername,
+      sessionToken,
       release_id: result.release_id,
       master_id: result.master_id || undefined,
       title: result.title,
@@ -1025,30 +994,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       label: result.label,
       priority: result.priority,
     }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
-  }, [discogsAuth, discogsUsername, addWantlistItemMut]);
+  }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
 
   const removeFromWantList = useCallback(async (releaseId: string | number): Promise<void> => {
     const rid = Number(releaseId);
-    if (!discogsAuth || !discogsUsername) {
+    if (!sessionToken || !discogsUsername) {
       // Fallback: local-only remove
       setWants((prev) => prev.filter((w) => Number(w.release_id) !== rid));
       return;
     }
-    // Pattern A: API first, state update on success
-    await removeFromWantlist(discogsUsername, rid, discogsAuth);
+    // Pattern A: API first (via server proxy), state update on success
+    await proxyRemoveFromWantlist({ sessionToken, username: discogsUsername, releaseId: rid });
     setWants((prev) => prev.filter((w) => Number(w.release_id) !== rid));
     // Also clean up want priority in Convex if it exists
     upsertWantPriorityMut({
-      discogs_username: discogsUsername,
+      sessionToken,
       release_id: rid,
       is_priority: false,
     }).catch(() => {});
     // Keep Convex wantlist cache in sync
     removeWantlistItemMut({
-      discogs_username: discogsUsername,
+      sessionToken,
       release_id: rid,
     }).catch((e) => console.warn("[Convex] Wantlist remove failed:", e));
-  }, [discogsAuth, discogsUsername, upsertWantPriorityMut, removeWantlistItemMut]);
+  }, [sessionToken, discogsUsername, proxyRemoveFromWantlist, upsertWantPriorityMut, removeWantlistItemMut]);
 
   const isInWants = useCallback((releaseId: string | number, masterId?: number) => {
     const rid = Number(releaseId);
@@ -1078,32 +1047,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       [albumId]: now.toISOString(),
     }));
-    if (discogsUsername) {
+    if (sessionToken) {
       upsertLastPlayedMut({
-        discogs_username: discogsUsername,
+        sessionToken,
         release_id: Number(albumId),
         played_at: now.getTime(),
       });
     }
-  }, [discogsUsername, upsertLastPlayedMut]);
+  }, [sessionToken, upsertLastPlayedMut]);
 
   // ── Session operations ──
 
   const deleteSession = useCallback((sessionId: string) => {
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    if (discogsUsername) {
-      removeSessionMut({ discogs_username: discogsUsername, session_id: sessionId });
+    if (sessionToken) {
+      removeSessionMut({ sessionToken, session_id: sessionId });
     }
-  }, [discogsUsername, removeSessionMut]);
+  }, [sessionToken, removeSessionMut]);
 
   const renameSession = useCallback((sessionId: string, name: string) => {
     setSessions((prev) =>
       prev.map((s) => (s.id === sessionId ? { ...s, name } : s))
     );
-    if (discogsUsername) {
-      updateSessionMut({ discogs_username: discogsUsername, session_id: sessionId, name }).catch(console.error);
+    if (sessionToken) {
+      updateSessionMut({ sessionToken, session_id: sessionId, name }).catch(console.error);
     }
-  }, [discogsUsername, updateSessionMut]);
+  }, [sessionToken, updateSessionMut]);
 
   const reorderSessionAlbums = useCallback((sessionId: string, albumIds: string[]) => {
     setSessions((prev) => {
@@ -1118,52 +1087,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev.slice(sessionIndex + 1),
       ];
     });
-    if (discogsUsername) {
+    if (sessionToken) {
       updateSessionMut({
-        discogs_username: discogsUsername,
+        sessionToken,
         session_id: sessionId,
         album_ids: albumIds.map(Number),
       }).catch(console.error);
     }
-  }, [discogsUsername, updateSessionMut]);
+  }, [sessionToken, updateSessionMut]);
 
   // ── Following ──
 
   const addFollowedUser = useCallback((user: FollowedUser) => {
     setFollowedUsers((prev) => [...prev, user]);
-    if (discogsUsername) {
+    if (sessionToken) {
       addFollowingMut({
-        discogs_username: discogsUsername,
+        sessionToken,
         following_username: user.username,
         avatar_url: user.avatar || undefined,
       });
     }
-  }, [discogsUsername, addFollowingMut]);
+  }, [sessionToken, addFollowingMut]);
 
   const removeFollowedUser = useCallback((userId: string) => {
     setFollowedUsers((prev) => {
       const user = prev.find(f => f.id === userId);
-      if (user && discogsUsername) {
-        removeFollowingMut({ discogs_username: discogsUsername, following_username: user.username });
-        deleteFollowingFeedMut({ follower_username: discogsUsername, followed_username: user.username });
+      if (user && sessionToken) {
+        removeFollowingMut({ sessionToken, following_username: user.username });
+        deleteFollowingFeedMut({ sessionToken, followed_username: user.username });
         setFollowingFeed((feedPrev) => feedPrev.filter(e => e.followed_username !== user.username));
       }
       return prev.filter((f) => f.id !== userId);
     });
-  }, [discogsUsername, removeFollowingMut, deleteFollowingFeedMut]);
+  }, [sessionToken, removeFollowingMut, deleteFollowingFeedMut]);
 
   // ── Sync from Discogs ──
 
   const performSync = useCallback(async (
     username: string,
-    auth: DiscogsAuth
+    token: string
   ): Promise<{ albums: number; folders: number; wants: number }> => {
     setIsSyncing(true);
     setSyncProgress("Syncing");
     try {
       // Fetch user profile (avatar)
       try {
-        const profile = await fetchUserProfile(username, auth);
+        const profile = await proxyFetchUserProfile({ sessionToken: token, username });
         setUserAvatar(profile.avatar);
       } catch (e) {
         console.warn("[Discogs] Profile fetch failed:", e);
@@ -1172,12 +1141,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Fetch collection and wantlist in parallel — no dependency between them
       setSyncProgress("Syncing");
       const [{ albums: newAlbums, folders: newFolders }, newWants] = await Promise.all([
-        fetchCollection(
-          username,
-          auth,
-          (loaded, total) => setSyncProgress(`Fetching ${loaded} / ${total}`)
-        ),
-        fetchWantlist(username, auth),
+        proxyFetchCollection({ sessionToken: token, username }),
+        proxyFetchWantlist({ sessionToken: token, username }),
       ]);
 
       // Merge purge tags from current Convex data
@@ -1229,7 +1194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSyncProgress("Caching collection");
       try {
         await replaceCollectionMut({
-          discogsUsername: username,
+          sessionToken: token,
           albums: newAlbums.map((a) => ({
             releaseId: a.release_id,
             masterId: a.master_id || undefined,
@@ -1259,7 +1224,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Write wantlist to Convex cache
       try {
         await replaceWantlistMut({
-          discogs_username: username,
+          sessionToken: token,
           items: newWants.map((w) => ({
             release_id: w.release_id,
             master_id: w.master_id || undefined,
@@ -1291,9 +1256,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Fetch collection value and cache in Convex
       setSyncProgress("Fetching collection value");
       try {
-        const val = await fetchCollectionValue(username, auth);
+        const val = await proxyFetchCollectionValue({ sessionToken: token, username });
+        setCollectionValueCache(val);
         updateCollectionValueMut({
-          discogs_username: username,
+          sessionToken: token,
           collection_value: JSON.stringify(val),
         }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
       } catch (e) {
@@ -1301,9 +1267,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Update lastSynced in Convex
-      if (discogsUsername) {
-        updateLastSyncedMut({ discogs_username: username });
-      }
+      updateLastSyncedMut({ sessionToken: token });
 
       // ── Following feed sync ──
       // Sync recent albums from followed users for the feed cache.
@@ -1361,9 +1325,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
 
             try {
-              const recentAlbums = await fetchUserCollectionPage(followedUser, auth, 1, 50);
+              const recentAlbums = await proxyFetchUserCollectionPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 });
               await upsertFollowingFeedMut({
-                follower_username: username,
+                sessionToken: token,
                 followed_username: followedUser,
                 recent_albums: recentAlbums,
               });
@@ -1412,28 +1376,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [discogsUsername, updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, updateCollectionValueMut, upsertFollowingFeedMut]);
+  }, [updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, updateCollectionValueMut, upsertFollowingFeedMut, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist, proxyFetchCollectionValue, proxyFetchUserCollectionPage]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);
-    const auth = discogsAuth;
-    if (!auth) throw new Error("No Discogs authentication available");
+    if (!sessionToken) throw new Error("No session token available");
 
     // If we don't have a username yet, fetch identity first
     let username = discogsUsername;
     if (!username) {
-      username = await fetchIdentity(auth);
+      const identity = await proxyFetchIdentity({ sessionToken });
+      username = identity.username;
       setDiscogsUsername(username);
     }
 
-    return performSync(username, auth);
-  }, [discogsAuth, discogsUsername, setDiscogsUsername, performSync]);
+    return performSync(username, sessionToken);
+  }, [discogsUsername, sessionToken, setDiscogsUsername, performSync, proxyFetchIdentity]);
 
   // executePurgeCut must be defined after syncFromDiscogs — it references
   // syncFromDiscogs in its dependency array, and accessing a const before its
   // declaration is evaluated throws a temporal dead zone ReferenceError.
   const executePurgeCut = useCallback(async () => {
-    if (!discogsAuth || !discogsUsername || isSyncing) return;
+    if (!sessionToken || !discogsUsername || isSyncing) return;
 
     const toDelete = albums.filter((a) => a.purgeTag === "cut");
     if (toDelete.length === 0) return;
@@ -1446,7 +1410,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const album = toDelete[i];
       setPurgeProgress({ running: true, current: i + 1, total: toDelete.length, failed: failedIds });
       try {
-        await removeFromCollection(discogsUsername, album.folder_id, album.release_id, album.instance_id, discogsAuth);
+        await proxyRemoveFromCollection({
+          sessionToken,
+          username: discogsUsername,
+          folderId: album.folder_id,
+          releaseId: album.release_id,
+          instanceId: album.instance_id,
+        });
         deletePurgeTag(album.release_id);
       } catch (err) {
         console.error("[PurgeCut] Failed to remove", album.release_id, err);
@@ -1468,7 +1438,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setScreen("crate");
     syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
-  }, [discogsAuth, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs]);
+  }, [sessionToken, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs, proxyRemoveFromCollection]);
 
   // ── OAuth login ──
 
@@ -1477,32 +1447,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     avatarUrl: string;
     accessToken: string;
     tokenSecret: string;
+    sessionToken: string;
   }) => {
-    // Set OAuth credentials
-    setOauthCredentials({ accessToken: user.accessToken, tokenSecret: user.tokenSecret });
+    // Set session token and username
+    setSessionToken(user.sessionToken);
     setDiscogsUsername(user.username);
     setUserAvatar(user.avatarUrl || "");
-    setDiscogsToken(""); // Clear any personal token
 
     // Mark initial sync as done (we're about to trigger it explicitly)
     initialSyncDoneRef.current = true;
 
-    // Trigger initial Discogs sync
-    const auth: DiscogsAuth = { accessToken: user.accessToken, tokenSecret: user.tokenSecret };
-    await performSync(user.username, auth);
-  }, [setDiscogsUsername, setDiscogsToken, performSync]);
+    // Trigger initial Discogs sync via server-side proxy
+    await performSync(user.username, user.sessionToken);
+  }, [setDiscogsUsername, performSync]);
 
   // ── Sign out ──
 
   const signOut = useCallback(() => {
     // Clear auth session from Convex (keep purge tags, sessions, etc.)
-    if (discogsUsername) {
-      clearSessionMut({ discogs_username: discogsUsername });
+    if (sessionToken) {
+      clearSessionMut({ sessionToken });
     }
 
     // Clear local auth state
-    setOauthCredentials(null);
-    setDiscogsToken("");
+    setSessionToken(null);
     setDiscogsUsername("");
 
     // Clear sessionStorage (transient OAuth bridge only)
@@ -1559,7 +1527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       following: false,
     };
     initialSyncDoneRef.current = false;
-  }, [discogsUsername, clearSessionMut, setDiscogsToken, setDiscogsUsername]);
+  }, [sessionToken, clearSessionMut, setDiscogsUsername]);
 
   // ── Developer / QA resets ──
 
@@ -1579,9 +1547,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPurgeFilter("unrated");
     setWantFilter("all");
     setWantSearchQuery("");
-    setDiscogsToken("");
     setDiscogsUsername("");
-    setOauthCredentials(null);
+    setSessionToken(null);
     setLastSynced("");
     setSyncStats(null);
     setSyncProgress("");
@@ -1608,7 +1575,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       following: false,
     };
     initialSyncDoneRef.current = false;
-  }, [setDiscogsToken, setDiscogsUsername]);
+  }, [setDiscogsUsername]);
 
   // ── Connect Discogs flow trigger ──
 
@@ -1637,9 +1604,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
         setFirstSessionJustCreated(true);
         // Persist to Convex
-        if (discogsUsername) {
+        if (sessionToken) {
           createSessionMut({
-            discogs_username: discogsUsername,
+            sessionToken,
             session_id: sessionId,
             name: "Saved for Later",
             album_ids: [Number(albumId)],
@@ -1650,7 +1617,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return prev;
     });
     setSessionPickerAlbumId(albumId);
-  }, [discogsUsername, createSessionMut]);
+  }, [sessionToken, createSessionMut]);
 
   const closeSessionPicker = useCallback(() => {
     setSessionPickerAlbumId(null);
@@ -1678,9 +1645,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Persist to Convex
-      if (discogsUsername) {
+      if (sessionToken) {
         updateSessionMut({
-          discogs_username: discogsUsername,
+          sessionToken,
           session_id: sessionId,
           album_ids: newAlbumIds.map(Number),
         });
@@ -1700,7 +1667,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ];
       }
     });
-  }, [discogsUsername, updateSessionMut]);
+  }, [sessionToken, updateSessionMut]);
 
   const createSessionDirect = useCallback((name: string, initialAlbumIds?: string[]) => {
     const now = new Date().toISOString();
@@ -1714,16 +1681,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setSessions((prev) => [newSession, ...prev]);
     // Persist to Convex
-    if (discogsUsername) {
+    if (sessionToken) {
       createSessionMut({
-        discogs_username: discogsUsername,
+        sessionToken,
         session_id: sessionId,
         name,
         album_ids: (initialAlbumIds || []).map(Number),
       });
     }
     return sessionId;
-  }, [discogsUsername, createSessionMut]);
+  }, [sessionToken, createSessionMut]);
 
   const isAlbumInAnySession = useCallback((albumId: string) => {
     return sessions.some((s) => s.albumIds.includes(albumId));
@@ -1808,8 +1775,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHeaderHidden,
       // Discogs sync
       folders,
-      discogsToken,
-      setDiscogsToken,
+      sessionToken,
       discogsUsername,
       setDiscogsUsername,
       isSyncing,
@@ -1849,7 +1815,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       isAuthenticated,
       isAuthLoading,
-      discogsAuth,
       followingFeed,
       followingAvatars,
     }),
@@ -1874,7 +1839,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       shakeToRandom, setShakeToRandom,
       headerHidden, setHeaderHidden,
       folders,
-      discogsToken, setDiscogsToken,
+      sessionToken,
       discogsUsername, setDiscogsUsername,
       isSyncing, isSyncingFollowing, syncProgress, lastSynced,
       syncFromDiscogs, syncStats,
@@ -1887,7 +1852,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateAlbum,
       selectedWantItem,
       collectionCrossoverQueue, dismissCrossover,
-      loginWithOAuth, signOut, isAuthenticated, isAuthLoading, discogsAuth,
+      loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
       followingFeed, followingAvatars,
     ]
   );

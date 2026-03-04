@@ -10,7 +10,9 @@ import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButto
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { AccordionSection } from "./accordion-section";
-import { CONDITION_GRADES, updateCollectionInstance, moveToFolder, type WantItem } from "./discogs-api";
+import { CONDITION_GRADES, type WantItem } from "./discogs-api";
+import { useAction } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 
 /* ─── Condition grade → color spectrum ─── */
@@ -62,7 +64,7 @@ interface EditFields {
 
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
-    selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, discogsToken,
+    selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
     lastPlayed, markPlayed, isDarkMode,
     // Session picker
     isAlbumInAnySession, mostRecentSessionId,
@@ -70,13 +72,15 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     sessions,
     isInSession, toggleAlbumInSession, createSessionDirect,
     // Edit
-    albums, isSyncing, discogsAuth, discogsUsername, updateAlbum,
+    albums, isSyncing, discogsUsername, updateAlbum,
     folders,
     // Wantlist detail
     selectedWantItem, setSelectedWantItem,
     // Wantlist add
     isInWants, addToWantList,
   } = useApp();
+  const proxyUpdateInstance = useAction(api.discogs.proxyUpdateCollectionInstance);
+  const proxyMoveToFolder = useAction(api.discogs.proxyMoveToFolder);
   const [justPlayed, setJustPlayed] = useState(false);
 
   // Inline session list state
@@ -141,7 +145,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
   // Save handler
   const handleSave = useCallback(async () => {
-    if (!selectedAlbum || !discogsAuth || !discogsUsername) return;
+    if (!selectedAlbum || !sessionToken || !discogsUsername) return;
     setIsSaving(true);
 
     try {
@@ -165,28 +169,28 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       const newFolderEntry = folderOptions.find(f => f.name === editFields.folder);
 
       if (conditionOrNotesChanged) {
-        await updateCollectionInstance(
-          discogsUsername,
-          selectedAlbum.folder_id,
-          selectedAlbum.release_id,
-          selectedAlbum.instance_id,
-          fieldsChanged,
-          discogsAuth
-        );
+        await proxyUpdateInstance({
+          sessionToken,
+          username: discogsUsername,
+          folderId: selectedAlbum.folder_id,
+          releaseId: selectedAlbum.release_id,
+          instanceId: selectedAlbum.instance_id,
+          fields: fieldsChanged,
+        });
       }
 
       let newInstanceId = selectedAlbum.instance_id;
       let newFolderId = selectedAlbum.folder_id;
 
       if (folderChanged && newFolderEntry) {
-        const result = await moveToFolder(
-          discogsUsername,
-          selectedAlbum.folder_id,
-          newFolderEntry.id,
-          selectedAlbum.release_id,
-          selectedAlbum.instance_id,
-          discogsAuth
-        );
+        const result = await proxyMoveToFolder({
+          sessionToken,
+          username: discogsUsername,
+          oldFolderId: selectedAlbum.folder_id,
+          newFolderId: newFolderEntry.id,
+          releaseId: selectedAlbum.release_id,
+          instanceId: selectedAlbum.instance_id,
+        });
         newInstanceId = result.newInstanceId;
         newFolderId = newFolderEntry.id;
       }
@@ -211,8 +215,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       setIsSaving(false);
     }
   }, [
-    selectedAlbum, discogsAuth, discogsUsername,
-    editFields, folderOptions, updateAlbum,
+    selectedAlbum, sessionToken, discogsUsername,
+    editFields, folderOptions, updateAlbum, proxyUpdateInstance, proxyMoveToFolder,
   ]);
 
   // Auto-check most recent session when expanding if album is in no sessions
@@ -640,7 +644,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               </p>
             </div>
 
-            <MarketValueSection album={selectedAlbum} token={discogsToken} />
+            <MarketValueSection album={selectedAlbum} sessionToken={sessionToken} />
 
             {/* ═══ Sessions bookmark ═══ */}
             <AccordionSection
@@ -856,7 +860,7 @@ function WantItemDetailPanel({
   hideImage?: boolean;
   onClose: () => void;
 }) {
-  const { isDarkMode, toggleWantPriority, removeFromWantList, discogsToken } = useApp();
+  const { isDarkMode, toggleWantPriority, removeFromWantList, sessionToken } = useApp();
   const [isRemoving, setIsRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -925,7 +929,7 @@ function WantItemDetailPanel({
           </a>
         </div>
 
-        <MarketValueSection album={{ id: item.id, release_id: item.release_id, title: item.title, artist: item.artist, mediaCondition: "", cover: item.cover } as any} token={discogsToken} />
+        <MarketValueSection album={{ id: item.id, release_id: item.release_id, title: item.title, artist: item.artist, mediaCondition: "", cover: item.cover } as any} sessionToken={sessionToken} />
 
         {/* Remove from Wantlist */}
         <div className="px-4 pb-6">

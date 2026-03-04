@@ -9,6 +9,7 @@ interface AuthCallbackProps {
     avatarUrl: string;
     accessToken: string;
     tokenSecret: string;
+    sessionToken: string;
   }) => void;
   onError: (error: string) => void;
   onStatusChange?: (message: string) => void;
@@ -20,6 +21,9 @@ interface AuthCallbackProps {
  * Reads oauth_token and oauth_verifier from URL params, exchanges them for
  * an access token via Convex action, fetches the user's identity, and stores
  * credentials in Convex. Renders nothing — the parent shows the LoadingScreen.
+ *
+ * Consumer credentials are resolved server-side in Convex actions —
+ * the client never sends them.
  */
 export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbackProps) {
   const exchangeToken = useAction(api.oauth.accessToken);
@@ -43,14 +47,6 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
       return;
     }
 
-    const consumerKey = import.meta.env.VITE_DISCOGS_CONSUMER_KEY;
-    const consumerSecret = import.meta.env.VITE_DISCOGS_CONSUMER_SECRET;
-
-    if (!consumerKey || !consumerSecret) {
-      onError("Discogs API credentials not configured.");
-      return;
-    }
-
     let cancelled = false;
 
     async function completeOAuth() {
@@ -64,8 +60,6 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
         // Step 1: Exchange verifier for access token
         onStatusChange?.("Authenticating");
         const tokens = await exchangeToken({
-          consumer_key: consumerKey,
-          consumer_secret: consumerSecret,
           oauth_token: oauthToken!,
           oauth_token_secret: tokenSecret!,
           oauth_verifier: oauthVerifier!,
@@ -76,8 +70,6 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
         // Step 2: Fetch identity (username + avatar)
         onStatusChange?.("Fetching your profile");
         const identity = await fetchIdentityAction({
-          consumer_key: consumerKey,
-          consumer_secret: consumerSecret,
           access_token: tokens.access_token,
           token_secret: tokens.token_secret,
         });
@@ -86,7 +78,7 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
 
         // Step 3: Store in Convex
         onStatusChange?.("Saving credentials");
-        await upsertUser({
+        const { session_token } = await upsertUser({
           discogs_username: identity.username,
           discogs_avatar_url: identity.avatar_url || undefined,
           access_token: tokens.access_token,
@@ -106,6 +98,7 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
           avatarUrl: identity.avatar_url,
           accessToken: tokens.access_token,
           tokenSecret: tokens.token_secret,
+          sessionToken: session_token,
         });
       } catch (err: any) {
         if (cancelled) return;

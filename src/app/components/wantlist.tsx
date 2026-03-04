@@ -6,7 +6,9 @@ import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
-import { fetchMarketData, getCachedMarketData } from "./discogs-api";
+import { getCachedMarketData } from "./discogs-api";
+import { useAction } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { NoDiscogsCard } from "./no-discogs-card";
 
 import { useHideHeaderOnScroll } from "./use-hide-header";
@@ -658,7 +660,7 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
 }
 
 function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
-  const { isDarkMode, discogsToken } = useApp();
+  const { isDarkMode, sessionToken } = useApp();
   const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
   const alphabetEntries = useWantAlphabetIndex(wants);
@@ -722,7 +724,7 @@ function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 key={item.want.id}
                 className="relative min-w-0"
               >
-                <WantGridCard item={item.want} togglePriority={togglePriority} isDarkMode={isDarkMode} token={discogsToken} onSelect={onSelect} />
+                <WantGridCard item={item.want} togglePriority={togglePriority} isDarkMode={isDarkMode} sessionToken={sessionToken} onSelect={onSelect} />
               </div>
             );
           })}
@@ -878,13 +880,14 @@ function WantArtworkView({ wants, togglePriority, onSelect }: { wants: WantItem[
 }
 
 /** Grid card with lazy-loaded marketplace data on hover */
-function WantGridCard({ item, togglePriority, isDarkMode, token, onSelect }: {
+function WantGridCard({ item, togglePriority, isDarkMode, sessionToken, onSelect }: {
   item: WantItem;
   togglePriority: (id: string) => void;
   isDarkMode: boolean;
-  token: string;
+  sessionToken: string | null;
   onSelect: (item: WantItem) => void;
 }) {
+  const proxyFetchMarketData = useAction(api.discogs.proxyFetchMarketData);
   const [marketStats, setMarketStats] = useState<{ numForSale: number; lowestPrice: number | null; currency: string } | null>(null);
   const [isLoadingMarket, setIsLoadingMarket] = useState(false);
   const fetchedRef = useRef(false);
@@ -900,11 +903,12 @@ function WantGridCard({ item, togglePriority, isDarkMode, token, onSelect }: {
     }
     // Fetch from API
     setIsLoadingMarket(true);
-    fetchMarketData(item.release_id, token)
+    if (!sessionToken) return;
+    proxyFetchMarketData({ sessionToken, releaseId: item.release_id })
       .then((data) => setMarketStats(data.stats))
       .catch(() => { /* silently fail */ })
       .finally(() => setIsLoadingMarket(false));
-  }, [item.release_id, token]);
+  }, [item.release_id, sessionToken, proxyFetchMarketData]);
 
   const discogsUrl = `https://www.discogs.com/release/${item.release_id}`;
   const sellUrl = `https://www.discogs.com/sell/release/${item.release_id}`;

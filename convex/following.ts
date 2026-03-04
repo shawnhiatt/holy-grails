@@ -1,13 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { authenticateUser } from "./authHelper";
 
 export const getByUsername = query({
-  args: { discogs_username: v.string() },
+  args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     return await ctx.db
       .query("following")
       .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
+        q.eq("discogs_username", user.discogs_username)
       )
       .collect();
   },
@@ -15,16 +17,17 @@ export const getByUsername = query({
 
 export const add = mutation({
   args: {
-    discogs_username: v.string(),
+    sessionToken: v.string(),
     following_username: v.string(),
     avatar_url: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     // Check if already following
     const existing = await ctx.db
       .query("following")
       .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
+        q.eq("discogs_username", user.discogs_username)
       )
       .filter((q) =>
         q.eq(q.field("following_username"), args.following_username)
@@ -39,7 +42,7 @@ export const add = mutation({
     }
 
     return await ctx.db.insert("following", {
-      discogs_username: args.discogs_username,
+      discogs_username: user.discogs_username,
       following_username: args.following_username,
       followed_at: Date.now(),
       avatar_url: args.avatar_url,
@@ -49,15 +52,16 @@ export const add = mutation({
 
 export const updateAvatar = mutation({
   args: {
-    discogs_username: v.string(),
+    sessionToken: v.string(),
     following_username: v.string(),
     avatar_url: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     const existing = await ctx.db
       .query("following")
       .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
+        q.eq("discogs_username", user.discogs_username)
       )
       .filter((q) =>
         q.eq(q.field("following_username"), args.following_username)
@@ -72,14 +76,15 @@ export const updateAvatar = mutation({
 
 export const remove = mutation({
   args: {
-    discogs_username: v.string(),
+    sessionToken: v.string(),
     following_username: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     const existing = await ctx.db
       .query("following")
       .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
+        q.eq("discogs_username", user.discogs_username)
       )
       .filter((q) =>
         q.eq(q.field("following_username"), args.following_username)

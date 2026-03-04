@@ -1,13 +1,13 @@
 /**
- * Discogs API service — fetches collection, folders, and want list.
- * All calls are browser-side fetch with personal access token auth.
+ * Discogs API types, constants, and client-side caches.
  *
- * Note: We do NOT set a custom User-Agent header because browsers treat it
- * as a "forbidden" header — setting it triggers a CORS preflight that Discogs
- * may reject. The browser's built-in User-Agent satisfies the API requirement.
+ * All authenticated Discogs HTTP calls are now routed through server-side
+ * Convex actions in `convex/discogs.ts`. This module retains only:
+ *   - Domain types (Album, WantItem, Session, etc.)
+ *   - Condition grade constants
+ *   - Pure utility functions (normalizeCondition, buildFieldMap)
+ *   - In-memory caches (market data, collection value)
  */
-
-const BASE = "https://api.discogs.com";
 
 // ─── Domain types ───
 
@@ -71,441 +71,19 @@ export interface FollowedUser {
   lastSynced: string;
 }
 
-/**
- * Auth can be a personal access token (string) or OAuth credentials.
- * All fetch functions in this module accept either form.
- */
-export type DiscogsAuth =
-  | string
-  | { accessToken: string; tokenSecret: string };
-
-function headers(auth: DiscogsAuth): HeadersInit {
-  if (typeof auth === "string") {
-    return { Authorization: `Discogs token=${auth}` };
-  }
-  // OAuth 1.0a PLAINTEXT — browser-side (no User-Agent header)
-  const ck = import.meta.env.VITE_DISCOGS_CONSUMER_KEY;
-  const cs = import.meta.env.VITE_DISCOGS_CONSUMER_SECRET;
-  if (!ck || !cs) {
-    throw new Error("Missing VITE_DISCOGS_CONSUMER_KEY or VITE_DISCOGS_CONSUMER_SECRET env vars");
-  }
-  const nonce = Math.random().toString(36).substring(2) + Date.now().toString(36);
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const sig = encodeURIComponent(`${cs}&${auth.tokenSecret}`);
-  return {
-    Authorization: `OAuth oauth_consumer_key="${ck}", oauth_nonce="${nonce}", oauth_token="${auth.accessToken}", oauth_signature="${sig}", oauth_signature_method="PLAINTEXT", oauth_timestamp="${timestamp}"`,
-  };
+export interface FeedAlbum {
+  release_id: number;
+  master_id?: number;
+  title: string;
+  artist: string;
+  year: number;
+  thumb: string;
+  cover: string;
+  label: string;
+  dateAdded: string;
 }
 
-/**
- * Pause between paginated requests to stay under the 60 req/min rate limit.
- *
- * Rate limit math (250ms inter-page delay):
- *   Collection sync  — ~N pages (100 albums/page) + 2 setup requests
- *   Wantlist sync    — typically 1–2 pages = ~2 requests
- *   Both run in parallel, so worst-case total ≈ 7 requests in ~1.25s of elapsed time.
- *   That is well under the 60 requests/minute ceiling (= 1 req/sec sustained).
- *   Even at 100 pages, 100 × 250ms = 25 seconds → 100 requests = 4 req/s, still under limit.
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Wrapper around fetch that converts browser-level network errors
- * (CORS preflight rejections, offline, sandbox restrictions) into
- * clean Error objects with descriptive messages instead of raw TypeErrors.
- */
-async function discogsFetch(url: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (err) {
-    // TypeError: "NetworkError when attempting to fetch resource" (Firefox)
-    // TypeError: "Failed to fetch" (Chrome)
-    // These indicate the request never reached the server.
-    throw new Error(
-      `Network request to Discogs failed. This usually means the browser blocked the request (CORS, ad-blocker, or sandbox restrictions). URL: ${url}`
-    );
-  }
-}
-
-/* ─── Identity ─── */
-
-export async function fetchIdentity(auth: DiscogsAuth): Promise<string> {
-  const url = `${BASE}/oauth/identity`;
-  const res = await discogsFetch(url, { headers: headers(auth) });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error("[Discogs] Auth failed:", res.status, body);
-    throw new Error(`Discogs auth failed (${res.status}): ${body || "Check your token"}`);
-  }
-  const data = await res.json();
-  return data.username as string;
-}
-
-/* ─── User Profile (check if user exists / is public) ─── */
-
-export async function fetchUserProfile(
-  username: string,
-  auth: DiscogsAuth
-): Promise<{ username: string; avatar: string }> {
-  const url = `${BASE}/users/${encodeURIComponent(username)}`;
-  try {
-    const res = await discogsFetch(url, { headers: headers(auth) });
-    if (res.status === 404) {
-      throw new Error(`User "${username}" not found on Discogs.`);
-    }
-    if (!res.ok) {
-      throw new Error(`Failed to fetch user profile (${res.status})`);
-    }
-    const data = await res.json();
-    return {
-      username: data.username as string,
-      avatar: (data.avatar_url as string) || "",
-    };
-  } catch (err) {
-    // Re-throw HTTP-level errors (404, etc.) — callers need those
-    if (err instanceof Error && !err.message.includes("Network request to Discogs failed")) {
-      throw err;
-    }
-    // Network-level failure — return fallback silently (avatar is non-critical)
-    console.warn("[Discogs] Profile fetch skipped (network unavailable)");
-    return { username, avatar: "" };
-  }
-}
-
-/* ─── Custom Fields ─── */
-
-export interface DiscogsCustomField {
-  id: number;
-  name: string;
-  type: string; // "dropdown", "textarea", "text"
-  options?: string[];
-  public: boolean;
-}
-
-/**
- * Fetch the user's custom field definitions.
- * Discogs default fields are typically:
- *   field 1 = "Media Condition" (dropdown)
- *   field 2 = "Sleeve Condition" (dropdown)
- *   field 3 = "Notes" (textarea)
- * But IDs vary per user when they add/reorder custom fields.
- */
-export async function fetchCustomFields(
-  username: string,
-  auth: DiscogsAuth
-): Promise<DiscogsCustomField[]> {
-  const res = await discogsFetch(
-    `${BASE}/users/${username}/collection/fields`,
-    { headers: headers(auth) }
-  );
-  if (!res.ok) {
-    console.warn(`[Discogs] Failed to fetch custom fields (${res.status})`);
-    return [];
-  }
-  const data = await res.json();
-  return (data.fields || []) as DiscogsCustomField[];
-}
-
-/**
- * Build a lookup map from field definitions to identify which field_id
- * corresponds to Media Condition, Sleeve Condition, Notes, and Price Paid.
- */
-export interface FieldMap {
-  mediaConditionId: number | null;
-  sleeveConditionId: number | null;
-  notesId: number | null;
-  pricePaidId: number | null;
-  /** All other custom fields: field_id → field name */
-  otherFields: Map<number, string>;
-}
-
-export function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
-  const result: FieldMap = {
-    mediaConditionId: null,
-    sleeveConditionId: null,
-    notesId: null,
-    pricePaidId: null,
-    otherFields: new Map(),
-  };
-
-  for (const f of fields) {
-    const lower = f.name.toLowerCase().trim();
-
-    if (lower === "media condition" || lower === "media") {
-      result.mediaConditionId = f.id;
-    } else if (lower === "sleeve condition" || lower === "sleeve") {
-      result.sleeveConditionId = f.id;
-    } else if (lower === "notes") {
-      result.notesId = f.id;
-    } else if (
-      lower === "price paid" ||
-      lower === "price" ||
-      lower === "cost" ||
-      lower === "purchase price" ||
-      lower.includes("price paid")
-    ) {
-      result.pricePaidId = f.id;
-    } else {
-      result.otherFields.set(f.id, f.name);
-    }
-  }
-
-  return result;
-}
-
-/* ─── Collection ─── */
-
-interface DiscogsRelease {
-  id: number;
-  instance_id: number;
-  folder_id: number;
-  rating: number;
-  basic_information: {
-    id: number;
-    master_id?: number;
-    title: string;
-    year: number;
-    artists: { name: string; anv: string }[];
-    labels: { name: string; catno: string }[];
-    formats: { name: string; qty: string; descriptions?: string[] }[];
-    cover_image: string;
-    thumb: string;
-  };
-  notes?: { field_id: number; value: string }[];
-  date_added: string;
-}
-
-interface CollectionPage {
-  pagination: { pages: number; page: number; items: number };
-  releases: DiscogsRelease[];
-}
-
-/**
- * Map folder_id → folder name. Folder 0 = "Uncategorized", 1 = "All" in Discogs.
- * User-created folders start at id 2+.
- */
-function folderName(
-  folderId: number,
-  folderMap: Map<number, string>
-): string {
-  return folderMap.get(folderId) || "Uncategorized";
-}
-
-async function fetchFolderMap(
-  username: string,
-  auth: DiscogsAuth
-): Promise<Map<number, string>> {
-  const res = await discogsFetch(`${BASE}/users/${username}/collection/folders`, {
-    headers: headers(auth),
-  });
-  if (!res.ok) throw new Error(`Failed to fetch folders (${res.status})`);
-  const data = await res.json();
-  const map = new Map<number, string>();
-  for (const f of data.folders || []) {
-    map.set(f.id, f.name);
-  }
-  return map;
-}
-
-function formatArtistName(name: string): string {
-  // Discogs appends " (N)" for disambiguation — strip it
-  return name.replace(/\s*\(\d+\)\s*$/, "");
-}
-
-function mapRelease(
-  r: DiscogsRelease,
-  folderMap: Map<number, string>,
-  fieldMap: FieldMap,
-): Album {
-  const bi = r.basic_information;
-  const artist = bi.artists
-    .map((a) => formatArtistName(a.anv || a.name))
-    .join(", ");
-  const label = bi.labels?.[0]?.name || "Unknown";
-  const catno = bi.labels?.[0]?.catno || "";
-  const formatParts: string[] = [];
-  for (const fmt of bi.formats || []) {
-    formatParts.push(
-      [fmt.name, ...(fmt.descriptions || [])].filter(Boolean).join(", ")
-    );
-  }
-
-  // Parse Discogs custom fields using the field map.
-  // Known fields (Media Condition, Sleeve Condition, Notes, Price Paid) go to
-  // dedicated properties. All other user-defined custom fields (e.g. "Acquired
-  // From", "Last Cleaned") are collected into the customFields array.
-  const noteValues: string[] = [];
-  const mediaCondition: string[] = [];
-  const sleeveCondition: string[] = [];
-  const pricePaid: string[] = [];
-  const customFields: { name: string; value: string }[] = [];
-
-  for (const n of r.notes || []) {
-    if (!n.value) continue; // skip empty values
-    if (fieldMap.mediaConditionId != null && n.field_id === fieldMap.mediaConditionId) {
-      mediaCondition.push(n.value);
-    } else if (fieldMap.sleeveConditionId != null && n.field_id === fieldMap.sleeveConditionId) {
-      sleeveCondition.push(n.value);
-    } else if (fieldMap.notesId != null && n.field_id === fieldMap.notesId) {
-      noteValues.push(n.value);
-    } else if (fieldMap.pricePaidId != null && n.field_id === fieldMap.pricePaidId) {
-      pricePaid.push(n.value);
-    } else {
-      // Check if this is a recognized custom field
-      const customName = fieldMap.otherFields.get(n.field_id);
-      if (customName) {
-        customFields.push({ name: customName, value: n.value });
-      } else {
-        // Truly unknown field — append to notes as fallback
-        noteValues.push(n.value);
-      }
-    }
-  }
-
-  return {
-    id: String(bi.id),
-    release_id: bi.id,
-    master_id: bi.master_id || undefined,
-    instance_id: r.instance_id,
-    folder_id: r.folder_id,
-    title: bi.title,
-    artist,
-    year: bi.year || 0,
-    thumb: bi.thumb || "",
-    cover: bi.cover_image || bi.thumb || "",
-    folder: folderName(r.folder_id, folderMap),
-    label,
-    catalogNumber: catno,
-    format: formatParts.join("; ") || "Vinyl",
-    mediaCondition: mediaCondition.join(" · "),
-    sleeveCondition: sleeveCondition.join(" · "),
-    pricePaid: pricePaid.join(" · "),
-    notes: noteValues.join(" · "),
-    customFields: customFields.length > 0 ? customFields : undefined,
-    dateAdded: r.date_added ? r.date_added.split("T")[0] : "",
-    discogsUrl: `https://www.discogs.com/release/${bi.id}`,
-    purgeTag: null,
-  };
-}
-
-export async function fetchCollection(
-  username: string,
-  auth: DiscogsAuth,
-  onProgress?: (loaded: number, total: number) => void,
-  opts?: { skipPrivateFields?: boolean }
-): Promise<{ albums: Album[]; folders: string[] }> {
-  const skip = opts?.skipPrivateFields === true;
-  const folderMap = skip ? new Map<number, string>() : await fetchFolderMap(username, auth);
-  const fields = skip ? [] : await fetchCustomFields(username, auth);
-  const fieldMap = buildFieldMap(fields);
-
-  const albums: Album[] = [];
-  let page = 1;
-  let totalPages = 1;
-
-  while (page <= totalPages) {
-    if (page > 1) await sleep(250); // 250ms between pages — well within 60 req/min limit (see sleep() comment)
-    const res = await discogsFetch(
-      `${BASE}/users/${username}/collection/folders/0/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`,
-      { headers: headers(auth) }
-    );
-    if (!res.ok) throw new Error(`Failed to fetch collection page ${page} (${res.status})`);
-    const data: CollectionPage = await res.json();
-    totalPages = data.pagination.pages;
-
-    for (const r of data.releases) {
-      albums.push(mapRelease(r, folderMap, fieldMap));
-    }
-
-    onProgress?.(albums.length, data.pagination.items);
-    page++;
-  }
-
-  // Dedupe by release_id (same release can appear in multiple folders)
-  const seen = new Set<number>();
-  const deduped: Album[] = [];
-  for (const a of albums) {
-    if (!seen.has(a.release_id)) {
-      seen.add(a.release_id);
-      deduped.push(a);
-    }
-  }
-
-  const folderNames = ["All", ...Array.from(folderMap.values()).filter((n) => n !== "All")];
-
-  return { albums: deduped, folders: folderNames };
-}
-
-/* ─── Want List ─── */
-
-interface DiscogsWant {
-  id: number;
-  basic_information: {
-    id: number;
-    master_id?: number;
-    title: string;
-    year: number;
-    artists: { name: string; anv: string }[];
-    labels: { name: string; catno: string }[];
-    cover_image: string;
-    thumb: string;
-  };
-  date_added: string;
-}
-
-interface WantPage {
-  pagination: { pages: number; page: number; items: number };
-  wants: DiscogsWant[];
-}
-
-export async function fetchWantlist(
-  username: string,
-  auth: DiscogsAuth,
-  onProgress?: (loaded: number, total: number) => void
-): Promise<WantItem[]> {
-  const wants: WantItem[] = [];
-  let page = 1;
-  let totalPages = 1;
-
-  while (page <= totalPages) {
-    if (page > 1) await sleep(250); // 250ms between pages — well within 60 req/min limit (see sleep() comment)
-    const res = await discogsFetch(
-      `${BASE}/users/${username}/wants?per_page=100&page=${page}`,
-      { headers: headers(auth) }
-    );
-    if (!res.ok) throw new Error(`Failed to fetch want list page ${page} (${res.status})`);
-    const data: WantPage = await res.json();
-    totalPages = data.pagination.pages;
-
-    for (const w of data.wants) {
-      const bi = w.basic_information;
-      const artist = bi.artists
-        .map((a) => formatArtistName(a.anv || a.name))
-        .join(", ");
-      wants.push({
-        id: `w-${bi.id}`,
-        release_id: bi.id,
-        master_id: bi.master_id || undefined,
-        title: bi.title,
-        artist,
-        year: bi.year || 0,
-        thumb: bi.thumb || "",
-        cover: bi.cover_image || bi.thumb || "",
-        label: bi.labels?.[0]?.name || "Unknown",
-        priority: false,
-      });
-    }
-
-    onProgress?.(wants.length, data.pagination.items);
-    page++;
-  }
-
-  return wants;
-}
-
-/* ─── Market Value / Pricing ─── */
+// ─── Market Value / Pricing types ───
 
 export interface CollectionValue {
   minimum: number;
@@ -533,8 +111,7 @@ export interface MarketData {
   fetchedAt: number;
 }
 
-// In-memory cache keyed by release_id
-const marketCache = new Map<number, MarketData>();
+// ─── Condition grade constants ───
 
 /** Condition grades in order from best to worst */
 export const CONDITION_GRADES = [
@@ -585,141 +162,78 @@ export function normalizeCondition(raw: string): string | null {
   return null;
 }
 
+// ─── Custom Fields utility ───
+
+export interface DiscogsCustomField {
+  id: number;
+  name: string;
+  type: string; // "dropdown", "textarea", "text"
+  options?: string[];
+  public: boolean;
+}
+
+export interface FieldMap {
+  mediaConditionId: number | null;
+  sleeveConditionId: number | null;
+  notesId: number | null;
+  pricePaidId: number | null;
+  /** All other custom fields: field_id → field name */
+  otherFields: Map<number, string>;
+}
+
+export function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
+  const result: FieldMap = {
+    mediaConditionId: null,
+    sleeveConditionId: null,
+    notesId: null,
+    pricePaidId: null,
+    otherFields: new Map(),
+  };
+
+  for (const f of fields) {
+    const lower = f.name.toLowerCase().trim();
+
+    if (lower === "media condition" || lower === "media") {
+      result.mediaConditionId = f.id;
+    } else if (lower === "sleeve condition" || lower === "sleeve") {
+      result.sleeveConditionId = f.id;
+    } else if (lower === "notes") {
+      result.notesId = f.id;
+    } else if (
+      lower === "price paid" ||
+      lower === "price" ||
+      lower === "cost" ||
+      lower === "purchase price" ||
+      lower.includes("price paid")
+    ) {
+      result.pricePaidId = f.id;
+    } else {
+      result.otherFields.set(f.id, f.name);
+    }
+  }
+
+  return result;
+}
+
+// ─── In-memory caches ───
+
+// Market data cache keyed by release_id
+const marketCache = new Map<number, MarketData>();
+
 export function getCachedMarketData(releaseId: number): MarketData | null {
   return marketCache.get(releaseId) || null;
 }
 
-/** 30-day cache TTL for per-album market data */
-const MARKET_CACHE_TTL = 30 * 24 * 3600000; // 30 days in ms
-
-export async function fetchMarketData(
-  releaseId: number,
-  auth: DiscogsAuth,
-  forceRefresh = false
-): Promise<MarketData> {
-  // Return cached if fresh (< 30 days) and not forcing refresh
-  const cached = marketCache.get(releaseId);
-  if (!forceRefresh && cached && Date.now() - cached.fetchedAt < MARKET_CACHE_TTL) return cached;
-
-  const prices: ConditionPrice[] = [];
-  let stats: MarketplaceStats = { lowestPrice: null, numForSale: 0, currency: "USD" };
-
-  // Fetch price suggestions — GET /marketplace/price_suggestions/{release_id}
-  // Response: { "Near Mint (NM or M-)": { currency: "USD", value: 28.0 }, ... }
-  // Only condition grades with actual sales data are present in the response.
-  try {
-    const res = await discogsFetch(
-      `${BASE}/marketplace/price_suggestions/${releaseId}`,
-      { headers: headers(auth) }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      for (const grade of CONDITION_GRADES) {
-        const entry = data[grade];
-        if (entry && typeof entry.value === "number") {
-          prices.push({
-            condition: grade,
-            value: entry.value,
-            currency: entry.currency || "USD",
-          });
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("[Discogs] Price suggestions failed:", e);
-  }
-
-  // Fetch marketplace stats — GET /marketplace/stats/{release_id}
-  // Response: { lowest_price: { currency: "USD", value: 8.50 } | null, num_for_sale: 12 }
-  // lowest_price is null when no copies are currently listed.
-  try {
-    const res = await discogsFetch(
-      `${BASE}/marketplace/stats/${releaseId}`,
-      { headers: headers(auth) }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      stats = {
-        lowestPrice: data.lowest_price?.value ?? null,
-        numForSale: data.num_for_sale ?? 0,
-        currency: data.lowest_price?.currency ?? "USD",
-      };
-    }
-  } catch (e) {
-    console.warn("[Discogs] Marketplace stats failed:", e);
-  }
-
-  const result: MarketData = { prices, stats, fetchedAt: Date.now() };
-  marketCache.set(releaseId, result);
-  return result;
+/** Clear all per-album market data from the in-memory cache */
+export function clearAllMarketData(): void {
+  marketCache.clear();
 }
 
-/* ─── Collection Value (API endpoint) ─── */
-
-// Cached collection value — starts null until data is loaded (via sync or placeholder import)
+// Collection value cache
 let _collectionValue: CollectionValue | null = null;
 
 export function getCachedCollectionValue(): CollectionValue | null {
   return _collectionValue;
-}
-
-/**
- * The Discogs collection/value API returns values with a leading currency symbol,
- * e.g. "$250.00". Strip everything except digits, decimal point, and minus sign
- * before passing to parseFloat.
- */
-function parseCurrencyString(raw: unknown): number {
-  const cleaned = String(raw ?? "").replace(/[^0-9.-]/g, "");
-  return parseFloat(cleaned);
-}
-
-/**
- * Fetch collection value from Discogs API.
- * GET /users/{username}/collection/value
- * Returns minimum, median, maximum as currency strings e.g. "$250.00".
- *
- * Throws if the expected numeric fields are missing or unparseable — callers treat that
- * as "unavailable" rather than silently displaying $0.
- */
-export async function fetchCollectionValue(
-  username: string,
-  auth: DiscogsAuth
-): Promise<CollectionValue> {
-  const res = await discogsFetch(
-    `${BASE}/users/${encodeURIComponent(username)}/collection/value`,
-    { headers: headers(auth) }
-  );
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Failed to fetch collection value (${res.status})${body ? ": " + body : ""}`);
-  }
-
-  const data = await res.json();
-
-  const minimum = parseCurrencyString(data.minimum);
-  const median = parseCurrencyString(data.median);
-  const maximum = parseCurrencyString(data.maximum);
-
-  // Guard against a missing or non-numeric response (e.g. wrong shape, unexpected API change).
-  // isFinite returns false for NaN and Infinity, but true for 0 — so a genuine $0 collection
-  // value still displays correctly, while a missing field throws rather than silently showing $0.
-  if (!isFinite(minimum) || !isFinite(median) || !isFinite(maximum)) {
-    throw new Error(
-      `Collection value fields are not finite numbers — response may have changed shape. ` +
-      `minimum=${JSON.stringify(data.minimum)} median=${JSON.stringify(data.median)} maximum=${JSON.stringify(data.maximum)}`
-    );
-  }
-
-  const value: CollectionValue = {
-    minimum,
-    median,
-    maximum,
-    currency: (data.currency as string) || "USD",
-    fetchedAt: Date.now(),
-  };
-  _collectionValue = value;
-  return value;
 }
 
 /** Pre-populate the in-memory collection value cache (used when restoring from Convex) */
@@ -730,255 +244,4 @@ export function setCollectionValueCache(value: CollectionValue): void {
 /** Clear the cached collection value entirely (returns getCachedCollectionValue → null) */
 export function clearCollectionValue(): void {
   _collectionValue = null;
-}
-
-/** Clear all per-album market data from the in-memory cache */
-export function clearAllMarketData(): void {
-  marketCache.clear();
-}
-
-/* ─── Collection Mutations ─── */
-
-/**
- * Update media condition, sleeve condition, and/or notes for a specific
- * collection instance. Each field is updated via the custom fields endpoint:
- *   POST /users/{username}/collection/folders/{folder_id}/releases/{release_id}/instances/{instance_id}/fields/{field_id}?value={value}
- *
- * Fetches field definitions first to resolve field IDs from field names.
- */
-export async function updateCollectionInstance(
-  username: string,
-  folderId: number,
-  releaseId: number,
-  instanceId: number,
-  fields: {
-    mediaCondition?: string;
-    sleeveCondition?: string;
-    notes?: string;
-  },
-  auth: DiscogsAuth
-): Promise<void> {
-  const fieldDefs = await fetchCustomFields(username, auth);
-  const fieldMap = buildFieldMap(fieldDefs);
-
-  const updates: { fieldId: number; value: string }[] = [];
-
-  if (fields.mediaCondition !== undefined && fieldMap.mediaConditionId != null) {
-    updates.push({ fieldId: fieldMap.mediaConditionId, value: fields.mediaCondition });
-  }
-  if (fields.sleeveCondition !== undefined && fieldMap.sleeveConditionId != null) {
-    updates.push({ fieldId: fieldMap.sleeveConditionId, value: fields.sleeveCondition });
-  }
-  if (fields.notes !== undefined && fieldMap.notesId != null) {
-    updates.push({ fieldId: fieldMap.notesId, value: fields.notes });
-  }
-
-  for (const update of updates) {
-    const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}/fields/${update.fieldId}`;
-    const res = await discogsFetch(url, {
-      method: "POST",
-      headers: { ...headers(auth), "Content-Type": "application/json" },
-      body: JSON.stringify({ value: update.value }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(
-        `Failed to update field ${update.fieldId} for instance ${instanceId} (${res.status})${body ? ": " + body : ""}`
-      );
-    }
-  }
-}
-
-/**
- * Move a release instance to a different folder. Discogs requires two steps:
- * 1. POST /users/{username}/collection/folders/{new_folder_id}/releases/{release_id}
- *    — adds the release to the new folder, returns the new instance_id.
- * 2. DELETE /users/{username}/collection/folders/{old_folder_id}/releases/{release_id}/instances/{instance_id}
- *    — removes from the old folder.
- *
- * Returns the new instance_id so the caller can update local state.
- */
-export async function moveToFolder(
-  username: string,
-  oldFolderId: number,
-  newFolderId: number,
-  releaseId: number,
-  instanceId: number,
-  auth: DiscogsAuth
-): Promise<{ newInstanceId: number }> {
-  // Step 1: Add to new folder
-  const addUrl = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${newFolderId}/releases/${releaseId}`;
-  const addRes = await discogsFetch(addUrl, {
-    method: "POST",
-    headers: { ...headers(auth), "Content-Type": "application/json" },
-  });
-  if (!addRes.ok) {
-    const body = await addRes.text().catch(() => "");
-    throw new Error(
-      `Failed to add release ${releaseId} to folder ${newFolderId} (${addRes.status})${body ? ": " + body : ""}`
-    );
-  }
-  const addData = await addRes.json();
-  const newInstanceId = addData.instance_id as number;
-
-  // Step 2: Remove from old folder
-  const delUrl = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${oldFolderId}/releases/${releaseId}/instances/${instanceId}`;
-  const delRes = await discogsFetch(delUrl, {
-    method: "DELETE",
-    headers: headers(auth),
-  });
-  if (delRes.status !== 404 && !delRes.ok) {
-    const body = await delRes.text().catch(() => "");
-    throw new Error(
-      `Failed to remove release ${releaseId} from folder ${oldFolderId} (${delRes.status})${body ? ": " + body : ""}`
-    );
-  }
-
-  return { newInstanceId };
-}
-
-/**
- * Remove a single release instance from the user's Discogs collection.
- * DELETE /users/{username}/collection/folders/{folder_id}/releases/{release_id}/instances/{instance_id}
- *
- * 404 is treated as success — the album is already gone from Discogs.
- * All other non-2xx responses throw so the caller can log and skip.
- */
-export async function removeFromCollection(
-  username: string,
-  folderId: number,
-  releaseId: number,
-  instanceId: number,
-  auth: DiscogsAuth
-): Promise<void> {
-  const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}`;
-  const res = await discogsFetch(url, {
-    method: "DELETE",
-    headers: headers(auth),
-  });
-  if (res.status === 404) return; // Already removed — treat as success
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to remove release ${releaseId} from collection (${res.status})${body ? ": " + body : ""}`
-    );
-  }
-}
-
-/* ─── Wantlist Mutations ─── */
-
-/**
- * Add a release to the user's Discogs wantlist.
- * PUT /users/{username}/wants/{release_id}
- *
- * No request body required. Returns the created want object on success.
- * If the release is already on the wantlist, Discogs returns it as-is (idempotent).
- */
-export async function addToWantlist(
-  username: string,
-  releaseId: number,
-  auth: DiscogsAuth
-): Promise<WantItem> {
-  const url = `${BASE}/users/${encodeURIComponent(username)}/wants/${releaseId}`;
-  const res = await discogsFetch(url, {
-    method: "PUT",
-    headers: { ...headers(auth), "Content-Type": "application/json" },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to add release ${releaseId} to wantlist (${res.status})${body ? ": " + body : ""}`
-    );
-  }
-  const data = await res.json();
-  const bi = data.basic_information;
-  const artist = (bi?.artists || [])
-    .map((a: { name: string; anv: string }) => formatArtistName(a.anv || a.name))
-    .join(", ");
-  return {
-    id: `w-${bi?.id ?? releaseId}`,
-    release_id: bi?.id ?? releaseId,
-    master_id: bi?.master_id || undefined,
-    title: bi?.title ?? "",
-    artist,
-    year: bi?.year ?? 0,
-    thumb: bi?.thumb || "",
-    cover: bi?.cover_image || bi?.thumb || "",
-    label: bi?.labels?.[0]?.name || "Unknown",
-    priority: false,
-  };
-}
-
-/**
- * Remove a release from the user's Discogs wantlist.
- * DELETE /users/{username}/wants/{release_id}
- *
- * 204 No Content on success.
- * 404 is treated as success — the release was already removed.
- */
-export async function removeFromWantlist(
-  username: string,
-  releaseId: number,
-  auth: DiscogsAuth
-): Promise<void> {
-  const url = `${BASE}/users/${encodeURIComponent(username)}/wants/${releaseId}`;
-  const res = await discogsFetch(url, {
-    method: "DELETE",
-    headers: headers(auth),
-  });
-  if (res.status === 404) return; // Already removed — treat as success
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `Failed to remove release ${releaseId} from wantlist (${res.status})${body ? ": " + body : ""}`
-    );
-  }
-}
-
-/* ─── Following Feed — lightweight collection page fetch ─── */
-
-export interface FeedAlbum {
-  release_id: number;
-  master_id?: number;
-  title: string;
-  artist: string;
-  year: number;
-  thumb: string;
-  cover: string;
-  label: string;
-  dateAdded: string;
-}
-
-/**
- * Fetch a single page of a user's collection, returning only the lightweight
- * fields needed for the following feed cache. Used during startup sync to
- * populate the following_feed Convex table without the overhead of full
- * collection parsing (folders, custom fields, conditions).
- */
-export async function fetchUserCollectionPage(
-  username: string,
-  auth: DiscogsAuth,
-  page = 1,
-  perPage = 50
-): Promise<FeedAlbum[]> {
-  const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/0/releases?page=${page}&per_page=${perPage}&sort=added&sort_order=desc`;
-  const res = await discogsFetch(url, { headers: headers(auth) });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch collection page for @${username} (${res.status})`);
-  }
-  const data: CollectionPage = await res.json();
-  return data.releases.map((r) => {
-    const bi = r.basic_information;
-    return {
-      release_id: bi.id,
-      master_id: bi.master_id || undefined,
-      title: bi.title,
-      artist: bi.artists.map((a) => formatArtistName(a.anv || a.name)).join(", "),
-      year: bi.year || 0,
-      thumb: bi.thumb || "",
-      cover: bi.cover_image || bi.thumb || "",
-      label: bi.labels?.[0]?.name || "Unknown",
-      dateAdded: r.date_added || "",
-    };
-  });
 }

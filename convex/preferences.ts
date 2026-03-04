@@ -1,13 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { authenticateUser } from "./authHelper";
 
 export const getByUsername = query({
-  args: { discogs_username: v.string() },
+  args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     return await ctx.db
       .query("preferences")
       .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
+        q.eq("discogs_username", user.discogs_username)
       )
       .first();
   },
@@ -15,7 +17,7 @@ export const getByUsername = query({
 
 export const upsert = mutation({
   args: {
-    discogs_username: v.string(),
+    sessionToken: v.string(),
     theme: v.optional(
       v.union(v.literal("light"), v.literal("dark"), v.literal("system"))
     ),
@@ -26,10 +28,11 @@ export const upsert = mutation({
     want_view_mode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     const existing = await ctx.db
       .query("preferences")
       .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.discogs_username)
+        q.eq("discogs_username", user.discogs_username)
       )
       .first();
 
@@ -50,7 +53,7 @@ export const upsert = mutation({
     }
 
     return await ctx.db.insert("preferences", {
-      discogs_username: args.discogs_username,
+      discogs_username: user.discogs_username,
       theme: args.theme ?? "system",
       hide_purge_indicators: args.hide_purge_indicators ?? false,
       hide_gallery_meta: args.hide_gallery_meta ?? false,

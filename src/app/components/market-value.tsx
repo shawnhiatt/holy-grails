@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, ExternalLink, Info, Coins } from "lucide-react";
 import {
-  fetchMarketData,
   getCachedMarketData,
   normalizeCondition,
   CONDITION_GRADES,
@@ -11,6 +10,8 @@ import {
 import type { Album } from "./discogs-api";
 import { useApp } from "./app-context";
 import { AccordionSection } from "./accordion-section";
+import { useAction } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 /* ─── Condition grade → color spectrum ─── */
 function conditionGradeColor(grade: string, isDarkMode: boolean): string | undefined {
@@ -81,7 +82,7 @@ function formatPriceShort(value: number, currency: string): string {
   return `${rounded} ${currency}`;
 }
 
-export function MarketValueSection({ album, token }: { album: Album; token: string }) {
+export function MarketValueSection({ album, sessionToken }: { album: Album; sessionToken: string | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [marketData, setMarketData] = useState<MarketData | null>(
     () => getCachedMarketData(album.release_id)
@@ -90,6 +91,7 @@ export function MarketValueSection({ album, token }: { album: Album; token: stri
   const [hasAttempted, setHasAttempted] = useState(
     () => getCachedMarketData(album.release_id) !== null
   );
+  const proxyFetchMarketData = useAction(api.discogs.proxyFetchMarketData);
 
   // Reset state when album changes
   useEffect(() => {
@@ -101,10 +103,10 @@ export function MarketValueSection({ album, token }: { album: Album; token: stri
   }, [album.release_id]);
 
   const loadData = useCallback(async () => {
-    if (isLoading || hasAttempted) return;
+    if (isLoading || hasAttempted || !sessionToken) return;
     setIsLoading(true);
     try {
-      const data = await fetchMarketData(album.release_id, token);
+      const data = await proxyFetchMarketData({ sessionToken, releaseId: album.release_id });
       setMarketData(data);
     } catch (e) {
       console.warn("[MarketValue] Failed to fetch:", e);
@@ -112,7 +114,7 @@ export function MarketValueSection({ album, token }: { album: Album; token: stri
       setIsLoading(false);
       setHasAttempted(true);
     }
-  }, [album.release_id, token, isLoading, hasAttempted]);
+  }, [album.release_id, sessionToken, isLoading, hasAttempted, proxyFetchMarketData]);
 
   const handleToggle = useCallback(() => {
     const willExpand = !isExpanded;

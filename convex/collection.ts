@@ -1,13 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { authenticateUser } from "./authHelper";
 
 export const getByUsername = query({
-  args: { discogsUsername: v.string() },
+  args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     return await ctx.db
       .query("collection")
       .withIndex("by_username", (q) =>
-        q.eq("discogsUsername", args.discogsUsername)
+        q.eq("discogsUsername", user.discogs_username)
       )
       .collect();
   },
@@ -15,7 +17,7 @@ export const getByUsername = query({
 
 export const replaceAll = mutation({
   args: {
-    discogsUsername: v.string(),
+    sessionToken: v.string(),
     albums: v.array(
       v.object({
         releaseId: v.number(),
@@ -43,10 +45,11 @@ export const replaceAll = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     const existing = await ctx.db
       .query("collection")
       .withIndex("by_username", (q) =>
-        q.eq("discogsUsername", args.discogsUsername)
+        q.eq("discogsUsername", user.discogs_username)
       )
       .collect();
 
@@ -56,7 +59,7 @@ export const replaceAll = mutation({
 
     for (const album of args.albums) {
       await ctx.db.insert("collection", {
-        discogsUsername: args.discogsUsername,
+        discogsUsername: user.discogs_username,
         ...album,
       });
     }
@@ -64,13 +67,13 @@ export const replaceAll = mutation({
 });
 
 /**
- * Patch a single album document by releaseId + discogsUsername.
+ * Patch a single album document by releaseId.
  * Used after editing instance fields (condition, notes, folder) in the album detail panel.
  * Does not trigger a full re-sync — only updates the affected document.
  */
 export const updateInstance = mutation({
   args: {
-    discogsUsername: v.string(),
+    sessionToken: v.string(),
     releaseId: v.number(),
     mediaCondition: v.optional(v.string()),
     sleeveCondition: v.optional(v.string()),
@@ -80,10 +83,11 @@ export const updateInstance = mutation({
     instanceId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
     const row = await ctx.db
       .query("collection")
       .withIndex("by_username_and_release", (q) =>
-        q.eq("discogsUsername", args.discogsUsername).eq("releaseId", args.releaseId)
+        q.eq("discogsUsername", user.discogs_username).eq("releaseId", args.releaseId)
       )
       .first();
 
