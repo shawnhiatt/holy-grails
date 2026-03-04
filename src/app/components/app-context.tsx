@@ -191,8 +191,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDiscogsUsernameRaw(u);
   }, []);
 
-  // Session token for authenticated Convex queries/mutations + server-side API proxy
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  // Session token for authenticated Convex queries/mutations + server-side API proxy.
+  // On mount, attempt to restore from localStorage (set during OAuth login).
+  const [sessionToken, setSessionTokenRaw] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("hg_session_token");
+    } catch {
+      return null;
+    }
+  });
+  const setSessionToken = useCallback((token: string | null) => {
+    setSessionTokenRaw(token);
+    try {
+      if (token) {
+        localStorage.setItem("hg_session_token", token);
+      } else {
+        localStorage.removeItem("hg_session_token");
+      }
+    } catch { /* ignore — localStorage may be unavailable in some contexts */ }
+  }, []);
 
   const isAuthenticated = !!discogsUsername && !!sessionToken;
 
@@ -232,9 +249,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Convex queries ──
 
-  // Always-on query: used on cold load to restore a session after force close,
-  // before discogsUsername is populated in memory.
-  const convexLatestUser = useQuery(api.users.getLatestUser);
+  // Session restore query: looks up user by the session token stored in
+  // localStorage. Skipped when no stored token exists (fresh visitor → login screen).
+  const convexLatestUser = useQuery(
+    api.users.getLatestUser,
+    sessionToken ? { sessionToken } : "skip"
+  );
 
   const convexUser = useQuery(
     api.users.getMe,
@@ -283,8 +303,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   //
   // isRestoringSession: true on cold load while we're checking Convex for an
   // existing user — before discogsUsername is known.
-  const isRestoringSession = !discogsUsername && convexLatestUser === undefined;
-  const isConvexUserGone = !sessionToken && convexLatestUser === null;
+  const isRestoringSession = !discogsUsername && !!sessionToken && convexLatestUser === undefined;
+  const isConvexUserGone = !sessionToken;
   const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
@@ -375,18 +395,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Effects: Convex → local state hydration (one-time per session) ──
 
-  // Session restore on force close: when discogsUsername is empty on mount and
-  // Convex has an existing user record, hydrate the username so the rest of the
-  // auth flow (credential load → auto-sync) proceeds as normal.
+  // Session restore: if a stored sessionToken matched a user record in Convex,
+  // hydrate discogsUsername so the rest of the auth flow proceeds. If the query
+  // returned null (invalid/expired token), clear the stale token → login screen.
   useEffect(() => {
     if (hasSignedOutRef.current) return;
+    if (!discogsUsername && sessionToken && convexLatestUser === null) {
+      // Stored token is invalid — clear it so the user sees the login screen
+      setSessionToken(null);
+    }
     if (!discogsUsername && convexLatestUser) {
       setDiscogsUsernameRaw(convexLatestUser.discogs_username);
-      if (convexLatestUser.session_token) {
-        setSessionToken(convexLatestUser.session_token);
-      }
     }
-  }, [convexLatestUser, discogsUsername]);
+  }, [convexLatestUser, discogsUsername, sessionToken, setSessionToken]);
 
   // Load user info (avatar, last synced) from Convex user record
   useEffect(() => {
@@ -779,7 +800,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
     setSessionPickerAlbumId(null);
-    setHeaderHidden(false);
   }, []);
 
   // ── Theme toggle ──

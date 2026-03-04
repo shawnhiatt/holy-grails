@@ -5,14 +5,19 @@ import { authenticateUser } from "./authHelper";
 /**
  * Bootstrap query for session restore on cold load.
  *
- * Returns the most recently created user record WITHOUT OAuth tokens.
- * Includes session_token so the client can authenticate subsequent requests.
- * Intentionally unauthenticated — this is the entry point before a token exists.
+ * Looks up a user by session_token stored in the client's localStorage.
+ * Returns the user record WITHOUT OAuth tokens, or null if the token is
+ * invalid / not found. Never returns a record based on insertion order.
  */
 export const getLatestUser = query({
-  args: {},
-  handler: async (ctx) => {
-    const user = await ctx.db.query("users").order("desc").first();
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_session_token", (q) =>
+        q.eq("session_token", args.sessionToken)
+      )
+      .first();
     if (!user) return null;
     return {
       _id: user._id,
