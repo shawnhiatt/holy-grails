@@ -266,6 +266,11 @@ function AppContent() {
   const mobilePaddingBottom = isDesktop ? "0px" : "calc(96px + env(safe-area-inset-bottom, 0px))";
   const contentTokens = useMemo(() => getContentTokens(isDarkMode), [isDarkMode]);
 
+  // Sync html background with JS dark mode so overscroll/transparent areas don't show stale light color
+  useEffect(() => {
+    document.documentElement.style.backgroundColor = isDarkMode ? "#0C1A2E" : "#F9F9FA";
+  }, [isDarkMode]);
+
   /** Radial gradient background — light cyan glow from top center */
   const gradientBg = isDarkMode
     ? "radial-gradient(ellipse 120% 60% at 50% 0%, #132B44 0%, #0C1A2E 100%)"

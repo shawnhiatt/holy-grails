@@ -89,7 +89,7 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background-color: transparent;
     color: var(--color-foreground);
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   }

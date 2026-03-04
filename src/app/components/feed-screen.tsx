@@ -166,7 +166,7 @@ function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number, avata
 /* ─── Section Header ─── */
 
 const sectionTitleStyle: React.CSSProperties = {
-  fontSize: "20px",
+  fontSize: "24px",
   fontWeight: 600,
   letterSpacing: "-0.3px",
   color: "var(--c-text)",
@@ -430,7 +430,7 @@ export function FeedScreen() {
             lineHeight: 1.4,
           }}
         >
-          You may have forgotten you own these grails.
+          Remember these gems from your collection?
         </p>
       </div>
 
@@ -1412,8 +1412,8 @@ export function FeedScreen() {
     const contextLine = formatAddedMonthYear(album.dateAdded);
 
     const gradientOverlay = isDarkMode
-      ? "linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0.0) 100%)"
-      : "linear-gradient(to top, rgba(12,40,74,0.72) 0%, rgba(12,40,74,0.4) 50%, rgba(12,40,74,0.0) 100%)";
+      ? "linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0) 100%)"
+      : "linear-gradient(to right, rgba(12,40,74,0.72) 0%, rgba(12,40,74,0.4) 40%, rgba(12,40,74,0) 100%)";
 
     const recTextShadow = isDarkMode
       ? "0 1px 8px rgba(0,0,0,0.6), 0 2px 20px rgba(0,0,0,0.4)"
@@ -1422,7 +1422,7 @@ export function FeedScreen() {
     return (
       <div
         className="rounded-[12px] overflow-hidden cursor-pointer"
-        style={{ position: "relative", width: "100%" }}
+        style={{ position: "relative", width: "100%", aspectRatio: "1 / 1" }}
         onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
       >
         {/* Background image */}
@@ -1455,18 +1455,17 @@ export function FeedScreen() {
             zIndex: 1,
             display: "flex",
             flexDirection: "column",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
             alignItems: "flex-start",
             padding: "20px",
             paddingRight: "72px",
-            minHeight: "320px",
-            gap: "4px",
+            height: "100%",
           }}
         >
           {/* Heading */}
           <p
             style={{
-              fontSize: "18px",
+              fontSize: "20px",
               fontWeight: 600,
               color: "#FFFFFF",
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
@@ -1477,62 +1476,65 @@ export function FeedScreen() {
           >
             {recommendedHeading}
           </p>
-          {/* Album title */}
-          <p
-            style={{
-              fontSize: "24px",
-              fontWeight: 700,
-              color: "#FFFFFF",
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              lineHeight: 1.25,
-              textShadow: recTextShadow,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.title}
-          </p>
-          {/* Artist · Year */}
-          <p
-            style={{
-              fontSize: "14px",
-              fontWeight: 400,
-              color: "rgba(255,255,255,0.8)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              lineHeight: 1.35,
-              textShadow: recTextShadow,
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
-          </p>
-          {/* Context line */}
-          <p
-            style={{
-              fontSize: "12px",
-              fontWeight: 400,
-              color: "rgba(255,255,255,0.6)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              lineHeight: 1.35,
-              textShadow: recTextShadow,
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {contextLine}
-          </p>
+          {/* Album metadata — grouped at bottom */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {/* Album title */}
+            <p
+              style={{
+                fontSize: "36px",
+                fontWeight: 700,
+                color: "#FFFFFF",
+                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                lineHeight: 1.25,
+                textShadow: recTextShadow,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                maxWidth: "100%",
+              } as React.CSSProperties}
+            >
+              {album.title}
+            </p>
+            {/* Artist · Year */}
+            <p
+              style={{
+                fontSize: "14px",
+                fontWeight: 400,
+                color: "rgba(255,255,255,0.8)",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                lineHeight: 1.35,
+                textShadow: recTextShadow,
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                WebkitTextOverflow: "ellipsis",
+                maxWidth: "100%",
+              } as React.CSSProperties}
+            >
+              {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
+            </p>
+            {/* Context line */}
+            <p
+              style={{
+                fontSize: "12px",
+                fontWeight: 400,
+                color: "rgba(255,255,255,0.6)",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                lineHeight: 1.35,
+                textShadow: recTextShadow,
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                WebkitTextOverflow: "ellipsis",
+                maxWidth: "100%",
+              } as React.CSSProperties}
+            >
+              {contextLine}
+            </p>
+          </div>
         </div>
         {/* Circular bookmark button */}
         <div
@@ -1583,7 +1585,6 @@ export function FeedScreen() {
       <style>{`
         @media (min-width: 1024px) {
           .recommended-card-content {
-            min-height: clamp(260px, 22vw, 380px) !important;
             padding: 24px 72px 24px 28px !important;
           }
         }
@@ -1600,11 +1601,47 @@ export function FeedScreen() {
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
               <div className="flex flex-col gap-[24px]">
-                {/* Recommended Card — full width hero */}
-                {RecommendedCard}
+                {/* Recommended (50%) + From the Depths 2×2 (50%) side by side */}
+                {(RecommendedCard || depthsAlbums.length > 0) && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "stretch" }}>
+                    {/* Left: Recommended Card */}
+                    <div style={{ minWidth: 0 }}>{RecommendedCard}</div>
 
-                {/* From the Depths — 3-column grid (section handles its own px) */}
-                {DepthsSection}
+                    {/* Right: From the Depths 2×2 */}
+                    {depthsAlbums.length > 0 && (
+                      <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                        <div className="mb-[10px]">
+                          <p style={sectionTitleStyle}>From the Depths</p>
+                          <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px", lineHeight: 1.4 }}>
+                            Remember these gems from your collection?
+                          </p>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", flex: 1 }}>
+                          {depthsAlbums.slice(0, 6).map((album) => (
+                            <DepthsAlbumCard
+                              key={`depths-desk-${album.id}`}
+                              album={album}
+                              onTap={handleDepthsTap}
+                              overlay={
+                                <WantlistHeartButton
+                                  releaseId={album.release_id}
+                                  masterId={album.master_id}
+                                  title={album.title}
+                                  artist={album.artist}
+                                  cover={album.cover}
+                                  thumb={album.thumb}
+                                  year={album.year}
+                                  label={album.label}
+                                  variant="overlay"
+                                />
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Following Activity */}
                 {FollowingActivityCard}
