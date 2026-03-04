@@ -12,7 +12,6 @@ import { ViewModeToggle } from "./crate-browser";
 import type { Album, FollowedUser, FeedAlbum, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, EASE_IN, DURATION_NORMAL, DURATION_FAST, DURATION_SLOW } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
-import { useHideHeaderOnScroll } from "./use-hide-header";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -36,8 +35,6 @@ export function FollowingScreen() {
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
   const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
-  const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
-
   // The following list hydration status is derived from context.
   // The Convex query runs in app-context with auth guards — we rely on
   // followedUsers being populated after the Discogs API hydration.
@@ -243,7 +240,7 @@ export function FollowingScreen() {
       </AnimatePresence>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 80px))" }} onScroll={onHeaderScroll}>
+      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 80px))" }}>
         {isHydrating ? (
           <FollowingSkeletonRows />
         ) : followedUsers.length === 0 ? (
@@ -395,7 +392,6 @@ function FollowedUserProfile({
   const [tab, setTab] = useState<FollowingTab>("collection");
   const [filter, setFilter] = useState<FollowingFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const { isDarkMode } = useApp();
@@ -692,7 +688,7 @@ function FollowedUserProfile({
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
+      <div className="flex-1 overflow-y-auto overlay-scroll">
         {user.hydrated === false ? (
           <div className="flex flex-col items-center justify-center px-8 py-16">
             <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />

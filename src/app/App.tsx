@@ -19,7 +19,7 @@ import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
 import { LoadingScreen } from "./components/loading-screen";
 import { SessionPickerSheet } from "./components/session-picker-sheet";
-import { EASE_OUT, EASE_IN_OUT, DURATION_NORMAL, DURATION_FAST } from "./components/motion-tokens";
+import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
@@ -56,7 +56,7 @@ function AppContent() {
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail,
     setScreen,
     connectDiscogsRequested, clearConnectDiscogsRequest,
-    headerHidden, sessionPickerAlbumId,
+    sessionPickerAlbumId,
     isAuthenticated, isAuthLoading, isSyncing, isSyncingFollowing, syncProgress, loginWithOAuth,
     shakeToRandom,
   } = useApp();
@@ -364,17 +364,10 @@ function AppContent() {
               width: "100%",
             } as React.CSSProperties}
           >
-            {/* Mobile header — slides up on scroll for affected screens */}
+            {/* Mobile header — always visible */}
             <div
               className="lg:hidden flex-shrink-0"
-              style={{
-                paddingTop: "env(safe-area-inset-top, 0px)",
-                transform: headerHidden ? "translateY(calc(-58px - env(safe-area-inset-top, 0px)))" : "translateY(0)",
-                marginBottom: headerHidden ? "calc(-58px - env(safe-area-inset-top, 0px))" : "0px",
-                transition: headerHidden
-                  ? `transform ${DURATION_NORMAL * 1000}ms cubic-bezier(${EASE_IN_OUT.join(",")}), margin-bottom ${DURATION_NORMAL * 1000}ms cubic-bezier(${EASE_IN_OUT.join(",")})`
-                  : `transform ${DURATION_FAST * 1000}ms cubic-bezier(${EASE_OUT.join(",")}), margin-bottom ${DURATION_FAST * 1000}ms cubic-bezier(${EASE_OUT.join(",")})`,
-              }}
+              style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
             >
               <MobileHeader />
             </div>
@@ -382,16 +375,6 @@ function AppContent() {
               className="flex-1 flex flex-col overflow-hidden"
               style={{ "--nav-clearance": mobilePaddingBottom } as React.CSSProperties}
             >
-              {/* Breathing room when mobile header is hidden on scroll */}
-              <div
-                className="lg:hidden flex-shrink-0"
-                style={{
-                  height: headerHidden ? "12px" : "0px",
-                  transition: headerHidden
-                    ? `height ${DURATION_NORMAL * 1000}ms cubic-bezier(${EASE_IN_OUT.join(",")})`
-                    : `height ${DURATION_FAST * 1000}ms cubic-bezier(${EASE_OUT.join(",")})`,
-                }}
-              />
               {renderScreen()}
             </div>
           </main>

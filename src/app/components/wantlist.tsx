@@ -11,7 +11,6 @@ import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { NoDiscogsCard } from "./no-discogs-card";
 
-import { useHideHeaderOnScroll } from "./use-hide-header";
 import { AlbumArtwork } from "./album-artwork-grid";
 
 /* ─── Alphabet Index Sidebar (mobile only, wantlist) ─── */
@@ -174,7 +173,7 @@ const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
 ];
 
 export function Wantlist() {
-  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, headerHidden, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
+  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
 
   const handleSelectWant = useCallback((item: WantItem) => {
     setSelectedWantItem(item);
@@ -247,7 +246,7 @@ export function Wantlist() {
       </div>
 
       {/* ===== MOBILE top controls ===== */}
-      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[8px] pb-[4px]" style={headerHidden ? { paddingTop: "env(safe-area-inset-top, 0px)" } : undefined}>
+      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[8px] pb-[4px]">
         <h2 style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Wantlist</h2>
       </div>
 
@@ -661,7 +660,6 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
 
 function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
   const { isDarkMode, sessionToken } = useApp();
-  const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
   const alphabetEntries = useWantAlphabetIndex(wants);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
@@ -693,7 +691,7 @@ function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
 
   return (
     <>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] pb-[120px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
           {wantRenderItems.map((item) => {
             if (item.kind === "divider") {
@@ -742,7 +740,6 @@ function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
 // Intentionally separate from album list item — actions diverge in Phase 6
 function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
   const { isDarkMode } = useApp();
-  const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
 
   const alphabetEntries = useWantAlphabetIndex(wants);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
@@ -778,7 +775,6 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
         ref={scrollRef}
         className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px] pb-[120px]`}
         style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
-        onScroll={onHeaderScroll}
       >
         <div className="flex flex-col gap-1.5">
           {wantRenderItems.map((item) => {

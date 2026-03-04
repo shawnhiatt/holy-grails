@@ -113,9 +113,6 @@ interface AppState {
   // Shake gesture
   shakeToRandom: boolean;
   setShakeToRandom: (v: boolean) => void;
-  // Header hide-on-scroll
-  headerHidden: boolean;
-  setHeaderHidden: (v: boolean) => void;
   // Discogs sync
   folders: string[];
   sessionToken: string | null;
@@ -185,7 +182,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [purgeFilter, setPurgeFilter] = useState<PurgeTag | "unrated" | "all">("unrated");
   const [wantFilter, setWantFilter] = useState<"all" | "priority">("all");
   const [wantSearchQuery, setWantSearchQuery] = useState("");
-  const [headerHidden, setHeaderHidden] = useState(false);
 
   // ── Auth state ──
 
@@ -1806,8 +1802,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Shake gesture
       shakeToRandom,
       setShakeToRandom,
-      headerHidden,
-      setHeaderHidden,
       // Discogs sync
       folders,
       sessionToken,
@@ -1872,7 +1866,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hidePurgeIndicators, setHidePurgeIndicators,
       hideGalleryMeta, setHideGalleryMeta,
       shakeToRandom, setShakeToRandom,
-      headerHidden, setHeaderHidden,
       folders,
       sessionToken,
       discogsUsername, setDiscogsUsername,

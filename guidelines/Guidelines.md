@@ -154,9 +154,6 @@ Shared animation constants live in `motion-tokens.ts` and are used across all co
 - `EASE_IN: [0.5, 0, 0.75, 0]`
 - `DURATION_MICRO: 0.1s`, `DURATION_FAST: 0.175s`, `DURATION_NORMAL: 0.225s`, `DURATION_SLOW: 0.3s`
 
-### Hide-on-Scroll Mobile Header
-The `useHideHeaderOnScroll` hook (`use-hide-header.ts`) hides the mobile header bar when scrolling down and reveals it when scrolling up or at the top. Active on screens: `crate`, `wants`, `following`, `reports`. Uses an 8px scroll threshold to prevent flicker. Applied in: album-grid, album-list, album-artwork-grid, wantlist, following-screen, reports-screen.
-
 ### Shake-to-Random
 The `useShake` hook (`use-shake.ts`) opens a random album in Album Detail when the user shakes their mobile device. Desktop-only disabled. Threshold: 12, timeout: 1000ms.
 
@@ -575,6 +572,5 @@ Active text color: `#E2E8F0` (dark) / `#0C284A` (light). Inactive: `rgba(226,232
 | `mock-data.ts` | Demo/placeholder data types and constants |
 | `motion-tokens.ts` | Shared animation easing curves and durations |
 | `last-played-utils.ts` | Date formatting utilities for last-played timestamps |
-| `use-hide-header.ts` | Hook for hiding mobile header on scroll |
 | `use-shake.ts` | Hook for shake-to-random gesture |
 | `theme.ts` | Content area CSS variable token generator |

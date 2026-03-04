@@ -3,7 +3,6 @@ import { useRef, useMemo } from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
-import { useHideHeaderOnScroll } from "./use-hide-header";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 
 /* ─── Section Divider Logic ─── */
@@ -51,8 +50,6 @@ interface AlbumGridProps {
 
 export function AlbumGrid({ albums }: AlbumGridProps) {
   const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, openSessionPicker, isAlbumInAnySession, sortOption } = useApp();
-  const { onScroll: onHeaderScroll } = useHideHeaderOnScroll();
-
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter || rediscoverMode;
   const collectionEmpty = allAlbums.length === 0;
 
@@ -128,7 +125,7 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
 
   return (
     <>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={onHeaderScroll}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] pb-[112px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
           {renderItems.map((item) => {
             if (item.kind === "divider") {

@@ -36,6 +36,15 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            urlPattern: /^https:\/\/(i|api-img)\.discogs\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'discogs-images-v1',
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),
