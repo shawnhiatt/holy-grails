@@ -101,7 +101,7 @@ function headers(auth: DiscogsAuth): HeadersInit {
  * Pause between paginated requests to stay under the 60 req/min rate limit.
  *
  * Rate limit math (250ms inter-page delay):
- *   Collection sync  — ~5 pages (430 albums ÷ 100/page) + 2 setup requests = ~7 requests
+ *   Collection sync  — ~N pages (100 albums/page) + 2 setup requests
  *   Wantlist sync    — typically 1–2 pages = ~2 requests
  *   Both run in parallel, so worst-case total ≈ 7 requests in ~1.25s of elapsed time.
  *   That is well under the 60 requests/minute ceiling (= 1 req/sec sustained).

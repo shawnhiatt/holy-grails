@@ -1159,7 +1159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     auth: DiscogsAuth
   ): Promise<{ albums: number; folders: number; wants: number }> => {
     setIsSyncing(true);
-    setSyncProgress("Authenticating...");
+    setSyncProgress("Syncing");
     try {
       // Fetch user profile (avatar)
       try {
@@ -1170,7 +1170,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Fetch collection and wantlist in parallel — no dependency between them
-      setSyncProgress("Syncing...");
+      setSyncProgress("Syncing");
       const [{ albums: newAlbums, folders: newFolders }, newWants] = await Promise.all([
         fetchCollection(
           username,
@@ -1226,7 +1226,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Write collection to Convex cache
-      setSyncProgress("Caching collection...");
+      setSyncProgress("Caching collection");
       try {
         await replaceCollectionMut({
           discogsUsername: username,
@@ -1289,7 +1289,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSyncProgress("");
 
       // Fetch collection value and cache in Convex
-      setSyncProgress("Fetching collection value...");
+      setSyncProgress("Fetching collection value");
       try {
         const val = await fetchCollectionValue(username, auth);
         updateCollectionValueMut({

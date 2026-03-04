@@ -63,6 +63,7 @@ function AppContent() {
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
   const [shakeEntrance, setShakeEntrance] = useState(false);
+  const [authCallbackMessage, setAuthCallbackMessage] = useState("");
 
   // Four-phase state machine for the initial loading screen:
   //   'idle'               — not started or fully done; no loading screen
@@ -306,21 +307,23 @@ function AppContent() {
     toast.error(error || "Login failed", { duration: 3000 });
   }, []);
 
-  // Handle OAuth callback
-  if (isAuthCallback) {
+  // Show loading screen during OAuth callback, auth loading, or sync phases.
+  // AuthCallback is rendered headless (returns null) alongside a single
+  // LoadingScreen instance so the progress bar never resets mid-sequence.
+  if (isAuthCallback || isAuthLoading || loadPhase === 'syncing' || loadPhase === 'syncing_following' || loadPhase === 'complete') {
+    const loadingMessage = syncProgress || authCallbackMessage || (isAuthCallback ? "Authenticating" : "Syncing collection");
     return (
-      <AuthCallback
-        onSuccess={handleAuthSuccess}
-        onError={handleAuthError}
-      />
+      <>
+        {isAuthCallback && (
+          <AuthCallback
+            onSuccess={handleAuthSuccess}
+            onError={handleAuthError}
+            onStatusChange={setAuthCallbackMessage}
+          />
+        )}
+        <LoadingScreen message={loadingMessage} progress={loadPhase === 'complete' ? 100 : undefined} />
+      </>
     );
-  }
-
-  // Show loading screen while: albums haven't loaded (isAuthLoading), or the
-  // full sync is still running after albums arrive (loadPhase='syncing'), or
-  // we're in the 500ms completion window (loadPhase='complete').
-  if (isAuthLoading || loadPhase === 'syncing' || loadPhase === 'syncing_following' || loadPhase === 'complete') {
-    return <LoadingScreen message={syncProgress || "Syncing collection"} progress={loadPhase === 'complete' ? 100 : undefined} />;
   }
 
   if (showSplash) {

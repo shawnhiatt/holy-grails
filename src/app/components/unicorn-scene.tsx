@@ -53,11 +53,17 @@ export function UnicornScene({ className }: UnicornSceneProps) {
     if (!webGLSupported || failed) return;
 
     const loadAndInit = () => {
-      if (window.UnicornStudio?.isInitialized) {
-        window.UnicornStudio.init();
+      // SDK already loaded — re-initialize to pick up new data-us-project elements
+      if (window.UnicornStudio) {
+        try {
+          window.UnicornStudio.init();
+        } catch {
+          setFailed(true);
+        }
         return;
       }
 
+      // Script tag exists but SDK not ready yet — onload will handle init
       if (document.querySelector(`script[src="${CDN_SRC}"]`)) return;
 
       const script = document.createElement("script");

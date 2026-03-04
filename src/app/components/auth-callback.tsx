@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { LoadingScreen } from "./loading-screen";
 import { oauthInFlight } from "./oauth-helpers";
 
 interface AuthCallbackProps {
@@ -12,6 +11,7 @@ interface AuthCallbackProps {
     tokenSecret: string;
   }) => void;
   onError: (error: string) => void;
+  onStatusChange?: (message: string) => void;
 }
 
 /**
@@ -19,12 +19,9 @@ interface AuthCallbackProps {
  *
  * Reads oauth_token and oauth_verifier from URL params, exchanges them for
  * an access token via Convex action, fetches the user's identity, and stores
- * credentials in Convex.
+ * credentials in Convex. Renders nothing — the parent shows the LoadingScreen.
  */
-export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
-  const [status, setStatus] = useState<"exchanging" | "identifying" | "saving" | "done">(
-    "exchanging"
-  );
+export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbackProps) {
   const exchangeToken = useAction(api.oauth.accessToken);
   const fetchIdentityAction = useAction(api.oauth.fetchIdentity);
   const upsertUser = useMutation(api.users.upsert);
@@ -65,7 +62,7 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
 
       try {
         // Step 1: Exchange verifier for access token
-        setStatus("exchanging");
+        onStatusChange?.("Authenticating");
         const tokens = await exchangeToken({
           consumer_key: consumerKey,
           consumer_secret: consumerSecret,
@@ -77,7 +74,7 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
         if (cancelled) return;
 
         // Step 2: Fetch identity (username + avatar)
-        setStatus("identifying");
+        onStatusChange?.("Fetching your profile");
         const identity = await fetchIdentityAction({
           consumer_key: consumerKey,
           consumer_secret: consumerSecret,
@@ -88,7 +85,7 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
         if (cancelled) return;
 
         // Step 3: Store in Convex
-        setStatus("saving");
+        onStatusChange?.("Saving credentials");
         await upsertUser({
           discogs_username: identity.username,
           discogs_avatar_url: identity.avatar_url || undefined,
@@ -98,13 +95,6 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
 
         // Clean up session storage
         sessionStorage.removeItem("hg_oauth_token_secret");
-
-        if (cancelled) return;
-
-        // Hold at "done" for 500ms so the progress bar can animate to 100%
-        // (300ms fill) and hold briefly (200ms) before the screen unmounts.
-        setStatus("done");
-        await new Promise<void>((r) => setTimeout(r, 500));
 
         if (cancelled) return;
 
@@ -133,12 +123,5 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const statusText =
-    status === "exchanging"
-      ? "Authenticating"
-      : status === "identifying"
-        ? "Fetching your profile"
-        : "Saving credentials";
-
-  return <LoadingScreen message={statusText} progress={status === "done" ? 100 : undefined} />;
+  return null;
 }

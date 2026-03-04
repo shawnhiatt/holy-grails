@@ -8,9 +8,7 @@ This file is read by Claude Code at the start of every session. Follow everythin
 
 **Holy Grails** is a vinyl record collection management PWA that syncs with Discogs. It is not a Discogs clone. The core value is decision-making and curation — specifically the purge workflow (evaluating records as Keep / Cut / Maybe) and listening session building. These are things Discogs does not do.
 
-The app is a passion project and portfolio piece built by a designer (Shawn) using vibe coding. Code quality matters, but preserving the design integrity matters more. When in doubt, match the existing visual and interaction patterns exactly.
-
-Primary users: Shawn (catxdad19 on Discogs) and his friend Tyler for QA. 430 albums, 2x3 Kallax at capacity.
+The app is a passion project and portfolio piece built by a designer (Shawn) using vibe coding. Designed for a small circle of friends today with potential to scale. Code quality matters, but preserving the design integrity matters more. When in doubt, match the existing visual and interaction patterns exactly.
 
 ---
 
@@ -109,7 +107,7 @@ src/
       slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
-      unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps `unicornstudio-react`. Project ID: `7hz0T9mnpIOKgPTu6xzW`. Falls back to `#01294D` if WebGL is unavailable.
+      unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD). Project ID: `cnsv252lbgNqAPR7Odzz`. Falls back to `#01294D` if WebGL is unavailable.
       use-hide-header.ts
       use-shake.ts
       wantlist.tsx
@@ -402,7 +400,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Following feed cache in Convex — powers Feed Recent Activity without requiring Following screen hydration
 - Wantlist cached in Convex — synced alongside collection with 24h TTL
 - `master_id` matching for "In Collection" and heart state across different pressings
-- Deployed to Vercel at holy-grails.vercel.app
+- Deployed to Vercel — live at holygrails.app (custom domain) and holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope
 - Listening logs — do not add any listen tracking beyond last-played timestamp

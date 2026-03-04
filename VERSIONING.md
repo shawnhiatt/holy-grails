@@ -14,7 +14,7 @@ Examples:
 - Phase 7 shipping (Look Up) — adds a wholly new mode of use
 - A complete visual redesign or rebrand
 
-You'll bump this rarely. `1.0.0` is a reasonable target once the app feels genuinely complete for daily use by both you and Tyler.
+You'll bump this rarely. `1.0.0` is a reasonable target once the app feels genuinely complete for daily use.
 
 ### MINOR — `0.X.0`
 A meaningful feature addition or behavior change a user would notice and remember. New screens, new settings, new interactions that change how the app works.
