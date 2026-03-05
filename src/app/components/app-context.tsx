@@ -256,46 +256,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     sessionToken ? { sessionToken } : "skip"
   );
 
-  const convexUser = useQuery(
-    api.users.getMe,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexPurgeTags = useQuery(
-    api.purge_tags.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexSessions = useQuery(
-    api.sessions.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexLastPlayed = useQuery(
-    api.last_played.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexWantPriorities = useQuery(
-    api.want_priorities.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexFollowing = useQuery(
-    api.following.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexPreferences = useQuery(
-    api.preferences.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexCollection = useQuery(
-    api.collection.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexWantlist = useQuery(
-    api.wantlist.getByUsername,
-    sessionToken ? { sessionToken } : "skip"
-  );
-  const convexFollowingFeed = useQuery(
-    api.following_feed.getByFollower,
-    sessionToken ? { sessionToken } : "skip"
-  );
+  // All authenticated queries gate on discogsUsername AND sessionToken.
+  // During session restore, discogsUsername is only set after getLatestUser
+  // confirms the token is valid. This prevents these queries from firing
+  // with a stale token and throwing "Unauthorized" before cleanup can run.
+  const authedArgs = discogsUsername && sessionToken ? { sessionToken } : "skip" as const;
+
+  const convexUser = useQuery(api.users.getMe, authedArgs);
+  const convexPurgeTags = useQuery(api.purge_tags.getByUsername, authedArgs);
+  const convexSessions = useQuery(api.sessions.getByUsername, authedArgs);
+  const convexLastPlayed = useQuery(api.last_played.getByUsername, authedArgs);
+  const convexWantPriorities = useQuery(api.want_priorities.getByUsername, authedArgs);
+  const convexFollowing = useQuery(api.following.getByUsername, authedArgs);
+  const convexPreferences = useQuery(api.preferences.getByUsername, authedArgs);
+  const convexCollection = useQuery(api.collection.getByUsername, authedArgs);
+  const convexWantlist = useQuery(api.wantlist.getByUsername, authedArgs);
+  const convexFollowingFeed = useQuery(api.following_feed.getByFollower, authedArgs);
 
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
