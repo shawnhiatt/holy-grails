@@ -4,6 +4,22 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 2026-03-05
+
+### Added
+- **Format Spotlight** feed section — rotates on every app load, filters collection for obscure vinyl format descriptions (7-Inch, 12-Inch, Limited Edition, Picture Disc, Colored, Etched, 45 RPM, Mono, etc.). Requires minimum 3 matching albums per category. Operates entirely on cached Convex collection data with zero additional API calls.
+- **Recommended hero** on mobile — Recommended section renders as a full-bleed hero card. Feed header becomes transparent at scroll position 0 and transitions to opaque on scroll, scoped to the home feed via a prop on the header component.
+- **Home feed section order** established: Recommended, Recently Added, Format Spotlight, Following Activity, From the Depths, Purge Tracker, Insights.
+
+### Fixed
+- **Collection folders not displaying** — all releases showed as "Uncategorized" regardless of actual Discogs folder assignment. Root cause: the Discogs API does not return `folder_id` on release objects fetched from the aggregate folder 0 ("All") endpoint. Fix: `proxyFetchCollection` now fetches releases per-folder (one paginated request per user folder, skipping folder 0), injecting the correct `folder_id` from the folder being fetched. Folder 0 is still used for followed users (`skipPrivateFields: true`) where folder names are irrelevant.
+
+### Documented
+- **Vinyl-only filter** — the app is intentionally vinyl-only. The global filter on `formats[].name === "Vinyl"` is applied at the data layer during collection sync. This is a product decision, not a user setting.
+- **Folder sync architecture** — per-folder fetching pattern, `skipPrivateFields` fallback to folder 0, and rate limiting documented in CLAUDE.md.
+
+---
+
 ## 0.4.0 — 2026-03-04
 
 ### Security

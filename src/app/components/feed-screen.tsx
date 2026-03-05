@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
   Heart,
   Scissors,
@@ -176,7 +176,7 @@ const sectionTitleStyle: React.CSSProperties = {
 
 /* ─── Feed Screen ─── */
 
-export function FeedScreen() {
+export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: boolean) => void }) {
   const {
     albums,
     wants,
@@ -365,6 +365,22 @@ export function FeedScreen() {
 
   const hasData = albums.length > 0;
   const hasFollowing = followingFeed.length > 0;
+
+  // Scroll-linked hero visibility for header transparency
+  const heroRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const handleFeedScroll = useCallback(() => {
+    if (!scrollRef.current || !onHeroVisibility) return;
+    const scrollTop = scrollRef.current.scrollTop;
+    // Header becomes opaque once scrolled past 100px (past the header area)
+    onHeroVisibility(scrollTop < 100);
+  }, [onHeroVisibility]);
+
+  // Reset hero visibility when mounting feed screen
+  useEffect(() => {
+    onHeroVisibility?.(true);
+    return () => onHeroVisibility?.(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cardBg = "var(--c-surface)";
   const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
@@ -1407,26 +1423,28 @@ export function FeedScreen() {
     </div>
   );
 
-  /* ─────────────── RECOMMENDED CARD ─────────────── */
-  const RecommendedCard = recommendedAlbum ? (() => {
+  /* ─────────────── RECOMMENDED HERO ─────────────── */
+  const recTextShadow = "0 1px 8px rgba(0,0,0,0.6), 0 2px 20px rgba(0,0,0,0.4)";
+
+  /** Mobile full-bleed hero — extends behind header */
+  const RecommendedHero = recommendedAlbum ? (() => {
     const album = recommendedAlbum;
     const contextLine = formatAddedMonthYear(album.dateAdded);
 
-    const gradientOverlay = isDarkMode
-      ? "linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0) 100%)"
-      : "linear-gradient(to right, rgba(12,40,74,0.72) 0%, rgba(12,40,74,0.4) 40%, rgba(12,40,74,0) 100%)";
-
-    const recTextShadow = isDarkMode
-      ? "0 1px 8px rgba(0,0,0,0.6), 0 2px 20px rgba(0,0,0,0.4)"
-      : "0 1px 6px rgba(12,40,74,0.5), 0 2px 12px rgba(12,40,74,0.3)";
-
     return (
       <div
-        className="rounded-[12px] overflow-hidden cursor-pointer"
-        style={{ position: "relative", width: "100%", aspectRatio: "1 / 1" }}
+        ref={heroRef}
+        className="cursor-pointer lg:hidden"
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "56vh",
+          minHeight: "380px",
+          overflow: "hidden",
+        }}
         onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
       >
-        {/* Background image */}
+        {/* Album art — full bleed */}
         <img
           src={album.cover}
           alt=""
@@ -1440,112 +1458,115 @@ export function FeedScreen() {
             objectPosition: "center",
           }}
         />
-        {/* Gradient overlay */}
+        {/* Top scrim — header legibility */}
         <div
           style={{
             position: "absolute",
-            inset: 0,
-            background: gradientOverlay,
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "120px",
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.45), transparent)",
+            pointerEvents: "none",
           }}
         />
-        {/* Content */}
+        {/* Bottom gradient — text legibility */}
         <div
-          className="recommended-card-content"
           style={{
-            position: "relative",
-            zIndex: 1,
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "65%",
+            background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)",
+            pointerEvents: "none",
+          }}
+        />
+        {/* Content overlay */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "0 20px 24px",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            padding: "20px",
-            paddingRight: "72px",
-            height: "100%",
+            gap: "4px",
+            zIndex: 1,
           }}
         >
-          {/* Heading */}
+          {/* Editorial heading */}
           <p
             style={{
-              fontSize: "20px",
-              fontWeight: 600,
-              color: "#FFFFFF",
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              lineHeight: 1.3,
+              fontSize: "15px",
+              fontWeight: 500,
+              color: "rgba(255,255,255,0.7)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              lineHeight: 1.4,
               textShadow: recTextShadow,
-              maxWidth: "100%",
+              maxWidth: "85%",
+              marginBottom: "6px",
             }}
           >
             {recommendedHeading}
           </p>
-          {/* Album metadata — grouped at bottom */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {/* Album title */}
-            <p
-              style={{
-                fontSize: "36px",
-                fontWeight: 700,
-                color: "#FFFFFF",
-                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                lineHeight: 1.25,
-                textShadow: recTextShadow,
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-                maxWidth: "100%",
-              } as React.CSSProperties}
-            >
-              {album.title}
-            </p>
-            {/* Artist · Year */}
-            <p
-              style={{
-                fontSize: "14px",
-                fontWeight: 400,
-                color: "rgba(255,255,255,0.8)",
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                lineHeight: 1.35,
-                textShadow: recTextShadow,
-                display: "block",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                WebkitTextOverflow: "ellipsis",
-                maxWidth: "100%",
-              } as React.CSSProperties}
-            >
-              {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
-            </p>
-            {/* Context line */}
-            <p
-              style={{
-                fontSize: "12px",
-                fontWeight: 400,
-                color: "rgba(255,255,255,0.6)",
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                lineHeight: 1.35,
-                textShadow: recTextShadow,
-                display: "block",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                WebkitTextOverflow: "ellipsis",
-                maxWidth: "100%",
-              } as React.CSSProperties}
-            >
-              {contextLine}
-            </p>
-          </div>
+          {/* Album title */}
+          <p
+            style={{
+              fontSize: "32px",
+              fontWeight: 700,
+              color: "#FFFFFF",
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              lineHeight: 1.15,
+              letterSpacing: "-0.5px",
+              textShadow: recTextShadow,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              maxWidth: "100%",
+            } as React.CSSProperties}
+          >
+            {album.title}
+          </p>
+          {/* Artist · Year */}
+          <p
+            style={{
+              fontSize: "14px",
+              fontWeight: 400,
+              color: "rgba(255,255,255,0.8)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              lineHeight: 1.35,
+              textShadow: recTextShadow,
+              display: "block",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              WebkitTextOverflow: "ellipsis",
+              maxWidth: "100%",
+            } as React.CSSProperties}
+          >
+            {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
+          </p>
+          {/* Context line */}
+          <p
+            style={{
+              fontSize: "12px",
+              fontWeight: 400,
+              color: "rgba(255,255,255,0.55)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              lineHeight: 1.35,
+              textShadow: recTextShadow,
+            }}
+          >
+            {contextLine}
+          </p>
         </div>
-        {/* Circular bookmark button */}
+        {/* Bookmark button */}
         <div
           onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute",
-            bottom: "20px",
-            right: "20px",
-            zIndex: 2,
-          }}
+          style={{ position: "absolute", bottom: "24px", right: "20px", zIndex: 2 }}
         >
           <button
             onClick={() => openSessionPicker(album.id)}
@@ -1563,16 +1584,73 @@ export function FeedScreen() {
               cursor: "pointer",
               flexShrink: 0,
               border: "none",
-              transition: "transform 100ms cubic-bezier(0.25, 1, 0.5, 1)",
             }}
           >
             <Bookmark
               size={18}
-              color={isAlbumInAnySession(album.id)
-                ? (isDarkMode ? "#ACDEF2" : "#00527A")
-                : "#FFFFFF"}
+              color={isAlbumInAnySession(album.id) ? "#ACDEF2" : "#FFFFFF"}
               {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
             />
+          </button>
+        </div>
+      </div>
+    );
+  })() : null;
+
+  /** Desktop recommended card — standard card layout (no bleed) */
+  const RecommendedCardDesktop = recommendedAlbum ? (() => {
+    const album = recommendedAlbum;
+    const contextLine = formatAddedMonthYear(album.dateAdded);
+
+    return (
+      <div
+        className="rounded-[12px] overflow-hidden cursor-pointer"
+        style={{ position: "relative", width: "100%", aspectRatio: "2.5 / 1", minHeight: "280px" }}
+        onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
+      >
+        <img
+          src={album.cover}
+          alt=""
+          aria-hidden
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+        />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)" }} />
+        <div
+          style={{
+            position: "relative", zIndex: 1,
+            display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start",
+            padding: "28px 72px 28px 32px", height: "100%",
+          }}
+        >
+          <p style={{ fontSize: "18px", fontWeight: 500, color: "rgba(255,255,255,0.7)", fontFamily: "'DM Sans', system-ui, sans-serif", lineHeight: 1.4, textShadow: recTextShadow, maxWidth: "60%" }}>
+            {recommendedHeading}
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <p style={{
+              fontSize: "36px", fontWeight: 700, color: "#FFFFFF",
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              lineHeight: 1.2, textShadow: recTextShadow,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%",
+            } as React.CSSProperties}>
+              {album.title}
+            </p>
+            <p style={{
+              fontSize: "14px", fontWeight: 400, color: "rgba(255,255,255,0.8)",
+              fontFamily: "'DM Sans', system-ui, sans-serif", lineHeight: 1.35, textShadow: recTextShadow,
+              display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
+            } as React.CSSProperties}>
+              {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
+            </p>
+            <p style={{ fontSize: "12px", fontWeight: 400, color: "rgba(255,255,255,0.55)", fontFamily: "'DM Sans', system-ui, sans-serif", lineHeight: 1.35, textShadow: recTextShadow }}>
+              {contextLine}
+            </p>
+          </div>
+        </div>
+        <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: "28px", right: "28px", zIndex: 2 }}>
+          <button onClick={() => openSessionPicker(album.id)} className="tappable"
+            style={{ width: "40px", height: "40px", borderRadius: "50%", background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, border: "none" }}
+          >
+            <Bookmark size={18} color={isAlbumInAnySession(album.id) ? "#ACDEF2" : "#FFFFFF"} {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})} />
           </button>
         </div>
       </div>
@@ -1583,80 +1661,37 @@ export function FeedScreen() {
 
   return (
     <div className="flex flex-col h-full">
-      <style>{`
-        @media (min-width: 1024px) {
-          .recommended-card-content {
-            padding: 24px 72px 24px 28px !important;
-          }
-        }
-      `}</style>
       {/* ─── NO DISCOGS CONNECTED STATE ─── */}
       {!hasData && !isAuthenticated ? (
         <NoDiscogsCard />
       ) : (
       /* Scrollable content */
-      <div className="flex-1 overflow-y-auto overlay-scroll">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={handleFeedScroll}>
         <div className="flex flex-col" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
 
-          {/* ═══ DESKTOP ARTWORK GRID ═══ */}
+          {/* ═══ DESKTOP LAYOUT ═══ */}
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
               <div className="flex flex-col gap-[24px]">
-                {/* Recommended (50%) + From the Depths 2×2 (50%) side by side */}
-                {(RecommendedCard || depthsAlbums.length > 0) && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "stretch" }}>
-                    {/* Left: Recommended Card */}
-                    <div style={{ minWidth: 0 }}>{RecommendedCard}</div>
+                {/* 1. Recommended (full width card) */}
+                {RecommendedCardDesktop}
 
-                    {/* Right: From the Depths 2×2 */}
-                    {depthsAlbums.length > 0 && (
-                      <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-                        <div className="mb-[10px]">
-                          <p style={sectionTitleStyle}>From the Depths</p>
-                          <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px", lineHeight: 1.4 }}>
-                            Remember these gems from your collection?
-                          </p>
-                        </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", flex: 1 }}>
-                          {depthsAlbums.slice(0, 6).map((album) => (
-                            <DepthsAlbumCard
-                              key={`depths-desk-${album.id}`}
-                              album={album}
-                              onTap={handleDepthsTap}
-                              overlay={
-                                <WantlistHeartButton
-                                  releaseId={album.release_id}
-                                  masterId={album.master_id}
-                                  title={album.title}
-                                  artist={album.artist}
-                                  cover={album.cover}
-                                  thumb={album.thumb}
-                                  year={album.year}
-                                  label={album.label}
-                                  variant="overlay"
-                                />
-                              }
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Format Spotlight */}
-                <FormatSpotlight onAlbumTap={handleDepthsTap} />
-
-                {/* Following Activity */}
-                {FollowingActivityCard}
-
-                {/* Recently Added (full width) */}
+                {/* 2. Recently Added */}
                 {RecentlyAddedSection}
 
-                {/* Row 3: Insights (1/2) + Purge Tracker (1/2) */}
+                {/* 3. Format Spotlight */}
+                <FormatSpotlight onAlbumTap={handleDepthsTap} />
+
+                {/* 4. Following Activity */}
+                {FollowingActivityCard}
+
+                {/* 5. From the Depths */}
+                {DepthsSection}
+
+                {/* 6. Purge Tracker + 7. Insights */}
                 <div className="grid grid-cols-2 gap-6">
-                  <div>{InsightsCard}</div>
                   <div>{PurgeTrackerCard}</div>
+                  <div>{InsightsCard}</div>
                 </div>
               </div>
             )}
@@ -1666,37 +1701,37 @@ export function FeedScreen() {
           </div>
 
           {/* ═══ MOBILE STACKED LAYOUT ═══ */}
-          <div className="lg:hidden flex flex-col gap-[28px] pt-[12px]">
-            {/* 0. Recommended Card */}
-            {hasData && RecommendedCard && (
-              <div className="px-[16px]">{RecommendedCard}</div>
-            )}
+          <div className="lg:hidden flex flex-col">
+            {/* 1. Recommended Hero — full bleed, no padding */}
+            {hasData && RecommendedHero}
 
-            {/* 1. From the Depths — carousel */}
-            {hasData && DepthsSection}
+            <div className="flex flex-col gap-[28px] pt-[20px]">
+              {/* 2. Recently Added */}
+              {hasData && (
+                <div className="px-[16px]">{RecentlyAddedSection}</div>
+              )}
 
-            {/* 1.5. Format Spotlight */}
-            {hasData && <FormatSpotlight onAlbumTap={handleDepthsTap} />}
+              {/* 3. Format Spotlight */}
+              {hasData && <FormatSpotlight onAlbumTap={handleDepthsTap} />}
 
-            {/* 2. Following Activity */}
-            {hasData && (
-              <div className="px-[16px]">{FollowingActivityCard}</div>
-            )}
+              {/* 4. Following Activity */}
+              {hasData && (
+                <div className="px-[16px]">{FollowingActivityCard}</div>
+              )}
 
-            {/* 3. Recently Added */}
-            {hasData && (
-              <div className="px-[16px]">{RecentlyAddedSection}</div>
-            )}
+              {/* 5. From the Depths */}
+              {hasData && DepthsSection}
 
-            {/* 4. Insights */}
-            {hasData && (
-              <div className="px-[16px]">{InsightsCard}</div>
-            )}
+              {/* 6. Purge Tracker */}
+              {hasData && (
+                <div className="px-[16px]">{PurgeTrackerCard}</div>
+              )}
 
-            {/* 5. Purge Tracker */}
-            {hasData && (
-              <div className="px-[16px]">{PurgeTrackerCard}</div>
-            )}
+              {/* 7. Insights */}
+              {hasData && (
+                <div className="px-[16px]">{InsightsCard}</div>
+              )}
+            </div>
 
             {/* Empty state (has token but no albums) */}
             {!hasData && isAuthenticated && <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />}

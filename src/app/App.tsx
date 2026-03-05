@@ -64,6 +64,7 @@ function AppContent() {
   const [splashDismissed, setSplashDismissed] = useState(false);
   const [shakeEntrance, setShakeEntrance] = useState(false);
   const [authCallbackMessage, setAuthCallbackMessage] = useState("");
+  const [heroVisible, setHeroVisible] = useState(true);
 
   // Four-phase state machine for the initial loading screen:
   //   'idle'               — not started or fully done; no loading screen
@@ -257,7 +258,7 @@ function AppContent() {
       case "reports":
         return <ReportsScreen />;
       case "feed":
-        return <FeedScreen />;
+        return <FeedScreen onHeroVisibility={setHeroVisible} />;
       default:
         return <CrateBrowser />;
     }
@@ -362,14 +363,20 @@ function AppContent() {
               transition: "background-color 200ms ease",
               maxWidth: isDesktop ? "1280px" : undefined,
               width: "100%",
+              position: "relative",
             } as React.CSSProperties}
           >
             {/* Mobile header — always visible */}
             <div
-              className="lg:hidden flex-shrink-0"
-              style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+              className="lg:hidden"
+              style={{
+                paddingTop: "env(safe-area-inset-top, 0px)",
+                ...(screen === "feed"
+                  ? { position: "absolute" as const, top: 0, left: 0, right: 0, zIndex: 50 }
+                  : { flexShrink: 0 }),
+              }}
             >
-              <MobileHeader />
+              <MobileHeader transparent={screen === "feed" && heroVisible} />
             </div>
             <div
               className="flex-1 flex flex-col overflow-hidden"

@@ -461,29 +461,43 @@ export const proxyFetchCollection = action({
     const fieldMap = buildFieldMap(fields);
 
     const albums: ProxyAlbum[] = [];
-    let page = 1;
-    let totalPages = 1;
 
-    while (page <= totalPages) {
-      if (page > 1) await sleep(250);
-      const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/0/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`;
-      const res = await discogsFetch(
-        "GET",
-        url,
-        creds.access_token,
-        creds.token_secret
-      );
-      if (!res.ok)
-        throw new Error(
-          `Failed to fetch collection page ${page} (${res.status})`
+    // Discogs does not return folder_id on releases fetched from folder 0 (All).
+    // Fetch from each real folder individually so we know the folder assignment.
+    // When skipPrivateFields is true (followed users), fall back to folder 0.
+    const folderIds = skip
+      ? [0]
+      : Array.from(folderMap.keys()).filter((id) => id !== 0);
+
+    let isFirstRequest = true;
+    for (const folderId of folderIds) {
+      let page = 1;
+      let totalPages = 1;
+
+      while (page <= totalPages) {
+        if (!isFirstRequest) await sleep(250);
+        isFirstRequest = false;
+        const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${folderId}/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`;
+        const res = await discogsFetch(
+          "GET",
+          url,
+          creds.access_token,
+          creds.token_secret
         );
-      const data: CollectionPage = await res.json();
-      totalPages = data.pagination.pages;
+        if (!res.ok)
+          throw new Error(
+            `Failed to fetch collection folder ${folderId} page ${page} (${res.status})`
+          );
+        const data: CollectionPage = await res.json();
+        totalPages = data.pagination.pages;
 
-      for (const r of data.releases) {
-        albums.push(mapRelease(r, folderMap, fieldMap));
+        for (const r of data.releases) {
+          // Inject folder_id from the folder we're fetching — Discogs omits it
+          r.folder_id = folderId;
+          albums.push(mapRelease(r, folderMap, fieldMap));
+        }
+        page++;
       }
-      page++;
     }
 
     // Dedupe by release_id

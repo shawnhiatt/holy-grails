@@ -142,7 +142,7 @@ export function PillLogo({ className, onClick }: { className?: string; onClick?:
   );
 }
 
-export function MobileHeader() {
+export function MobileHeader({ transparent = false }: { transparent?: boolean }) {
   const { screen, setScreen, isDarkMode, userAvatar } = useApp();
 
   const activeBg = "rgba(172,222,242,0.12)";
@@ -153,7 +153,14 @@ export function MobileHeader() {
       className="flex items-center justify-between lg:hidden px-[16px]"
       style={{
         height: "58px",
-        background: "transparent",
+        background: transparent
+          ? "transparent"
+          : isDarkMode
+            ? "rgba(12,26,46,0.85)"
+            : "rgba(249,249,250,0.85)",
+        backdropFilter: transparent ? "none" : "blur(12px)",
+        WebkitBackdropFilter: transparent ? "none" : "blur(12px)",
+        transition: "background 300ms ease, backdrop-filter 300ms ease, -webkit-backdrop-filter 300ms ease",
       }}
     >
       {/* Left: Following */}

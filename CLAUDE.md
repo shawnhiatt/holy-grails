@@ -48,6 +48,9 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - User preferences (theme, hide purge indicators, hide gallery meta, shake to random, view mode, want view mode), keyed by `discogs_username`
 - OAuth tokens (access token + token secret), `session_token`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
 
+### Vinyl-Only Filter
+Holy Grails is intentionally vinyl-only. A global filter (`formats[].name === "Vinyl"`) is applied at the data layer during Convex collection sync and cache hydration in `app-context.tsx`. CDs, cassettes, and other formats are excluded before albums reach any UI component. This is a product decision, not a flag or user setting. No other formats should ever surface in the UI.
+
 ### Rules
 - Never use localStorage for any persistent data
 - All Convex reads use `useQuery`, all writes use `useMutation`
@@ -396,6 +399,14 @@ The `following_feed` Convex table caches the 50 most recent albums per followed 
 ### Wantlist Caching
 The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as the collection. `convex/wantlist.ts` handles persistence (`getByUsername`, `replaceAll`, `addItem`, `removeItem`). Wantlist write operations (add/remove) update both local state and the Convex wantlist cache on success.
 
+### Home Feed (feed-screen.tsx)
+
+**Section order:** Recommended, Recently Added, Format Spotlight, Following Activity, From the Depths, Purge Tracker, Insights.
+
+**Recommended hero:** The Recommended section renders as a full-bleed hero card on mobile only. The feed header becomes transparent when scroll position is 0 on the home feed and transitions to opaque on scroll. This behavior is scoped to the home feed screen exclusively via a prop on the header component — not a fork or separate header.
+
+**Format Spotlight:** Rotates the featured format on every app load. Filters the user's collection data for obscure vinyl format descriptions (7-Inch, 12-Inch, Limited Edition, Picture Disc, Colored, Etched, 45 RPM, Mono, etc.). Requires a minimum of 3 matching albums per category to be eligible for display. Operates entirely on cached Convex collection data — zero additional API calls.
+
 ---
 
 ## Navigation Structure
@@ -558,15 +569,14 @@ All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Di
 
 **localStorage** is permitted in one place only: `hg_session_token` in `app-context.tsx`, persisting the session token for cold load restore (see Session token persistence above). No other localStorage usage is permitted anywhere in the codebase.
 
+**Folder sync architecture (per-folder fetching)**
+
+`proxyFetchCollection` fetches collection releases per-folder rather than from the aggregate folder 0 ("All") endpoint. This is required because the Discogs API does not return `folder_id` on release objects from the folder 0 endpoint. The flow: fetch the folder list via `/collection/folders`, then for each folder (skipping folder 0), fetch `/collection/folders/{id}/releases` and inject `folder_id` from the folder being fetched onto each release before mapping. Folder 1 ("Uncategorized") is included — it is a real folder releases can live in. Rate limiting uses the existing `sleep(250)` between requests.
+
 **skipPrivateFields**
 
-`proxyFetchCollection` accepts an optional `skipPrivateFields: true` argument. When set, skips `fetchCustomFields` and `fetchFolderMap` calls which always return 403 for other users' collections. Always pass this when fetching followed users' collections.
+`proxyFetchCollection` accepts an optional `skipPrivateFields: true` argument. When set, skips `fetchCustomFields` and `fetchFolderMap` calls which always return 403 for other users' collections, and falls back to fetching from folder 0 since folder names are irrelevant for followed users. Always pass this when fetching followed users' collections.
 
 **Multi-folder dedup behavior**
 
-`proxyFetchCollection` in `convex/discogs.ts` deduplicates collection items by `release_id` after
-fetching all pages. If a release exists in more than one folder, only
-the first instance is kept. The second instance's folder assignment,
-condition notes, and grading are silently discarded. This is a known
-architectural assumption: one copy per release. Do not attempt to fix
-or change this behavior without explicit instruction from Shawn.
+`proxyFetchCollection` in `convex/discogs.ts` deduplicates collection items by `release_id` after fetching all folders. If a release exists in more than one folder, only the first instance is kept. The second instance's folder assignment, condition notes, and grading are silently discarded. This is a known architectural assumption: one copy per release. Do not attempt to fix or change this behavior without explicit instruction from Shawn.
