@@ -22,6 +22,7 @@ import { DepthsAlbumCard } from "./depths-album-card";
 import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial } from "../utils/format";
+import { FormatSpotlight } from "./format-spotlight";
 
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -1643,6 +1644,9 @@ export function FeedScreen() {
                   </div>
                 )}
 
+                {/* Format Spotlight */}
+                <FormatSpotlight onAlbumTap={handleDepthsTap} />
+
                 {/* Following Activity */}
                 {FollowingActivityCard}
 
@@ -1670,6 +1674,9 @@ export function FeedScreen() {
 
             {/* 1. From the Depths — carousel */}
             {hasData && DepthsSection}
+
+            {/* 1.5. Format Spotlight */}
+            {hasData && <FormatSpotlight onAlbumTap={handleDepthsTap} />}
 
             {/* 2. Following Activity */}
             {hasData && (

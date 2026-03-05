@@ -13,6 +13,7 @@ import {
   clearAllMarketData,
   setCollectionValueCache,
   type CollectionValue,
+  isVinylFormat,
 } from "./discogs-api";
 
 // --- HMR-safe context singleton ---
@@ -444,7 +445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dateAdded: row.dateAdded,
           discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
           purgeTag: null,
-        }));
+        })).filter((a) => isVinylFormat(a.format));
 
         // Derive folder list from cached albums
         const folderSet = new Set(cachedAlbums.map((a) => a.folder));
@@ -1167,10 +1168,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch collection and wantlist in parallel — no dependency between them
       setSyncProgress("Syncing");
-      const [{ albums: newAlbums, folders: newFolders }, newWants] = await Promise.all([
+      const [{ albums: rawAlbums, folders: newFolders }, newWants] = await Promise.all([
         proxyFetchCollection({ sessionToken: token, username }),
         proxyFetchWantlist({ sessionToken: token, username }),
       ]);
+      const newAlbums = rawAlbums.filter(a => isVinylFormat(a.format));
 
       // Merge purge tags from current Convex data
       const tags = purgeTagsRef.current;

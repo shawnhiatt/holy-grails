@@ -113,6 +113,13 @@ export interface MarketData {
   fetchedAt: number;
 }
 
+// ─── Vinyl-only filter ───
+
+/** Returns true if the release format string indicates vinyl */
+export function isVinylFormat(format: string): boolean {
+  return format.toLowerCase().includes("vinyl");
+}
+
 // ─── Condition grade constants ───
 
 /** Condition grades in order from best to worst */
