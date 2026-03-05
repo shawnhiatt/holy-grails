@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { Disc3, AlertTriangle } from "lucide-react";
-import { WordmarkLogo } from "./navigation";
+import { PillLogo } from "./navigation";
 import { UnicornScene } from "./unicorn-scene";
 
 interface SplashScreenProps {
@@ -14,7 +14,6 @@ export function SplashScreen({
   onLoginWithDiscogs,
 }: SplashScreenProps) {
   const mutedColor = "#7D92A8";
-  const logoFill = "#E2E8F0";
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -61,12 +60,8 @@ export function SplashScreen({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col items-center w-full"
           >
-            {/* Wordmark logo — same as app header */}
-            <WordmarkLogo
-              className="w-[300px] lg:w-[480px] h-auto"
-              fillColor={logoFill}
-              isDarkMode={isDarkMode}
-            />
+            {/* Pill logo — same as app header */}
+            <PillLogo className="w-full max-w-[400px] h-auto" />
 
             {/* Tagline */}
             <p
@@ -126,11 +121,11 @@ export function SplashScreen({
                 fontWeight: 400,
                 color: "#D1D8DF",
                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                marginTop: "12px",
-                textDecoration: "none",
+                marginTop: "24px",
+                textDecoration: "underline",
               }}
             >
-              New to Discogs? Create a free account
+              Create a Discogs account
             </a>
 
             {/* Login error */}

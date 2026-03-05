@@ -48,7 +48,7 @@ The Discogs API supports everything this app needs. Integration code lives in `d
 | Active nav icon/label | `#EBFD00` (bright yellow) | Active tab icon + text in both mobile bottom bar and desktop top nav |
 | Nav background | `#01294D` (dark navy) | Bottom tab bar gradient endpoint |
 | Nav border | `#214564` | Bottom bar inset shadow |
-| Logo vinyl element | `#EBFD00` | The record disc in the SVG wordmark |
+| Logo vinyl element | `#EBFD00` | The record disc in the pill logo SVG |
 | Inactive nav icon/label | `#D1D8DF` | Inactive tab items |
 
 ### Content Area — Light Mode (default)
@@ -440,7 +440,7 @@ Dashboard with collection analytics. Accessible from:
 
 The app shows a splash/onboarding sequence when no data is loaded and no Discogs token is set. Managed in `App.tsx` via `splashView` state.
 
-**SplashScreen** (`splash-screen.tsx`): Landing page with wordmark logo, background video (`SplashVideo`), Sign In / Create Account buttons, "Skip for now" link (loads demo data), and a dev-mode section with hardcoded QA credentials for quick sync testing (Disc3 spinner during sync).
+**SplashScreen** (`splash-screen.tsx`): Landing page with pill logo (shared `PillLogo` component from `navigation.tsx`, sourced from `src/imports/logo-holy-grails.svg`), UnicornScene WebGL background, "Log in with Discogs" button, and "New to Discogs?" sign-up link.
 
 **ConnectDiscogsPrompt** (`connect-discogs-prompt.tsx`): Post-signup/sign-in prompt encouraging users to connect their Discogs account. "Connect Discogs" button triggers simulated OAuth flow, "Skip for now" enters with empty state.
 
@@ -458,7 +458,7 @@ The app shows a splash/onboarding sequence when no data is loaded and no Discogs
 
 **Header bar** (`MobileHeader`, 58px, **transparent background** — the app-wide radial gradient shows through):
 - Left: Dark/Light theme toggle (compact Sun/Moon switch)
-- Center: SVG wordmark logo (tappable -> Feed). Fill color adapts to dark/light mode (`#E2E8F0` / `#0C284A`). Clicking the vinyl disc in the logo triggers a spin animation.
+- Center: Pill logo (`PillLogo` component, sourced from `src/imports/logo-holy-grails.svg`, 42px height). Tappable -> Feed.
 - Right: Following icon (Users, 18px) + Settings icon (UserRound, 18px or user avatar if synced). Both show active state with translucent background when their screen is active.
 - **Hides on scroll** (on supported screens) via CSS transform/margin-bottom transition. A 12px breathing-room spacer appears when header is hidden.
 
@@ -488,7 +488,7 @@ Split into three zones:
 | Zone | Items |
 |---|---|
 | Left group | Feed, Collection, Wants, Sessions |
-| Center | SVG wordmark logo (tappable -> Feed) |
+| Center | Pill logo (tappable -> Feed, 42px height) |
 | Right group | Purge, Insights, Following, Settings + Theme toggle |
 
 Both left and right groups are `flex-1` so the logo stays perfectly centered. Each nav item is a text button with icon (17px) + label (13px Bricolage Grotesque). Active state: translucent `rgba(226,232,240,0.1)` background (dark) or `rgba(12,40,74,0.08)` (light), with full-opacity text. Inactive: ~45% opacity text. Settings shows user avatar (from Discogs sync) instead of icon when available.
@@ -542,7 +542,7 @@ Active text color: `#E2E8F0` (dark) / `#0C284A` (light). Inactive: `rgba(226,232
 |---|---|
 | `App.tsx` | Root layout, screen routing, splash flow, side panel, scroll fade overlay |
 | `app-context.tsx` | Global state provider (albums, sessions, purge, sync, session picker) |
-| `navigation.tsx` | Mobile header, bottom tab bar, desktop top nav, SVG wordmark logo |
+| `navigation.tsx` | Mobile header, bottom tab bar, desktop top nav, `PillLogo` component (from `src/imports/logo-holy-grails.svg`) |
 | `crate-browser.tsx` | Collection screen with view mode toggle, search, filters, `ViewModeToggle` component |
 | `album-grid.tsx` | Grid view with alphabetical index sidebar |
 | `album-artwork-grid.tsx` | Artwork-only grid view |

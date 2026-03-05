@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-const PROJECT_ID = "cnsv252lbgNqAPR7Odzz";
+const PROJECT_ID = "AsNXonIuH0GaiKmG36KD";
 const CDN_SRC =
-  "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v2.0.5/dist/unicornStudio.umd.js";
+  "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v2.1.0-1/dist/unicornStudio.umd.js";
 
 // Performance note: if the scene causes frame drops on the loading screen during
 // active sync, lower SCENE_SCALE to 0.5 and tune SCENE_DPI accordingly.
