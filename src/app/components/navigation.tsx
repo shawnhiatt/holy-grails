@@ -155,11 +155,9 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
         height: "58px",
         background: transparent
           ? "transparent"
-          : isDarkMode
-            ? "rgba(12,26,46,0.85)"
-            : "rgba(249,249,250,0.85)",
-        backdropFilter: transparent ? "none" : "blur(12px)",
-        WebkitBackdropFilter: transparent ? "none" : "blur(12px)",
+          : "var(--c-bg)",
+        backdropFilter: transparent ? "blur(12px)" : "none",
+        WebkitBackdropFilter: transparent ? "blur(12px)" : "none",
         transition: "background 300ms ease, backdrop-filter 300ms ease, -webkit-backdrop-filter 300ms ease",
       }}
     >

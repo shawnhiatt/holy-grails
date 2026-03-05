@@ -1444,7 +1444,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         }}
         onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
       >
-        {/* Album art — full bleed */}
+        {/* Album art — full bleed with safe area offset */}
         <img
           src={album.cover}
           alt=""
@@ -1456,17 +1456,18 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             height: "100%",
             objectFit: "cover",
             objectPosition: "center",
+            paddingTop: "env(safe-area-inset-top, 0px)",
           }}
         />
-        {/* Top scrim — header legibility */}
+        {/* Top scrim — header + status bar legibility */}
         <div
           style={{
             position: "absolute",
             top: 0,
             left: 0,
             right: 0,
-            height: "120px",
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.45), transparent)",
+            height: "30%",
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0))",
             pointerEvents: "none",
           }}
         />
