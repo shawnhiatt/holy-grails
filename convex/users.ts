@@ -57,8 +57,9 @@ export const getMe = query({
  * Create or update a user record during OAuth login.
  *
  * Intentionally unauthenticated — called after OAuth completes, before
- * a session token exists. Generates a new session_token on every call
- * (token rotation on login).
+ * a session token exists. Reuses the existing session_token for returning
+ * users (idempotent across double-fired callbacks). Only generates a new
+ * token for genuinely new users.
  */
 export const upsert = mutation({
   args: {
@@ -68,14 +69,17 @@ export const upsert = mutation({
     token_secret: v.string(),
   },
   handler: async (ctx, args) => {
-    const sessionToken = crypto.randomUUID();
-
     const existing = await ctx.db
       .query("users")
       .withIndex("by_username", (q) =>
         q.eq("discogs_username", args.discogs_username)
       )
       .first();
+
+    // Reuse existing session token if the user already has one (idempotent
+    // across double-fired OAuth callbacks in React StrictMode / HMR).
+    // Only generate a fresh token for genuinely new users.
+    const sessionToken = existing?.session_token ?? crypto.randomUUID();
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -124,7 +128,15 @@ export const updateCollectionValue = mutation({
 export const clearSession = mutation({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
-    const user = await authenticateUser(ctx, args.sessionToken);
+    // Look up directly instead of authenticateUser — sign-out must succeed
+    // even if the token is stale (e.g. rotated by a double-fired upsert).
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_session_token", (q) =>
+        q.eq("session_token", args.sessionToken)
+      )
+      .first();
+    if (!user) return; // already signed out or token invalid — nothing to do
     await ctx.db.delete(user._id);
   },
 });
