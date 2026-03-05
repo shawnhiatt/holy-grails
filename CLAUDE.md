@@ -83,6 +83,9 @@ The `setSessionToken` wrapper in `app-context.tsx` syncs every token change to `
 
 **`discogsToken` dev flow removed.** All authentication now goes through OAuth. There is no longer a personal access token fallback.
 
+**`authedArgs` pattern (stale token defense):**
+All authenticated `useQuery` subscriptions in `app-context.tsx` use a shared `authedArgs` variable that gates on `!!discogsUsername && !!sessionToken`. During session restore, `discogsUsername` is only set after `getLatestUser` confirms the token is valid — so authenticated queries never fire with a stale token. New authenticated queries must use `authedArgs` as their argument condition, not `sessionToken` alone. `getLatestUser` is the only exception — it gates on `sessionToken` only, as it is the gatekeeper query that validates the token before `discogsUsername` is set.
+
 ---
 
 ## Discogs API Proxy
