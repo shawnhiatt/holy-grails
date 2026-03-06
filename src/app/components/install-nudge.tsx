@@ -86,7 +86,7 @@ export function InstallNudge() {
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ y: "-100%", opacity: 0 }}
+          initial={{ y: "0", opacity: 1 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: "-100%", opacity: 0 }}
           transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
