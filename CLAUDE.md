@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.4.0
+# CLAUDE.md — Holy Grails v0.4.1
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -162,7 +162,7 @@ src/
       filter-drawer.tsx
       folders-screen.tsx  # Folder management subview (accessed from Settings > Tools > Folders). Create, rename, delete folders. Folders 0/1 are read-only. Uses inline edit and confirmation modal patterns from sessions.tsx.
       following-screen.tsx
-      install-nudge.tsx   # Dismissible PWA install nudge banner for mobile browser users. Detects standalone mode, listens for beforeinstallprompt (Android), shows instructional copy (iOS). Dismissal persisted to localStorage. Mounted from App.tsx.
+      install-nudge.tsx   # Dismissible PWA install nudge bottom sheet for mobile browser users. Fixed-position sheet (z-[150]) with backdrop (z-[149]). Detects standalone mode, listens for beforeinstallprompt (Android), shows instructional copy (iOS). Dismissal persisted to localStorage. Mounted from App.tsx.
       last-played-utils.ts
       market-value.tsx
       motion-tokens.ts
@@ -453,6 +453,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Layer | Z-Index | Component |
 |---|---|---|
 | Confirm-removal dialog | `z-[200]` | following-screen.tsx |
+| Install nudge sheet | `z-[150]` | install-nudge.tsx |
+| Install nudge backdrop | `z-[149]` | install-nudge.tsx |
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
 | Wantlist crossover prompt | `z-[125]` | wantlist-crossover-prompt.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |

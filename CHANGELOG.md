@@ -4,11 +4,14 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
-## Unreleased
+## 0.4.1
 
 ### Added
 - **Default screen preference** in Settings > Appearance — choose which screen loads on startup (Feed, Collection, Wantlist, Sessions, or Insights). Persisted to Convex `preferences` table as `default_screen`.
-- **PWA install nudge banner** for mobile browser users — detects standalone mode, captures `beforeinstallprompt` on Android (with native install CTA), shows instructional copy on iOS Safari. Dismissal persisted to localStorage. Mobile-only, never shown in installed PWA.
+- **PWA install nudge** for mobile browser users — detects standalone mode, captures `beforeinstallprompt` on Android (with native install CTA), shows instructional copy on iOS Safari. Dismissal persisted to localStorage. Mobile-only, never shown in installed PWA.
+
+### Changed
+- **Install nudge redesigned as bottom sheet** — replaced top banner (which was clipped by the mobile header) with a fixed-position bottom sheet (`z-[150]`) and backdrop (`z-[149]`). Centered layout with app icon, platform-specific copy, and dismiss button. iOS gets an outlined "Maybe Later" button; Android gets a yellow CTA + text dismiss link.
 
 ---
 
