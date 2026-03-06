@@ -114,6 +114,9 @@ interface AppState {
   // Shake gesture
   shakeToRandom: boolean;
   setShakeToRandom: (v: boolean) => void;
+  // Default screen
+  defaultScreen: Screen;
+  setDefaultScreen: (s: Screen) => void;
   // Discogs sync
   folders: { id: number; name: string; count: number }[];
   createFolder: (name: string) => Promise<void>;
@@ -236,6 +239,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [hideGalleryMeta, setHideGalleryMetaRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
+  const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
   const [folders, setFolders] = useState<{ id: number; name: string; count: number }[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSyncingFollowing, setIsSyncingFollowing] = useState(false);
@@ -672,6 +676,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setShakeToRandomRaw(convexPreferences.shake_to_random ?? false);
       if (convexPreferences.view_mode) setViewModeRaw(convexPreferences.view_mode as ViewMode);
       if (convexPreferences.want_view_mode) setWantViewModeRaw(convexPreferences.want_view_mode as ViewMode);
+      if (convexPreferences.default_screen) {
+        const ds = convexPreferences.default_screen as Screen;
+        setDefaultScreenRaw(ds);
+        setScreenRaw(ds);
+      }
     }
   }, [convexPreferences]);
 
@@ -841,6 +850,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShakeToRandomRaw(v);
     if (sessionToken) {
       upsertPreferencesMut({ sessionToken, shake_to_random: v });
+    }
+  }, [sessionToken, upsertPreferencesMut]);
+
+  const setDefaultScreen = useCallback((s: Screen) => {
+    setDefaultScreenRaw(s);
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, default_screen: s });
     }
   }, [sessionToken, upsertPreferencesMut]);
 
@@ -1848,6 +1864,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Shake gesture
       shakeToRandom,
       setShakeToRandom,
+      // Default screen
+      defaultScreen,
+      setDefaultScreen,
       // Discogs sync
       folders,
       createFolder,
@@ -1916,6 +1935,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hidePurgeIndicators, setHidePurgeIndicators,
       hideGalleryMeta, setHideGalleryMeta,
       shakeToRandom, setShakeToRandom,
+      defaultScreen, setDefaultScreen,
       folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,
       discogsUsername, setDiscogsUsername,

@@ -21,6 +21,7 @@ import { LoadingScreen } from "./components/loading-screen";
 import { SessionPickerSheet } from "./components/session-picker-sheet";
 import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
+import { InstallNudge } from "./components/install-nudge";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
 /* nav-clearance: scroll containers consume --nav-clearance for bottom padding */
@@ -359,6 +360,7 @@ function AppContent() {
               position: "relative",
             } as React.CSSProperties}
           >
+            <InstallNudge />
             {/* Mobile header — always visible */}
             <div
               className="lg:hidden"

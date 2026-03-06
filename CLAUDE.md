@@ -45,7 +45,7 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - Want list priority bolts, keyed by `discogs_username` + `release_id`
 - Last-played timestamps, keyed by `discogs_username` + `release_id`
 - Collection cache (`collection` table — mirrors Discogs collection for offline/fast reads, synced alongside wantlist with 24h TTL)
-- User preferences (theme, hide purge indicators, hide gallery meta, shake to random, view mode, want view mode), keyed by `discogs_username`
+- User preferences (theme, hide purge indicators, hide gallery meta, shake to random, view mode, want view mode, default screen), keyed by `discogs_username`
 - OAuth tokens (access token + token secret), `session_token`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
 
 ### Vinyl-Only Filter
@@ -162,6 +162,7 @@ src/
       filter-drawer.tsx
       folders-screen.tsx  # Folder management subview (accessed from Settings > Tools > Folders). Create, rename, delete folders. Folders 0/1 are read-only. Uses inline edit and confirmation modal patterns from sessions.tsx.
       following-screen.tsx
+      install-nudge.tsx   # Dismissible PWA install nudge banner for mobile browser users. Detects standalone mode, listens for beforeinstallprompt (Android), shows instructional copy (iOS). Dismissal persisted to localStorage. Mounted from App.tsx.
       last-played-utils.ts
       market-value.tsx
       motion-tokens.ts
@@ -583,7 +584,11 @@ All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Di
 
 **sessionStorage** is permitted in one place only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`. No other sessionStorage usage is permitted anywhere in the codebase.
 
-**localStorage** is permitted in one place only: `hg_session_token` in `app-context.tsx`, persisting the session token for cold load restore (see Session token persistence above). No other localStorage usage is permitted anywhere in the codebase.
+**localStorage** is permitted in two places:
+- `hg_session_token` in `app-context.tsx` — persists the session token for cold load restore (see Session token persistence above)
+- `hg_install_nudge_dismissed` in `install-nudge.tsx` — device-level UI flag that permanently hides the PWA install nudge banner after the user dismisses it. Not a user preference — not synced to Convex.
+
+No other localStorage usage is permitted anywhere in the codebase.
 
 **Folder sync architecture (per-folder fetching)**
 

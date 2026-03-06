@@ -4,6 +4,14 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## Unreleased
+
+### Added
+- **Default screen preference** in Settings > Appearance — choose which screen loads on startup (Feed, Collection, Wantlist, Sessions, or Insights). Persisted to Convex `preferences` table as `default_screen`.
+- **PWA install nudge banner** for mobile browser users — detects standalone mode, captures `beforeinstallprompt` on Android (with native install CTA), shows instructional copy on iOS Safari. Dismissal persisted to localStorage. Mobile-only, never shown in installed PWA.
+
+---
+
 ## 2026-03-05
 
 ### Added

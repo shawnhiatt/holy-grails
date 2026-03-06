@@ -1,11 +1,21 @@
 import { useState, useRef, useMemo } from "react";
-import { Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen } from "lucide-react";
+import { Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen, Check } from "lucide-react";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
+import { SlideOutPanel } from "./slide-out-panel";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
+import type { Screen } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
+
+const DEFAULT_SCREEN_OPTIONS: { value: Screen; label: string }[] = [
+  { value: "feed", label: "Feed" },
+  { value: "crate", label: "Collection" },
+  { value: "wants", label: "Wantlist" },
+  { value: "sessions", label: "Sessions" },
+  { value: "reports", label: "Insights" },
+];
 
 export function SettingsScreen() {
   const {
@@ -31,6 +41,8 @@ export function SettingsScreen() {
     userAvatar,
     shakeToRandom,
     setShakeToRandom,
+    defaultScreen,
+    setDefaultScreen,
     executePurgeCut,
     purgeProgress,
     sessions,
@@ -47,6 +59,7 @@ export function SettingsScreen() {
 
   // Purge Cut dialog (execution lives in context via executePurgeCut)
   const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
+  const [showDefaultScreenPicker, setShowDefaultScreenPicker] = useState(false);
 
   const cutAlbums = useMemo(() => albums.filter((a) => a.purgeTag === "cut"), [albums]);
 
@@ -352,6 +365,18 @@ export function SettingsScreen() {
                 })}
               </div>
             </div>
+            <button
+              onClick={() => setShowDefaultScreenPicker(true)}
+              className="flex items-center justify-between gap-3 cursor-pointer"
+            >
+              <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Default screen</p>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {DEFAULT_SCREEN_OPTIONS.find((o) => o.value === defaultScreen)?.label ?? "Feed"}
+                </span>
+                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
+              </div>
+            </button>
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Hide purge indicators</p>
@@ -515,6 +540,53 @@ export function SettingsScreen() {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDefaultScreenPicker && (
+          <SlideOutPanel
+            title="Default screen"
+            onClose={() => setShowDefaultScreenPicker(false)}
+            backdropZIndex={80}
+            sheetZIndex={85}
+          >
+            <div className="px-4 py-2">
+              {DEFAULT_SCREEN_OPTIONS.map((option) => {
+                const isSelected = defaultScreen === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setDefaultScreen(option.value);
+                      setShowDefaultScreenPicker(false);
+                      toast.success(`Default screen set to ${option.label}.`);
+                    }}
+                    className="w-full flex items-center justify-between py-3 cursor-pointer"
+                    style={{
+                      borderBottom: option.value !== "reports" ? "1px solid var(--c-border)" : undefined,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: isSelected ? 600 : 400,
+                        color: isSelected
+                          ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                          : "var(--c-text)",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                      }}
+                    >
+                      {option.label}
+                    </span>
+                    {isSelected && (
+                      <Check size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </SlideOutPanel>
         )}
       </AnimatePresence>
     </div>
