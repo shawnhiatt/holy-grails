@@ -325,21 +325,29 @@ const CONDITION_GRADES = [
 
 // ─── Shared fetch helpers ───
 
+interface FolderInfo {
+  id: number;
+  name: string;
+  count: number;
+}
+
 async function fetchFolderMapInternal(
   username: string,
   accessToken: string,
   tokenSecret: string
-): Promise<Map<number, string>> {
+): Promise<{ map: Map<number, string>; list: FolderInfo[] }> {
   const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders`;
   const res = await discogsFetch("GET", url, accessToken, tokenSecret);
   if (!res.ok)
     throw new Error(`Failed to fetch folders (${res.status})`);
   const data = await res.json();
   const map = new Map<number, string>();
+  const list: FolderInfo[] = [];
   for (const f of data.folders || []) {
     map.set(f.id, f.name);
+    list.push({ id: f.id, name: f.name, count: f.count || 0 });
   }
-  return map;
+  return { map, list };
 }
 
 async function fetchCustomFieldsInternal(
@@ -444,13 +452,14 @@ export const proxyFetchCollection = action({
       { sessionToken: args.sessionToken }
     );
     const skip = args.skipPrivateFields === true;
-    const folderMap = skip
-      ? new Map<number, string>()
+    const folderResult: { map: Map<number, string>; list: FolderInfo[] } = skip
+      ? { map: new Map<number, string>(), list: [] }
       : await fetchFolderMapInternal(
           args.username,
           creds.access_token,
           creds.token_secret
         );
+    const folderMap: Map<number, string> = folderResult.map;
     const fields = skip
       ? []
       : await fetchCustomFieldsInternal(
@@ -510,12 +519,12 @@ export const proxyFetchCollection = action({
       }
     }
 
-    const folderNames = [
-      "All",
-      ...Array.from(folderMap.values()).filter((n) => n !== "All"),
-    ];
+    // Build rich folder list for client — "All" is a virtual folder (id 0)
+    const folderObjects: FolderInfo[] = folderResult.list.length > 0
+      ? folderResult.list
+      : [{ id: 0, name: "All", count: deduped.length }];
 
-    return { albums: deduped, folders: folderNames };
+    return { albums: deduped, folders: folderObjects };
   },
 });
 
@@ -926,7 +935,84 @@ export const proxyRemoveFromWantlist = action({
   },
 });
 
-// 12. Fetch single collection page (for following feed)
+// 12. Fetch release detail (enriched metadata: tracklist, credits, notes, community)
+export const proxyFetchRelease = action({
+  args: { sessionToken: v.string(), releaseId: v.number() },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/releases/${args.releaseId}`;
+    const res = await discogsFetch(
+      "GET",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Failed to fetch release ${args.releaseId} (${res.status})`
+      );
+    }
+    const data = await res.json();
+
+    // Tracklist
+    const tracklist: { position: string; title: string; duration: string }[] = [];
+    for (const t of data.tracklist || []) {
+      if (t.type_ === "track") {
+        tracklist.push({
+          position: t.position || "",
+          title: t.title || "",
+          duration: t.duration || "",
+        });
+      }
+    }
+
+    // Credits (extraartists) — group by role
+    const credits: { role: string; name: string }[] = [];
+    for (const ea of data.extraartists || []) {
+      const name = formatArtistName(ea.anv || ea.name || "");
+      // Roles can be comma-separated (e.g. "Producer, Written-By")
+      for (const role of (ea.role || "").split(/,\s*/)) {
+        if (role && name) {
+          credits.push({ role: role.trim(), name });
+        }
+      }
+    }
+
+    // Community
+    const community = data.community
+      ? {
+          rating: data.community.rating?.average ?? null,
+          ratingCount: data.community.rating?.count ?? 0,
+          have: data.community.have ?? 0,
+          want: data.community.want ?? 0,
+        }
+      : null;
+
+    // Identifiers (barcode, matrix, etc.)
+    const identifiers: { type: string; value: string }[] = [];
+    for (const id of data.identifiers || []) {
+      if (id.type && id.value) {
+        identifiers.push({ type: id.type, value: id.value });
+      }
+    }
+
+    return {
+      country: (data.country as string) || "",
+      notes: (data.notes as string) || "",
+      tracklist,
+      credits,
+      community,
+      identifiers,
+      genres: (data.genres as string[]) || [],
+      styles: (data.styles as string[]) || [],
+    };
+  },
+});
+
+// 13. Fetch single collection page (for following feed)
 export const proxyFetchUserCollectionPage = action({
   args: {
     sessionToken: v.string(),
@@ -970,5 +1056,129 @@ export const proxyFetchUserCollectionPage = action({
         dateAdded: r.date_added || "",
       };
     });
+  },
+});
+
+// 14. Fetch folders (with id, name, count)
+export const proxyFetchFolders = action({
+  args: { sessionToken: v.string(), username: v.string() },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders`;
+    const res = await discogsFetch(
+      "GET",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok)
+      throw new Error(`Failed to fetch folders (${res.status})`);
+    const data = await res.json();
+    return (data.folders || []).map(
+      (f: { id: number; name: string; count: number }) => ({
+        id: f.id as number,
+        name: f.name as string,
+        count: (f.count as number) || 0,
+      })
+    );
+  },
+});
+
+// 15. Create folder
+export const proxyCreateFolder = action({
+  args: { sessionToken: v.string(), username: v.string(), name: v.string() },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders`;
+    const res = await discogsFetch(
+      "POST",
+      url,
+      creds.access_token,
+      creds.token_secret,
+      JSON.stringify({ name: args.name })
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `Failed to create folder (${res.status})${body ? ": " + body : ""}`
+      );
+    }
+    const data = await res.json();
+    return {
+      id: data.id as number,
+      name: data.name as string,
+      count: (data.count as number) || 0,
+    };
+  },
+});
+
+// 16. Rename folder
+export const proxyRenameFolder = action({
+  args: {
+    sessionToken: v.string(),
+    username: v.string(),
+    folderId: v.number(),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.folderId}`;
+    const res = await discogsFetch(
+      "POST",
+      url,
+      creds.access_token,
+      creds.token_secret,
+      JSON.stringify({ name: args.name })
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `Failed to rename folder (${res.status})${body ? ": " + body : ""}`
+      );
+    }
+    const data = await res.json();
+    return {
+      id: data.id as number,
+      name: data.name as string,
+      count: (data.count as number) || 0,
+    };
+  },
+});
+
+// 17. Delete folder
+export const proxyDeleteFolder = action({
+  args: {
+    sessionToken: v.string(),
+    username: v.string(),
+    folderId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.folderId}`;
+    const res = await discogsFetch(
+      "DELETE",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `Failed to delete folder (${res.status})${body ? ": " + body : ""}`
+      );
+    }
+    return { deleted: true as const, folder_id: args.folderId };
   },
 });

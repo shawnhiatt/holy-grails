@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
-import { Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3 } from "lucide-react";
+import { Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen } from "lucide-react";
 import { PurgeCutDialog } from "./purge-tracker";
+import { FoldersScreen } from "./folders-screen";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -41,6 +42,7 @@ export function SettingsScreen() {
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [motionDenied, setMotionDenied] = useState(false);
+  const [showFolders, setShowFolders] = useState(false);
   const motionDeniedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Purge Cut dialog (execution lives in context via executePurgeCut)
@@ -139,6 +141,10 @@ export function SettingsScreen() {
     setConfirmAction(null);
   };
 
+  if (showFolders) {
+    return <FoldersScreen onBack={() => setShowFolders(false)} />;
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
@@ -185,7 +191,7 @@ export function SettingsScreen() {
                 <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)" }}>
                   {syncStats
                     ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
-                    : `${albums.length} records \u00b7 ${folders.filter((f) => f !== "All").length} folders \u00b7 ${wants.length} wantlist items`
+                    : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
                   }
                 </p>
               </div>
@@ -281,6 +287,27 @@ export function SettingsScreen() {
                 </p>
                 <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
                   Collection stats and value over time.
+                </p>
+              </div>
+              <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
+            </button>
+
+            {/* Folders card */}
+            <button
+              onClick={() => setShowFolders(true)}
+              className="rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
+              style={{
+                backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
+                border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
+              }}
+            >
+              <FolderOpen size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                  Folders
+                </p>
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
+                  Manage your collection folders.
                 </p>
               </div>
               <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />

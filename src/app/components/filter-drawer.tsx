@@ -69,15 +69,15 @@ export function FilterDrawer() {
           <div className="flex flex-wrap gap-2">
             {folders.map((folder) => (
               <button
-                key={folder}
-                onClick={() => setActiveFolder(folder)}
+                key={folder.id}
+                onClick={() => setActiveFolder(folder.name)}
                 className="px-3 py-1.5 rounded-full transition-all"
-                style={activeFolder !== folder
+                style={activeFolder !== folder.name
                   ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
                   : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
                 }
               >
-                {folder}
+                {folder.name}
               </button>
             ))}
           </div>

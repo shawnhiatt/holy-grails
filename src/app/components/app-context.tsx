@@ -115,7 +115,11 @@ interface AppState {
   shakeToRandom: boolean;
   setShakeToRandom: (v: boolean) => void;
   // Discogs sync
-  folders: string[];
+  folders: { id: number; name: string; count: number }[];
+  createFolder: (name: string) => Promise<void>;
+  renameFolder: (folderId: number, name: string) => Promise<void>;
+  deleteFolder: (folderId: number) => Promise<void>;
+  fetchFolders: () => Promise<void>;
   sessionToken: string | null;
   discogsUsername: string;
   setDiscogsUsername: (u: string) => void;
@@ -232,7 +236,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [hideGalleryMeta, setHideGalleryMetaRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
-  const [folders, setFolders] = useState<string[]>([]);
+  const [folders, setFolders] = useState<{ id: number; name: string; count: number }[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSyncingFollowing, setIsSyncingFollowing] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
@@ -317,6 +321,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const proxyRemoveFromCollection = useAction(api.discogs.proxyRemoveFromCollection);
   const proxyAddToWantlist = useAction(api.discogs.proxyAddToWantlist);
   const proxyRemoveFromWantlist = useAction(api.discogs.proxyRemoveFromWantlist);
+  const proxyFetchFolders = useAction(api.discogs.proxyFetchFolders);
+  const proxyCreateFolder = useAction(api.discogs.proxyCreateFolder);
+  const proxyRenameFolder = useAction(api.discogs.proxyRenameFolder);
+  const proxyDeleteFolder = useAction(api.discogs.proxyDeleteFolder);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -447,9 +455,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           purgeTag: null,
         })).filter((a) => isVinylFormat(a.format));
 
-        // Derive folder list from cached albums
-        const folderSet = new Set(cachedAlbums.map((a) => a.folder));
-        const cachedFolders = ["All", ...Array.from(folderSet).filter((f) => f !== "All").sort()];
+        // Derive folder list from cached albums (name-only fallback until proxyFetchFolders runs)
+        const folderMap = new Map<string, { id: number; count: number }>();
+        for (const a of cachedAlbums) {
+          const entry = folderMap.get(a.folder);
+          if (entry) {
+            entry.count++;
+          } else {
+            folderMap.set(a.folder, { id: a.folder_id, count: 1 });
+          }
+        }
+        const cachedFolders: { id: number; name: string; count: number }[] = [
+          { id: 0, name: "All", count: cachedAlbums.length },
+          ...Array.from(folderMap.entries())
+            .filter(([name]) => name !== "All")
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([name, info]) => ({ id: info.id, name, count: info.count })),
+        ];
 
         // Merge purge tags
         const tags = purgeTagsRef.current;
@@ -493,7 +515,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
           setSyncStats({
             albums: cachedAlbums.length,
-            folders: cachedFolders.filter((f) => f !== "All").length,
+            folders: cachedFolders.filter((f) => f.name !== "All").length,
             wants: newWants.length,
           });
         };
@@ -536,7 +558,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             console.warn("[Cache load] Wantlist fetch failed:", err);
             setSyncStats({
               albums: cachedAlbums.length,
-              folders: cachedFolders.filter((f) => f !== "All").length,
+              folders: cachedFolders.filter((f) => f.name !== "All").length,
               wants: 0,
             });
           });
@@ -978,6 +1000,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionToken, updateInstanceMut]);
 
+  // ── Folder management ──
+
+  const fetchFolders = useCallback(async () => {
+    if (!sessionToken || !discogsUsername) return;
+    const result = await proxyFetchFolders({ sessionToken, username: discogsUsername });
+    setFolders(result);
+  }, [sessionToken, discogsUsername, proxyFetchFolders]);
+
+  const createFolder = useCallback(async (name: string) => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    const created = await proxyCreateFolder({ sessionToken, username: discogsUsername, name });
+    setFolders((prev) => [...prev, created]);
+  }, [sessionToken, discogsUsername, proxyCreateFolder]);
+
+  const renameFolder = useCallback(async (folderId: number, name: string) => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    const updated = await proxyRenameFolder({ sessionToken, username: discogsUsername, folderId, name });
+    setFolders((prev) => prev.map((f) => f.id === folderId ? { ...f, name: updated.name } : f));
+    // Update folder name on albums that reference this folder
+    setAlbums((prev) => prev.map((a) => a.folder_id === folderId ? { ...a, folder: updated.name } : a));
+  }, [sessionToken, discogsUsername, proxyRenameFolder]);
+
+  const deleteFolder = useCallback(async (folderId: number) => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    await proxyDeleteFolder({ sessionToken, username: discogsUsername, folderId });
+    setFolders((prev) => prev.filter((f) => f.id !== folderId));
+  }, [sessionToken, discogsUsername, proxyDeleteFolder]);
+
   const toggleWantPriority = useCallback((wantId: string) => {
     setWants((prev) => {
       const want = prev.find((w) => w.id === wantId);
@@ -1277,7 +1327,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLastSynced(formatted);
       setSyncStats({
         albums: newAlbums.length,
-        folders: newFolders.filter((f) => f !== "All").length,
+        folders: newFolders.filter((f: { name: string }) => f.name !== "All").length,
         wants: newWants.length,
       });
       setSyncProgress("");
@@ -1395,7 +1445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       return {
         albums: newAlbums.length,
-        folders: newFolders.filter((f) => f !== "All").length,
+        folders: newFolders.filter((f: { name: string }) => f.name !== "All").length,
         wants: newWants.length,
       };
     } catch (err: any) {
@@ -1535,9 +1585,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
     setSyncFailed(false);
-
-    // Navigate away from any authenticated-only screen
-    setScreenRaw("feed");
+    setScreenRaw("feed"); // Navigate away from any authenticated-only screen
 
     // Prevent session restore from re-hydrating after explicit sign-out
     hasSignedOutRef.current = true;
@@ -1802,6 +1850,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setShakeToRandom,
       // Discogs sync
       folders,
+      createFolder,
+      renameFolder,
+      deleteFolder,
+      fetchFolders,
       sessionToken,
       discogsUsername,
       setDiscogsUsername,
@@ -1864,7 +1916,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hidePurgeIndicators, setHidePurgeIndicators,
       hideGalleryMeta, setHideGalleryMeta,
       shakeToRandom, setShakeToRandom,
-      folders,
+      folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,
       discogsUsername, setDiscogsUsername,
       isSyncing, isSyncingFollowing, syncProgress, lastSynced,

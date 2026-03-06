@@ -95,7 +95,7 @@ All authenticated `useQuery` subscriptions in `app-context.tsx` use a shared `au
 
 All authenticated Discogs API calls go through server-side Convex actions in `convex/discogs.ts`. The client never calls the Discogs API directly. Actions look up the user's credentials server-side via `getUserCredentials` (an internalQuery in `convex/discogsHelpers.ts`) and sign requests using HMAC-SHA1.
 
-**convex/discogs.ts** — `"use node"` directive. Contains 13 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchUserCollectionPage`, `proxyFetchCustomFields`. All take `sessionToken` as the first argument.
+**convex/discogs.ts** — `"use node"` directive. Contains 17 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`. All take `sessionToken` as the first argument.
 
 **convex/discogsHelpers.ts** — Contains `getUserCredentials` (internalQuery). Separated from `convex/discogs.ts` because Convex does not allow queries in `"use node"` runtime files. If adding new internal queries needed by Discogs actions, they must live here, not in `discogs.ts`.
 
@@ -160,6 +160,7 @@ src/
       discogs-api.ts     # Types, constants, pure utilities, and in-memory caches (HTTP functions removed — see Discogs API Proxy)
       feed-screen.tsx
       filter-drawer.tsx
+      folders-screen.tsx  # Folder management subview (accessed from Settings > Tools > Folders). Create, rename, delete folders. Folders 0/1 are read-only. Uses inline edit and confirmation modal patterns from sessions.tsx.
       following-screen.tsx
       last-played-utils.ts
       market-value.tsx
@@ -198,7 +199,7 @@ convex/                  # Convex backend functions and schema
   schema.ts
   users.ts             # getLatestUser (public bootstrap), getMe, upsert, updateLastSynced, updateCollectionValue, clearSession
   oauth.ts             # Public OAuth handshake — reads credentials from process.env, intentionally unauthenticated
-  discogs.ts           # "use node" — 13 server-side Discogs API proxy actions (see Discogs API Proxy)
+  discogs.ts           # "use node" — 17 server-side Discogs API proxy actions (see Discogs API Proxy)
   discogsHelpers.ts    # getUserCredentials internalQuery — separated from discogs.ts due to "use node" constraint
   purge_tags.ts
   sessions.ts
@@ -383,6 +384,17 @@ The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCo
 - Condition grades for the dropdowns: use `CONDITION_GRADES` exported from `discogs-api.ts` — do not hardcode them.
 - Custom field ID resolution for the Discogs update happens inside `proxyUpdateCollectionInstance` — it fetches the user's field definitions server-side to map field names to IDs.
 
+### Album Detail Enriched Metadata
+The album detail panel lazy-loads enriched metadata from the Discogs `/releases/{release_id}` endpoint via `proxyFetchRelease`. Key patterns:
+- **In-memory cache**: A module-level `Map<number, ReleaseData>` persists across panel open/close within the same session. No Convex persistence — this is session-scoped enrichment data.
+- **Stale guard**: The `useEffect` fetch uses a `let stale = false` + cleanup return pattern to prevent state updates after the component unmounts or the album changes.
+- **Hook ordering**: All hooks (`useState`, `useEffect`, `useCallback`, `useMemo`, `useAction`) must be called unconditionally before the two early returns (want item guard and null album guard). Moving hooks below early returns causes "Rendered fewer hooks than expected" errors.
+- **ReleaseData shape**: `{ country, notes, tracklist, credits, community, identifiers, genres, styles }`.
+- **Panel section order**: Hero → Your Copy (Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Discogs link → Mark as Played → Tracklist (collapsible, auto-collapses >8 tracks) → Credits (collapsed default, grouped by role) → Pressing Notes (collapsed default) → Identifiers (collapsed default) → Community (compact row) → Market Value → Sessions → Rate for Purge.
+- **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section. Never merge these.
+- **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
+- **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads, matching the market-value pattern.
+
 ### Image Sizing Convention
 Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
 - `thumb` — 150x150px — use for small display contexts (list rows, artwork grid, session thumbnails, feed compact cards, drawer thumbnails)
@@ -476,6 +488,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Live Discogs API sync via server-side Convex proxy actions (collection, folders, wantlist, collection value)
 - All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
 - Album instance editing (media/sleeve condition, notes, folder) from album detail panel
+- Folder management (create, rename, delete) from Settings > Tools > Folders via `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`
 - Wantlist write operations (`proxyAddToWantlist`, `proxyRemoveFromWantlist`) via Convex proxy actions
 - `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`)
 - `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
@@ -555,6 +568,9 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 **Key endpoints**:
 - Collection: `GET /users/{username}/collection/folders/0/releases`
 - Folders: `GET /users/{username}/collection/folders`
+- Create folder: `POST /users/{username}/collection/folders`
+- Rename folder: `POST /users/{username}/collection/folders/{folder_id}`
+- Delete folder: `DELETE /users/{username}/collection/folders/{folder_id}`
 - Want list: `GET /users/{username}/wants`
 - Add to wantlist: `PUT /users/{username}/wants/{release_id}`
 - Remove from wantlist: `DELETE /users/{username}/wants/{release_id}`
@@ -580,3 +596,15 @@ All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Di
 **Multi-folder dedup behavior**
 
 `proxyFetchCollection` in `convex/discogs.ts` deduplicates collection items by `release_id` after fetching all folders. If a release exists in more than one folder, only the first instance is kept. The second instance's folder assignment, condition notes, and grading are silently discarded. This is a known architectural assumption: one copy per release. Do not attempt to fix or change this behavior without explicit instruction from Shawn.
+
+**Folder management**
+
+The `folders` state in `app-context.tsx` is `{ id: number; name: string; count: number }[]` — not just names. `proxyFetchCollection` returns folder objects with IDs and counts. On cache hydration (cold load from Convex), folders are derived from album data as a fallback until `proxyFetchFolders` runs.
+
+Four context functions manage folders: `createFolder(name)`, `renameFolder(folderId, name)`, `deleteFolder(folderId)`, `fetchFolders()`. All wait for API success before updating local state (no optimistic updates). `renameFolder` also updates the `folder` name on all albums that reference the renamed folder's ID.
+
+Folder 0 ("All") is a virtual folder — always present, never editable. Folder 1 ("Uncategorized") is a real Discogs folder but cannot be renamed or deleted. The Folders management screen (`folders-screen.tsx`) enforces these constraints with locked visual treatment (Lock icon, no edit/delete controls).
+
+The `folderOptions` derivation in `album-detail.tsx` uses the centralized `folders` state directly — it no longer reverse-engineers folder IDs from album records.
+
+Consumers that iterate `folders` (filter-drawer, add-albums-drawer) access `folder.name` for display and `folder.id` for keys. The `activeFolder` state remains a string (folder name) for filtering.

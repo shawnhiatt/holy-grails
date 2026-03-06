@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, ExternalLink, Check, Plus, Play, Bookmark, Pencil, Zap, Disc3 } from "lucide-react";
+import { X, ExternalLink, Check, Plus, Play, Bookmark, Pencil, Zap, Disc3, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -62,6 +62,27 @@ interface EditFields {
   folder: string;
 }
 
+/* ─── Enriched release data types + cache ─── */
+
+interface ReleaseData {
+  country: string;
+  notes: string;
+  tracklist: { position: string; title: string; duration: string }[];
+  credits: { role: string; name: string }[];
+  community: {
+    rating: number | null;
+    ratingCount: number;
+    have: number;
+    want: number;
+  } | null;
+  identifiers: { type: string; value: string }[];
+  genres: string[];
+  styles: string[];
+}
+
+// In-memory cache keyed by release_id — persists across panel open/close within the same app session
+const releaseDataCache = new Map<number, ReleaseData>();
+
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
     selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
@@ -81,6 +102,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   } = useApp();
   const proxyUpdateInstance = useAction(api.discogs.proxyUpdateCollectionInstance);
   const proxyMoveToFolder = useAction(api.discogs.proxyMoveToFolder);
+  const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
   const [justPlayed, setJustPlayed] = useState(false);
 
   // Inline session list state
@@ -101,6 +123,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const [isSaving, setIsSaving] = useState(false);
   const [isAddingToWantlist, setIsAddingToWantlist] = useState(false);
 
+  // Enriched release data state
+  const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
+  const [isLoadingRelease, setIsLoadingRelease] = useState(false);
+
+  // Collapsible section states for enriched data
+  const [tracklistExpanded, setTracklistExpanded] = useState(false);
+  const [creditsExpanded, setCreditsExpanded] = useState(false);
+  const [pressingNotesExpanded, setPressingNotesExpanded] = useState(false);
+  const [identifiersExpanded, setIdentifiersExpanded] = useState(false);
+
   // Reset all state when album changes
   useEffect(() => {
     setJustPlayed(false);
@@ -110,7 +142,53 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     autoCheckedRef.current = null;
     setIsEditMode(false);
     setIsSaving(false);
+    // Reset enriched data sections
+    setTracklistExpanded(false);
+    setCreditsExpanded(false);
+    setPressingNotesExpanded(false);
+    setIdentifiersExpanded(false);
   }, [selectedAlbum?.id]);
+
+  // Fetch enriched release data when album changes
+  useEffect(() => {
+    if (!selectedAlbum || !sessionToken) {
+      setReleaseData(null);
+      setIsLoadingRelease(false);
+      return;
+    }
+
+    const releaseId = selectedAlbum.release_id;
+
+    // Check cache first
+    const cached = releaseDataCache.get(releaseId);
+    if (cached) {
+      setReleaseData(cached);
+      setIsLoadingRelease(false);
+      return;
+    }
+
+    let stale = false;
+    setIsLoadingRelease(true);
+    setReleaseData(null);
+
+    proxyFetchRelease({ sessionToken, releaseId })
+      .then((data) => {
+        if (stale) return;
+        const rd = data as ReleaseData;
+        releaseDataCache.set(releaseId, rd);
+        setReleaseData(rd);
+      })
+      .catch((err) => {
+        if (stale) return;
+        console.warn("[AlbumDetail] Release fetch failed:", err);
+        // Silently suppress — panel works fine without enriched data
+      })
+      .finally(() => {
+        if (!stale) setIsLoadingRelease(false);
+      });
+
+    return () => { stale = true; };
+  }, [selectedAlbum?.release_id, sessionToken]);
 
   // Enter edit mode — initialize form fields from current album
   const enterEditMode = useCallback(() => {
@@ -130,18 +208,14 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setIsSaving(false);
   }, []);
 
-  // Derive available folders (exclude "All") with their IDs for the move API
-  const folderOptions = useMemo(() => {
-    const seen = new Map<string, number>();
-    for (const a of albums) {
-      if (!seen.has(a.folder) && a.folder_id > 0) {
-        seen.set(a.folder, a.folder_id);
-      }
-    }
-    return Array.from(seen.entries())
-      .map(([name, id]) => ({ name, id }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [albums]);
+  // Available folders for the move-to-folder dropdown (exclude "All" virtual folder)
+  const folderOptions = useMemo(() =>
+    folders
+      .filter((f) => f.id > 0)
+      .map((f) => ({ name: f.name, id: f.id }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [folders]
+  );
 
   // Save handler
   const handleSave = useCallback(async () => {
@@ -271,6 +345,21 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     }
   }, [selectedAlbum, alreadyOnWantlist, isAddingToWantlist, addToWantList]);
 
+  // Group credits by role — must be above early returns to maintain hook order
+  const groupedCredits = useMemo(() => {
+    if (!releaseData?.credits.length) return [];
+    const map = new Map<string, string[]>();
+    for (const c of releaseData.credits) {
+      const existing = map.get(c.role);
+      if (existing) {
+        if (!existing.includes(c.name)) existing.push(c.name);
+      } else {
+        map.set(c.role, [c.name]);
+      }
+    }
+    return Array.from(map.entries()).map(([role, names]) => ({ role, names }));
+  }, [releaseData?.credits]);
+
   if (!selectedAlbum && selectedWantItem) {
     return (
       <WantItemDetailPanel
@@ -323,6 +412,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     </button>
   );
 
+  // Enriched data helpers
+  const hasTracklist = releaseData && releaseData.tracklist.length > 0;
+  const hasCredits = releaseData && releaseData.credits.length > 0;
+  const hasPressingNotes = releaseData && releaseData.notes.length > 0;
+  const hasCommunity = releaseData && releaseData.community &&
+    (releaseData.community.ratingCount > 0 || releaseData.community.have > 0 || releaseData.community.want > 0);
+
+  // Tracklist: determine if all durations are missing
+  const allDurationsMissing = hasTracklist && releaseData!.tracklist.every(t => !t.duration);
+
   return (
     <div className="flex flex-col h-full">
       {!hideHeader && (
@@ -340,6 +439,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       )}
 
       <div className="flex-1 overflow-y-auto">
+        {/* ═══ Hero ═══ */}
         {!hideImage && (
         <div className="p-4">
           <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
@@ -366,7 +466,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </div>
         </div>
 
-        {/* ═══ Edit form / Detail rows ═══ */}
+        {/* ═══ Edit form / Your Copy section ═══ */}
         {isEditMode ? (
           <div className="px-4 pb-4">
             <div className="rounded-[10px] p-3 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
@@ -456,7 +556,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 </select>
               </div>
 
-              {/* Notes */}
+              {/* Notes (user personal notes) */}
               <div className="flex flex-col gap-1">
                 <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Notes</label>
                 <textarea
@@ -525,24 +625,32 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </div>
         ) : (
           <>
-            {/* ═══ Detail rows ═══ */}
+            {/* ═══ Your Copy ═══ */}
             <div className="px-4 pb-4">
               <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
-                <DetailRow label="Year" value={String(selectedAlbum.year)} />
+                <DetailRow label="Format" value={selectedAlbum.format} />
                 <DetailRow label="Label" value={selectedAlbum.label} />
                 <DetailRow label="Catalog #" value={selectedAlbum.catalogNumber} />
-                <DetailRow label="Format" value={selectedAlbum.format} />
+                <DetailRow label="Year" value={String(selectedAlbum.year)} />
+                {releaseData?.country ? (
+                  <DetailRow label="Country" value={releaseData.country} />
+                ) : isLoadingRelease ? (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="flex-shrink-0" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>Country</span>
+                    <div className="rounded-[4px] animate-pulse" style={{ width: "48px", height: "14px", backgroundColor: "var(--c-border)" }} />
+                  </div>
+                ) : null}
                 <DetailRow label="Folder" value={selectedAlbum.folder} />
                 <DetailRow label="Media" value={selectedAlbum.mediaCondition} valueColor={conditionColor(selectedAlbum.mediaCondition, isDarkMode)} />
                 <DetailRow label="Sleeve" value={selectedAlbum.sleeveCondition} valueColor={conditionColor(selectedAlbum.sleeveCondition, isDarkMode)} />
                 {selectedAlbum.pricePaid && <DetailRow label="Paid" value={selectedAlbum.pricePaid} />}
-                {/* Render any user-defined custom fields (e.g. "Acquired From", "Last Cleaned") */}
                 {selectedAlbum.customFields?.map((cf, i) => (
                   <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} />
                 ))}
               </div>
             </div>
 
+            {/* User personal notes — always visible, never collapsible */}
             {selectedAlbum.notes && (
               <div className="px-4 pb-4">
                 <p className="uppercase tracking-wider mb-1.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Notes</p>
@@ -554,39 +662,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
         {!isEditMode && (
           <>
-            <div className="px-4 pb-4 flex items-center justify-between">
+            {/* Wantlist button intentionally absent from collection view — available in WantItemDetailPanel and other non-collection contexts */}
+            <div className="px-4 pb-4">
               <a href={selectedAlbum.discogsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#0078B4] hover:underline" style={{ fontSize: "14px", fontWeight: 500 }}>
                 View on Discogs<ExternalLink size={14} />
               </a>
-              {/* Add to Wantlist / On Wantlist indicator */}
-              <button
-                onClick={alreadyOnWantlist ? undefined : handleAddToWantlist}
-                disabled={isAddingToWantlist || alreadyOnWantlist}
-                className="flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-colors"
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  fontFamily: "'DM Sans', system-ui, sans-serif",
-                  color: alreadyOnWantlist ? "#EBFD00" : "var(--c-text-tertiary)",
-                  backgroundColor: alreadyOnWantlist
-                    ? (isDarkMode ? "rgba(235,253,0,0.1)" : "rgba(235,253,0,0.15)")
-                    : "transparent",
-                  border: alreadyOnWantlist ? "none" : "1px solid var(--c-border)",
-                  cursor: alreadyOnWantlist ? "default" : "pointer",
-                  opacity: isAddingToWantlist ? 0.7 : 1,
-                }}
-              >
-                {isAddingToWantlist ? (
-                  <Disc3 size={14} className="disc-spinner" />
-                ) : (
-                  <Zap
-                    size={14}
-                    fill={alreadyOnWantlist ? "#EBFD00" : "none"}
-                    color={alreadyOnWantlist ? "#EBFD00" : "var(--c-text-tertiary)"}
-                  />
-                )}
-                {alreadyOnWantlist ? "On Wantlist" : "Add to Wantlist"}
-              </button>
             </div>
 
             {/* ═══ Mark as Played button ═══ */}
@@ -643,6 +723,91 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 )}
               </p>
             </div>
+
+            {/* ═══ Tracklist (enriched, collapsible) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Tracklist" rows={4} />
+            ) : hasTracklist ? (
+              <TracklistSection
+                tracklist={releaseData!.tracklist}
+                isExpanded={tracklistExpanded}
+                onToggle={() => setTracklistExpanded(v => !v)}
+                allDurationsMissing={allDurationsMissing}
+              />
+            ) : null}
+
+            {/* ═══ Credits (enriched, collapsible) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Credits" rows={3} />
+            ) : hasCredits ? (
+              <CreditsSection
+                groupedCredits={groupedCredits}
+                isExpanded={creditsExpanded}
+                onToggle={() => setCreditsExpanded(v => !v)}
+              />
+            ) : null}
+
+            {/* ═══ Pressing Notes (enriched, collapsible) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Pressing Notes" rows={2} />
+            ) : hasPressingNotes ? (
+              <PressingNotesSection
+                notes={releaseData!.notes}
+                isExpanded={pressingNotesExpanded}
+                onToggle={() => setPressingNotesExpanded(v => !v)}
+              />
+            ) : null}
+
+            {/* ═══ Identifiers (enriched, collapsible) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Identifiers" rows={2} />
+            ) : releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
+              <div className="px-4 pb-4">
+                <button
+                  onClick={() => setIdentifiersExpanded(v => !v)}
+                  className="flex items-center gap-1 mb-2 transition-opacity hover:opacity-80"
+                >
+                  <ChevronDown
+                    size={13}
+                    style={{ color: "var(--c-text-muted)" }}
+                    className={`transition-transform ${identifiersExpanded ? "rotate-180" : ""}`}
+                  />
+                  <span className="uppercase tracking-wider" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+                    Identifiers
+                  </span>
+                </button>
+                <AnimatePresence>
+                  {identifiersExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex flex-col gap-1.5">
+                        {releaseData.identifiers.map((id, i) => (
+                          <DetailRow key={`id-${i}`} label={id.type} value={id.value} />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : null}
+
+            {/* ═══ Community (enriched, compact) ═══ */}
+            {isLoadingRelease ? (
+              <div className="px-4 pb-4">
+                <div className="flex items-center gap-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="rounded-[4px] animate-pulse" style={{ width: `${40 + i * 12}px`, height: "12px", backgroundColor: "var(--c-border)" }} />
+                  ))}
+                </div>
+              </div>
+            ) : hasCommunity ? (
+              <CommunityRow community={releaseData!.community!} />
+            ) : null}
 
             <MarketValueSection album={selectedAlbum} sessionToken={sessionToken} />
 
@@ -779,6 +944,234 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     </div>
   );
 }
+
+/* ─── Enriched data section components ─── */
+
+function TracklistSection({
+  tracklist,
+  isExpanded,
+  onToggle,
+  allDurationsMissing,
+}: {
+  tracklist: { position: string; title: string; duration: string }[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  allDurationsMissing: boolean;
+}) {
+  const COLLAPSE_THRESHOLD = 8;
+  const shouldCollapse = tracklist.length > COLLAPSE_THRESHOLD;
+  // If ≤8 tracks, always show all. If >8, collapsed by default — show first 8 until expanded.
+  const visibleTracks = shouldCollapse && !isExpanded
+    ? tracklist.slice(0, COLLAPSE_THRESHOLD)
+    : tracklist;
+
+  return (
+    <div className="px-4 pb-4">
+      <p className="uppercase tracking-wider mb-2" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+        Tracklist
+      </p>
+      <div className="flex flex-col">
+        {visibleTracks.map((track, i) => (
+          <div
+            key={i}
+            className="flex items-baseline gap-2 py-1.5"
+            style={{
+              borderTop: i > 0 ? "1px solid var(--c-border)" : undefined,
+            }}
+          >
+            <span
+              className="flex-shrink-0"
+              style={{
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--c-text-muted)",
+                minWidth: "24px",
+              }}
+            >
+              {track.position}
+            </span>
+            <span
+              className="flex-1 min-w-0"
+              style={{
+                fontSize: "13px",
+                fontWeight: 400,
+                color: "var(--c-text)",
+              }}
+            >
+              {track.title}
+            </span>
+            {!allDurationsMissing && track.duration && (
+              <span
+                className="flex-shrink-0"
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 400,
+                  color: "var(--c-text-muted)",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                }}
+              >
+                {track.duration}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      {shouldCollapse && (
+        <button
+          onClick={onToggle}
+          className="flex items-center gap-1 mt-2 transition-opacity hover:opacity-80"
+          style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}
+        >
+          <ChevronDown
+            size={13}
+            className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+          />
+          {isExpanded ? "Show fewer" : `Show all ${tracklist.length} tracks`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CreditsSection({
+  groupedCredits,
+  isExpanded,
+  onToggle,
+}: {
+  groupedCredits: { role: string; names: string[] }[];
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="px-4 pb-4">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1 mb-2 transition-opacity hover:opacity-80"
+      >
+        <ChevronDown
+          size={13}
+          style={{ color: "var(--c-text-muted)" }}
+          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+        />
+        <span className="uppercase tracking-wider" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+          Credits
+        </span>
+      </button>
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-col gap-2.5">
+              {groupedCredits.map(({ role, names }) => (
+                <div key={role}>
+                  <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+                    {role}
+                  </p>
+                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: "1.5" }}>
+                    {names.join(", ")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PressingNotesSection({
+  notes,
+  isExpanded,
+  onToggle,
+}: {
+  notes: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="px-4 pb-4">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1 mb-2 transition-opacity hover:opacity-80"
+      >
+        <ChevronDown
+          size={13}
+          style={{ color: "var(--c-text-muted)" }}
+          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+        />
+        <span className="uppercase tracking-wider" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+          Pressing Notes
+        </span>
+      </button>
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <p style={{
+              fontSize: "12px",
+              fontWeight: 400,
+              lineHeight: "1.7",
+              color: "var(--c-text-muted)",
+              fontFamily: "'DM Sans', monospace",
+              whiteSpace: "pre-wrap",
+            }}>
+              {notes}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function CommunityRow({ community }: { community: { rating: number | null; ratingCount: number; have: number; want: number } }) {
+  return (
+    <div className="px-4 pb-4">
+      <div className="flex items-center gap-3 flex-wrap" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+        {community.rating !== null && community.ratingCount > 0 && (
+          <span>{community.rating.toFixed(1)} / 5 ({community.ratingCount})</span>
+        )}
+        {community.have > 0 && (
+          <span>{community.have.toLocaleString()} have</span>
+        )}
+        {community.want > 0 && (
+          <span>{community.want.toLocaleString()} want</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EnrichedSkeleton({ label, rows }: { label: string; rows: number }) {
+  return (
+    <div className="px-4 pb-4">
+      <p className="uppercase tracking-wider mb-2" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+        {label}
+      </p>
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: rows }, (_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="rounded-[4px] animate-pulse" style={{ width: "24px", height: "12px", backgroundColor: "var(--c-border)" }} />
+            <div className="rounded-[4px] animate-pulse flex-1" style={{ height: "12px", backgroundColor: "var(--c-border)", maxWidth: `${60 + (i % 3) * 20}%` }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Shared detail row ─── */
 
 function DetailRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (

@@ -187,7 +187,7 @@ function DrawerContent({
   setSearchQuery: (v: string) => void;
   activeFolder: string;
   setActiveFolder: (v: string) => void;
-  folders: string[];
+  folders: { id: number; name: string; count: number }[];
   toggleAlbum: (albumId: string) => void;
   isAdded: (albumId: string) => boolean;
   isDarkMode: boolean;
@@ -328,11 +328,11 @@ function DrawerContent({
             {folders.length > 1 && (
               <div className="flex gap-1.5 overflow-x-auto pb-2.5 no-scrollbar">
                 {folders.map((folder) => {
-                  const isActive = activeFolder === folder;
+                  const isActive = activeFolder === folder.name;
                   return (
                     <button
-                      key={folder}
-                      onClick={() => setActiveFolder(folder)}
+                      key={folder.id}
+                      onClick={() => setActiveFolder(folder.name)}
                       className="flex-shrink-0 px-3 py-1 rounded-full tappable transition-colors"
                       style={{
                         fontSize: "12px",
@@ -346,7 +346,7 @@ function DrawerContent({
                           : "var(--c-text-muted)",
                       }}
                     >
-                      {folder}
+                      {folder.name}
                     </button>
                   );
                 })}
