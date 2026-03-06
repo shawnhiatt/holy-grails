@@ -134,7 +134,7 @@ export function Sessions() {
                   >
                     <button
                       onClick={() => setActiveSessionId(session.id)}
-                      className="w-full rounded-[12px] flex items-center gap-3 p-4 text-left transition-colors tappable"
+                      className="w-full rounded-[12px] flex items-center gap-3 p-4 text-left transition-colors"
                       style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
                     >
                       <div className="relative w-12 h-12 flex-shrink-0">

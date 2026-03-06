@@ -126,6 +126,29 @@ export function SlideOutPanel({
         onClick={onClose}
       />
 
+      {/* Fixed close button — replaces avatar in mobile header position (only when no title header) */}
+      {!title && <motion.button
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+        transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+        onClick={onClose}
+        aria-label="Close"
+        className="fixed lg:hidden w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+        style={{
+          top: "calc(env(safe-area-inset-top, 0px) + 13px)",
+          right: "16px",
+          zIndex: sheetZIndex + 1,
+          backgroundColor: isDarkMode ? "#1A3350" : "#FFFFFF",
+          color: isDarkMode ? "#E2E8F0" : "#0C284A",
+          boxShadow: isDarkMode
+            ? "0 2px 8px rgba(0,0,0,0.3)"
+            : "0 2px 8px rgba(12,40,74,0.15)",
+        }}
+      >
+        <X size={16} />
+      </motion.button>}
+
       {/* Sheet */}
       <motion.div
         initial={{ y: "100%", x: shakeEntrance ? 20 : 0 }}
@@ -184,6 +207,7 @@ export function SlideOutPanel({
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
               style={{
                 color: "var(--c-text-muted)",

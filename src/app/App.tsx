@@ -184,13 +184,6 @@ function AppContent() {
     };
     ensureMeta("apple-mobile-web-app-capable", "yes");
     ensureMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
-
-    if (!document.querySelector('link[rel="apple-touch-icon"]')) {
-      const link = document.createElement("link");
-      link.rel = "apple-touch-icon";
-      link.href = "https://holygrails022.figma.site/_assets/v11/b246641de89ec1b1a54bd184e0bd92fa4a1d488a.png";
-      document.head.appendChild(link);
-    }
   }, []);
 
   // Show splash when no data loaded and user hasn't authenticated or dismissed

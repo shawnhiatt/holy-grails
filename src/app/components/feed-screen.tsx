@@ -7,6 +7,7 @@ import {
   ChevronRight,
   TrendingUp,
   Bookmark,
+  GalleryVerticalEnd,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -671,20 +672,23 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   </p>
                 </div>
 
-                {/* Heart / "In collection" chip */}
+                {/* Heart / collection icon indicator */}
                 {inCollection ? (
                   <span
-                    className="flex-shrink-0 rounded-full"
-                    style={{
-                      fontSize: "10px",
-                      fontWeight: 500,
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                      backgroundColor: "var(--c-chip-bg)",
-                      color: "var(--c-text-tertiary)",
-                      padding: "2px 8px",
-                    }}
+                    className="flex-shrink-0 flex items-center gap-1.5"
+                    style={{ color: "#EBFD00", padding: "4px" }}
                   >
-                    In collection
+                    <GalleryVerticalEnd size={18} />
+                    <span
+                      className="hidden lg:inline"
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                      }}
+                    >
+                      In Collection
+                    </span>
                   </span>
                 ) : (
                   <button
@@ -696,19 +700,34 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     {inFlightIds.has(item.albumReleaseId) ? (
                       <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
                     ) : (
-                      <motion.div
-                        key={inWantList ? "filled" : "outline"}
-                        initial={{ scale: 0.7 }}
-                        animate={{ scale: 1 }}
-                        transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
-                      >
-                        <Heart
-                          size={18}
-                          fill={inWantList ? "#EBFD00" : "none"}
-                          color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
-                          strokeWidth={inWantList ? 0 : 1.5}
-                        />
-                      </motion.div>
+                      <span className="flex items-center gap-1.5">
+                        <motion.div
+                          key={inWantList ? "filled" : "outline"}
+                          initial={{ scale: 0.7 }}
+                          animate={{ scale: 1 }}
+                          transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
+                        >
+                          <Heart
+                            size={18}
+                            fill={inWantList ? "#EBFD00" : "none"}
+                            color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
+                            strokeWidth={inWantList ? 0 : 1.5}
+                          />
+                        </motion.div>
+                        {inWantList && (
+                          <span
+                            className="hidden lg:inline"
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 500,
+                              fontFamily: "'DM Sans', system-ui, sans-serif",
+                              color: "#EBFD00",
+                            }}
+                          >
+                            In Wantlist
+                          </span>
+                        )}
+                      </span>
                     )}
                   </button>
                 )}

@@ -1,14 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Check, Minus, HelpCircle, Disc3, Trash2 } from "lucide-react";
-import { motion, useMotionValue, useTransform, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
 import { getCachedMarketData } from "./discogs-api";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { getPriceAtCondition } from "./market-value";
-import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeTagTint, purgeIndicatorColor, purgeToast } from "./purge-colors";
-import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeIndicatorColor, purgeButtonBg, purgeButtonText, purgeToast } from "./purge-colors";
+import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 
 export function PurgeTracker() {
@@ -450,8 +450,15 @@ function StatChip({ label, tag, count, isActive, onClick, isDark }: {
 function SwipeableAlbumRow({ album, onTag, onTap, showPrice, priceTrigger, isDark }: {
   album: Album; onTag: (id: string, tag: PurgeTag) => void; onTap: () => void; showPrice?: boolean; priceTrigger?: number; isDark: boolean;
 }) {
-  const x = useMotionValue(0);
-  const swipingRef = useRef(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const keepZoneRef = useRef<HTMLDivElement>(null);
+  const cutZoneRef = useRef<HTMLDivElement>(null);
+
+  const isDraggingRef = useRef(false);
+  const hasDragged = useRef(false);
+  const pointerStartX = useRef(0);
+  const currentOffset = useRef(0);
 
   // Inline price for Cut albums
   const inlinePrice = useMemo(() => {
@@ -461,86 +468,163 @@ function SwipeableAlbumRow({ album, onTag, onTap, showPrice, priceTrigger, isDar
     return getPriceAtCondition(album, cached);
   }, [showPrice, album, priceTrigger]);
 
-  const keepClr = purgeTagColor("keep", isDark ?? false);
-  const cutClr = purgeTagColor("cut", isDark ?? false);
-  const maybeClr = purgeTagColor("maybe", isDark ?? false);
+  const keepClr = purgeTagColor("keep", isDark);
+  const cutClr = purgeTagColor("cut", isDark);
+  const maybeClr = purgeTagColor("maybe", isDark);
 
-  const keepBg = useTransform(x, [0, 100], ["rgba(62,152,66,0)", "rgba(62,152,66,0.1)"]);
-  const cutSwipeBg = useTransform(x, [-100, 0], [purgeTagTint("cut", isDark ?? false), "rgba(0,0,0,0)"]);
-  const keepOpacity = useTransform(x, [0, 60, 100], [0, 0, 1]);
-  const cutOpacity = useTransform(x, [-100, -60, 0], [1, 0, 0]);
+  const applyTransform = useCallback((x: number, transition?: string) => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.style.transition = transition ?? "none";
+    el.style.transform = `translateX(${x}px)`;
+    currentOffset.current = x;
+    // Show/hide zones based on direction
+    if (keepZoneRef.current) keepZoneRef.current.style.opacity = x > 0 ? "1" : "0";
+    if (cutZoneRef.current) cutZoneRef.current.style.opacity = x < 0 ? "1" : "0";
+  }, []);
 
-  const handleDragEnd = useCallback((_: any, info: { offset: { x: number } }) => {
-    if (info.offset.x > 80) onTag(album.id, "keep");
-    else if (info.offset.x < -80) onTag(album.id, "cut");
-    setTimeout(() => { swipingRef.current = false; }, 150);
-  }, [album.id, onTag]);
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    isDraggingRef.current = true;
+    hasDragged.current = false;
+    pointerStartX.current = e.clientX;
+    if (contentRef.current) contentRef.current.style.transition = "none";
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const delta = e.clientX - pointerStartX.current;
+    if (Math.abs(delta) > 5) hasDragged.current = true;
+    applyTransform(delta);
+  }, [applyTransform]);
+
+  const handlePointerUp = useCallback(() => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+
+    const x = currentOffset.current;
+    const absX = Math.abs(x);
+    const elementWidth = wrapperRef.current?.offsetWidth ?? 300;
+    const snapEasing = `cubic-bezier(${EASE_OUT.join(",")})`;
+
+    if (x > 0 && absX > elementWidth * 0.3) {
+      onTag(album.id, "keep");
+    } else if (x < 0 && absX > elementWidth * 0.3) {
+      onTag(album.id, "cut");
+    }
+
+    // Always snap back
+    applyTransform(
+      0,
+      `transform ${Math.round(DURATION_FAST * 1000)}ms ${snapEasing}`
+    );
+  }, [album.id, onTag, applyTransform]);
+
+  const handlePointerCancel = useCallback(() => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    applyTransform(
+      0,
+      `transform ${Math.round(DURATION_FAST * 1000)}ms cubic-bezier(${EASE_OUT.join(",")})`
+    );
+  }, [applyTransform]);
 
   return (
-    <div className="relative rounded-[10px] overflow-hidden">
-      <motion.div className="absolute inset-0 flex items-center justify-start pl-4 rounded-[10px]" style={{ backgroundColor: keepBg }}>
-        <motion.div className="flex items-center gap-1.5" style={{ opacity: keepOpacity }}>
-          <Check size={20} style={{ color: keepClr }} />
-          <span style={{ color: keepClr, fontSize: "12px", fontWeight: 500 }}>Keep</span>
-        </motion.div>
-      </motion.div>
-      <motion.div className="absolute inset-0 flex items-center justify-end pr-4 rounded-[10px]" style={{ backgroundColor: cutSwipeBg }}>
-        <motion.div className="flex items-center gap-1.5" style={{ opacity: cutOpacity }}>
-          <span style={{ color: cutClr, fontSize: "12px", fontWeight: 500 }}>Cut</span>
-          <Minus size={20} style={{ color: cutClr }} />
-        </motion.div>
-      </motion.div>
-
-      <motion.div
-        drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.5}
-        onDragStart={() => { swipingRef.current = true; }} onDragEnd={handleDragEnd} style={{ x }}
-        className="flex items-center gap-3 p-2.5 rounded-[10px] relative cursor-grab active:cursor-grabbing"
-        onClick={() => { if (!swipingRef.current) onTap(); }}
-        {...{ style: { x, backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" } }}
+    <div
+      ref={wrapperRef}
+      className="relative rounded-[10px] overflow-hidden"
+    >
+      {/* Keep zone — revealed when swiping right */}
+      <div
+        ref={keepZoneRef}
+        style={{
+          position: "absolute", top: 0, left: 0, bottom: 0, width: "100%",
+          backgroundColor: purgeButtonBg("keep", isDark),
+          zIndex: 1, display: "flex", alignItems: "center", justifyContent: "flex-start",
+          paddingLeft: 20, opacity: 0, borderRadius: "10px",
+        }}
       >
-        {album.purgeTag && (
-          <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full" style={{ backgroundColor: purgeIndicatorColor(album.purgeTag, isDark ?? false) }} />
-        )}
-        <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0 ml-1">
-          <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" draggable={false} />
+        <Check size={20} color={purgeButtonText("keep", isDark)} />
+        <span style={{ color: purgeButtonText("keep", isDark), fontSize: "13px", fontWeight: 600, marginLeft: 6 }}>Keep</span>
+      </div>
+
+      {/* Cut zone — revealed when swiping left */}
+      <div
+        ref={cutZoneRef}
+        style={{
+          position: "absolute", top: 0, right: 0, bottom: 0, width: "100%",
+          backgroundColor: purgeButtonBg("cut", isDark),
+          zIndex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end",
+          paddingRight: 20, opacity: 0, borderRadius: "10px",
+        }}
+      >
+        <span style={{ color: purgeButtonText("cut", isDark), fontSize: "13px", fontWeight: 600, marginRight: 6 }}>Cut</span>
+        <Minus size={20} color={purgeButtonText("cut", isDark)} />
+      </div>
+
+      {/* Card content — draggable layer */}
+      <div
+        ref={contentRef}
+        style={{
+          position: "relative", zIndex: 2,
+          cursor: "grab", touchAction: "pan-y", userSelect: "none",
+          backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)",
+          borderRadius: "10px",
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onClickCapture={(e) => { if (hasDragged.current) e.stopPropagation(); }}
+      >
+        <div
+          className="flex items-center gap-3 p-2.5 rounded-[10px] relative"
+          onClick={() => { if (!hasDragged.current) onTap(); }}
+        >
+          {album.purgeTag && (
+            <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full" style={{ backgroundColor: purgeIndicatorColor(album.purgeTag, isDark) }} />
+          )}
+          <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0 ml-1">
+            <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" draggable={false} />
+          </div>
+          <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+            <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
+            <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}</p>
+          </div>
+          {showPrice && inlinePrice && (
+            <span
+              className="flex-shrink-0 px-1.5 py-0.5 rounded-[6px] mr-0.5"
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                color: "var(--c-text-muted)",
+                backgroundColor: "var(--c-chip-bg)",
+              }}
+            >
+              {inlinePrice.currency === "USD" ? "$" : inlinePrice.currency === "EUR" ? "\u20AC" : inlinePrice.currency === "GBP" ? "\u00A3" : ""}
+              {Math.round(inlinePrice.value)}
+            </span>
+          )}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "keep" ? null : "keep"); }}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              style={{ backgroundColor: album.purgeTag === "keep" ? purgeTagBg("keep", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "keep" ? keepClr : "var(--c-text-faint)" }}>
+              <Check size={14} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "maybe" ? null : "maybe"); }}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              style={{ backgroundColor: album.purgeTag === "maybe" ? purgeTagBg("maybe", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "maybe" ? maybeClr : "var(--c-text-faint)" }}>
+              <HelpCircle size={14} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "cut" ? null : "cut"); }}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              style={{ backgroundColor: album.purgeTag === "cut" ? purgeTagBg("cut", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "cut" ? cutClr : "var(--c-text-faint)" }}>
+              <Minus size={14} />
+            </button>
+          </div>
         </div>
-        <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-          <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
-          <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}</p>
-        </div>
-        {showPrice && inlinePrice && (
-          <span
-            className="flex-shrink-0 px-1.5 py-0.5 rounded-[6px] mr-0.5"
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              color: "var(--c-text-muted)",
-              backgroundColor: "var(--c-chip-bg)",
-            }}
-          >
-            {inlinePrice.currency === "USD" ? "$" : inlinePrice.currency === "EUR" ? "\u20AC" : inlinePrice.currency === "GBP" ? "\u00A3" : ""}
-            {Math.round(inlinePrice.value)}
-          </span>
-        )}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "keep" ? null : "keep"); }}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-            style={{ backgroundColor: album.purgeTag === "keep" ? purgeTagTint("keep", isDark ?? false) : "var(--c-chip-bg)", color: album.purgeTag === "keep" ? keepClr : "var(--c-text-faint)" }}>
-            <Check size={14} />
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "maybe" ? null : "maybe"); }}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-            style={{ backgroundColor: album.purgeTag === "maybe" ? purgeTagTint("maybe", isDark ?? false) : "var(--c-chip-bg)", color: album.purgeTag === "maybe" ? maybeClr : "var(--c-text-faint)" }}>
-            <HelpCircle size={14} />
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "cut" ? null : "cut"); }}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-            style={{ backgroundColor: album.purgeTag === "cut" ? purgeTagTint("cut", isDark ?? false) : "var(--c-chip-bg)", color: album.purgeTag === "cut" ? cutClr : "var(--c-text-faint)" }}>
-            <Minus size={14} />
-          </button>
-        </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
