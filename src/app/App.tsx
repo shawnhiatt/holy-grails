@@ -367,7 +367,17 @@ function AppContent() {
               style={{
                 paddingTop: "env(safe-area-inset-top, 0px)",
                 ...(screen === "feed"
-                  ? { position: "absolute" as const, top: 0, left: 0, right: 0, zIndex: 50 }
+                  ? {
+                      position: "absolute" as const,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      zIndex: 50,
+                      background: heroVisible ? "transparent" : "var(--c-surface)",
+                      backdropFilter: heroVisible ? "blur(12px)" : "none",
+                      WebkitBackdropFilter: heroVisible ? "blur(12px)" : "none",
+                      transition: "background 300ms ease, backdrop-filter 300ms ease, -webkit-backdrop-filter 300ms ease",
+                    }
                   : { flexShrink: 0 }),
               }}
             >

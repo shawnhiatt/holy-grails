@@ -153,12 +153,7 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
       className="flex items-center justify-between lg:hidden px-[16px]"
       style={{
         height: "58px",
-        background: screen === "feed"
-          ? (transparent ? "transparent" : "var(--c-bg)")
-          : "transparent",
-        backdropFilter: transparent ? "blur(12px)" : "none",
-        WebkitBackdropFilter: transparent ? "blur(12px)" : "none",
-        transition: "background 300ms ease, backdrop-filter 300ms ease, -webkit-backdrop-filter 300ms ease",
+        background: "transparent",
       }}
     >
       {/* Left: Following */}
