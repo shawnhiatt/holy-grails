@@ -43,75 +43,54 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function formatAddedMonthYear(iso: string): string {
-  const d = new Date(iso);
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
-  return `Added ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
+/* ── Welcome greeting — time-of-day bucketed, stable per calendar day ── */
 
-/* ── Recommended card headings — time-of-day bucketed ── */
-
-const recommendedHeadingsByBucket: Record<string, string[]> = {
+const welcomeGreetings: Record<string, string[]> = {
   morning: [
-    "Good morning. This one's been waiting.",
-    "Morning. Pull this out before the day gets away from you.",
-    "Early start. Good call. Play this.",
-    "You didn't buy all these records to look at them. Start here.",
-    "Morning pick. You've had this one since [added year].",
-    "The day's yours. Begin with this.",
-    "Side A. Right now.",
-    "A good morning deserves a good record. Here's one.",
-    "Rise and spin. This one first.",
-    "You've owned this since [added year]. Morning seems right.",
+    "Good morning, [username].",
+    "Rise and shine, [username].",
+    "Morning, [username]. Time to put something on.",
   ],
   afternoon: [
-    "This one's been sitting on the shelf too long.",
-    "Afternoon. No excuse not to play this.",
-    "Pull this one out. You know you've been meaning to.",
-    "This record is overdue. Today's the day.",
-    "You bought this for a reason. Remember what it was.",
-    "Mid-session energy. This one delivers.",
-    "Not just for display. Put it on.",
-    "This one holds up. Trust the collection.",
-    "The afternoon belongs to records like this.",
-    "Give this one the listen it deserves.",
+    "Good afternoon, [username].",
+    "Afternoon, [username].",
+    "Hope your day's going well, [username].",
   ],
   evening: [
-    "Tonight's the night for this one.",
-    "This one was made for evenings. Full listen. No skipping.",
-    "The needle hasn't touched this in a while. Fix that.",
-    "Good evening. This one's ready when you are.",
-    "Front to back. Tonight.",
-    "You've had this since [added year]. It's waited long enough.",
-    "This one's been patient. Your turn.",
-    "The evening belongs to this record.",
-    "Don't overthink it. Play this tonight.",
-    "Side A is waiting. So is side B.",
+    "Good evening, [username].",
+    "Evening, [username].",
+    "Wind down with something good, [username].",
   ],
   lateNight: [
-    "Still up? Good. So is this record.",
-    "Late night, this one. No question.",
-    "Everyone else is asleep. Perfect time for this.",
-    "The after-hours pick. You know you want to.",
-    "Nobody else is awake. Play this one loud.",
-    "Late night crate logic. This one wins.",
-    "This record has been waiting for exactly this moment.",
-    "It's late. This one fits.",
-    "The best listening happens after midnight. Start here.",
-    "You didn't stay up this late to not play anything.",
+    "Still up, [username]?",
+    "Late night listening, [username]?",
+    "Good night, [username]. One more record.",
   ],
 };
 
-function getRecommendedHeading(bucket: string, addedYear?: string): string {
-  const pool = recommendedHeadingsByBucket[bucket] ?? recommendedHeadingsByBucket.afternoon;
-  const eligible = addedYear
-    ? pool
-    : pool.filter((h) => !h.includes("[added year]"));
-  const pick = pickRandom(eligible.length > 0 ? eligible : pool);
-  return addedYear ? pick.replace(/\[added year\]/g, addedYear) : pick;
+function getWelcomeGreeting(bucket: string, username: string): string {
+  const pool = welcomeGreetings[bucket] ?? welcomeGreetings.afternoon;
+  const dayIndex = new Date().getDate() % pool.length;
+  return pool[dayIndex].replace(/\[username\]/g, username);
+}
+
+/* ── Decades section flavor headers ── */
+
+const decadeFlavor: Record<string, string> = {
+  "1950s": "Your 1950s Records: Back When It All Started",
+  "1960s": "Your 1960s Records: The Golden Era",
+  "1970s": "Your 1970s Records: Peak Vinyl",
+  "1980s": "Your 1980s Records: Big Sounds, Big Hair",
+  "1990s": "Your 1990s Records: Peak '90s Energy",
+  "2000s": "Your 2000s Records: The Comeback Era",
+  "2010s": "Your 2010s Records: The Revival",
+  "2020s": "Your 2020s Records: Fresh Pressed",
+};
+
+function getDecadeLabel(year: number): string | null {
+  if (year <= 0) return null;
+  const decadeStart = Math.floor(year / 10) * 10;
+  return `${decadeStart}s`;
 }
 
 
@@ -227,6 +206,32 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       .slice(0, 12);
   }, [albums]);
 
+  // Decades — pick a random eligible decade on mount, stable for session
+  const [decadesSpotlight] = useState(() => {
+    if (albums.length === 0) return null;
+
+    // Group albums by decade (skip year === 0)
+    const byDecade = new Map<string, typeof albums>();
+    for (const a of albums) {
+      const label = getDecadeLabel(a.year);
+      if (!label) continue;
+      const arr = byDecade.get(label) ?? [];
+      arr.push(a);
+      byDecade.set(label, arr);
+    }
+
+    // Filter to decades with at least 5 albums
+    const eligible = [...byDecade.entries()].filter(([, arr]) => arr.length >= 5);
+    if (eligible.length === 0) return null;
+
+    const [decade, decadeAlbums] = eligible[Math.floor(Math.random() * eligible.length)];
+    // Shuffle and take up to 10
+    const shuffled = [...decadeAlbums].sort(() => Math.random() - 0.5).slice(0, 10);
+    const header = decadeFlavor[decade] ?? `Your ${decade} Records`;
+
+    return { decade, header, albums: shuffled };
+  });
+
   // From the Depths — 10 random albums, reshuffled every mount
   const [depthsAlbums] = useState(() => {
     if (albums.length === 0) return [];
@@ -275,8 +280,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   }, [albums]);
 
   // Recommended album — pick based on time-of-day weighting
-  const { recommendedAlbum, recommendedHeading } = useMemo(() => {
-    if (albums.length === 0) return { recommendedAlbum: null, recommendedHeading: "" };
+  const recommendedAlbum = useMemo(() => {
+    if (albums.length === 0) return null;
     const bucket = getTimeBucket();
     const depthsIds = new Set(depthsAlbums.map((a) => a.id));
 
@@ -289,7 +294,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     };
 
     const candidates = albums.filter((a) => !depthsIds.has(a.id));
-    if (candidates.length === 0) return { recommendedAlbum: null, recommendedHeading: "" };
+    if (candidates.length === 0) return null;
 
     // Build scored list
     const scored = candidates.map((a) => {
@@ -321,13 +326,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     const topCandidates = scored.filter((s) => s.score >= topScore - 1);
     const picked = pickRandom(topCandidates);
 
-    // Generate heading with [added year] substitution
-    const addedYear = picked.album.dateAdded
-      ? new Date(picked.album.dateAdded).getFullYear().toString()
-      : undefined;
-    const heading = getRecommendedHeading(bucket, addedYear);
-
-    return { recommendedAlbum: picked.album, recommendedHeading: heading };
+    return picked.album;
   }, [albums, lastPlayed, depthsAlbums]);
 
   // Purge evaluator — pick next album to rate
@@ -367,8 +366,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const hasData = albums.length > 0;
   const hasFollowing = followingFeed.length > 0;
 
-  // Scroll-linked hero visibility for header transparency
-  const heroRef = useRef<HTMLDivElement>(null);
+  // Welcome greeting — stable per calendar day, changes by time-of-day bucket
+  const welcomeGreeting = useMemo(() => {
+    if (!discogsUsername) return "";
+    const bucket = getTimeBucket();
+    return getWelcomeGreeting(bucket, discogsUsername);
+  }, [discogsUsername]);
+
+  // Scroll-linked header transparency
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleFeedScroll = useCallback(() => {
     if (!scrollRef.current || !onHeroVisibility) return;
@@ -515,6 +520,111 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           {depthsAlbums.slice(0, 4).map((album) => (
             <DepthsAlbumCard
               key={`depths-desk-${album.id}`}
+              album={album}
+              onTap={handleDepthsTap}
+              overlay={
+                <WantlistHeartButton
+                  releaseId={album.release_id}
+                  masterId={album.master_id}
+                  title={album.title}
+                  artist={album.artist}
+                  cover={album.cover}
+                  thumb={album.thumb}
+                  year={album.year}
+                  label={album.label}
+                  variant="overlay"
+                />
+              }
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  /* ─────────────── DECADES SECTION ─────────────── */
+  const DecadesSection = decadesSpotlight ? (
+    <div>
+      {/* Section header */}
+      <div className="px-[16px] lg:px-0 mb-[10px]">
+        <p style={sectionTitleStyle}>{decadesSpotlight.header}</p>
+        <p
+          style={{
+            fontSize: "13px",
+            fontWeight: 400,
+            color: "var(--c-text-secondary)",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            marginTop: "2px",
+            lineHeight: 1.4,
+          }}
+        >
+          A decade from your collection.
+        </p>
+      </div>
+
+      {/* Mobile: horizontal swipeable carousel */}
+      <div className="lg:hidden">
+        <style>{`.decades-feed-scroll::-webkit-scrollbar { display: none; }`}</style>
+        <div
+          className="decades-feed-scroll"
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            overflowX: "auto",
+            scrollSnapType: "x mandatory",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+            gap: "12px",
+            paddingLeft: "16px",
+            scrollPaddingLeft: "16px",
+            paddingBottom: "4px",
+          }}
+        >
+          {decadesSpotlight.albums.map((album) => (
+            <div
+              key={`decades-${album.id}`}
+              style={{
+                flex: "0 0 82%",
+                scrollSnapAlign: "start",
+                minWidth: 0,
+              }}
+            >
+              <DepthsAlbumCard
+                album={album}
+                onTap={handleDepthsTap}
+                overlay={
+                  <WantlistHeartButton
+                    releaseId={album.release_id}
+                    masterId={album.master_id}
+                    title={album.title}
+                    artist={album.artist}
+                    cover={album.cover}
+                    thumb={album.thumb}
+                    year={album.year}
+                    label={album.label}
+                    variant="overlay"
+                  />
+                }
+              />
+            </div>
+          ))}
+          {/* Spacer div to enforce right padding in scroll container */}
+          <div style={{ minWidth: "16px", flexShrink: 0 }} />
+        </div>
+      </div>
+
+      {/* Desktop: static grid */}
+      <div className="hidden lg:block">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${Math.min(decadesSpotlight.albums.length, 4)}, 1fr)`,
+            gap: "16px",
+          }}
+        >
+          {decadesSpotlight.albums.slice(0, 4).map((album) => (
+            <DepthsAlbumCard
+              key={`decades-desk-${album.id}`}
               album={album}
               onTap={handleDepthsTap}
               overlay={
@@ -1442,105 +1552,84 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </div>
   );
 
-  /* ─────────────── RECOMMENDED HERO ─────────────── */
-  const recTextShadow = "0 1px 8px rgba(0,0,0,0.6), 0 2px 20px rgba(0,0,0,0.4)";
+  /* ─────────────── RECOMMENDED CARD ─────────────── */
 
-  /** Mobile full-bleed hero — extends behind header */
-  const RecommendedHero = recommendedAlbum ? (() => {
+  /** Standard card for recommended album — used on both mobile and desktop */
+  const RecommendedCard = recommendedAlbum ? (() => {
     const album = recommendedAlbum;
-    const contextLine = formatAddedMonthYear(album.dateAdded);
 
     return (
       <div
-        ref={heroRef}
-        className="cursor-pointer lg:hidden"
+        className="rounded-[12px] overflow-hidden cursor-pointer group"
         style={{
-          position: "relative",
-          width: "100%",
-          height: "56vh",
-          minHeight: "380px",
-          overflow: "hidden",
+          ...cardStyle,
+          display: "flex",
+          flexDirection: "column",
         }}
         onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
       >
-        {/* Album art — full bleed with safe area offset */}
-        <img
-          src={album.cover}
-          alt=""
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
-            paddingTop: "env(safe-area-inset-top, 0px)",
-          }}
-        />
-        {/* Top scrim — header + status bar legibility */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "30%",
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0))",
-            pointerEvents: "none",
-          }}
-        />
-        {/* Bottom gradient — text legibility */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: "65%",
-            background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)",
-            pointerEvents: "none",
-          }}
-        />
-        {/* Content overlay */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "0 20px 24px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "4px",
-            zIndex: 1,
-          }}
-        >
-          {/* Editorial heading */}
+        {/* Cover art */}
+        <div className="relative aspect-square overflow-hidden">
+          <img
+            src={album.cover}
+            alt={`${album.artist} - ${album.title}`}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            draggable={false}
+          />
+          {/* Bookmark button — bottom right of artwork */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ position: "absolute", bottom: "10px", right: "10px", zIndex: 2 }}
+          >
+            <button
+              onClick={() => openSessionPicker(album.id)}
+              className="tappable"
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                background: "rgba(0, 0, 0, 0.4)",
+                backdropFilter: "blur(4px)",
+                WebkitBackdropFilter: "blur(4px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                flexShrink: 0,
+                border: "none",
+              }}
+            >
+              <Bookmark
+                size={16}
+                color={isAlbumInAnySession(album.id) ? "#ACDEF2" : "#FFFFFF"}
+                {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Metadata */}
+        <div className="px-3 pt-[10px] pb-3" style={{ minWidth: 0, overflow: "hidden" }}>
           <p
             style={{
-              fontSize: "15px",
+              fontSize: "13px",
               fontWeight: 500,
-              color: "rgba(255,255,255,0.7)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              lineHeight: 1.4,
-              textShadow: recTextShadow,
-              maxWidth: "85%",
+              color: "var(--c-text-secondary)",
+              lineHeight: 1.35,
               marginBottom: "6px",
             }}
           >
-            {recommendedHeading}
+            How about you give this a spin?
           </p>
-          {/* Album title */}
           <p
             style={{
-              fontSize: "32px",
+              fontSize: "18px",
               fontWeight: 700,
-              color: "#FFFFFF",
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              lineHeight: 1.15,
-              letterSpacing: "-0.5px",
-              textShadow: recTextShadow,
+              color: "var(--c-text)",
+              lineHeight: 1.2,
+              letterSpacing: "-0.3px",
               display: "-webkit-box",
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
@@ -1550,15 +1639,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           >
             {album.title}
           </p>
-          {/* Artist · Year */}
           <p
+            className="mt-[3px]"
             style={{
               fontSize: "14px",
               fontWeight: 400,
-              color: "rgba(255,255,255,0.8)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              lineHeight: 1.35,
-              textShadow: recTextShadow,
+              color: "var(--c-text-secondary)",
+              lineHeight: 1.3,
               display: "block",
               whiteSpace: "nowrap",
               overflow: "hidden",
@@ -1569,109 +1657,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           >
             {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
           </p>
-          {/* Context line */}
-          <p
-            style={{
-              fontSize: "12px",
-              fontWeight: 400,
-              color: "rgba(255,255,255,0.55)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              lineHeight: 1.35,
-              textShadow: recTextShadow,
-            }}
-          >
-            {contextLine}
-          </p>
-        </div>
-        {/* Bookmark button */}
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{ position: "absolute", bottom: "24px", right: "20px", zIndex: 2 }}
-        >
-          <button
-            onClick={() => openSessionPicker(album.id)}
-            className="tappable"
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              background: "rgba(0, 0, 0, 0.4)",
-              backdropFilter: "blur(4px)",
-              WebkitBackdropFilter: "blur(4px)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              flexShrink: 0,
-              border: "none",
-            }}
-          >
-            <Bookmark
-              size={18}
-              color={isAlbumInAnySession(album.id) ? "#ACDEF2" : "#FFFFFF"}
-              {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
-            />
-          </button>
-        </div>
-      </div>
-    );
-  })() : null;
-
-  /** Desktop recommended card — standard card layout (no bleed) */
-  const RecommendedCardDesktop = recommendedAlbum ? (() => {
-    const album = recommendedAlbum;
-    const contextLine = formatAddedMonthYear(album.dateAdded);
-
-    return (
-      <div
-        className="rounded-[12px] overflow-hidden cursor-pointer"
-        style={{ position: "relative", width: "100%", aspectRatio: "2.5 / 1", minHeight: "280px" }}
-        onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
-      >
-        <img
-          src={album.cover}
-          alt=""
-          aria-hidden
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
-        />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)" }} />
-        <div
-          style={{
-            position: "relative", zIndex: 1,
-            display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start",
-            padding: "28px 72px 28px 32px", height: "100%",
-          }}
-        >
-          <p style={{ fontSize: "18px", fontWeight: 500, color: "rgba(255,255,255,0.7)", fontFamily: "'DM Sans', system-ui, sans-serif", lineHeight: 1.4, textShadow: recTextShadow, maxWidth: "60%" }}>
-            {recommendedHeading}
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            <p style={{
-              fontSize: "36px", fontWeight: 700, color: "#FFFFFF",
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              lineHeight: 1.2, textShadow: recTextShadow,
-              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%",
-            } as React.CSSProperties}>
-              {album.title}
-            </p>
-            <p style={{
-              fontSize: "14px", fontWeight: 400, color: "rgba(255,255,255,0.8)",
-              fontFamily: "'DM Sans', system-ui, sans-serif", lineHeight: 1.35, textShadow: recTextShadow,
-              display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%",
-            } as React.CSSProperties}>
-              {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
-            </p>
-            <p style={{ fontSize: "12px", fontWeight: 400, color: "rgba(255,255,255,0.55)", fontFamily: "'DM Sans', system-ui, sans-serif", lineHeight: 1.35, textShadow: recTextShadow }}>
-              {contextLine}
-            </p>
-          </div>
-        </div>
-        <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: "28px", right: "28px", zIndex: 2 }}>
-          <button onClick={() => openSessionPicker(album.id)} className="tappable"
-            style={{ width: "40px", height: "40px", borderRadius: "50%", background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, border: "none" }}
-          >
-            <Bookmark size={18} color={isAlbumInAnySession(album.id) ? "#ACDEF2" : "#FFFFFF"} {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})} />
-          </button>
         </div>
       </div>
     );
@@ -1693,8 +1678,25 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
               <div className="flex flex-col gap-[24px]">
-                {/* 1. Recommended (full width card) */}
-                {RecommendedCardDesktop}
+                {/* 0. Welcome greeting */}
+                {welcomeGreeting && (
+                  <p
+                    style={{
+                      fontSize: "48px",
+                      fontWeight: 700,
+                      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                      color: "var(--c-text)",
+                      lineHeight: 1.15,
+                      letterSpacing: "-0.5px",
+                      paddingTop: "8px",
+                    }}
+                  >
+                    {welcomeGreeting}
+                  </p>
+                )}
+
+                {/* 1. Recommended */}
+                {RecommendedCard}
 
                 {/* 2. Recently Added */}
                 {RecentlyAddedSection}
@@ -1705,10 +1707,13 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 {/* 4. Following Activity */}
                 {FollowingActivityCard}
 
-                {/* 5. From the Depths */}
+                {/* 5. Decades */}
+                {DecadesSection}
+
+                {/* 6. From the Depths */}
                 {DepthsSection}
 
-                {/* 6. Purge Tracker + 7. Insights */}
+                {/* 7. Purge Tracker + 8. Insights */}
                 <div className="grid grid-cols-2 gap-6">
                   <div>{PurgeTrackerCard}</div>
                   <div>{InsightsCard}</div>
@@ -1722,8 +1727,28 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
           {/* ═══ MOBILE STACKED LAYOUT ═══ */}
           <div className="lg:hidden flex flex-col">
-            {/* 1. Recommended Hero — full bleed, no padding */}
-            {hasData && RecommendedHero}
+            {/* 0. Welcome greeting — below header clearance */}
+            {hasData && welcomeGreeting && (
+              <div style={{ paddingTop: "74px", paddingLeft: "16px", paddingRight: "16px", paddingBottom: "20px" }}>
+                <p
+                  style={{
+                    fontSize: "36px",
+                    fontWeight: 700,
+                    fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                    color: "var(--c-text)",
+                    lineHeight: 1.15,
+                    letterSpacing: "-0.5px",
+                  }}
+                >
+                  {welcomeGreeting}
+                </p>
+              </div>
+            )}
+
+            {/* 1. Recommended — standard card */}
+            {hasData && (
+              <div className="px-[16px]">{RecommendedCard}</div>
+            )}
 
             <div className="flex flex-col gap-[28px] pt-[20px]">
               {/* 2. Recently Added */}
@@ -1739,15 +1764,18 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 <div className="px-[16px]">{FollowingActivityCard}</div>
               )}
 
-              {/* 5. From the Depths */}
+              {/* 5. Decades */}
+              {hasData && DecadesSection}
+
+              {/* 6. From the Depths */}
               {hasData && DepthsSection}
 
-              {/* 6. Purge Tracker */}
+              {/* 7. Purge Tracker */}
               {hasData && (
                 <div className="px-[16px]">{PurgeTrackerCard}</div>
               )}
 
-              {/* 7. Insights */}
+              {/* 8. Insights */}
               {hasData && (
                 <div className="px-[16px]">{InsightsCard}</div>
               )}
