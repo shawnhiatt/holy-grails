@@ -455,6 +455,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Confirm-removal dialog | `z-[200]` | following-screen.tsx |
 | Install nudge sheet | `z-[150]` | install-nudge.tsx |
 | Install nudge backdrop | `z-[149]` | install-nudge.tsx |
+| Lightbox overlay | `z-[140]` | album-detail.tsx |
+| Lightbox backdrop | `z-[135]` | album-detail.tsx |
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
 | Wantlist crossover prompt | `z-[125]` | wantlist-crossover-prompt.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |

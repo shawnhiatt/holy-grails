@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, ExternalLink, Check, Plus, Play, Bookmark, Pencil, Zap, Disc3, ChevronDown } from "lucide-react";
+import { X, ExternalLink, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -9,7 +9,6 @@ import { MarketValueSection } from "./market-value";
 import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButtonText, purgeToast, purgeClearToast } from "./purge-colors";
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
-import { AccordionSection } from "./accordion-section";
 import { CONDITION_GRADES, type WantItem } from "./discogs-api";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -78,6 +77,13 @@ interface ReleaseData {
   identifiers: { type: string; value: string }[];
   genres: string[];
   styles: string[];
+  images?: Array<{
+    uri: string;
+    uri150: string;
+    type: "primary" | "secondary";
+    width: number;
+    height: number;
+  }>;
 }
 
 // In-memory cache keyed by release_id — persists across panel open/close within the same app session
@@ -127,11 +133,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
   const [isLoadingRelease, setIsLoadingRelease] = useState(false);
 
-  // Collapsible section states for enriched data
+  // Tracklist show more/less state
   const [tracklistExpanded, setTracklistExpanded] = useState(false);
-  const [creditsExpanded, setCreditsExpanded] = useState(false);
-  const [pressingNotesExpanded, setPressingNotesExpanded] = useState(false);
-  const [identifiersExpanded, setIdentifiersExpanded] = useState(false);
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Reset all state when album changes
   useEffect(() => {
@@ -142,11 +149,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     autoCheckedRef.current = null;
     setIsEditMode(false);
     setIsSaving(false);
-    // Reset enriched data sections
     setTracklistExpanded(false);
-    setCreditsExpanded(false);
-    setPressingNotesExpanded(false);
-    setIdentifiersExpanded(false);
+    setLightboxOpen(false);
+    setLightboxIndex(0);
   }, [selectedAlbum?.id]);
 
   // Fetch enriched release data when album changes
@@ -418,11 +423,14 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const hasPressingNotes = releaseData && releaseData.notes.length > 0;
   const hasCommunity = releaseData && releaseData.community &&
     (releaseData.community.ratingCount > 0 || releaseData.community.have > 0 || releaseData.community.want > 0);
+  const releaseImages = releaseData?.images || [];
+  const hasImages = releaseImages.length > 1;
 
   // Tracklist: determine if all durations are missing
-  const allDurationsMissing = hasTracklist && releaseData!.tracklist.every(t => !t.duration);
+  const allDurationsMissing = !!hasTracklist && releaseData!.tracklist.every(t => !t.duration);
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {!hideHeader && (
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderColor: "var(--c-border-strong)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}>
@@ -446,6 +454,29 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
           </div>
         </div>
+        )}
+
+        {/* ═══ Image thumbnail strip ═══ */}
+        {isLoadingRelease && !releaseData && (
+          <div className="px-4 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
+            ))}
+          </div>
+        )}
+        {hasImages && (
+          <div className="px-4 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {releaseImages.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
+                style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
+              >
+                <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </button>
+            ))}
+          </div>
         )}
 
         <div className="px-4 pb-4">
@@ -635,9 +666,31 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 {releaseData?.country ? (
                   <DetailRow label="Country" value={releaseData.country} />
                 ) : isLoadingRelease ? (
-                  <div className="flex items-start justify-between gap-4">
-                    <span className="flex-shrink-0" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>Country</span>
-                    <div className="rounded-[4px] animate-pulse" style={{ width: "48px", height: "14px", backgroundColor: "var(--c-border)" }} />
+                  <div className="flex items-start gap-3">
+                    <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "1px" }}>Country</span>
+                    <div className="rounded-[4px] animate-pulse" style={{ width: "56px", height: "12px", backgroundColor: "var(--c-border)", marginTop: "2px" }} />
+                  </div>
+                ) : null}
+                {/* Genres / Styles pills */}
+                {(releaseData?.genres?.length || releaseData?.styles?.length) ? (
+                  <div className="flex items-start gap-3">
+                    <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "3px" }}>Genres</span>
+                    <div className="flex flex-wrap gap-1.5 flex-1">
+                      {[...(releaseData!.genres || []), ...(releaseData!.styles || [])].map((g, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full" style={{ fontSize: "11px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : isLoadingRelease ? (
+                  <div className="flex items-start gap-3">
+                    <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "3px" }}>Genres</span>
+                    <div className="flex gap-1.5">
+                      <div className="rounded-full animate-pulse" style={{ width: "52px", height: "20px", backgroundColor: "var(--c-border)" }} />
+                      <div className="rounded-full animate-pulse" style={{ width: "40px", height: "20px", backgroundColor: "var(--c-border)" }} />
+                      <div className="rounded-full animate-pulse" style={{ width: "60px", height: "20px", backgroundColor: "var(--c-border)" }} />
+                    </div>
                   </div>
                 ) : null}
                 <DetailRow label="Folder" value={selectedAlbum.folder} />
@@ -652,8 +705,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
             {/* User personal notes — always visible, never collapsible */}
             {selectedAlbum.notes && (
-              <div className="px-4 pb-4">
-                <p className="uppercase tracking-wider mb-1.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Notes</p>
+              <div className="px-4 pb-6">
+                <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Notes</p>
                 <p style={{ fontSize: "14px", fontWeight: 400, lineHeight: "1.6", color: "var(--c-text-secondary)" }}>{selectedAlbum.notes}</p>
               </div>
             )}
@@ -662,15 +715,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
         {!isEditMode && (
           <>
-            {/* Wantlist button intentionally absent from collection view — available in WantItemDetailPanel and other non-collection contexts */}
-            <div className="px-4 pb-4">
-              <a href={selectedAlbum.discogsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#0078B4] hover:underline" style={{ fontSize: "14px", fontWeight: 500 }}>
-                View on Discogs<ExternalLink size={14} />
-              </a>
-            </div>
-
             {/* ═══ Mark as Played button ═══ */}
-            <div className="px-4 pb-4">
+            <div className="px-4 pb-6">
               <button
                 onClick={handlePlayedToday}
                 className="w-full flex items-center justify-center gap-2.5 py-3 rounded-[10px] tappable transition-all relative overflow-hidden"
@@ -724,84 +770,23 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               </p>
             </div>
 
-            {/* ═══ Tracklist (enriched, collapsible) ═══ */}
-            {isLoadingRelease ? (
-              <EnrichedSkeleton label="Tracklist" rows={4} />
-            ) : hasTracklist ? (
-              <TracklistSection
-                tracklist={releaseData!.tracklist}
-                isExpanded={tracklistExpanded}
-                onToggle={() => setTracklistExpanded(v => !v)}
-                allDurationsMissing={allDurationsMissing}
-              />
-            ) : null}
+            {/* Wantlist button intentionally absent from collection view — available in WantItemDetailPanel and other non-collection contexts */}
+            <div className="px-4 pb-6">
+              <a href={selectedAlbum.discogsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 text-[#0078B4] hover:underline" style={{ fontSize: "14px", fontWeight: 500 }}>
+                View on Discogs<ExternalLink size={14} />
+              </a>
+            </div>
 
-            {/* ═══ Credits (enriched, collapsible) ═══ */}
+            {/* ═══ Community (enriched, 3-stat row) ═══ */}
             {isLoadingRelease ? (
-              <EnrichedSkeleton label="Credits" rows={3} />
-            ) : hasCredits ? (
-              <CreditsSection
-                groupedCredits={groupedCredits}
-                isExpanded={creditsExpanded}
-                onToggle={() => setCreditsExpanded(v => !v)}
-              />
-            ) : null}
-
-            {/* ═══ Pressing Notes (enriched, collapsible) ═══ */}
-            {isLoadingRelease ? (
-              <EnrichedSkeleton label="Pressing Notes" rows={2} />
-            ) : hasPressingNotes ? (
-              <PressingNotesSection
-                notes={releaseData!.notes}
-                isExpanded={pressingNotesExpanded}
-                onToggle={() => setPressingNotesExpanded(v => !v)}
-              />
-            ) : null}
-
-            {/* ═══ Identifiers (enriched, collapsible) ═══ */}
-            {isLoadingRelease ? (
-              <EnrichedSkeleton label="Identifiers" rows={2} />
-            ) : releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
-              <div className="px-4 pb-4">
-                <button
-                  onClick={() => setIdentifiersExpanded(v => !v)}
-                  className="flex items-center gap-1 mb-2 transition-opacity hover:opacity-80"
-                >
-                  <ChevronDown
-                    size={13}
-                    style={{ color: "var(--c-text-muted)" }}
-                    className={`transition-transform ${identifiersExpanded ? "rotate-180" : ""}`}
-                  />
-                  <span className="uppercase tracking-wider" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-                    Identifiers
-                  </span>
-                </button>
-                <AnimatePresence>
-                  {identifiersExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="flex flex-col gap-1.5">
-                        {releaseData.identifiers.map((id, i) => (
-                          <DetailRow key={`id-${i}`} label={id.type} value={id.value} />
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ) : null}
-
-            {/* ═══ Community (enriched, compact) ═══ */}
-            {isLoadingRelease ? (
-              <div className="px-4 pb-4">
-                <div className="flex items-center gap-4">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="rounded-[4px] animate-pulse" style={{ width: `${40 + i * 12}px`, height: "12px", backgroundColor: "var(--c-border)" }} />
+              <div className="px-4 pb-6">
+                <div className="flex items-start justify-around">
+                  {[40, 56, 48].map((w, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1.5">
+                      <div className="rounded-full animate-pulse" style={{ width: "20px", height: "20px", backgroundColor: "var(--c-border)" }} />
+                      <div className="rounded-[4px] animate-pulse" style={{ width: `${w}px`, height: "18px", backgroundColor: "var(--c-border)" }} />
+                      <div className="rounded-[4px] animate-pulse" style={{ width: "48px", height: "10px", backgroundColor: "var(--c-border)" }} />
+                    </div>
                   ))}
                 </div>
               </div>
@@ -811,94 +796,89 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
             <MarketValueSection album={selectedAlbum} sessionToken={sessionToken} />
 
-            {/* ═══ Sessions bookmark ═══ */}
-            <AccordionSection
-              label={inAnySession ? "Saved" : "Save for Later"}
-              icon={
-                <Bookmark
-                  size={16}
-                  style={{ color: inAnySession ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-secondary)" }}
-                  {...(inAnySession ? { fill: "currentColor" } : {})}
-                />
-              }
-              isExpanded={sessionListExpanded}
-              onToggle={() => setSessionListExpanded((v) => !v)}
-            >
-              {/* All sessions sorted by recency */}
-              {[...sessions]
-                .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
-                .map((session) => {
-                  const inSession = isInSession(selectedAlbum.id, session.id);
-                  return (
-                    <InlineSessionRow
-                      key={session.id}
-                      label={session.name}
-                      count={session.albumIds.length}
-                      checked={inSession}
-                      onToggle={() => toggleAlbumInSession(selectedAlbum.id, session.id)}
-                      isDarkMode={isDarkMode}
-                    />
-                  );
-                })}
+            {/* ═══ Sessions ═══ */}
+            <div className="px-4 pb-6">
+              <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>
+                {inAnySession ? "Saved" : "Save for Later"}
+              </p>
 
-              {/* New Session row */}
-              {!showNewSession ? (
-                <button
-                  onClick={() => setShowNewSession(true)}
-                  className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors"
-                  style={{ color: "var(--c-text-secondary)" }}
-                >
-                  <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
-                    <Plus size={14} />
-                  </div>
-                  <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 py-2 px-1">
-                  <input
-                    ref={newSessionInputRef}
-                    type="text"
-                    value={newSessionName}
-                    onChange={(e) => setNewSessionName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCreateSession();
-                      if (e.key === "Escape") {
-                        setShowNewSession(false);
-                        setNewSessionName("");
-                      }
-                    }}
-                    placeholder="Session name..."
-                    maxLength={100}
-                    className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
-                    style={{
-                      fontSize: "16px",
-                      fontWeight: 400,
-                      color: "var(--c-text)",
-                      backgroundColor: "var(--c-input-bg)",
-                      border: "1px solid var(--c-border)",
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                    }}
-                  />
+              <div style={{ border: "1px solid var(--c-border-strong)", borderRadius: "10px", padding: "4px 8px", maxHeight: "240px", overflowY: "auto" }}>
+                {/* All sessions sorted by recency */}
+                {[...sessions]
+                  .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
+                  .map((session) => {
+                    const inSession = isInSession(selectedAlbum.id, session.id);
+                    return (
+                      <InlineSessionRow
+                        key={session.id}
+                        label={session.name}
+                        count={session.albumIds.length}
+                        checked={inSession}
+                        onToggle={() => toggleAlbumInSession(selectedAlbum.id, session.id)}
+                        isDarkMode={isDarkMode}
+                      />
+                    );
+                  })}
+
+                {/* New Session row */}
+                {!showNewSession ? (
                   <button
-                    onClick={handleCreateSession}
-                    disabled={!newSessionName.trim()}
-                    className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center tappable transition-colors"
-                    style={{
-                      backgroundColor: newSessionName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
-                      color: newSessionName.trim() ? "#0C284A" : "var(--c-text-faint)",
-                    }}
+                    onClick={() => setShowNewSession(true)}
+                    className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors"
+                    style={{ color: "var(--c-text-secondary)" }}
                   >
-                    <Check size={14} />
+                    <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
+                      <Plus size={14} />
+                    </div>
+                    <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
                   </button>
-                </div>
-              )}
-            </AccordionSection>
+                ) : (
+                  <div className="flex items-center gap-2 py-2 px-1">
+                    <input
+                      ref={newSessionInputRef}
+                      type="text"
+                      value={newSessionName}
+                      onChange={(e) => setNewSessionName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreateSession();
+                        if (e.key === "Escape") {
+                          setShowNewSession(false);
+                          setNewSessionName("");
+                        }
+                      }}
+                      placeholder="Session name..."
+                      maxLength={100}
+                      className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 400,
+                        color: "var(--c-text)",
+                        backgroundColor: "var(--c-input-bg)",
+                        border: "1px solid var(--c-border)",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                      }}
+                    />
+                    <button
+                      onClick={handleCreateSession}
+                      disabled={!newSessionName.trim()}
+                      className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center tappable transition-colors"
+                      style={{
+                        backgroundColor: newSessionName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
+                        color: newSessionName.trim() ? "#0C284A" : "var(--c-text-faint)",
+                      }}
+                    >
+                      <Check size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* ═══ Rate for Purge ═══ */}
             <div className="px-4 pb-6">
               <p
                 className="mb-2"
-                style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text-secondary)" }}
+                style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}
               >
                 Rate for Purge
               </p>
@@ -938,10 +918,136 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 })}
               </div>
             </div>
+
+            {/* ═══ Tracklist (enriched, collapsible) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Tracklist" rows={4} />
+            ) : hasTracklist ? (
+              <TracklistSection
+                tracklist={releaseData!.tracklist}
+                isExpanded={tracklistExpanded}
+                onToggle={() => setTracklistExpanded(v => !v)}
+                allDurationsMissing={allDurationsMissing}
+              />
+            ) : null}
+
+            {/* ═══ Credits (enriched) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Credits" rows={3} />
+            ) : hasCredits ? (
+              <CreditsSection groupedCredits={groupedCredits} />
+            ) : null}
+
+            {/* ═══ Pressing Notes (enriched) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Pressing Notes" rows={2} />
+            ) : hasPressingNotes ? (
+              <PressingNotesSection notes={releaseData!.notes} />
+            ) : null}
+
+            {/* ═══ Identifiers (enriched) ═══ */}
+            {isLoadingRelease ? (
+              <EnrichedSkeleton label="Identifiers" rows={2} />
+            ) : releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
+              <div className="px-4 pb-6">
+                <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Identifiers</p>
+                <div className="flex flex-col gap-1.5">
+                  {releaseData.identifiers.map((id, i) => (
+                    <DetailRow key={`id-${i}`} label={id.type} value={id.value} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </div>
     </div>
+
+    {/* ═══ Fullscreen Image Lightbox ═══ */}
+    {lightboxOpen && releaseImages.length > 0 && (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0"
+          style={{ zIndex: 135, backgroundColor: "rgba(0,0,0,0.92)" }}
+          onClick={() => setLightboxOpen(false)}
+        />
+        {/* Overlay */}
+        <div
+          className="fixed inset-0 flex flex-col items-center justify-center"
+          style={{ zIndex: 140, pointerEvents: "none" }}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setLightboxOpen(false)}
+            className="absolute right-4 flex items-center justify-center"
+            style={{
+              top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+              width: 40,
+              height: 40,
+              color: "white",
+              pointerEvents: "auto",
+            }}
+          >
+            <X size={24} />
+          </button>
+
+          {/* Image + chevron navigation */}
+          <div className="relative flex items-center justify-center w-full px-12" style={{ pointerEvents: "auto" }}>
+            {lightboxIndex > 0 && (
+              <button
+                onClick={() => setLightboxIndex(i => i - 1)}
+                className="absolute left-2 flex items-center justify-center"
+                style={{ color: "rgba(255,255,255,0.8)" }}
+              >
+                <ChevronLeft size={32} />
+              </button>
+            )}
+            <motion.img
+              key={lightboxIndex}
+              src={releaseImages[lightboxIndex].uri}
+              alt={`Image ${lightboxIndex + 1} of ${releaseImages.length}`}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.1}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -50 && lightboxIndex < releaseImages.length - 1) {
+                  setLightboxIndex(i => i + 1);
+                } else if (info.offset.x > 50 && lightboxIndex > 0) {
+                  setLightboxIndex(i => i - 1);
+                }
+              }}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "85vh",
+                objectFit: "contain",
+                borderRadius: "8px",
+                cursor: "grab",
+                userSelect: "none",
+              }}
+            />
+            {lightboxIndex < releaseImages.length - 1 && (
+              <button
+                onClick={() => setLightboxIndex(i => i + 1)}
+                className="absolute right-2 flex items-center justify-center"
+                style={{ color: "rgba(255,255,255,0.8)" }}
+              >
+                <ChevronRight size={32} />
+              </button>
+            )}
+          </div>
+
+          {/* Counter */}
+          <p
+            className="mt-3"
+            style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
+          >
+            {lightboxIndex + 1} / {releaseImages.length}
+          </p>
+        </div>
+      </>
+    )}
+    </>
   );
 }
 
@@ -958,196 +1064,130 @@ function TracklistSection({
   onToggle: () => void;
   allDurationsMissing: boolean;
 }) {
-  const COLLAPSE_THRESHOLD = 8;
-  const shouldCollapse = tracklist.length > COLLAPSE_THRESHOLD;
-  // If ≤8 tracks, always show all. If >8, collapsed by default — show first 8 until expanded.
-  const visibleTracks = shouldCollapse && !isExpanded
-    ? tracklist.slice(0, COLLAPSE_THRESHOLD)
-    : tracklist;
+  const SHOW_COUNT = 5;
+  const shouldFade = tracklist.length > SHOW_COUNT;
+  const visibleTracks = shouldFade && !isExpanded ? tracklist.slice(0, SHOW_COUNT) : tracklist;
 
   return (
-    <div className="px-4 pb-4">
-      <p className="uppercase tracking-wider mb-2" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+    <div className="px-4 pb-6">
+      <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>
         Tracklist
       </p>
-      <div className="flex flex-col">
-        {visibleTracks.map((track, i) => (
-          <div
-            key={i}
-            className="flex items-baseline gap-2 py-1.5"
-            style={{
-              borderTop: i > 0 ? "1px solid var(--c-border)" : undefined,
-            }}
-          >
-            <span
-              className="flex-shrink-0"
-              style={{
-                fontSize: "12px",
-                fontWeight: 500,
-                color: "var(--c-text-muted)",
-                minWidth: "24px",
-              }}
+      <div className="relative">
+        <div className="flex flex-col">
+          {visibleTracks.map((track, i) => (
+            <div
+              key={i}
+              className="flex items-baseline gap-2 py-1.5"
+              style={{ borderTop: i > 0 ? "1px solid var(--c-border)" : undefined }}
             >
-              {track.position}
-            </span>
-            <span
-              className="flex-1 min-w-0"
-              style={{
-                fontSize: "13px",
-                fontWeight: 400,
-                color: "var(--c-text)",
-              }}
-            >
-              {track.title}
-            </span>
-            {!allDurationsMissing && track.duration && (
               <span
                 className="flex-shrink-0"
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 400,
-                  color: "var(--c-text-muted)",
-                  fontFamily: "'DM Sans', system-ui, sans-serif",
-                }}
+                style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)", minWidth: "24px" }}
               >
-                {track.duration}
+                {track.position}
               </span>
-            )}
-          </div>
-        ))}
+              <span
+                className="flex-1 min-w-0"
+                style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text)" }}
+              >
+                {track.title}
+              </span>
+              {!allDurationsMissing && track.duration && (
+                <span
+                  className="flex-shrink-0"
+                  style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                >
+                  {track.duration}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        {shouldFade && !isExpanded && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-10 pointer-events-none"
+            style={{ background: "linear-gradient(to bottom, transparent, var(--c-surface))" }}
+          />
+        )}
       </div>
-      {shouldCollapse && (
+      {shouldFade && (
         <button
           onClick={onToggle}
-          className="flex items-center gap-1 mt-2 transition-opacity hover:opacity-80"
-          style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}
+          className="mt-2 uppercase tracking-wider transition-opacity hover:opacity-70"
+          style={{ fontSize: "11px", fontWeight: 600, color: "var(--c-text-muted)" }}
         >
-          <ChevronDown
-            size={13}
-            className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
-          />
-          {isExpanded ? "Show fewer" : `Show all ${tracklist.length} tracks`}
+          {isExpanded ? "SHOW LESS" : "SHOW MORE"}
         </button>
       )}
     </div>
   );
 }
 
-function CreditsSection({
-  groupedCredits,
-  isExpanded,
-  onToggle,
-}: {
-  groupedCredits: { role: string; names: string[] }[];
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
+function CreditsSection({ groupedCredits }: { groupedCredits: { role: string; names: string[] }[] }) {
   return (
-    <div className="px-4 pb-4">
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-1 mb-2 transition-opacity hover:opacity-80"
-      >
-        <ChevronDown
-          size={13}
-          style={{ color: "var(--c-text-muted)" }}
-          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
-        />
-        <span className="uppercase tracking-wider" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-          Credits
-        </span>
-      </button>
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="flex flex-col gap-2.5">
-              {groupedCredits.map(({ role, names }) => (
-                <div key={role}>
-                  <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-                    {role}
-                  </p>
-                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: "1.5" }}>
-                    {names.join(", ")}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="px-4 pb-6">
+      <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Credits</p>
+      <div className="flex flex-col gap-2.5">
+        {groupedCredits.map(({ role, names }) => (
+          <div key={role}>
+            <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+              {role}
+            </p>
+            <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: "1.5" }}>
+              {names.join(", ")}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function PressingNotesSection({
-  notes,
-  isExpanded,
-  onToggle,
-}: {
-  notes: string;
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
+function PressingNotesSection({ notes }: { notes: string }) {
   return (
-    <div className="px-4 pb-4">
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-1 mb-2 transition-opacity hover:opacity-80"
-      >
-        <ChevronDown
-          size={13}
-          style={{ color: "var(--c-text-muted)" }}
-          className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
-        />
-        <span className="uppercase tracking-wider" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-          Pressing Notes
-        </span>
-      </button>
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <p style={{
-              fontSize: "12px",
-              fontWeight: 400,
-              lineHeight: "1.7",
-              color: "var(--c-text-muted)",
-              fontFamily: "'DM Sans', monospace",
-              whiteSpace: "pre-wrap",
-            }}>
-              {notes}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="px-4 pb-6">
+      <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Pressing Notes</p>
+      <p style={{
+        fontSize: "12px",
+        fontWeight: 400,
+        lineHeight: "1.7",
+        color: "var(--c-text-muted)",
+        fontFamily: "'DM Sans', monospace",
+        whiteSpace: "pre-wrap",
+      }}>
+        {notes}
+      </p>
     </div>
   );
+}
+
+function formatStatNumber(n: number): string {
+  if (n >= 1000) return `${parseFloat((n / 1000).toFixed(1))}K`;
+  return String(n);
 }
 
 function CommunityRow({ community }: { community: { rating: number | null; ratingCount: number; have: number; want: number } }) {
+  const avgRating = community.rating !== null && community.ratingCount > 0
+    ? community.rating.toFixed(1)
+    : "—";
+
+  const stats = [
+    { icon: <GalleryVerticalEnd size={18} color="#3E9842" />, value: formatStatNumber(community.have), label: "HAVE IT" },
+    { icon: <Heart size={18} color="#EF5350" />, value: formatStatNumber(community.want), label: "WANT IT" },
+    { icon: <Star size={18} color="#FFC107" />, value: avgRating, label: "AVG. RATING" },
+  ];
+
   return (
-    <div className="px-4 pb-4">
-      <div className="flex items-center gap-3 flex-wrap" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-        {community.rating !== null && community.ratingCount > 0 && (
-          <span>{community.rating.toFixed(1)} / 5 ({community.ratingCount})</span>
-        )}
-        {community.have > 0 && (
-          <span>{community.have.toLocaleString()} have</span>
-        )}
-        {community.want > 0 && (
-          <span>{community.want.toLocaleString()} want</span>
-        )}
+    <div className="px-4 pb-6">
+      <div className="grid grid-cols-3">
+        {stats.map(({ icon, value, label }) => (
+          <div key={label} className="flex flex-col items-center gap-1">
+            <div>{icon}</div>
+            <span style={{ fontSize: "20px", fontWeight: 600, color: "var(--c-text)", lineHeight: "1.2", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>{value}</span>
+            <span className="uppercase tracking-wider" style={{ fontSize: "10px", fontWeight: 500, color: "var(--c-text-muted)" }}>{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1156,7 +1196,7 @@ function CommunityRow({ community }: { community: { rating: number | null; ratin
 function EnrichedSkeleton({ label, rows }: { label: string; rows: number }) {
   return (
     <div className="px-4 pb-4">
-      <p className="uppercase tracking-wider mb-2" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+      <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>
         {label}
       </p>
       <div className="flex flex-col gap-2">
@@ -1175,9 +1215,9 @@ function EnrichedSkeleton({ label, rows }: { label: string; rows: number }) {
 
 function DetailRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="flex-shrink-0" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>{label}</span>
-      <span className="text-right" style={{ fontSize: "13px", fontWeight: valueColor ? 500 : 400, color: valueColor || "var(--c-text)" }}>{value}</span>
+    <div className="flex items-start gap-3">
+      <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "1px" }}>{label}</span>
+      <span className="flex-1 min-w-0" style={{ fontSize: "13px", fontWeight: valueColor ? 500 : 400, color: valueColor || "var(--c-text)" }}>{value}</span>
     </div>
   );
 }

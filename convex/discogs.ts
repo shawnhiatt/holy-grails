@@ -999,6 +999,15 @@ export const proxyFetchRelease = action({
       }
     }
 
+    // Images
+    const images = (data.images || []).map((img: any) => ({
+      uri: (img.uri as string) || "",
+      uri150: (img.uri150 as string) || "",
+      type: img.type === "primary" ? "primary" as const : "secondary" as const,
+      width: (img.width as number) || 0,
+      height: (img.height as number) || 0,
+    }));
+
     return {
       country: (data.country as string) || "",
       notes: (data.notes as string) || "",
@@ -1008,6 +1017,7 @@ export const proxyFetchRelease = action({
       identifiers,
       genres: (data.genres as string[]) || [],
       styles: (data.styles as string[]) || [],
+      images,
     };
   },
 });

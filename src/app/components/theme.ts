@@ -18,10 +18,10 @@ export const lightTokens: Record<string, string> = {
 };
 
 export const darkTokens: Record<string, string> = {
-  "--c-bg": "#0C1A2E",
-  "--c-surface": "#132B44",
-  "--c-surface-hover": "#1A3350",
-  "--c-surface-alt": "#0F2238",
+  "--c-bg": "oklab(from #0C1A2E calc(l - 0.06) a b)",
+  "--c-surface": "oklab(from #132B44 calc(l - 0.03) a b)",
+  "--c-surface-hover": "oklab(from #1A3350 calc(l - 0.03) a b)",
+  "--c-surface-alt": "oklab(from #0F2238 calc(l - 0.04) a b)",
   "--c-text": "#E2E8F0",
   "--c-text-secondary": "#9EAFC2",
   "--c-text-tertiary": "#8A9BB0",
@@ -29,8 +29,8 @@ export const darkTokens: Record<string, string> = {
   "--c-text-faint": "#6A8099",
   "--c-border": "#1A3350",
   "--c-border-strong": "#2D4A66",
-  "--c-chip-bg": "#1A3350",
-  "--c-input-bg": "#0F2238",
+  "--c-chip-bg": "oklab(from #1A3350 calc(l - 0.03) a b)",
+  "--c-input-bg": "oklab(from #0F2238 calc(l - 0.04) a b)",
   "--c-card-shadow": "0 4px 20px rgba(0,0,0,0.25)",
 };
 
