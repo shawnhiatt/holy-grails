@@ -12,40 +12,7 @@ import { useApp } from "./app-context";
 import { AccordionSection } from "./accordion-section";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-
-/* ─── Condition grade → color spectrum ─── */
-function conditionGradeColor(grade: string, isDarkMode: boolean): string | undefined {
-  // Extract abbreviation from parentheses BEFORE stripping (handles "NM or M-" etc.)
-  const rawParen = grade.match(/\(([^)]+)\)/);
-  let key: string;
-  if (rawParen) {
-    // Take first token from parenthetical: "NM or M-" → "NM", "VG+" → "VG+"
-    key = rawParen[1].trim().split(/\s/)[0].toUpperCase();
-  } else {
-    key = grade.trim().toUpperCase().replace(/[\s-]/g, "");
-  }
-  const spectrum: Record<string, { dark: string; light: string }> = {
-    "M":    { dark: "#3E9842", light: "#2D7A31" },
-    "MINT": { dark: "#3E9842", light: "#2D7A31" },
-    "NM":   { dark: "#3E9842", light: "#2D7A31" },
-    "NEARMINT": { dark: "#3E9842", light: "#2D7A31" },
-    "VG+":  { dark: "#5FBFA0", light: "#1A7A5A" },
-    "VG":   { dark: "#ACDEF2", light: "#00527A" },
-    "VERYGOOD+": { dark: "#5FBFA0", light: "#1A7A5A" },
-    "VERYGOOD":  { dark: "#ACDEF2", light: "#00527A" },
-    "G+":   { dark: "#C9A0E0", light: "#7A3A9A" },
-    "GOOD+": { dark: "#C9A0E0", light: "#7A3A9A" },
-    "G":    { dark: "#E88CC4", light: "#9A207C" },
-    "GOOD": { dark: "#E88CC4", light: "#9A207C" },
-    "F":    { dark: "#FF98DA", light: "#9A207C" },
-    "FAIR": { dark: "#FF98DA", light: "#9A207C" },
-    "P":    { dark: "#FF98DA", light: "#9A207C" },
-    "POOR": { dark: "#FF98DA", light: "#9A207C" },
-  };
-  const entry = spectrum[key];
-  if (!entry) return undefined;
-  return isDarkMode ? entry.dark : entry.light;
-}
+import { conditionGradeColor } from "../../lib/condition-colors";
 
 /**
  * Get the price at the user's condition grade from market data.

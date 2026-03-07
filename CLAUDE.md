@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.4.1
+# CLAUDE.md — Holy Grails v0.4.2
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -210,6 +210,8 @@ convex/                  # Convex backend functions and schema
   following_feed.ts  # Following feed cache: getByFollower, upsert, deleteEntry
   wantlist.ts        # Wantlist cache: getByUsername, replaceAll, addItem, removeItem
   preferences.ts
+  lib/
+    condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail, market-value, reports-screen.
 src/
   main.tsx
 ```
@@ -218,18 +220,57 @@ src/
 
 ## Design System
 
-### Color Palette
+### Color System
 
-#### Brand / Navigation (fixed, does not change with theme)
-| Usage | Value |
-|---|---|
-| Active nav icon + label | `#EBFD00` (bright yellow) |
-| Nav background | `#01294D` (dark navy) |
-| Nav border | `#214564` |
-| Logo vinyl element | `#EBFD00` |
-| Inactive nav icon + label | `#D1D8DF` |
+#### Philosophy
 
-#### Content Area — Light Mode (default)
+Holy Grails uses **Oklab** as its color space for all color derivation and token definition. Oklab is a perceptual color space designed by Björn Ottosson and is the color space underpinning CSS Color Level 4/5. It is supported in all modern browsers (baseline since May 2023) and is now the default gradient interpolation in Photoshop.
+
+Reference: https://bottosson.github.io/posts/oklab/
+
+**The core principle:** equal numeric steps in Oklab produce equal perceived steps. This is not true of hex, RGB, or HSL. A `calc(l - 0.03)` step always means the same perceived lightness reduction regardless of hue. This makes it the right tool for building a consistent, predictable dark mode token hierarchy.
+
+#### Rules
+
+1. **Never derive new colors by arithmetic on hex values.** If you need a lighter or darker variant, use `oklab(from <color> calc(l ± X) a b)` in CSS.
+
+2. **All new dark mode background tokens must be defined as `oklab()` relative color expressions**, not raw hex. Existing hex tokens are legacy and should be migrated during dedicated audit passes.
+
+3. **Hardcoded hex values are only permitted for fixed brand colors** (the nav palette and CTA yellow) and for the named semantic/accent colors in the exceptions list below. Every other color in a component must reference a CSS custom property.
+
+4. **Gradients between two non-transparent colors should use `in oklab` interpolation** to avoid hue drift:
+   ```css
+   background: linear-gradient(in oklab, var(--c-surface), var(--c-bg));
+   ```
+
+5. **Do not use `rgba(0,0,0,X)` or `rgba(255,255,255,X)` for surface tinting.** Use a token or an `oklab()` expression derived from the nearest surface token. Exception: image card overlays where black is needed for contrast over photography are intentional and should be left alone.
+
+6. **The `isDarkMode ? "#EBFD00" : "#0078B4"` ternary pattern is retired.** Always use `var(--c-link)` instead.
+
+7. **When adding a destructive action** (delete, remove, unfollow, confirm-destructive), always use `var(--c-destructive)`, `var(--c-destructive-hover)`, and `var(--c-destructive-tint)`. Never hardcode `#FF33B6`.
+
+8. **Always preserve the `a` and `b` axes when adjusting lightness in Oklab.** Use `oklab(from <color> calc(l ± X) a b)` — do not alter `a` or `b` unless intentionally shifting hue or chroma.
+
+#### Token Hierarchy — Dark Mode Backgrounds
+
+Background tokens are defined in `theme.ts` using Oklab relative color expressions. The hierarchy represents perceived elevation — each layer is perceptually lighter than the one below it by a consistent step.
+
+| Token | Expression | Role |
+|---|---|---|
+| `--c-bg` | `oklab(from #0C1A2E calc(l - 0.06) a b)` | Main app canvas — lowest elevation |
+| `--c-surface-alt` | `oklab(from #0F2238 calc(l - 0.04) a b)` | Inset/recessed surfaces, input bg |
+| `--c-surface` | `oklab(from #132B44 calc(l - 0.03) a b)` | Cards, panels, primary containers |
+| `--c-surface-hover` | `oklab(from #1A3350 calc(l - 0.03) a b)` | Hover state on surface elements |
+| `--c-chip-bg` | `oklab(from #1A3350 calc(l - 0.03) a b)` | Pill/chip backgrounds |
+| `--c-input-bg` | `oklab(from #0F2238 calc(l - 0.04) a b)` | Input field backgrounds |
+
+When a new background token is needed, choose a source hex that sits in the correct position in the hierarchy and apply an appropriate Oklab L step. Do not invent hex values directly.
+
+#### Semantic Color Tokens
+
+These tokens must be used instead of hardcoded values. See Rules above.
+
+##### Content Area — Light Mode (default)
 All content area colors use CSS custom properties defined in `theme.ts`:
 
 | Token | Value |
@@ -247,9 +288,17 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-border-strong` | `#74889C` |
 | `--c-chip-bg` | `#EFF1F3` |
 | `--c-input-bg` | `#F9F9FA` |
+| `--c-destructive` | `#FF33B6` |
+| `--c-destructive-hover` | `#E6009E` |
+| `--c-destructive-tint` | `rgba(255, 51, 182, 0.12)` |
+| `--c-link` | `#0078B4` |
+| `--c-link-hover` | `#005F8E` |
 | `--c-card-shadow` | `0 4px 20px rgba(12,40,74,0.08)` |
+| `--c-sheet-shadow` | `0 -8px 32px rgba(12, 40, 74, 0.1)` |
+| `--c-shadow-sm` | `0 1px 3px rgba(0, 0, 0, 0.15)` |
+| `--c-shadow-modal` | `0 16px 48px rgba(12, 40, 74, 0.15)` |
 
-#### Content Area — Dark Mode
+##### Content Area — Dark Mode
 | Token | Value |
 |---|---|
 | `--c-bg` | `#0C1A2E` |
@@ -265,26 +314,36 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-border-strong` | `#2D4A66` |
 | `--c-chip-bg` | `#1A3350` |
 | `--c-input-bg` | `#0F2238` |
+| `--c-destructive` | `#FF33B6` |
+| `--c-destructive-hover` | `#E6009E` |
+| `--c-destructive-tint` | `rgba(255, 51, 182, 0.08)` |
+| `--c-link` | `#EBFD00` |
+| `--c-link-hover` | `#d9e800` |
 | `--c-card-shadow` | `0 4px 20px rgba(0,0,0,0.25)` |
+| `--c-sheet-shadow` | `0 -8px 32px rgba(0, 0, 0, 0.3)` |
+| `--c-shadow-sm` | `0 1px 3px rgba(0, 0, 0, 0.15)` |
+| `--c-shadow-modal` | `0 16px 48px rgba(0, 0, 0, 0.4)` |
 
-#### UI Accent Colors
-| Color | Value | Usage |
-|---|---|---|
-| Blue | `#ACDEF2` | Active view toggles, active filter chips, maybe purge tag (dark) |
-| Yellow | `#EBFD00` | CTA buttons, active nav, Sync Now, New Session. Hover: `#d9e800` |
-| Pink | `#FF98DA` | Cut purge indicator (dark mode), chart accent |
-| Green | `#009A32` | Collection value display |
-| Green (keep) | `#3E9842` | Keep purge tag |
-| Purple (cut light) | `#9A207C` | Cut purge tag (light mode) |
-| Teal (maybe light) | `#00476C` | Maybe purge tag (light mode) |
+#### Fixed Brand Colors — Hardcoded, Do Not Tokenize
 
-#### Yellow CTA Buttons
+These never change with theme and are always hardcoded where used.
+
+| Value | Usage |
+|---|---|
+| `#EBFD00` | Active nav, CTA buttons, logo accent, sync/action buttons |
+| `#01294D` | Nav background |
+| `#214564` | Nav border |
+| `#D1D8DF` | Inactive nav icon + label |
+| `#d9e800` | CTA button hover state |
+| `#0C284A` | Text on yellow CTA buttons |
+
+##### Yellow CTA Buttons
 ```tsx
 // Always use this pattern for primary CTAs
 className="bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800]"
 ```
 
-#### Active Filter Chips
+##### Active Filter Chips
 ```tsx
 // Light mode
 className="bg-[rgba(172,222,242,0.5)] text-[#00527A]"
@@ -292,13 +351,53 @@ className="bg-[rgba(172,222,242,0.5)] text-[#00527A]"
 className="bg-[rgba(172,222,242,0.2)] text-[#ACDEF2]"
 ```
 
-#### Condition Grade Color Spectrum
+#### Permitted Semantic Accent Colors — Hardcoded
+
+These are semantic colors tied to a specific meaning. Hardcoded because the hue is the meaning.
+
+| Value | Usage |
+|---|---|
+| `#3E9842` | Keep purge tag, Have It icon (green) |
+| `#EF5350` | Want It icon (warm red) |
+| `#FFC107` | Avg. Rating icon (amber) |
+| `#9A207C` | Cut purge tag — light mode |
+| `#00476C` | Maybe purge tag — light mode |
+| `#ACDEF2` | Active filter chips, Maybe purge tag — dark mode |
+| `rgba(172,222,242,0.5)` | Active filter chip bg — light mode |
+| `rgba(172,222,242,0.2)` | Active filter chip bg — dark mode |
+| `#009A32` | Collection value display, positive metrics |
+| `#EEFC0F` | Wantlist priority bolt icon |
+| `#0DB1F2` | Chart third accent (reports-screen chart constants) |
+| `#22C55E` | Success / confirmed state icon |
+| `#FF98DA` | Cut purge tag — dark mode (also used in progress gradient) |
+
+Chart constants in `reports-screen.tsx` (`CHART_GREEN`, `CHART_PINK`, `CHART_BLUE`) are hardcoded by design — they are data visualization colors, not UI surface colors.
+
+Condition grade colors (the pink-to-green spectrum) are defined in `src/lib/condition-colors.ts`. Always import from there — never re-declare inline.
+
+Purge colors are defined in `purge-colors.ts`. Always import from there.
+
+##### Condition Grade Color Spectrum
 Maps vinyl condition grades to a pink-to-green spectrum:
 - **M / NM**: Green (`#3E9842` dark, `#2D7A31` light)
 - **VG+**: Blue-green (`#2D8A6E` dark, `#1E7A5A` light)
 - **VG**: Blue (`#4A90C4` dark, `#2A6FA0` light)
 - **G+ / G**: Pink-blue (`#8A6AAE` dark, `#6B4D91` light)
 - **F / P**: Pink (`#C44A8A` dark, `#9A207C` light)
+
+#### Gradients
+
+Gradient fades to surface backgrounds must reference a CSS token — never a hardcoded hex:
+
+```tsx
+// Correct
+background: "linear-gradient(to bottom, transparent, var(--c-surface))"
+
+// Wrong — breaks on theme change
+background: "linear-gradient(to bottom, transparent, #132B44)"
+```
+
+Image card overlays using `rgba(0,0,0,...)` for photo readability are intentional exceptions — do not change them.
 
 ---
 

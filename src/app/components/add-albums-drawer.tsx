@@ -153,9 +153,9 @@ export function AddAlbumsDrawer({ sessionId, onClose }: AddAlbumsDrawerProps) {
               width: 520,
               maxHeight: "min(720px, 85vh)",
               backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
-              boxShadow: isDarkMode ? "0 4px 20px rgba(0,0,0,0.25)" : "0 4px 20px rgba(12,40,74,0.08)",
+              boxShadow: "var(--c-card-shadow)",
               borderRadius: 16,
-              border: `1px solid ${isDarkMode ? "#1A3350" : "#D2D8DE"}`,
+              border: "1px solid var(--c-border)",
               ...getContentTokens(isDarkMode),
             } as React.CSSProperties}
           >
@@ -509,7 +509,7 @@ function MobileDrawerSheet({
           paddingBottom: "env(safe-area-inset-bottom, 16px)",
           maxHeight: "calc(100vh - 58px)",
           backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
-          boxShadow: isDarkMode ? "0 -8px 32px rgba(0,0,0,0.3)" : "0 -8px 32px rgba(12,40,74,0.1)",
+          boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
         } as React.CSSProperties}
       >

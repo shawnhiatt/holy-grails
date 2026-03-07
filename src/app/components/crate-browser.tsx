@@ -50,7 +50,7 @@ export function ViewModeToggle({
             title={mode.label}
             className={`${btnSize} ${btnRounding} flex items-center justify-center transition-all ${
               viewMode === mode.id
-                ? "bg-[#ACDEF2] text-[#242A13]"
+                ? "bg-[#ACDEF2] text-[#0C284A]"
                 : ""
             }`}
             style={viewMode !== mode.id ? { color: "var(--c-text-muted)" } : undefined}
@@ -238,7 +238,7 @@ export function CrateBrowser() {
         className="lg:hidden flex-shrink-0 px-[16px] pt-[8px] pb-[4px]"
       >
         <div className="flex items-center justify-between">
-          <h2 style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Collection</h2>
+          <h2 style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Collection</h2>
         </div>
       </div>
 

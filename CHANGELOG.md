@@ -4,6 +4,37 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.4.2 — Album Detail Panel Redesign + Color System Standardization
+
+### Album Detail Panel
+
+- **CommunityRow component** — redesigned Community section as a three-column layout (Have It / Want It / Avg. Rating) with colored icons (#3E9842 green, #EF5350 red, #FFC107 amber), K-suffix number formatting, and loading skeleton
+- **Tracklist** — replaced accordion with inline gradient fade + SHOW MORE / SHOW LESS toggle (5-track default; albums with ≤5 tracks show no controls)
+- **DetailRow layout flipped** — labels now right-aligned `w-24` column, values left-aligned; applied across Your Copy, edit mode, identifiers, and WantItem detail
+- **Genre and style tags** — rendered as `rounded-full` pills with `--c-chip-bg` background
+- **Section headings** — standardized to 16px / font-semibold / `var(--c-text)` / Title Case across all sections
+- **AccordionSection wrappers removed** — Credits, Pressing Notes, and Identifiers now render flat by default
+- **Section spacing** — increased `pb-4` → `pb-6` throughout
+- **Section order restructured** — personal/actionable content surfaces first (Your Copy → User Notes → Mark as Played → Discogs link → Community Stats → Market Value → Sessions → Rate for Purge), Discogs reference data below (Tracklist → Credits → Pressing Notes → Identifiers)
+- **Sessions section** — wrapped in a bordered scrollable container (`--c-border-strong`, borderRadius: 10px, maxHeight: 240px)
+- **View on Discogs link** — centered
+- **Release image gallery** — horizontal thumbnail strip (renders when `images.length > 1`) and fullscreen lightbox with drag-to-swipe (Framer Motion, ~50px threshold), ChevronLeft/Right nav, image counter, and backdrop-tap-to-close
+- **ReleaseData type** — extended with `images` array; `proxyFetchRelease` updated to map `release.images`
+- **Z-index** — image lightbox overlay `z-[140]`, backdrop `z-[135]`
+
+### Color System
+
+- **Oklab dark mode tokens** — applied relative color expressions to 6 dark mode background tokens in `theme.ts` (`--c-bg`, `--c-surface`, `--c-surface-hover`, `--c-surface-alt`, `--c-chip-bg`, `--c-input-bg`)
+- **New semantic tokens** — added 8 tokens: `--c-destructive`, `--c-destructive-hover`, `--c-destructive-tint`, `--c-link`, `--c-link-hover`, `--c-sheet-shadow`, `--c-shadow-sm`, `--c-shadow-modal`
+- **Condition color extraction** — condition grade color map extracted to `src/lib/condition-colors.ts`; removed duplicates from `album-detail.tsx`, `market-value.tsx`, and `reports-screen.tsx`
+- **Token rollout** — new tokens applied across 12 files; retired the `isDarkMode ? "#EBFD00" : "#0078B4"` ternary in favor of `var(--c-link)`
+- **Dark mode heading bug** — `theme.css` h1/h2/h3 had hardcoded `#0C284A` and did not respond to theme; replaced with `var(--c-text)`
+- **Chip text bug** — `#242A13` chip text in `crate-browser.tsx` corrected to `#0C284A`
+- **Reports chart colors** — aligned to existing semantic tokens
+- **CLAUDE.md color doctrine** — replaced `### Color Palette` section with full `### Color System` doctrine covering Oklab philosophy, 8 enforceable derivation rules, token hierarchy table, brand/accent exception lists, and gradient patterns
+
+---
+
 ## 0.4.1
 
 ### Added

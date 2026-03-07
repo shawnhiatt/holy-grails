@@ -82,7 +82,7 @@
   }
 }
 
-/* Screen title — 36px mobile, 48px desktop */
+/* Screen title — 28px mobile, 48px desktop */
 @media (min-width: 1024px) {
   .screen-title {
     font-size: 48px !important;

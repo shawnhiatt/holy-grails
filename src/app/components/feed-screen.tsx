@@ -550,7 +550,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             style={{
               fontSize: "12px",
               fontWeight: 600,
-              color: isDarkMode ? "#EBFD00" : "#0078B4",
+              color: "var(--c-link)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
               background: "none",
               border: "none",
@@ -772,7 +772,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             style={{
               fontSize: "13px",
               fontWeight: 600,
-              color: isDarkMode ? "#EBFD00" : "#0078B4",
+              color: "var(--c-link)",
               background: "none",
               border: "none",
               padding: 0,
@@ -927,7 +927,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{
             fontSize: "12px",
             fontWeight: 600,
-            color: isDarkMode ? "#EBFD00" : "#0078B4",
+            color: "var(--c-link)",
             fontFamily: "'DM Sans', system-ui, sans-serif",
             background: "none",
             border: "none",
@@ -981,7 +981,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{
             fontSize: "12px",
             fontWeight: 600,
-            color: isDarkMode ? "#EBFD00" : "#0078B4",
+            color: "var(--c-link)",
             fontFamily: "'DM Sans', system-ui, sans-serif",
             background: "none",
             border: "none",
@@ -1148,7 +1148,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             style={{
               fontSize: "12px",
               fontWeight: 600,
-              color: isDarkMode ? "#EBFD00" : "#0078B4",
+              color: "var(--c-link)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
               background: "none",
               border: "none",
@@ -1826,7 +1826,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
                   style={{
                     fontSize: "14px", fontWeight: 600,
-                    backgroundColor: "#FF33B6", color: "#FFFFFF",
+                    backgroundColor: "var(--c-destructive)", color: "#FFFFFF",
                     opacity: isRemovingWant ? 0.7 : 1,
                   }}
                 >
@@ -2030,7 +2030,7 @@ function InsightRow({
         >
           {label}
         </p>
-        <ChevronRight size={16} style={{ color: isDarkMode ? "#EBFD00" : "#0078B4" }} className="flex-shrink-0" />
+        <ChevronRight size={16} style={{ color: "var(--c-link)" }} className="flex-shrink-0" />
       </button>
     </div>
   );

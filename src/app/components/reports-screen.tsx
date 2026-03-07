@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { useApp, type Screen } from "./app-context";
 import type { Album } from "./discogs-api";
+import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedMarketData, getCachedCollectionValue } from "./discogs-api";
 import { getPriceAtCondition } from "./market-value";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purge-colors";
@@ -71,7 +72,7 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
       }}
     >
       {label && (
-        <p style={{ fontSize: "11px", fontWeight: 500, color: isDarkMode ? "#617489" : "#9BA4B2", marginBottom: 2 }}>
+        <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-faint)", marginBottom: 2 }}>
           {label}
         </p>
       )}
@@ -179,8 +180,8 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
             <div
               className="mt-4 rounded-[10px] px-4 py-3"
               style={{
-                backgroundColor: isDarkMode ? "#0F2238" : "#F5F5F6",
-                border: `1px solid ${isDarkMode ? "#2D4A66" : "#D2D8DE"}`,
+                backgroundColor: "var(--c-surface-alt)",
+                border: `1px solid ${"var(--c-border-strong)"}`,
               }}
             >
               <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
@@ -189,7 +190,7 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
                 {" "}to{" "}
                 <span style={{ fontWeight: 600, color: "var(--c-text)" }}>{formatCurrency(median - cutPileData.total)}</span>
                 {" "}
-                <span style={{ fontWeight: 600, color: "#FF33B6" }}>(&minus;{formatCurrency(cutPileData.total)})</span>
+                <span style={{ fontWeight: 600, color: "var(--c-destructive)" }}>(&minus;{formatCurrency(cutPileData.total)})</span>
               </p>
               {cutPileData.pricedCount < cutPileData.albumCount && (
                 <p className="mt-1.5" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
@@ -228,11 +229,7 @@ function ConditionSection({ albums }: { albums: Album[] }) {
   const maxCount = Math.max(...conditionData.map((d) => d.count), 1);
 
   function conditionBarColor(condition: string): string {
-    if (condition === "M" || condition === "NM") return isDarkMode ? "#3E9842" : "#2D7A31";
-    if (condition === "VG+") return isDarkMode ? "#5FBFA0" : "#1A7A5A";
-    if (condition === "VG") return isDarkMode ? "#ACDEF2" : "#00527A";
-    if (condition === "G+" || condition === "G") return isDarkMode ? "#C9A0E0" : "#7A3A9A";
-    return isDarkMode ? "#FF98DA" : "#9A207C";
+    return conditionGradeColor(condition, isDarkMode) ?? (isDarkMode ? "#FF98DA" : "#9A207C");
   }
 
   return (
@@ -256,7 +253,7 @@ function ConditionSection({ albums }: { albums: Album[] }) {
       >
         <span
           style={{
-            fontSize: "36px",
+            fontSize: "28px",
             fontWeight: 700,
             fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
             color: isDarkMode ? "#3E9842" : "#2D7A31",
@@ -287,7 +284,7 @@ function ConditionSection({ albums }: { albums: Album[] }) {
             >
               {d.condition}
             </span>
-            <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: isDarkMode ? "#0F2238" : "#F0F1F3" }}>
+            <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: "var(--c-input-bg)" }}>
               <div
                 className="h-full rounded-[4px]"
                 style={{
@@ -391,7 +388,7 @@ function ByFolderChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
           >
             {d.folder}
           </span>
-          <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: isDark ? "#0F2238" : "#F0F1F3" }}>
+          <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: "var(--c-input-bg)" }}>
             <div
               className="h-full rounded-[4px] transition-all"
               style={{
@@ -435,12 +432,12 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
             dataKey="decade"
             tickLine={false}
             axisLine={false}
-            tick={{ fontSize: 11, fill: isDark ? "#617489" : "#9BA4B2" }}
+            tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
-            tick={{ fontSize: 11, fill: isDark ? "#617489" : "#9BA4B2" }}
+            tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
             allowDecimals={false}
           />
           <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} albums`} />} />
@@ -485,7 +482,7 @@ function ByConditionChart({ albums, isDark }: { albums: Album[]; isDark: boolean
           >
             {d.condition}
           </span>
-          <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: isDark ? "#0F2238" : "#F0F1F3" }}>
+          <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: "var(--c-input-bg)" }}>
             <div
               className="h-full rounded-[4px] transition-all"
               style={{
@@ -833,7 +830,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
               cy={radius + stroke}
               r={radius}
               fill="none"
-              stroke={isDarkMode ? "#2D4A66" : "#D2D8DE"}
+              stroke={"var(--c-border-strong)"}
               strokeWidth={stroke}
             />
             {/* Filled ring */}
@@ -939,7 +936,7 @@ export function ReportsScreen() {
         <h2
           className="screen-title"
           style={{
-            fontSize: "36px",
+            fontSize: "28px",
             fontWeight: 600,
             fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
             letterSpacing: "-0.5px",

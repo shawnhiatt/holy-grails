@@ -121,7 +121,7 @@ function ThemeSwitch({
           borderRadius: "50%",
           backgroundColor: thumbBg,
           transition: "left 200ms var(--ease-out)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+          boxShadow: "var(--c-shadow-sm)",
         }}
       />
     </button>

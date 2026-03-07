@@ -132,7 +132,7 @@ export function PurgeTracker() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
-        <h2 className="screen-title" style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>The Purge</h2>
+        <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>The Purge</h2>
         <p className="mt-0.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Evaluate your collection</p>
       </div>
 
@@ -334,7 +334,8 @@ export function PurgeCutDialog({
           zIndex: 89,
           maxHeight: "75vh",
           backgroundColor: isDark ? "#132B44" : "#FFFFFF",
-          boxShadow: isDark ? "0 -8px 32px rgba(0,0,0,0.3)" : "0 -8px 32px rgba(12,40,74,0.1)",
+          boxShadow: "var(--c-sheet-shadow)",
+          "--c-sheet-shadow": isDark ? "0 -8px 32px rgba(0, 0, 0, 0.3)" : "0 -8px 32px rgba(12, 40, 74, 0.1)",
           "--c-text": isDark ? "#E2E8F0" : "#0C284A",
           "--c-text-secondary": isDark ? "#9EAFC2" : "#455B75",
           "--c-text-muted": isDark ? "#7D92A8" : "#6B7B8E",

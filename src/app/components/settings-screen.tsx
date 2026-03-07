@@ -161,7 +161,7 @@ export function SettingsScreen() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
-        <h2 className="screen-title" style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Settings</h2>
+        <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Settings</h2>
       </div>
 
       <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
@@ -188,9 +188,9 @@ export function SettingsScreen() {
               {isSyncing ? (syncProgress || "Syncing...") : "Sync Now"}
             </button>
             {syncError && (
-              <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "rgba(255,51,182,0.08)", border: "1px solid rgba(255,51,182,0.2)" }}>
-                <AlertTriangle size={14} className="text-[#FF33B6] flex-shrink-0 mt-0.5" />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "#FF33B6", wordBreak: "break-word" }}>{syncError}</p>
+              <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
+                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive)" }} />
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive)", wordBreak: "break-word" }}>{syncError}</p>
               </div>
             )}
             {(lastSynced || syncStats) && (
@@ -401,7 +401,7 @@ export function SettingsScreen() {
                     borderRadius: "50%",
                     backgroundColor: hidePurgeIndicators ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
                     transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                    boxShadow: "var(--c-shadow-sm)",
                   }}
                 />
               </button>
@@ -430,7 +430,7 @@ export function SettingsScreen() {
                     borderRadius: "50%",
                     backgroundColor: hideGalleryMeta ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
                     transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                    boxShadow: "var(--c-shadow-sm)",
                   }}
                 />
               </button>
@@ -470,7 +470,7 @@ export function SettingsScreen() {
                     borderRadius: "50%",
                     backgroundColor: shakeToRandom ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
                     transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                    boxShadow: "var(--c-shadow-sm)",
                   }}
                 />
               </button>
@@ -484,7 +484,7 @@ export function SettingsScreen() {
             <button onClick={() => setConfirmAction("Purge data")} className="w-full flex items-center gap-2 py-2.5 px-3 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Purge Data</button>
             <button onClick={() => setConfirmAction("Sessions")} className="w-full flex items-center gap-2 py-2.5 px-3 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Sessions</button>
             <div className="mt-1 pt-1" style={{ borderTop: "1px solid var(--c-border)" }}>
-              <button onClick={() => setConfirmAction("All local data")} className="w-full flex items-center gap-2 py-2.5 px-3 rounded-[8px] text-[#FF33B6] hover:bg-[rgba(255,51,182,0.05)] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500 }}><Trash2 size={15} />Clear All Local Data</button>
+              <button onClick={() => setConfirmAction("All local data")} className="w-full flex items-center gap-2 py-2.5 px-3 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive)" }}><Trash2 size={15} />Clear All Local Data</button>
             </div>
           </div>
         </section>
@@ -492,7 +492,7 @@ export function SettingsScreen() {
         <section className="mt-6 mb-4">
           <div className="flex items-center gap-2" style={{ color: "var(--c-text-muted)" }}>
             <Info size={14} />
-            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v0.4.0. A Discogs companion app.</span>
+            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v0.4.2. A Discogs companion app.</span>
           </div>
         </section>
       </div>
@@ -514,10 +514,10 @@ export function SettingsScreen() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }} className="fixed inset-0 bg-black/25 z-[80]" onClick={() => setConfirmAction(null)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[90] w-[320px] rounded-[16px] p-5"
-              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", boxShadow: "0 16px 48px rgba(12,40,74,0.15)" }}>
+              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", boxShadow: "var(--c-shadow-modal)" }}>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[rgba(255,51,182,0.08)]">
-                  <AlertTriangle size={20} className="text-[#FF33B6]" />
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "var(--c-destructive-tint)" }}>
+                  <AlertTriangle size={20} style={{ color: "var(--c-destructive)" }} />
                 </div>
                 <div>
                   <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
@@ -534,7 +534,7 @@ export function SettingsScreen() {
               </div>
               <div className="flex gap-2 mt-4">
                 <button onClick={() => setConfirmAction(null)} className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer" style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>Cancel</button>
-                <button onClick={handleConfirmClear} className="flex-1 py-2.5 rounded-[10px] text-white bg-[#FF33B6] hover:bg-[#E6009E] transition-colors cursor-pointer" style={{ fontSize: "14px", fontWeight: 600 }}>
+                <button onClick={handleConfirmClear} className="flex-1 py-2.5 rounded-[10px] text-white transition-colors cursor-pointer" style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive)" }}>
                   Clear
                 </button>
               </div>

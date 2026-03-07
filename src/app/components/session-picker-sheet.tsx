@@ -168,9 +168,7 @@ export function SessionPickerSheet() {
                 pointerEvents: "auto",
                 width: 280,
                 backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
-                boxShadow: isDarkMode
-                  ? "0 4px 20px rgba(0,0,0,0.25)"
-                  : "0 4px 20px rgba(12,40,74,0.08)",
+                boxShadow: "var(--c-card-shadow)",
                 borderRadius: 12,
                 border: `1px solid ${isDarkMode ? "#1A3350" : "#D2D8DE"}`,
                 padding: 16,

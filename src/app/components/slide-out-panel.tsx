@@ -141,9 +141,7 @@ export function SlideOutPanel({
           zIndex: sheetZIndex + 1,
           backgroundColor: isDarkMode ? "#1A3350" : "#FFFFFF",
           color: isDarkMode ? "#E2E8F0" : "#0C284A",
-          boxShadow: isDarkMode
-            ? "0 2px 8px rgba(0,0,0,0.3)"
-            : "0 2px 8px rgba(12,40,74,0.15)",
+          boxShadow: "var(--c-shadow-sm)",
         }}
       >
         <X size={16} />
@@ -169,9 +167,7 @@ export function SlideOutPanel({
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           maxHeight: "calc(100vh - 58px)",
           backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
-          boxShadow: isDarkMode
-            ? "0 -8px 32px rgba(0,0,0,0.3)"
-            : "0 -8px 32px rgba(12,40,74,0.1)",
+          boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
         } as React.CSSProperties}
       >

@@ -265,7 +265,7 @@ export function WantlistHeartButton({
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
                   style={{
                     fontSize: "14px", fontWeight: 600,
-                    backgroundColor: "#FF33B6", color: "#FFFFFF",
+                    backgroundColor: "var(--c-destructive)", color: "#FFFFFF",
                     opacity: isProcessing ? 0.7 : 1,
                   }}
                 >

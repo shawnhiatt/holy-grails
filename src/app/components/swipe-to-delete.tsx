@@ -155,7 +155,7 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
           right: 0,
           bottom: 0,
           width: "100%",
-          backgroundColor: "#FF33B6",
+          backgroundColor: "var(--c-destructive)",
           zIndex: 1,
           display: "flex",
           alignItems: "center",

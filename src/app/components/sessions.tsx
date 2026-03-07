@@ -77,7 +77,7 @@ export function Sessions() {
       {/* Title bar */}
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
         <div className="flex items-center justify-between">
-          <h2 className="screen-title" style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Sessions</h2>
+          <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Sessions</h2>
           <button onClick={() => setShowNewSession(true)} className="w-10 h-10 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable">
             <Plus size={20} />
           </button>
@@ -326,7 +326,7 @@ function SessionDetail({
                   <button
                     onClick={() => onRemoveAlbum(album!.id)}
                     className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ color: "#FF33B6" }}
+                    style={{ color: "var(--c-destructive)" }}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -377,8 +377,8 @@ function SessionDetail({
               style={{ backgroundColor: "var(--c-surface)", boxShadow: "var(--c-card-shadow)" }}
             >
               <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: "rgba(255,51,182,0.12)" }}>
-                  <AlertTriangle size={22} style={{ color: "#FF33B6" }} />
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: "var(--c-destructive-tint)" }}>
+                  <AlertTriangle size={22} style={{ color: "var(--c-destructive)" }} />
                 </div>
                 <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", marginBottom: "6px" }}>
                   Delete this session?
@@ -398,7 +398,7 @@ function SessionDetail({
                 <button
                   onClick={handleConfirmDelete}
                   className="flex-1 py-2.5 rounded-[10px] tappable transition-colors"
-                  style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "rgba(255,51,182,0.15)", color: "#FF33B6" }}
+                  style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive)" }}
                 >
                   Delete
                 </button>

@@ -37,7 +37,7 @@ export function FilterDrawer() {
         hasActiveFilters ? (
           <button
             onClick={handleReset}
-            className="text-[#0078B4] hover:text-[#005F8E] transition-colors"
+            className="transition-colors" style={{ color: "var(--c-link)" }}
             style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif" }}
           >
             Reset

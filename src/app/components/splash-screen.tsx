@@ -133,16 +133,16 @@ export function SplashScreen({
               <div
                 className="w-full mt-3 rounded-[8px] p-3 flex items-start gap-2"
                 style={{
-                  backgroundColor: "rgba(255,51,182,0.08)",
+                  backgroundColor: "var(--c-destructive-tint)",
                   border: "1px solid rgba(255,51,182,0.2)",
                 }}
               >
-                <AlertTriangle size={14} style={{ color: "#FF33B6", flexShrink: 0, marginTop: "1px" }} />
+                <AlertTriangle size={14} style={{ color: "var(--c-destructive)", flexShrink: 0, marginTop: "1px" }} />
                 <p
                   style={{
                     fontSize: "12px",
                     fontWeight: 400,
-                    color: "#FF33B6",
+                    color: "var(--c-destructive)",
                     wordBreak: "break-word",
                     fontFamily: "'DM Sans', system-ui, sans-serif",
                     lineHeight: 1.5,

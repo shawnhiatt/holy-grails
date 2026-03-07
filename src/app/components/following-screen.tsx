@@ -161,7 +161,7 @@ export function FollowingScreen() {
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="screen-title" style={{ fontSize: "36px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
+            <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
             <p className="mt-0.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
               Browse the collections you follow
             </p>
@@ -224,7 +224,7 @@ export function FollowingScreen() {
                 </motion.p>
               )}
               {addError && (
-                <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-2 flex items-start gap-2" style={{ fontSize: "13px", fontWeight: 400, color: "#FF33B6" }}>
+                <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-2 flex items-start gap-2" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-destructive)" }}>
                   <Lock size={14} className="flex-shrink-0 mt-0.5" />
                   {addError}
                 </motion.p>
@@ -357,8 +357,8 @@ function FollowedUserProfile({
             </a>
             <button
               onClick={() => setShowRemoveConfirm(true)}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[rgba(255,51,182,0.1)] cursor-pointer"
-              style={{ color: "#FF33B6" }}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--c-destructive-tint)] cursor-pointer"
+              style={{ color: "var(--c-destructive)" }}
               title="Unfollow"
             >
               <UserMinus size={16} />
@@ -407,8 +407,8 @@ function FollowedUserProfile({
                   </button>
                   <button
                     onClick={() => { setShowRemoveConfirm(false); onRemove(); }}
-                    className="flex-1 py-2.5 rounded-[10px] bg-[#FF33B6] text-white transition-colors hover:bg-[#E6009E] cursor-pointer"
-                    style={{ fontSize: "14px", fontWeight: 600 }}
+                    className="flex-1 py-2.5 rounded-[10px] text-white transition-colors cursor-pointer"
+                    style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive)" }}
                   >
                     Unfollow
                   </button>
@@ -454,8 +454,8 @@ function FollowedUserProfile({
           </a>
           <button
             onClick={() => setShowRemoveConfirm(true)}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[rgba(255,51,182,0.1)] cursor-pointer"
-            style={{ color: "#FF33B6" }}
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--c-destructive-tint)] cursor-pointer"
+            style={{ color: "var(--c-destructive)" }}
             title="Unfollow"
           >
             <UserMinus size={16} />
@@ -608,16 +608,16 @@ function FollowedUserProfile({
           <>
             {filter === "they-want-you-cut" && theyWantYouCutCount > 0 && (
               <div className="mx-[16px] lg:mx-[24px] mt-3 p-3 rounded-[10px]"
-                style={{ backgroundColor: "rgba(255, 51, 182, 0.06)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "#FF33B6", lineHeight: 1.5 }}>
+                style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-destructive)", lineHeight: 1.5 }}>
                   {theyWantYouCutCount} album{theyWantYouCutCount !== 1 ? "s" : ""} you tagged as Purge that @{user.username} wants. Reach out!
                 </span>
               </div>
             )}
             {filter === "you-want-they-have" && youWantTheyHaveCount > 0 && (
               <div className="mx-[16px] lg:mx-[24px] mt-3 p-3 rounded-[10px]"
-                style={{ backgroundColor: "rgba(255, 51, 182, 0.06)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "#FF33B6", lineHeight: 1.5 }}>
+                style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-destructive)", lineHeight: 1.5 }}>
                   {youWantTheyHaveCount} album{youWantTheyHaveCount !== 1 ? "s" : ""} from your wantlist in @{user.username}&apos;s collection.
                 </span>
               </div>
@@ -669,8 +669,8 @@ function FollowedUserProfile({
                 </button>
                 <button
                   onClick={() => { setShowRemoveConfirm(false); onRemove(); }}
-                  className="flex-1 py-2.5 rounded-[10px] bg-[#FF33B6] text-white transition-colors hover:bg-[#E6009E] cursor-pointer"
-                  style={{ fontSize: "14px", fontWeight: 600 }}
+                  className="flex-1 py-2.5 rounded-[10px] text-white transition-colors cursor-pointer"
+                  style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive)" }}
                 >
                   Unfollow
                 </button>
@@ -1462,7 +1462,7 @@ function PopulatedFollowingView({
                           style={{
                             fontSize: "12px",
                             fontWeight: 600,
-                            color: isDarkMode ? "#EBFD00" : "#0078B4",
+                            color: "var(--c-link)",
                             fontFamily: "'DM Sans', system-ui, sans-serif",
                             background: "none",
                             border: "none",
@@ -1773,7 +1773,7 @@ function PopulatedFollowingView({
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
                   style={{
                     fontSize: "14px", fontWeight: 600,
-                    backgroundColor: "#FF33B6", color: "#FFFFFF",
+                    backgroundColor: "var(--c-destructive)", color: "#FFFFFF",
                     opacity: isRemovingWant ? 0.7 : 1,
                   }}
                 >
