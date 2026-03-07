@@ -1729,7 +1729,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           <div className="lg:hidden flex flex-col">
             {/* 0. Welcome greeting — below header clearance */}
             {hasData && welcomeGreeting && (
-              <div style={{ paddingTop: "74px", paddingLeft: "16px", paddingRight: "16px", paddingBottom: "20px" }}>
+              <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 74px)", paddingLeft: "16px", paddingRight: "16px", paddingBottom: "20px" }}>
                 <p
                   style={{
                     fontSize: "36px",
