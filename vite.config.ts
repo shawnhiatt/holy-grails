@@ -49,6 +49,15 @@ export default defineConfig({
       },
     }),
   ],
+  server: {
+    proxy: {
+      '/img-proxy': {
+        target: 'https://i.discogs.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/img-proxy/, ''),
+      },
+    },
+  },
   resolve: {
     alias: {
       // Alias @ to the src directory

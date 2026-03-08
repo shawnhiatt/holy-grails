@@ -1,6 +1,7 @@
 import React from "react";
 import type { ReactNode } from "react";
 import type { Album } from "./discogs-api";
+import { DominantColorCard } from "./dominant-color-card";
 
 function formatAddedDate(iso: string): string {
   const d = new Date(iso);
@@ -33,6 +34,10 @@ export interface DepthsAlbumCardProps {
   dateLine?: string;
   /** If true, artwork has horizontal padding (used in following cards) */
   artworkPadded?: boolean;
+  /** If true, only show title, artist, and date — hide year/label/folder meta line */
+  compact?: boolean;
+  /** If true, card background uses the dominant color extracted from the artwork */
+  dominantColor?: boolean;
 }
 
 export function DepthsAlbumCard({
@@ -43,20 +48,19 @@ export function DepthsAlbumCard({
   overlay,
   dateLine,
   artworkPadded = false,
+  compact = false,
+  dominantColor = false,
 }: DepthsAlbumCardProps) {
   const dateText = dateLine ?? formatAddedDate(album.dateAdded);
   const metaLine = [album.year, album.label, album.folder].filter(Boolean).join(" \u00B7 ");
 
-  return (
-    <div
-      className="rounded-[12px] overflow-hidden cursor-pointer"
-      style={{
-        backgroundColor: "var(--c-surface)",
-        border: "1px solid var(--c-border)",
-        boxShadow: "var(--c-card-shadow)",
-      }}
-      onClick={() => onTap(album.id)}
-    >
+  // When dominantColor is on, text colors reference --dc-* vars (with theme fallbacks)
+  const textColor = dominantColor ? "var(--dc-text, var(--c-text))" : "var(--c-text)";
+  const textSecondary = dominantColor ? "var(--dc-text-secondary, var(--c-text-secondary))" : "var(--c-text-secondary)";
+  const textMuted = dominantColor ? "var(--dc-text-muted, var(--c-text-muted))" : "var(--c-text-muted)";
+
+  const cardContent = (
+    <>
       {eyebrow}
 
       {/* Album artwork */}
@@ -81,22 +85,22 @@ export function DepthsAlbumCard({
       {/* Metadata */}
       <div
         style={{
-          padding: "12px 14px 0",
-          paddingBottom: footer ? "0" : "16px",
+          padding: compact ? "6px 8px 0" : "12px 14px 0",
+          paddingBottom: footer ? "0" : compact ? "8px" : "16px",
           display: "flex",
           flexDirection: "column",
-          gap: "3px",
+          gap: compact ? "1px" : "3px",
           minWidth: 0,
         }}
       >
         {/* Title */}
         <p
           style={{
-            fontSize: "18px",
-            fontWeight: 700,
-            color: "var(--c-text)",
+            fontSize: compact ? "13px" : "18px",
+            fontWeight: compact ? 600 : 700,
+            color: textColor,
             fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-            lineHeight: 1.3,
+            lineHeight: compact ? 1.25 : 1.3,
             ...truncStyle,
           } as React.CSSProperties}
         >
@@ -105,23 +109,23 @@ export function DepthsAlbumCard({
         {/* Artist */}
         <p
           style={{
-            fontSize: "14px",
+            fontSize: compact ? "12px" : "14px",
             fontWeight: 400,
-            color: "var(--c-text-secondary)",
+            color: textSecondary,
             fontFamily: "'DM Sans', system-ui, sans-serif",
-            lineHeight: 1.35,
+            lineHeight: compact ? 1.3 : 1.35,
             ...truncStyle,
           } as React.CSSProperties}
         >
           {album.artist}
         </p>
-        {/* Year · Label · Folder */}
-        {metaLine && (
+        {/* Year · Label · Folder (hidden in compact mode) */}
+        {!compact && metaLine && (
           <p
             style={{
               fontSize: "13px",
               fontWeight: 400,
-              color: "var(--c-text-muted)",
+              color: textMuted,
               fontFamily: "'DM Sans', system-ui, sans-serif",
               lineHeight: 1.35,
               ...truncStyle,
@@ -133,9 +137,9 @@ export function DepthsAlbumCard({
         {/* Date line */}
         <p
           style={{
-            fontSize: "13px",
+            fontSize: compact ? "11px" : "13px",
             fontWeight: 400,
-            color: "var(--c-text-muted)",
+            color: textMuted,
             fontFamily: "'DM Sans', system-ui, sans-serif",
             lineHeight: 1.35,
           }}
@@ -149,6 +153,33 @@ export function DepthsAlbumCard({
           {footer}
         </div>
       )}
+    </>
+  );
+
+  if (dominantColor) {
+    return (
+      <DominantColorCard
+        imageUrl={album.cover}
+        className="cursor-pointer"
+        onClick={() => onTap(album.id)}
+        style={{ boxShadow: "var(--c-card-shadow)" }}
+      >
+        {cardContent}
+      </DominantColorCard>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-[12px] overflow-hidden cursor-pointer"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+      onClick={() => onTap(album.id)}
+    >
+      {cardContent}
     </div>
   );
 }

@@ -64,8 +64,9 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
 
   return (
     <div
-      className="h-screen w-screen flex flex-col items-center justify-center overflow-hidden"
+      className="w-screen flex flex-col items-center justify-center overflow-hidden"
       style={{
+        height: "100dvh",
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: "#0C1A2E",
         background:

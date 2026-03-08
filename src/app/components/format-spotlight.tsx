@@ -57,8 +57,10 @@ const sectionTitleStyle: React.CSSProperties = {
   fontSize: "24px",
   fontWeight: 600,
   letterSpacing: "-0.3px",
+  lineHeight: 1.2,
   color: "var(--c-text)",
   fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+  margin: 0,
 };
 
 /* ─── Component ─── */
@@ -105,7 +107,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
     <div>
       {/* Section header */}
       <div className="px-[16px] lg:px-0 mb-[10px]">
-        <p style={sectionTitleStyle}>{spotlight.header}</p>
+        <h2 style={sectionTitleStyle}>{spotlight.header}</h2>
         <p
           style={{
             fontSize: "13px",
@@ -150,6 +152,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
               <DepthsAlbumCard
                 album={album}
                 onTap={handleTap}
+                dominantColor
                 overlay={
                   <WantlistHeartButton
                     releaseId={album.release_id}
@@ -188,6 +191,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
               key={`format-spot-desk-${album.id}`}
               album={album}
               onTap={handleTap}
+              dominantColor
               overlay={
                 <WantlistHeartButton
                   releaseId={album.release_id}

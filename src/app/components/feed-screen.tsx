@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Bookmark,
   GalleryVerticalEnd,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial } from "../utils/format";
 import { FormatSpotlight } from "./format-spotlight";
+import { DominantColorCard } from "./dominant-color-card";
 
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -150,8 +152,10 @@ const sectionTitleStyle: React.CSSProperties = {
   fontSize: "24px",
   fontWeight: 600,
   letterSpacing: "-0.3px",
+  lineHeight: 1.2,
   color: "var(--c-text)",
   fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+  margin: 0,
 };
 
 /* ─── Feed Screen ─── */
@@ -178,6 +182,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setPurgeTag,
     isSyncing,
     followingAvatars,
+    setSelectedWantItem,
+    toggleWantPriority,
   } = useApp();
 
   // Per-item in-flight tracking for wantlist API calls
@@ -206,6 +212,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       .slice(0, 12);
   }, [albums]);
 
+  // This Week in Your Collection — albums added during this calendar week in previous years
   // Decades — pick a random eligible decade on mount, stable for session
   const [decadesSpotlight] = useState(() => {
     if (albums.length === 0) return null;
@@ -237,6 +244,20 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     if (albums.length === 0) return [];
     const shuffled = [...albums].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, Math.min(10, shuffled.length));
+  });
+
+  // On the Hunt — shuffled wantlist items, weighted toward priority
+  const [huntAlbums] = useState(() => {
+    if (wants.length === 0) return [];
+    // Weight priority items: duplicate them so they appear more often in shuffle
+    const weighted = wants.flatMap((w) => (w.priority ? [w, w] : [w]));
+    const seen = new Set<number>();
+    const shuffled = [...weighted].sort(() => Math.random() - 0.5).filter((w) => {
+      if (seen.has(w.release_id)) return false;
+      seen.add(w.release_id);
+      return true;
+    });
+    return shuffled.slice(0, 6);
   });
 
   const followingActivity = useMemo(() => buildFeedActivity(followingFeed, 5, followingAvatars), [followingFeed, followingAvatars]);
@@ -442,7 +463,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div>
       {/* Section header */}
       <div className="px-[16px] lg:px-0 mb-[10px]">
-        <p style={sectionTitleStyle}>From the Depths</p>
+        <h2 style={sectionTitleStyle}>From the Depths</h2>
         <p
           style={{
             fontSize: "13px",
@@ -457,71 +478,55 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         </p>
       </div>
 
-      {/* Mobile: horizontal swipeable carousel */}
-      <div className="lg:hidden">
-        <style>{`.depths-feed-scroll::-webkit-scrollbar { display: none; }`}</style>
-        <div
-          className="depths-feed-scroll"
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            overflowX: "auto",
-            scrollSnapType: "x mandatory",
-            WebkitOverflowScrolling: "touch",
-            scrollbarWidth: "none",
-            gap: "12px",
-            paddingLeft: "16px",
-            scrollPaddingLeft: "16px",
-            paddingBottom: "4px",
-          }}
-        >
-          {depthsAlbums.map((album) => (
-            <div
-              key={`depths-feed-${album.id}`}
-              style={{
-                flex: "0 0 82%",
-                scrollSnapAlign: "start",
-                minWidth: 0,
-              }}
-            >
-              <DepthsAlbumCard
-                album={album}
-                onTap={handleDepthsTap}
-                overlay={
-                  <WantlistHeartButton
-                    releaseId={album.release_id}
-                    masterId={album.master_id}
-                    title={album.title}
-                    artist={album.artist}
-                    cover={album.cover}
-                    thumb={album.thumb}
-                    year={album.year}
-                    label={album.label}
-                    variant="overlay"
-                  />
-                }
-              />
-            </div>
-          ))}
-          {/* Spacer div to enforce right padding in scroll container */}
-          <div style={{ minWidth: "16px", flexShrink: 0 }} />
-        </div>
-      </div>
-
-      {/* Desktop: static 3-column grid */}
-      <div className="hidden lg:block">
+      {/* Mobile: 2x2 grid */}
+      <div className="lg:hidden px-[16px]">
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "16px",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: "12px",
           }}
         >
           {depthsAlbums.slice(0, 4).map((album) => (
             <DepthsAlbumCard
+              key={`depths-feed-${album.id}`}
+              album={album}
+              onTap={handleDepthsTap}
+              compact
+              dominantColor
+              overlay={
+                <WantlistHeartButton
+                  releaseId={album.release_id}
+                  masterId={album.master_id}
+                  title={album.title}
+                  artist={album.artist}
+                  cover={album.cover}
+                  thumb={album.thumb}
+                  year={album.year}
+                  label={album.label}
+                  variant="overlay"
+                />
+              }
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop: 3x3 grid */}
+      <div className="hidden lg:block">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "16px",
+          }}
+        >
+          {depthsAlbums.slice(0, 9).map((album) => (
+            <DepthsAlbumCard
               key={`depths-desk-${album.id}`}
               album={album}
               onTap={handleDepthsTap}
+              dominantColor
               overlay={
                 <WantlistHeartButton
                   releaseId={album.release_id}
@@ -547,7 +552,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div>
       {/* Section header */}
       <div className="px-[16px] lg:px-0 mb-[10px]">
-        <p style={sectionTitleStyle}>{decadesSpotlight.header}</p>
+        <h2 style={sectionTitleStyle}>{decadesSpotlight.header}</h2>
         <p
           style={{
             fontSize: "13px",
@@ -558,7 +563,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             lineHeight: 1.4,
           }}
         >
-          A decade from your collection.
+          Highlighting a decade from your collection.
         </p>
       </div>
 
@@ -592,6 +597,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               <DepthsAlbumCard
                 album={album}
                 onTap={handleDepthsTap}
+                dominantColor
                 overlay={
                   <WantlistHeartButton
                     releaseId={album.release_id}
@@ -627,6 +633,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               key={`decades-desk-${album.id}`}
               album={album}
               onTap={handleDepthsTap}
+              dominantColor
               overlay={
                 <WantlistHeartButton
                   releaseId={album.release_id}
@@ -647,12 +654,385 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </div>
   ) : null;
 
+  /* ─────────────── SHARED ALBUM CARD (used by Recently Added + This Week) ─────────────── */
+  const RecentAlbumCard = ({ album, width }: { album: typeof albums[0]; width?: string }) => {
+    const purgeColor = album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined;
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          setSelectedAlbumId(album.id);
+          setShowAlbumDetail(true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setSelectedAlbumId(album.id);
+            setShowAlbumDetail(true);
+          }
+        }}
+        className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
+        style={{
+          width: width || undefined,
+          flexShrink: width ? 0 : undefined,
+          backgroundColor: "var(--c-surface)",
+          border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+          boxShadow: "var(--c-card-shadow)",
+        }}
+      >
+        {/* Cover art */}
+        <div className="relative aspect-square overflow-hidden">
+          <img
+            src={album.cover}
+            alt={`${album.artist} - ${album.title}`}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            draggable={false}
+          />
+          {!hidePurgeIndicators && album.purgeTag && purgeColor && (
+            <div
+              className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
+              style={{ backgroundColor: purgeColor }}
+            />
+          )}
+        </div>
+
+        {/* Metadata */}
+        <div className="px-2 pt-[6px] pb-2" style={{ minWidth: 0, overflow: "hidden" }}>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              color: "var(--c-text)",
+              lineHeight: "1.25",
+              display: "block",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              WebkitTextOverflow: "ellipsis",
+              maxWidth: "100%",
+            } as React.CSSProperties}
+          >
+            {album.title}
+          </p>
+          <p
+            className="mt-[1px]"
+            style={{
+              fontSize: "12px",
+              fontWeight: 400,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              color: "var(--c-text-secondary)",
+              lineHeight: "1.3",
+              display: "block",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              WebkitTextOverflow: "ellipsis",
+              maxWidth: "100%",
+            } as React.CSSProperties}
+          >
+            {album.artist}
+          </p>
+          <div className="flex items-center gap-1.5 mt-[3px]" style={{ minWidth: 0, overflow: "hidden" }}>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 400,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                color: "var(--c-text-muted)",
+                flexShrink: 0,
+              }}
+            >
+              {album.year}
+            </span>
+            <span
+              className="rounded-full"
+              style={{
+                display: "inline-flex",
+                overflow: "hidden",
+                flexShrink: 1,
+                minWidth: 0,
+                padding: "1px 6px",
+                fontSize: "10px",
+                fontWeight: 500,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: isDarkMode
+                  ? "rgba(172,222,242,0.2)"
+                  : "rgba(172,222,242,0.5)",
+                color: isDarkMode ? "#ACDEF2" : "#00527A",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  WebkitTextOverflow: "ellipsis",
+                  maxWidth: "100%",
+                  width: "100%",
+                } as React.CSSProperties}
+              >
+                {album.folder}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* ─────────────── THIS WEEK IN YOUR COLLECTION ─────────────── */
+  /* ─────────────── ON THE HUNT — wantlist section ─────────────── */
+  const OnTheHuntSection = huntAlbums.length > 0 ? (
+    <div>
+      {/* Section header */}
+      <div className="flex items-center justify-between px-[16px] lg:px-0 mb-[12px]">
+        <div>
+          <h2 style={sectionTitleStyle}>On the Hunt</h2>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 400,
+              color: "var(--c-text-secondary)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              marginTop: "2px",
+              lineHeight: 1.4,
+            }}
+          >
+            From your Wantlist.
+          </p>
+        </div>
+        <button
+          onClick={() => setScreen("wants")}
+          className="cursor-pointer"
+          style={{
+            fontSize: "12px",
+            fontWeight: 600,
+            color: "var(--c-link)",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            background: "none",
+            border: "none",
+            padding: 0,
+          }}
+        >
+          See All
+        </button>
+      </div>
+
+      {/* Mobile: horizontal scroll */}
+      <div className="lg:hidden">
+        <style>{`.hunt-feed-scroll::-webkit-scrollbar { display: none; }`}</style>
+        <div
+          className="hunt-feed-scroll"
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            overflowX: "auto",
+            scrollSnapType: "x mandatory",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+            gap: "12px",
+            paddingLeft: "16px",
+            scrollPaddingLeft: "16px",
+            paddingBottom: "4px",
+          }}
+        >
+          {huntAlbums.map((item) => (
+            <div
+              key={`hunt-${item.id}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedWantItem(item)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelectedWantItem(item);
+                }
+              }}
+              className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
+              style={{
+                flex: "0 0 145px",
+                scrollSnapAlign: "start",
+                backgroundColor: "var(--c-surface)",
+                border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+                boxShadow: "var(--c-card-shadow)",
+              }}
+            >
+              {/* Cover art */}
+              <div className="relative aspect-square overflow-hidden">
+                <img
+                  src={item.cover || item.thumb}
+                  alt={`${item.artist} - ${item.title}`}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                  draggable={false}
+                />
+                {/* Priority bolt */}
+                {item.priority && (
+                  <div
+                    className="absolute top-1.5 right-1.5"
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "50%",
+                      background: "rgba(0, 0, 0, 0.45)",
+                      backdropFilter: "blur(4px)",
+                      WebkitBackdropFilter: "blur(4px)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Zap size={12} fill="#EEFC0F" color="#EEFC0F" />
+                  </div>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className="px-2 pt-[6px] pb-2" style={{ minWidth: 0, overflow: "hidden" }}>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                    color: "var(--c-text)",
+                    lineHeight: "1.25",
+                    display: "block",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    WebkitTextOverflow: "ellipsis",
+                    maxWidth: "100%",
+                  } as React.CSSProperties}
+                >
+                  {item.title}
+                </p>
+                <p
+                  className="mt-[1px]"
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 400,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    color: "var(--c-text-secondary)",
+                    lineHeight: "1.3",
+                    display: "block",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    WebkitTextOverflow: "ellipsis",
+                    maxWidth: "100%",
+                  } as React.CSSProperties}
+                >
+                  {item.artist}
+                </p>
+              </div>
+            </div>
+          ))}
+          {/* Spacer for right padding */}
+          <div style={{ minWidth: "16px", flexShrink: 0 }} />
+        </div>
+      </div>
+
+      {/* Desktop: static grid */}
+      <div className="hidden lg:grid grid-cols-6 gap-3">
+        {huntAlbums.map((item) => (
+          <div
+            key={`hunt-d-${item.id}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => setSelectedWantItem(item)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setSelectedWantItem(item);
+              }
+            }}
+            className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
+            style={{
+              backgroundColor: "var(--c-surface)",
+              border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+              boxShadow: "var(--c-card-shadow)",
+            }}
+          >
+            {/* Cover art */}
+            <div className="relative aspect-square overflow-hidden">
+              <img
+                src={item.cover || item.thumb}
+                alt={`${item.artist} - ${item.title}`}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                draggable={false}
+              />
+              {item.priority && (
+                <div
+                  className="absolute top-1.5 right-1.5"
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    background: "rgba(0, 0, 0, 0.45)",
+                    backdropFilter: "blur(4px)",
+                    WebkitBackdropFilter: "blur(4px)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Zap size={12} fill="#EEFC0F" color="#EEFC0F" />
+                </div>
+              )}
+            </div>
+
+            {/* Metadata */}
+            <div className="px-2 pt-[6px] pb-2" style={{ minWidth: 0, overflow: "hidden" }}>
+              <p
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                  color: "var(--c-text)",
+                  lineHeight: "1.25",
+                  display: "block",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  WebkitTextOverflow: "ellipsis",
+                  maxWidth: "100%",
+                } as React.CSSProperties}
+              >
+                {item.title}
+              </p>
+              <p
+                className="mt-[1px]"
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 400,
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  color: "var(--c-text-secondary)",
+                  lineHeight: "1.3",
+                  display: "block",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  WebkitTextOverflow: "ellipsis",
+                  maxWidth: "100%",
+                } as React.CSSProperties}
+              >
+                {item.artist}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   /* ─────────────── FOLLOWING ACTIVITY card content ─────────────── */
   const FollowingActivityCard = (
     <div className="rounded-[12px] overflow-hidden h-full" style={cardStyle}>
       {/* Section header inside card */}
       <div className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px]">
-        <p style={sectionTitleStyle}>Following Activity</p>
+        <h2 style={sectionTitleStyle}>Following Activity</h2>
         {hasFollowing && (
           <button
             onClick={() => setScreen("following")}
@@ -897,141 +1277,12 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </div>
   );
 
-  /* ─────────────── RECENTLY ADDED — shared album card ─────────────── */
-  const RecentAlbumCard = ({ album, width }: { album: typeof albums[0]; width?: string }) => {
-    const purgeColor = album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined;
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => {
-          setSelectedAlbumId(album.id);
-          setShowAlbumDetail(true);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setSelectedAlbumId(album.id);
-            setShowAlbumDetail(true);
-          }
-        }}
-        className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
-        style={{
-          width: width || undefined,
-          flexShrink: width ? 0 : undefined,
-          backgroundColor: "var(--c-surface)",
-          border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
-          boxShadow: "var(--c-card-shadow)",
-        }}
-      >
-        {/* Cover art */}
-        <div className="relative aspect-square overflow-hidden">
-          <img
-            src={album.cover}
-            alt={`${album.artist} - ${album.title}`}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            draggable={false}
-          />
-          {!hidePurgeIndicators && album.purgeTag && purgeColor && (
-            <div
-              className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
-              style={{ backgroundColor: purgeColor }}
-            />
-          )}
-        </div>
-
-        {/* Metadata */}
-        <div className="px-2 pt-[6px] pb-2" style={{ minWidth: 0, overflow: "hidden" }}>
-          <p
-            style={{
-              fontSize: "13px",
-              fontWeight: 600,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: "var(--c-text)",
-              lineHeight: "1.25",
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.title}
-          </p>
-          <p
-            className="mt-[1px]"
-            style={{
-              fontSize: "12px",
-              fontWeight: 400,
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              color: "var(--c-text-secondary)",
-              lineHeight: "1.3",
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.artist}
-          </p>
-          <div className="flex items-center gap-1.5 mt-[3px]" style={{ minWidth: 0, overflow: "hidden" }}>
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 400,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                color: "var(--c-text-muted)",
-                flexShrink: 0,
-              }}
-            >
-              {album.year}
-            </span>
-            <span
-              className="rounded-full"
-              style={{
-                display: "inline-flex",
-                overflow: "hidden",
-                flexShrink: 1,
-                minWidth: 0,
-                padding: "1px 6px",
-                fontSize: "10px",
-                fontWeight: 500,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                backgroundColor: isDarkMode
-                  ? "rgba(172,222,242,0.2)"
-                  : "rgba(172,222,242,0.5)",
-                color: isDarkMode ? "#ACDEF2" : "#00527A",
-              }}
-            >
-              <span
-                style={{
-                  display: "block",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  WebkitTextOverflow: "ellipsis",
-                  maxWidth: "100%",
-                  width: "100%",
-                } as React.CSSProperties}
-              >
-                {album.folder}
-              </span>
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   /* ─────────────── RECENTLY ADDED section ─────────────── */
   const RecentlyAddedSection = (
     <div>
       {/* Section header */}
       <div className="flex items-center justify-between mb-[12px]">
-        <p style={sectionTitleStyle}>Recently Added</p>
+        <h2 style={sectionTitleStyle}>Recently Added</h2>
         <button
           onClick={() => setScreen("crate")}
           className="cursor-pointer"
@@ -1085,7 +1336,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div className="rounded-[12px] overflow-hidden h-full" style={cardStyle}>
       {/* Section header inside card */}
       <div className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px]">
-        <p style={sectionTitleStyle}>Insights</p>
+        <h2 style={sectionTitleStyle}>Insights</h2>
         <button
           onClick={() => setScreen("reports")}
           className="cursor-pointer"
@@ -1252,7 +1503,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div className="px-[16px] pt-[16px]">
         {/* Header row */}
         <div className="flex items-center justify-between">
-          <p style={sectionTitleStyle}>Purge Tracker</p>
+          <h2 style={sectionTitleStyle}>Purge Tracker</h2>
           <button
             onClick={() => setScreen("purge")}
             className="cursor-pointer"
@@ -1555,22 +1806,19 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
   /* ─────────────── RECOMMENDED CARD ─────────────── */
 
-  /** Standard card for recommended album — used on both mobile and desktop */
+  /** Standard card for recommended album — uses dominant color extraction */
   const RecommendedCard = recommendedAlbum ? (() => {
     const album = recommendedAlbum;
 
     return (
-      <div
-        className="rounded-[12px] overflow-hidden cursor-pointer group"
-        style={{
-          ...cardStyle,
-          display: "flex",
-          flexDirection: "column",
-        }}
+      <DominantColorCard
+        imageUrl={album.cover}
+        className="cursor-pointer group"
         onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
+        style={{ display: "flex", flexDirection: "column" }}
       >
         {/* Cover art */}
-        <div className="relative aspect-square overflow-hidden">
+        <div className="relative aspect-square overflow-hidden" style={{ borderRadius: "12px 12px 0 0" }}>
           <img
             src={album.cover}
             alt={`${album.artist} - ${album.title}`}
@@ -1610,14 +1858,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           </div>
         </div>
 
-        {/* Metadata */}
+        {/* Metadata — uses dominant color CSS vars */}
         <div className="px-3 pt-[10px] pb-3" style={{ minWidth: 0, overflow: "hidden" }}>
           <p
             style={{
               fontSize: "13px",
               fontWeight: 500,
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              color: "var(--c-text-secondary)",
+              color: "var(--dc-text-secondary, var(--c-text-secondary))",
               lineHeight: 1.35,
               marginBottom: "6px",
             }}
@@ -1629,7 +1877,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               fontSize: "18px",
               fontWeight: 700,
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: "var(--c-text)",
+              color: "var(--dc-text, var(--c-text))",
               lineHeight: 1.2,
               letterSpacing: "-0.3px",
               display: "-webkit-box",
@@ -1647,7 +1895,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               fontSize: "14px",
               fontWeight: 400,
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              color: "var(--c-text-secondary)",
+              color: "var(--dc-text-secondary, var(--c-text-secondary))",
               lineHeight: 1.3,
               display: "block",
               whiteSpace: "nowrap",
@@ -1660,7 +1908,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
           </p>
         </div>
-      </div>
+      </DominantColorCard>
     );
   })() : null;
 
@@ -1679,7 +1927,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           {/* ═══ DESKTOP LAYOUT ═══ */}
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
-              <div className="flex flex-col gap-[24px]">
+              <div className="flex flex-col gap-[32px]">
                 {/* 0. Welcome greeting */}
                 {welcomeGreeting && (
                   <p
@@ -1706,16 +1954,19 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 {/* 3. Format Spotlight */}
                 <FormatSpotlight onAlbumTap={handleDepthsTap} />
 
-                {/* 4. Following Activity */}
+                {/* 5. Following Activity */}
                 {FollowingActivityCard}
 
-                {/* 5. Decades */}
+                {/* 6. On the Hunt */}
+                {OnTheHuntSection}
+
+                {/* 7. Decades */}
                 {DecadesSection}
 
-                {/* 6. From the Depths */}
+                {/* 8. From the Depths */}
                 {DepthsSection}
 
-                {/* 7. Purge Tracker + 8. Insights */}
+                {/* 9. Purge Tracker + 10. Insights */}
                 <div className="grid grid-cols-2 gap-6">
                   <div>{PurgeTrackerCard}</div>
                   <div>{InsightsCard}</div>
@@ -1752,7 +2003,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               <div className="px-[16px]">{RecommendedCard}</div>
             )}
 
-            <div className="flex flex-col gap-[28px] pt-[20px]">
+            <div className="flex flex-col gap-[36px] pt-[36px]">
               {/* 2. Recently Added */}
               {hasData && (
                 <div className="px-[16px]">{RecentlyAddedSection}</div>
@@ -1761,23 +2012,26 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               {/* 3. Format Spotlight */}
               {hasData && <FormatSpotlight onAlbumTap={handleDepthsTap} />}
 
-              {/* 4. Following Activity */}
+              {/* 5. Following Activity */}
               {hasData && (
                 <div className="px-[16px]">{FollowingActivityCard}</div>
               )}
 
-              {/* 5. Decades */}
+              {/* 6. On the Hunt */}
+              {hasData && OnTheHuntSection}
+
+              {/* 7. Decades */}
               {hasData && DecadesSection}
 
-              {/* 6. From the Depths */}
+              {/* 8. From the Depths */}
               {hasData && DepthsSection}
 
-              {/* 7. Purge Tracker */}
+              {/* 9. Purge Tracker */}
               {hasData && (
                 <div className="px-[16px]">{PurgeTrackerCard}</div>
               )}
 
-              {/* 8. Insights */}
+              {/* 10. Insights */}
               {hasData && (
                 <div className="px-[16px]">{InsightsCard}</div>
               )}
