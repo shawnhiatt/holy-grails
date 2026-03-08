@@ -817,7 +817,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             padding: 0,
           }}
         >
-          See All
+          View Wantlist
         </button>
       </div>
 
@@ -1851,7 +1851,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             >
               <Bookmark
                 size={16}
-                color={isAlbumInAnySession(album.id) ? "#ACDEF2" : "#FFFFFF"}
+                color={isAlbumInAnySession(album.id) ? "#EBFD00" : "#FFFFFF"}
                 {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
               />
             </button>

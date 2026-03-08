@@ -1219,7 +1219,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const performSync = useCallback(async (
     username: string,
-    token: string
+    token: string,
+    forceRefresh = false
   ): Promise<{ albums: number; folders: number; wants: number }> => {
     setIsSyncing(true);
     setSyncProgress("Syncing");
@@ -1407,15 +1408,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const followedUser = record.following_username;
             setSyncProgress(`Syncing users you follow (${i + 1} of ${sorted.length})`);
 
-            const lastSynced = cacheMap.get(followedUser);
-            if (lastSynced && (now - lastSynced) < TWENTY_FOUR_HOURS) {
-              // Bypass cache if stored data lacks master_id (pre-schema-change migration)
-              const cachedEntry = cachedFeed?.find(e => e.followed_username === followedUser);
-              const needsMigration = cachedEntry?.recent_albums &&
-                cachedEntry.recent_albums.length > 0 &&
-                !cachedEntry.recent_albums.some((a: any) => a.master_id);
-              if (!needsMigration) {
-                continue; // Cache is fresh and complete — skip
+            if (!forceRefresh) {
+              const lastSynced = cacheMap.get(followedUser);
+              if (lastSynced && (now - lastSynced) < TWENTY_FOUR_HOURS) {
+                // Bypass cache if stored data lacks master_id (pre-schema-change migration)
+                const cachedEntry = cachedFeed?.find(e => e.followed_username === followedUser);
+                const needsMigration = cachedEntry?.recent_albums &&
+                  cachedEntry.recent_albums.length > 0 &&
+                  !cachedEntry.recent_albums.some((a: any) => a.master_id);
+                if (!needsMigration) {
+                  continue; // Cache is fresh and complete — skip
+                }
               }
             }
 
@@ -1485,7 +1488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDiscogsUsername(username);
     }
 
-    return performSync(username, sessionToken);
+    return performSync(username, sessionToken, true);
   }, [discogsUsername, sessionToken, setDiscogsUsername, performSync, proxyFetchIdentity]);
 
   // executePurgeCut must be defined after syncFromDiscogs — it references
