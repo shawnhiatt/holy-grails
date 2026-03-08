@@ -805,6 +805,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     onClick={() => handleHeartTap(item)}
                     disabled={inFlightIds.has(item.albumReleaseId)}
                     className="flex-shrink-0 cursor-pointer tappable"
+                    aria-label={inWantList ? "Remove from wantlist" : "Add to wantlist"}
                     style={{ padding: "4px", background: "none", border: "none" }}
                   >
                     {inFlightIds.has(item.albumReleaseId) ? (
@@ -1584,6 +1585,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             <button
               onClick={() => openSessionPicker(album.id)}
               className="tappable"
+              aria-label="Add to session"
               style={{
                 width: "36px",
                 height: "36px",
