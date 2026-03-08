@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from "react";
-import { Disc3, Trash2, ExternalLink, Info, AlertTriangle, CheckCircle2, ChevronRight, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen, Check } from "lucide-react";
+import { useState, useRef, useMemo, useCallback } from "react";
+import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil } from "lucide-react";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -39,6 +39,8 @@ export function SettingsScreen() {
     signOut,
     isAuthenticated,
     userAvatar,
+    userProfile,
+    updateProfile,
     shakeToRandom,
     setShakeToRandom,
     defaultScreen,
@@ -60,6 +62,32 @@ export function SettingsScreen() {
   // Purge Cut dialog (execution lives in context via executePurgeCut)
   const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
   const [showDefaultScreenPicker, setShowDefaultScreenPicker] = useState(false);
+
+  // Profile edit state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editProfile, setEditProfile] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [showContributions, setShowContributions] = useState(false);
+
+  const startEditProfile = useCallback(() => {
+    setEditProfile(userProfile?.profile || "");
+    setEditLocation(userProfile?.location || "");
+    setIsEditingProfile(true);
+  }, [userProfile]);
+
+  const saveProfile = useCallback(async () => {
+    setIsSavingProfile(true);
+    try {
+      await updateProfile({ profile: editProfile, location: editLocation });
+      setIsEditingProfile(false);
+      toast.success("Profile updated.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update profile.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }, [editProfile, editLocation, updateProfile]);
 
   const cutAlbums = useMemo(() => albums.filter((a) => a.purgeTag === "cut"), [albums]);
 
@@ -167,19 +195,220 @@ export function SettingsScreen() {
       <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
         <section className="mt-4">
           <div className="rounded-[12px] p-4 flex flex-col gap-4" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Discogs</h3>
+            <div className="flex items-center justify-between">
+              <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Discogs Profile</h3>
+              {userProfile && (
+                <button
+                  onClick={isEditingProfile ? () => setIsEditingProfile(false) : startEditProfile}
+                  className="flex items-center justify-center cursor-pointer transition-opacity hover:opacity-70"
+                  style={{ padding: "4px" }}
+                  aria-label={isEditingProfile ? "Cancel editing" : "Edit profile"}
+                >
+                  <Pencil size={16} style={{ color: isEditingProfile ? "var(--c-text-faint)" : "var(--c-text-secondary)" }} />
+                </button>
+              )}
+            </div>
 
+            {/* Avatar + username + member since */}
             <div className="flex items-center gap-3">
               {userAvatar ? (
-                <img src={userAvatar} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                <img src={userAvatar} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
               ) : (
-                <div className="w-10 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--c-chip-bg)" }} />
+                <div className="w-12 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--c-chip-bg)" }} />
               )}
               <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)" }}>{discogsUsername}</p>
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Connected via Discogs</p>
+                <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>{discogsUsername}</p>
+                <div className="flex items-center gap-1" style={{ marginTop: "2px" }}>
+                  {userProfile?.location && !isEditingProfile && (
+                    <>
+                      <MapPin size={11} style={{ color: "var(--c-text-muted)" }} className="flex-shrink-0" />
+                      <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{userProfile.location}</span>
+                      {userProfile?.registered && (
+                        <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-faint)", margin: "0 2px" }}>&middot;</span>
+                      )}
+                    </>
+                  )}
+                  {userProfile?.registered ? (
+                    <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                      Member since {new Date(userProfile.registered).getFullYear()}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Connected via Discogs</span>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* About / Profile text */}
+            {userProfile?.profile && !isEditingProfile && (
+              <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.5 }}>{userProfile.profile}</p>
+            )}
+
+            {/* Edit profile form */}
+            {isEditingProfile && (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)", display: "block", marginBottom: "4px" }}>Location</label>
+                  <input
+                    type="text"
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    placeholder="City, Country"
+                    className="w-full rounded-[8px] px-3 py-2 outline-none"
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: 400,
+                      color: "var(--c-text)",
+                      backgroundColor: "var(--c-input-bg)",
+                      border: "1px solid var(--c-border)",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)", display: "block", marginBottom: "4px" }}>About</label>
+                  <textarea
+                    value={editProfile}
+                    onChange={(e) => setEditProfile(e.target.value)}
+                    placeholder="Tell us about your collection..."
+                    rows={3}
+                    className="w-full rounded-[8px] px-3 py-2 outline-none resize-none"
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: 400,
+                      color: "var(--c-text)",
+                      backgroundColor: "var(--c-input-bg)",
+                      border: "1px solid var(--c-border)",
+                    }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsEditingProfile(false)}
+                    className="flex-1 py-2 rounded-[8px] transition-colors cursor-pointer"
+                    style={{ fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveProfile}
+                    disabled={isSavingProfile}
+                    className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
+                    style={{ fontSize: "13px", fontWeight: 600 }}
+                  >
+                    {isSavingProfile && <Disc3 size={13} className="disc-spinner" />}
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Buyer / Seller ratings — always two columns */}
+            {userProfile && (
+              <div className="flex gap-4">
+                <div className="flex flex-col gap-0.5 flex-1">
+                  <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Buyer</p>
+                  {userProfile.buyerRatingStars > 0 ? (
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          size={14}
+                          fill={i < userProfile.buyerRatingStars ? "#FFC107" : "none"}
+                          stroke={i < userProfile.buyerRatingStars ? "#FFC107" : "var(--c-text-faint)"}
+                          strokeWidth={1.5}
+                        />
+                      ))}
+                      <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", marginLeft: "4px" }}>
+                        {userProfile.buyerRating.toFixed(1)}
+                      </span>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-faint)" }}>No buyer rating</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-0.5 flex-1">
+                  <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Seller</p>
+                  {userProfile.sellerRatingStars > 0 ? (
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          size={14}
+                          fill={i < userProfile.sellerRatingStars ? "#FFC107" : "none"}
+                          stroke={i < userProfile.sellerRatingStars ? "#FFC107" : "var(--c-text-faint)"}
+                          strokeWidth={1.5}
+                        />
+                      ))}
+                      <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", marginLeft: "4px" }}>
+                        {userProfile.sellerRating.toFixed(1)}
+                      </span>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-faint)" }}>No seller rating</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Contributions accordion */}
+            {userProfile && (userProfile.releasesContributed > 0 || userProfile.releasesRated > 0 || userProfile.numLists > 0) && (
+              <>
+                <div style={{ borderTop: "1px solid var(--c-border)" }} />
+                <button
+                  onClick={() => setShowContributions(!showContributions)}
+                  className="flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
+                >
+                  <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Contributions</span>
+                  <ChevronDown
+                    size={16}
+                    style={{
+                      color: "var(--c-text-muted)",
+                      transform: showContributions ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 200ms ease-out",
+                    }}
+                  />
+                </button>
+                {showContributions && (
+                  <div className="flex flex-col gap-2">
+                    {userProfile.releasesContributed > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>Releases contributed</span>
+                        <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)" }}>{userProfile.releasesContributed.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {userProfile.releasesRated > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>Releases rated</span>
+                        <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)" }}>{userProfile.releasesRated.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {userProfile.numLists > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>Lists</span>
+                        <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)" }}>{userProfile.numLists.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {userProfile.rank > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>Contributor rank</span>
+                        <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)" }}>#{userProfile.rank.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Divider before sync section */}
+            <div style={{ borderTop: "1px solid var(--c-border)" }} />
+
+            {/* Collection stats row */}
+            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
+              {syncStats
+                ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
+                : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
+              }
+            </p>
 
             <button onClick={handleSync} disabled={isSyncing}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
@@ -193,20 +422,10 @@ export function SettingsScreen() {
                 <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive)", wordBreak: "break-word" }}>{syncError}</p>
               </div>
             )}
-            {(lastSynced || syncStats) && (
-              <div className="text-center">
-                {lastSynced && (
-                  <div className="flex items-center justify-center gap-1.5">
-                    <CheckCircle2 size={13} className="text-[#22C55E]" />
-                    <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
-                  </div>
-                )}
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)" }}>
-                  {syncStats
-                    ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
-                    : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
-                  }
-                </p>
+            {lastSynced && (
+              <div className="flex items-center justify-center gap-1.5">
+                <CheckCircle2 size={13} className="text-[#22C55E]" />
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
               </div>
             )}
 

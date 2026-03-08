@@ -13,6 +13,7 @@ import {
   clearAllMarketData,
   setCollectionValueCache,
   type CollectionValue,
+  type UserProfile,
   isVinylFormat,
 } from "./discogs-api";
 
@@ -134,6 +135,8 @@ interface AppState {
   syncStats: { albums: number; folders: number; wants: number } | null;
   // User profile
   userAvatar: string;
+  userProfile: UserProfile | null;
+  updateProfile: (fields: { profile?: string; location?: string }) => Promise<void>;
   // Developer / QA resets
   wipeAllData: () => void;
   // Connect Discogs flow trigger (from within the main app)
@@ -249,6 +252,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [syncStats, setSyncStats] = useState<{ albums: number; folders: number; wants: number } | null>(null);
   const [purgeProgress, setPurgeProgress] = useState<{ running: boolean; current: number; total: number; failed: number[] } | null>(null);
   const [userAvatar, setUserAvatar] = useState("");
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [connectDiscogsRequested, setConnectDiscogsRequested] = useState(false);
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
@@ -329,6 +333,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const proxyCreateFolder = useAction(api.discogs.proxyCreateFolder);
   const proxyRenameFolder = useAction(api.discogs.proxyRenameFolder);
   const proxyDeleteFolder = useAction(api.discogs.proxyDeleteFolder);
+  const proxyUpdateProfile = useAction(api.discogs.proxyUpdateProfile);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -589,9 +594,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fetch avatar in background — skip if already set from Convex
-        if (!convexUser?.discogs_avatar_url && !convexLatestUser?.discogs_avatar_url) {
-          proxyFetchUserProfile({ sessionToken, username: discogsUsername }).then((p) => setUserAvatar(p.avatar)).catch(() => {});
-        }
+        // Fetch profile in background — always fetch for enriched data, avatar fallback if not cached
+        proxyFetchUserProfile({ sessionToken, username: discogsUsername }).then((p) => {
+          if (!convexUser?.discogs_avatar_url && !convexLatestUser?.discogs_avatar_url) {
+            setUserAvatar(p.avatar);
+          }
+          setUserProfile(p);
+        }).catch(() => {});
       } else {
         // Cache is empty despite being "fresh" — fall back to full sync
         initialSyncDoneRef.current = true;
@@ -1044,6 +1053,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFolders((prev) => prev.filter((f) => f.id !== folderId));
   }, [sessionToken, discogsUsername, proxyDeleteFolder]);
 
+  const updateProfileFn = useCallback(async (fields: { profile?: string; location?: string }) => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    const result = await proxyUpdateProfile({ sessionToken, username: discogsUsername, ...fields });
+    setUserProfile((prev) => prev ? { ...prev, profile: result.profile, location: result.location } : prev);
+  }, [sessionToken, discogsUsername, proxyUpdateProfile]);
+
   const toggleWantPriority = useCallback((wantId: string) => {
     setWants((prev) => {
       const want = prev.find((w) => w.id === wantId);
@@ -1225,10 +1240,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     setSyncProgress("Syncing");
     try {
-      // Fetch user profile (avatar)
+      // Fetch user profile (avatar + enriched data)
       try {
         const profile = await proxyFetchUserProfile({ sessionToken: token, username });
         setUserAvatar(profile.avatar);
+        setUserProfile(profile);
       } catch (e) {
         console.warn("[Discogs] Profile fetch failed:", e);
       }
@@ -1601,6 +1617,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowAlbumDetail(false);
     setShowFilterDrawer(false);
     setUserAvatar("");
+    setUserProfile(null);
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
     setSyncFailed(false);
@@ -1654,6 +1671,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowAlbumDetail(false);
     setShowFilterDrawer(false);
     setUserAvatar("");
+    setUserProfile(null);
     setSessionPickerAlbumId(null);
     setFirstSessionJustCreated(false);
     setSyncFailed(false);
@@ -1887,6 +1905,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       syncStats,
       // User profile
       userAvatar,
+      userProfile,
+      updateProfile: updateProfileFn,
       // Developer / QA resets
       wipeAllData,
       // Connect Discogs flow trigger (from within the main app)
@@ -1944,7 +1964,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       discogsUsername, setDiscogsUsername,
       isSyncing, isSyncingFollowing, syncProgress, lastSynced,
       syncFromDiscogs, syncStats,
-      userAvatar,
+      userAvatar, userProfile, updateProfileFn,
       wipeAllData,
       connectDiscogsRequested, requestConnectDiscogs, clearConnectDiscogsRequest,
       sessionPickerAlbumId, openSessionPicker, closeSessionPicker,

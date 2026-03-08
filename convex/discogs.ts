@@ -423,6 +423,17 @@ export const proxyFetchUserProfile = action({
       return {
         username: data.username as string,
         avatar: (data.avatar_url as string) || "",
+        profile: (data.profile as string) || "",
+        location: (data.location as string) || "",
+        registered: (data.registered as string) || "",
+        buyerRating: (data.buyer_rating as number) || 0,
+        buyerRatingStars: (data.buyer_rating_stars as number) || 0,
+        sellerRating: (data.seller_rating as number) || 0,
+        sellerRatingStars: (data.seller_rating_stars as number) || 0,
+        releasesContributed: (data.releases_contributed as number) || 0,
+        releasesRated: (data.releases_rated as number) || 0,
+        numLists: (data.num_lists as number) || 0,
+        rank: (data.rank as number) || 0,
       };
     } catch (err: any) {
       if (
@@ -434,7 +445,21 @@ export const proxyFetchUserProfile = action({
       console.warn(
         "[Discogs] Profile fetch skipped (network unavailable)"
       );
-      return { username: args.username, avatar: "" };
+      return {
+        username: args.username,
+        avatar: "",
+        profile: "",
+        location: "",
+        registered: "",
+        buyerRating: 0,
+        buyerRatingStars: 0,
+        sellerRating: 0,
+        sellerRatingStars: 0,
+        releasesContributed: 0,
+        releasesRated: 0,
+        numLists: 0,
+        rank: 0,
+      };
     }
   },
 });
@@ -1190,5 +1215,43 @@ export const proxyDeleteFolder = action({
       );
     }
     return { deleted: true as const, folder_id: args.folderId };
+  },
+});
+
+// 18. Update user profile (profile text, location)
+export const proxyUpdateProfile = action({
+  args: {
+    sessionToken: v.string(),
+    username: v.string(),
+    profile: v.optional(v.string()),
+    location: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}`;
+    const payload: Record<string, string> = {};
+    if (args.profile !== undefined) payload.profile = args.profile;
+    if (args.location !== undefined) payload.location = args.location;
+    const res = await discogsFetch(
+      "POST",
+      url,
+      creds.access_token,
+      creds.token_secret,
+      JSON.stringify(payload)
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `Failed to update profile (${res.status})${text ? ": " + text : ""}`
+      );
+    }
+    const data = await res.json();
+    return {
+      profile: (data.profile as string) || "",
+      location: (data.location as string) || "",
+    };
   },
 });

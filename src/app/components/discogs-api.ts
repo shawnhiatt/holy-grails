@@ -85,6 +85,24 @@ export interface FeedAlbum {
   dateAdded: string;
 }
 
+// ─── User Profile types ───
+
+export interface UserProfile {
+  username: string;
+  avatar: string;
+  profile: string;
+  location: string;
+  registered: string;
+  buyerRating: number;
+  buyerRatingStars: number;
+  sellerRating: number;
+  sellerRatingStars: number;
+  releasesContributed: number;
+  releasesRated: number;
+  numLists: number;
+  rank: number;
+}
+
 // ─── Market Value / Pricing types ───
 
 export interface CollectionValue {
