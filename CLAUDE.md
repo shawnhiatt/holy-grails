@@ -34,7 +34,7 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 ### What lives in Discogs (via API sync)
 - Collection (albums, folders, conditions, notes, custom fields)
 - Want list
-- User profile (username, avatar)
+- User profile (username, avatar, location, bio, buyer/seller ratings, registered date, contributions)
 
 ### What lives in Convex (Holy Grails-exclusive)
 - Purge tags (keep / cut / maybe + timestamps), keyed by `discogs_username` + `release_id`
@@ -95,13 +95,13 @@ All authenticated `useQuery` subscriptions in `app-context.tsx` use a shared `au
 
 All authenticated Discogs API calls go through server-side Convex actions in `convex/discogs.ts`. The client never calls the Discogs API directly. Actions look up the user's credentials server-side via `getUserCredentials` (an internalQuery in `convex/discogsHelpers.ts`) and sign requests using HMAC-SHA1.
 
-**convex/discogs.ts** — `"use node"` directive. Contains 17 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`. All take `sessionToken` as the first argument.
+**convex/discogs.ts** — `"use node"` directive. Contains 18 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`. All take `sessionToken` as the first argument.
 
 **convex/discogsHelpers.ts** — Contains `getUserCredentials` (internalQuery). Separated from `convex/discogs.ts` because Convex does not allow queries in `"use node"` runtime files. If adding new internal queries needed by Discogs actions, they must live here, not in `discogs.ts`.
 
 **convex/oauth.ts** — OAuth handshake actions (`requestToken`, `accessToken`, `fetchIdentity`). Now read `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` from `process.env` — no longer accept them as client arguments. Still uses PLAINTEXT signing (acceptable for transient token exchange over HTTPS).
 
-**discogs-api.ts** — HTTP functions removed. File now contains only: exported types (`Album`, `WantItem`, `Session`, `FollowedUser`, `FeedAlbum`, `PurgeTag`, `CollectionValue`, `MarketData`, `ConditionPrice`, `MarketplaceStats`), constants (`CONDITION_GRADES`, `CONDITION_SHORT`), pure utility functions (`normalizeCondition`, `buildFieldMap`), and in-memory market/collection value cache functions. Do not re-add HTTP functions here.
+**discogs-api.ts** — HTTP functions removed. File now contains only: exported types (`Album`, `WantItem`, `Session`, `FollowedUser`, `FeedAlbum`, `PurgeTag`, `UserProfile`, `CollectionValue`, `MarketData`, `ConditionPrice`, `MarketplaceStats`), constants (`CONDITION_GRADES`, `CONDITION_SHORT`), pure utility functions (`normalizeCondition`, `buildFieldMap`), and in-memory market/collection value cache functions. Do not re-add HTTP functions here.
 
 **`DiscogsAuth` type removed.** The client no longer holds raw OAuth credentials. Auth is identified entirely by `sessionToken`.
 
@@ -157,6 +157,7 @@ src/
       crate-browser.tsx
       crate-flip.tsx
       depths-album-card.tsx
+      dominant-color-card.tsx  # Reusable card wrapper — extracts dominant color from album artwork via canvas, sets CSS custom properties (--dc-bg, --dc-text, etc.) for children. Uses /img-proxy/ to avoid CORS canvas tainting.
       discogs-api.ts     # Types, constants, pure utilities, and in-memory caches (HTTP functions removed — see Discogs API Proxy)
       feed-screen.tsx
       filter-drawer.tsx
@@ -200,7 +201,7 @@ convex/                  # Convex backend functions and schema
   schema.ts
   users.ts             # getLatestUser (public bootstrap), getMe, upsert, updateLastSynced, updateCollectionValue, clearSession
   oauth.ts             # Public OAuth handshake — reads credentials from process.env, intentionally unauthenticated
-  discogs.ts           # "use node" — 17 server-side Discogs API proxy actions (see Discogs API Proxy)
+  discogs.ts           # "use node" — 18 server-side Discogs API proxy actions (see Discogs API Proxy)
   discogsHelpers.ts    # getUserCredentials internalQuery — separated from discogs.ts due to "use node" constraint
   purge_tags.ts
   sessions.ts
@@ -467,6 +468,16 @@ paddingBottom: "env(safe-area-inset-bottom, 16px)"
 
 The bottom tab bar floats 12px from the bottom with 10px side margins. Inner scrollable content in bottom sheets needs `paddingBottom: calc(env(safe-area-inset-bottom, 0px) + 120px)` to scroll fully above it.
 
+### Full-Screen Viewport Height (iOS Safari)
+
+Never use Tailwind's `h-screen` (which maps to `100vh`) for full-screen layouts like splash screens or loading screens. On iOS Safari, `100vh` includes the area behind the browser chrome, causing unwanted vertical scroll. Use `100dvh` (dynamic viewport height) instead:
+
+```tsx
+style={{ height: "100dvh" }}
+```
+
+`100dvh` adjusts to the actual visible area as the browser chrome shows/hides. Supported in all modern browsers (baseline late 2022).
+
 ### Input Font Size (iOS Auto-Zoom Prevention)
 All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zooms on inputs smaller than 16px. This is a hard rule.
 
@@ -508,16 +519,26 @@ Never use `cover` in contexts smaller than ~200px — always prefer `thumb || co
 ### Following Feed Cache
 The `following_feed` Convex table caches the 50 most recent albums per followed user (up to 25 users, most recently followed first). 24h TTL per user — bypassed when cached data lacks `master_id` (one-time migration). Powers Feed Recent Activity and From the Depths without requiring Following screen hydration. Avatar URLs for followed users are stored in the `following` Convex table and exposed via the `followingAvatars` map in context.
 
+**Manual sync (Sync Now)** bypasses the 24h TTL on the following feed — `performSync()` accepts a `forceRefresh` parameter that skips the cache freshness check. `syncFromDiscogs()` (the manual trigger) always passes `forceRefresh: true`. Startup sync uses the default (`false`) and respects the 24h cache.
+
 ### Wantlist Caching
 The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as the collection. `convex/wantlist.ts` handles persistence (`getByUsername`, `replaceAll`, `addItem`, `removeItem`). Wantlist write operations (add/remove) update both local state and the Convex wantlist cache on success.
 
 ### Home Feed (feed-screen.tsx)
 
-**Section order:** Recommended, Recently Added, Format Spotlight, Following Activity, From the Depths, Purge Tracker, Insights.
+**Section order:** Recommended, Recently Added, Format Spotlight, Following Activity, On the Hunt, Decades, From the Depths, Purge Tracker, Insights.
 
-**Recommended hero:** The Recommended section renders as a full-bleed hero card on mobile only. The feed header becomes transparent when scroll position is 0 on the home feed and transitions to opaque on scroll. This behavior is scoped to the home feed screen exclusively via a prop on the header component — not a fork or separate header.
+**Recommended hero:** The Recommended section renders as a full-bleed hero card on mobile only. Uses `DominantColorCard` for artwork-driven background tinting. The feed header becomes transparent when scroll position is 0 on the home feed and transitions to opaque on scroll. This behavior is scoped to the home feed screen exclusively via a prop on the header component — not a fork or separate header.
 
 **Format Spotlight:** Rotates the featured format on every app load. Filters the user's collection data for obscure vinyl format descriptions (7-Inch, 12-Inch, Limited Edition, Picture Disc, Colored, Etched, 45 RPM, Mono, etc.). Requires a minimum of 3 matching albums per category to be eligible for display. Operates entirely on cached Convex collection data — zero additional API calls.
+
+**On the Hunt:** Wantlist showcase — horizontal scroll on mobile (145px cards), 6-col grid on desktop. Shows priority bolt icons on prioritized items. "See All" navigates to wantlist screen. Tapping a card opens `WantItemDetailPanel`. Shuffled on mount with priority items weighted 2x, deduped, max 6 items.
+
+**Decades:** Random eligible decade spotlight (requires 5+ albums in the decade). Uses `DepthsAlbumCard` with `dominantColor` for artwork-driven card backgrounds.
+
+**From the Depths:** 2x2 grid on mobile, 3x3 grid on desktop. Uses `DepthsAlbumCard` with `compact` and `dominantColor` props — shows only title, artist, and date (no year/label/folder meta line).
+
+**Dominant color cards:** `DominantColorCard` (`dominant-color-card.tsx`) extracts the dominant color from album artwork via canvas sampling and uses it as the card background. Text contrast (light/dark) is determined by WCAG 2.1 relative luminance. Images are proxied through `/img-proxy/` (Vite dev proxy + Vercel rewrite) to avoid CORS canvas tainting. The component sets CSS custom properties (`--dc-bg`, `--dc-text`, `--dc-text-secondary`, `--dc-text-muted`) for children to consume. `DepthsAlbumCard` supports a `dominantColor` boolean prop that wraps the card in `DominantColorCard` and switches text colors to `--dc-*` vars with `--c-*` fallbacks. A `compact` boolean prop reduces font sizes and hides the year/label/folder meta line.
 
 ---
 
@@ -593,6 +614,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
 - Album instance editing (media/sleeve condition, notes, folder) from album detail panel
 - Folder management (create, rename, delete) from Settings > Tools > Folders via `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`
+- Discogs profile personalization in Settings — enriched profile data (location, bio, buyer/seller ratings, member since, contributions) fetched from `/users/{username}`, editable profile text and location via `proxyUpdateProfile`
 - Wantlist write operations (`proxyAddToWantlist`, `proxyRemoveFromWantlist`) via Convex proxy actions
 - `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`)
 - `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
@@ -682,6 +704,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Price suggestions: `GET /marketplace/price_suggestions/{release_id}`
 - Market stats: `GET /marketplace/stats/{release_id}`
 - User profile: `GET /users/{username}`
+- Update profile: `POST /users/{username}` (supports `profile`, `location`, `name`, `home_page`, `curr_abbr`)
 
 All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Discogs fetch calls in client code.
 
