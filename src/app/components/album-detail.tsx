@@ -101,6 +101,10 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   // Enriched content tab state
   const [activeTab, setActiveTab] = useState<'tracklist' | 'credits' | 'pressing' | 'identifiers'>('tracklist');
 
+  // Tab bar sticky sentinel
+  const tabSentinelRef = useRef<HTMLDivElement>(null);
+  const [tabBarStuck, setTabBarStuck] = useState(false);
+
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -117,6 +121,19 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setActiveTab('tracklist');
     setLightboxOpen(false);
     setLightboxIndex(0);
+    setTabBarStuck(false);
+  }, [selectedAlbum?.id]);
+
+  // IntersectionObserver for tab bar sticky padding
+  useEffect(() => {
+    const sentinel = tabSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setTabBarStuck(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, [selectedAlbum?.id]);
 
   // Fetch enriched release data when album changes
@@ -561,9 +578,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     border: "1px solid var(--c-border)",
                     borderRadius: "8px",
                     padding: "8px 12px",
+                    paddingRight: "36px",
                     fontFamily: "'DM Sans', system-ui, sans-serif",
                     outline: "none",
                     width: "100%",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px 16px",
                   }}
                 >
                   {folderOptions.map((f) => (
@@ -586,9 +610,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     border: "1px solid var(--c-border)",
                     borderRadius: "8px",
                     padding: "8px 12px",
+                    paddingRight: "36px",
                     fontFamily: "'DM Sans', system-ui, sans-serif",
                     outline: "none",
                     width: "100%",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px 16px",
                   }}
                 >
                   <option value="">Not set</option>
@@ -612,9 +643,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     border: "1px solid var(--c-border)",
                     borderRadius: "8px",
                     padding: "8px 12px",
+                    paddingRight: "36px",
                     fontFamily: "'DM Sans', system-ui, sans-serif",
                     outline: "none",
                     width: "100%",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px 16px",
                   }}
                 >
                   <option value="">Not set</option>
@@ -698,7 +736,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
                 {hideHeader && (
                   <div className="flex items-center justify-between mb-2.5">
-                    <span style={{ fontSize: "11px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--c-text-muted)" }}>Your Copy</span>
+                    <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Your Copy</span>
                     {editButton}
                   </div>
                 )}
@@ -982,6 +1020,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
               return (
                 <>
+                  {/* Sentinel for sticky tab bar detection */}
+                  <div ref={tabSentinelRef} style={{ height: 0, width: "100%", pointerEvents: "none" }} />
                   {/* Tab bar */}
                   <div
                     className="overflow-x-auto no-scrollbar"
@@ -989,8 +1029,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       position: "sticky",
                       top: 0,
                       zIndex: 10,
-                      backgroundColor: "var(--c-surface)",
+                      backgroundColor: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : "var(--c-surface)",
                       borderBottom: "1px solid var(--c-border)",
+                      paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                     }}
                   >
                     <div className="flex">
@@ -1035,11 +1076,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                         onToggle={() => {}}
                         allDurationsMissing={allDurationsMissing}
                         hideToggle
+                        hideTitle={hideHeader}
                       />
                     ) : activeTab === 'credits' && hasCredits ? (
-                      <CreditsSection groupedCredits={groupedCredits} />
+                      <CreditsSection groupedCredits={groupedCredits} hideTitle={hideHeader} />
                     ) : activeTab === 'pressing' && hasPressingNotes ? (
-                      <PressingNotesSection notes={releaseData!.notes} />
+                      <PressingNotesSection notes={releaseData!.notes} hideTitle={hideHeader} />
                     ) : activeTab === 'identifiers' && releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
                       <div className="px-4 pb-6">
                         <div className="flex flex-col gap-1.5">
@@ -1154,12 +1196,14 @@ function TracklistSection({
   onToggle,
   allDurationsMissing,
   hideToggle = false,
+  hideTitle = false,
 }: {
   tracklist: { position: string; title: string; duration: string }[];
   isExpanded: boolean;
   onToggle: () => void;
   allDurationsMissing: boolean;
   hideToggle?: boolean;
+  hideTitle?: boolean;
 }) {
   const SHOW_COUNT = 5;
   const shouldFade = !hideToggle && tracklist.length > SHOW_COUNT;
@@ -1167,9 +1211,11 @@ function TracklistSection({
 
   return (
     <div className="px-4 pb-6">
-      <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>
-        Tracklist
-      </p>
+      {!hideTitle && (
+        <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>
+          Tracklist
+        </p>
+      )}
       <div className="relative">
         <div className="flex flex-col">
           {visibleTracks.map((track, i) => (
@@ -1221,10 +1267,10 @@ function TracklistSection({
   );
 }
 
-function CreditsSection({ groupedCredits }: { groupedCredits: { role: string; names: string[] }[] }) {
+function CreditsSection({ groupedCredits, hideTitle = false }: { groupedCredits: { role: string; names: string[] }[]; hideTitle?: boolean }) {
   return (
     <div className="px-4 pb-6">
-      <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Credits</p>
+      {!hideTitle && <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Credits</p>}
       <div className="flex flex-col gap-2.5">
         {groupedCredits.map(({ role, names }) => (
           <div key={role}>
@@ -1241,10 +1287,10 @@ function CreditsSection({ groupedCredits }: { groupedCredits: { role: string; na
   );
 }
 
-function PressingNotesSection({ notes }: { notes: string }) {
+function PressingNotesSection({ notes, hideTitle = false }: { notes: string; hideTitle?: boolean }) {
   return (
     <div className="px-4 pb-6">
-      <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Pressing Notes</p>
+      {!hideTitle && <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Pressing Notes</p>}
       <p style={{
         fontSize: "12px",
         fontWeight: 400,

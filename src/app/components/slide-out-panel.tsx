@@ -136,8 +136,8 @@ export function SlideOutPanel({
         aria-label="Close"
         className="fixed lg:hidden w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
         style={{
-          top: "calc(env(safe-area-inset-top, 0px) + 13px)",
-          right: "16px",
+          top: "calc(env(safe-area-inset-top, 0px) + 10px)",
+          right: "12px",
           zIndex: sheetZIndex + 1,
           backgroundColor: "rgba(0, 0, 0, 0.45)",
           backdropFilter: "blur(6px)",
