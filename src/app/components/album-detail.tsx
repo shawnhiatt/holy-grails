@@ -413,24 +413,69 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
       <div className="flex-1 overflow-y-auto">
         {/* ═══ Hero ═══ */}
-        {!hideImage && (
-        <div className="p-4">
-          <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
-            <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
+        {!hideImage && hideHeader ? (
+          /* ── Mobile: padded cover with gradient scrim ── */
+          <div className="px-4 pt-3">
+            <div className="relative w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+              <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
+              {/* Gradient scrim */}
+              <div
+                className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
+                style={{
+                  height: "55%",
+                  background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.0) 100%)",
+                }}
+              >
+                <h2
+                  style={{
+                    fontSize: "22px",
+                    fontWeight: 700,
+                    lineHeight: "1.3",
+                    fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                    color: "#ffffff",
+                    display: "block",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    WebkitTextOverflow: "ellipsis",
+                    maxWidth: "100%",
+                  }}
+                >{selectedAlbum.title}</h2>
+                <p
+                  style={{
+                    fontSize: "15px",
+                    fontWeight: 500,
+                    color: "rgba(255,255,255,0.80)",
+                    display: "block",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    WebkitTextOverflow: "ellipsis",
+                    maxWidth: "100%",
+                  }}
+                >{[selectedAlbum.artist, selectedAlbum.year ? String(selectedAlbum.year) : ""].filter(Boolean).join(" · ")}</p>
+              </div>
+            </div>
           </div>
-        </div>
-        )}
+        ) : !hideImage ? (
+          /* ── Desktop: padded cover (unchanged) ── */
+          <div className="p-4">
+            <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+              <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
+            </div>
+          </div>
+        ) : null}
 
         {/* ═══ Image thumbnail strip ═══ */}
         {isLoadingRelease && !releaseData && (
-          <div className="px-4 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
             ))}
           </div>
         )}
         {hasImages && (
-          <div className="px-4 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {releaseImages.map((img, idx) => (
               <button
                 key={idx}
@@ -444,23 +489,35 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </div>
         )}
 
-        <div className="px-4 pb-4">
-          <div className="flex items-start gap-2">
-            <div className="flex-1 min-w-0">
-              <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{selectedAlbum.title}</h2>
-              <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{selectedAlbum.artist}</p>
-            </div>
-            {selectedAlbum.purgeTag && !isEditMode && (
-              <span className="flex-shrink-0 px-2.5 py-1 rounded-full capitalize mt-1" style={{
+        {hideHeader ? (
+          /* ── Mobile: purge tag below carousel ── */
+          selectedAlbum.purgeTag && !isEditMode ? (
+            <div className="px-4 pb-2">
+              <span className="px-2.5 py-1 rounded-full capitalize" style={{
                 fontSize: "11px", fontWeight: 500,
                 backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
                 color: purgeTagColor[selectedAlbum.purgeTag],
               }}>{selectedAlbum.purgeTag}</span>
-            )}
-            {/* Mobile: edit button lives in the title row (hideHeader=true) */}
-            {hideHeader && editButton}
+            </div>
+          ) : null
+        ) : (
+          /* ── Desktop: title / artist / purge tag block (unchanged) ── */
+          <div className="px-4 pb-4">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{selectedAlbum.title}</h2>
+                <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{selectedAlbum.artist}</p>
+              </div>
+              {selectedAlbum.purgeTag && !isEditMode && (
+                <span className="flex-shrink-0 px-2.5 py-1 rounded-full capitalize mt-1" style={{
+                  fontSize: "11px", fontWeight: 500,
+                  backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
+                  color: purgeTagColor[selectedAlbum.purgeTag],
+                }}>{selectedAlbum.purgeTag}</span>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ═══ Edit form / Your Copy section ═══ */}
         {isEditMode ? (
@@ -624,6 +681,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             {/* ═══ Your Copy ═══ */}
             <div className="px-4 pb-4">
               <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+                {hideHeader && (
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span style={{ fontSize: "11px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--c-text-muted)" }}>Your Copy</span>
+                    {editButton}
+                  </div>
+                )}
                 <DetailRow label="Format" value={selectedAlbum.format} />
                 <DetailRow label="Label" value={selectedAlbum.label} />
                 <DetailRow label="Catalog #" value={selectedAlbum.catalogNumber} />

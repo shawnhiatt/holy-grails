@@ -86,7 +86,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
         className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px] pb-[120px]`}
         style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
       >
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col">
           {renderItems.map((item) => {
             if (item.kind === "divider") {
               return (
@@ -119,10 +119,10 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                 onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
                 onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
                 onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
-                className="flex items-center gap-3 p-2.5 rounded-[10px] tappable transition-colors text-left group relative"
-                style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+                className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
+                style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)" }}
               >
-                <div className="w-16 h-16 rounded-[8px] overflow-hidden flex-shrink-0">
+                <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
                   <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>

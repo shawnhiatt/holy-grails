@@ -776,7 +776,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
         className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px] pb-[120px]`}
         style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
       >
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col">
           {wantRenderItems.map((item) => {
             if (item.kind === "divider") {
               return (
@@ -804,11 +804,11 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
             return (
               <div
                 key={want.id}
-                className="flex items-center gap-3 p-2.5 rounded-[10px] tappable transition-colors cursor-pointer"
-                style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+                className="flex items-center gap-[12px] tappable transition-colors cursor-pointer"
+                style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)" }}
                 onClick={() => onSelect(want)}
               >
-                <div className="w-12 h-12 rounded-[8px] overflow-hidden flex-shrink-0">
+                <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
                   <img src={want.thumb || want.cover} alt={want.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>

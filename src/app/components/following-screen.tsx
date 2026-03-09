@@ -159,7 +159,7 @@ export function FollowingScreen() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <div>
             <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
             <p className="mt-0.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
@@ -168,9 +168,9 @@ export function FollowingScreen() {
           </div>
           <button
             onClick={() => { setShowAddForm(true); setAddError(""); }}
-            className="w-10 h-10 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer"
           >
-            <UserPlus size={20} />
+            <UserPlus size={16} />
           </button>
         </div>
       </div>
@@ -1204,6 +1204,22 @@ function PopulatedFollowingView({
   followingAvatars: Map<string, string>;
   isSyncingFollowing: boolean;
 }) {
+  // Sort followedUsers by most recent activity in followingFeed (avatar row only)
+  const sortedFollowedUsers = useMemo(() => {
+    const recentActivityMap = new Map<string, number>();
+    for (const entry of followingFeed) {
+      if (entry.recent_albums.length === 0) continue;
+      const maxTs = Math.max(...entry.recent_albums.map(a => Date.parse(a.dateAdded) || 0));
+      recentActivityMap.set(entry.followed_username.toLowerCase(), maxTs);
+    }
+    return [...followedUsers].sort((a, b) => {
+      const tsA = recentActivityMap.get(a.username.toLowerCase()) ?? 0;
+      const tsB = recentActivityMap.get(b.username.toLowerCase()) ?? 0;
+      if (tsB !== tsA) return tsB - tsA;
+      return a.username.toLowerCase().localeCompare(b.username.toLowerCase());
+    });
+  }, [followedUsers, followingFeed]);
+
   // Build a username → followedUser.id lookup for activity items
   const userIdMap = useMemo(() => new Map(followedUsers.map(f => [f.username.toLowerCase(), f.id])), [followedUsers]);
   const activityFeed = useMemo(() => buildActivityFeedFromCache(followingFeed, followingAvatars, userIdMap), [followingFeed, followingAvatars, userIdMap]);
@@ -1298,37 +1314,37 @@ function PopulatedFollowingView({
     <div className="flex flex-col">
       {/* ── Horizontal avatar row ── */}
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[10px] pb-[14px]">
-        <div className="flex items-start gap-[16px] overflow-x-auto no-scrollbar pb-1">
-          {followedUsers.map((followedUser) => (
+        <div className="flex items-start gap-[12px] overflow-x-auto no-scrollbar pb-1">
+          {sortedFollowedUsers.map((followedUser) => (
             <button
               key={followedUser.id}
               onClick={() => onSelectUser(followedUser.id)}
               className="flex flex-col items-center gap-[5px] shrink-0 cursor-pointer group"
-              style={{ width: "56px" }}
+              style={{ width: "92px" }}
             >
               {followedUser.avatar ? (
                 <img
                   src={followedUser.avatar}
                   alt={followedUser.username}
-                  className="w-[48px] h-[48px] rounded-full object-cover transition-transform group-hover:scale-105"
+                  className="w-[80px] h-[80px] rounded-full object-cover transition-transform group-hover:scale-105"
                   style={{ border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}` }}
                 />
               ) : (
                 <div
-                  className="w-[48px] h-[48px] rounded-full flex items-center justify-center transition-transform group-hover:scale-105"
+                  className="w-[80px] h-[80px] rounded-full flex items-center justify-center transition-transform group-hover:scale-105"
                   style={{
                     backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
                     border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}`,
                   }}
                 >
-                  <span style={{ fontSize: "18px", fontWeight: 600, color: isDarkMode ? "#ACDEF2" : "#0C284A", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                  <span style={{ fontSize: "28px", fontWeight: 600, color: isDarkMode ? "#ACDEF2" : "#0C284A", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
                     {getInitial(followedUser.username)}
                   </span>
                 </div>
               )}
               <span
                 className="w-full text-center"
-                style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
+                style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
               >
                 {followedUser.username}
               </span>
@@ -1363,7 +1379,7 @@ function PopulatedFollowingView({
                 lineHeight: 1.4,
               }}
             >
-              Peeking into their crates for something worth pulling.
+              A peek into your followed users' collections.
             </p>
           </div>
 

@@ -139,9 +139,10 @@ export function SlideOutPanel({
           top: "calc(env(safe-area-inset-top, 0px) + 13px)",
           right: "16px",
           zIndex: sheetZIndex + 1,
-          backgroundColor: isDarkMode ? "#1A3350" : "#FFFFFF",
-          color: isDarkMode ? "#E2E8F0" : "#0C284A",
-          boxShadow: "var(--c-shadow-sm)",
+          backgroundColor: "rgba(0, 0, 0, 0.45)",
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
+          color: "#ffffff",
         }}
       >
         <X size={16} />
@@ -173,7 +174,7 @@ export function SlideOutPanel({
       >
         {/* Grab handle — mobile only; desktop panels don't use bottom-sheet chrome */}
         <div
-          className="flex justify-center py-3 flex-shrink-0 cursor-grab lg:hidden"
+          className="flex justify-center py-1.5 flex-shrink-0 cursor-grab lg:hidden"
           style={{ touchAction: "none" }}
         >
           <div

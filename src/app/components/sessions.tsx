@@ -78,7 +78,7 @@ export function Sessions() {
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]">
         <div className="flex items-center justify-between">
           <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Sessions</h2>
-          <button onClick={() => setShowNewSession(true)} className="w-10 h-10 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable">
+          <button onClick={() => setShowNewSession(true)} className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable">
             <Plus size={20} />
           </button>
         </div>

@@ -10,7 +10,8 @@
       "Bash(powershell.exe -Command \"where.exe npm\")",
       "Bash(where.exe npx)",
       "Bash(PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/sshaw/AppData/Roaming/npm\" npm install)",
-      "mcp__figma-remote-mcp__generate_figma_design"
+      "mcp__figma-remote-mcp__generate_figma_design",
+      "Bash(npx:*)"
     ]
   }
 }
