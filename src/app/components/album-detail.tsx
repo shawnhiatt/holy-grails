@@ -54,6 +54,59 @@ interface ReleaseData {
 // In-memory cache keyed by release_id — persists across panel open/close within the same app session
 const releaseDataCache = new Map<number, ReleaseData>();
 
+/* ─── Art blur background — decorative blurred cover behind hero zone ─── */
+
+function ArtBlurBackground({
+  src,
+  isDarkMode,
+}: {
+  src: string;
+  isDarkMode: boolean;
+}) {
+  return (
+    <>
+      {/* Blurred art fill — overflow hidden clips blur fringe */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+      >
+        <img
+          src={src}
+          alt=""
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: "-10%",
+            width: "120%",
+            height: "120%",
+            objectFit: "cover",
+            filter: isDarkMode
+              ? "blur(70px) brightness(0.28) saturate(1.4)"
+              : "blur(70px) brightness(0.48) saturate(1.2)",
+            transform: "scale(1.1)",
+            willChange: "filter",
+          }}
+        />
+      </div>
+      {/* Gradient fade: bottom fades to surface */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: isDarkMode
+            ? "linear-gradient(to bottom, transparent 30%, #132B44 95%)"
+            : "linear-gradient(to bottom, transparent 30%, #FFFFFF 95%)",
+          pointerEvents: "none",
+        }}
+      />
+    </>
+  );
+}
+
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
     selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
@@ -446,94 +499,139 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       <div className={`flex-1${hideHeader ? '' : ' overflow-y-auto'}`}>
         {/* ═══ Hero ═══ */}
         {!hideImage && hideHeader ? (
-          /* ── Mobile: padded cover with gradient scrim ── */
-          <div className="px-4 pt-3">
-            <div className="relative w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
-              <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
-              {/* Gradient scrim */}
-              <div
-                className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
-                style={{
-                  height: "55%",
-                  background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.0) 100%)",
-                }}
-              >
-                <h2
+          /* ── Mobile: hero zone with blur background ── */
+          <div style={{ position: "relative", paddingBottom: "400px", marginBottom: "-400px", zIndex: 0 }}>
+            {/* Mobile blur background */}
+            <ArtBlurBackground src={selectedAlbum.cover} isDarkMode={isDarkMode} />
+            {/* Cover image with gradient scrim */}
+            <div className="px-4" style={{ position: "relative", zIndex: 1, paddingTop: "24px" }}>
+              <div className="relative w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+                <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
+                {/* Gradient scrim */}
+                <div
+                  className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
                   style={{
-                    fontSize: "22px",
-                    fontWeight: 700,
-                    lineHeight: "1.3",
-                    fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                    color: "#ffffff",
-                    display: "block",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    WebkitTextOverflow: "ellipsis",
-                    maxWidth: "100%",
+                    height: "55%",
+                    background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.0) 100%)",
                   }}
-                >{selectedAlbum.title}</h2>
-                <p
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 500,
-                    color: "rgba(255,255,255,0.80)",
-                    display: "block",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    WebkitTextOverflow: "ellipsis",
-                    maxWidth: "100%",
-                  }}
-                >{[selectedAlbum.artist, selectedAlbum.year ? String(selectedAlbum.year) : ""].filter(Boolean).join(" · ")}</p>
+                >
+                  <h2
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: 700,
+                      lineHeight: "1.3",
+                      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                      color: "#ffffff",
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    }}
+                  >{selectedAlbum.title}</h2>
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 500,
+                      color: "rgba(255,255,255,0.80)",
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    }}
+                  >{[selectedAlbum.artist, selectedAlbum.year ? String(selectedAlbum.year) : ""].filter(Boolean).join(" · ")}</p>
+                </div>
               </div>
             </div>
+            {/* ═══ Image thumbnail strip (mobile, inside blur zone) ═══ */}
+            {isLoadingRelease && !releaseData && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
+                ))}
+              </div>
+            )}
+            {hasImages && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+                {releaseImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                    className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
+                    style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
+                  >
+                    <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* ── Mobile: purge tag below carousel (inside blur zone) ── */}
+            {selectedAlbum.purgeTag && !isEditMode && (
+              <div className="px-4 pb-2" style={{ position: "relative", zIndex: 1 }}>
+                <span className="px-2.5 py-1 rounded-full capitalize" style={{
+                  fontSize: "11px", fontWeight: 500,
+                  backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
+                  color: purgeTagColor[selectedAlbum.purgeTag],
+                }}>{selectedAlbum.purgeTag}</span>
+              </div>
+            )}
           </div>
         ) : !hideImage ? (
-          /* ── Desktop: padded cover (unchanged) ── */
-          <div className="p-4">
-            <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
-              <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
+          /* ── Desktop: padded cover wrapped in blur hero zone ── */
+          <div style={{ position: "relative", paddingBottom: "400px", marginBottom: "-400px" }}>
+            {/* Desktop blur background */}
+            <ArtBlurBackground src={selectedAlbum.cover} isDarkMode={isDarkMode} />
+            <div className="p-4" style={{ position: "relative", zIndex: 1 }}>
+              <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+                <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
+              </div>
+            </div>
+            {/* ═══ Image thumbnail strip (desktop, inside blur zone) ═══ */}
+            {isLoadingRelease && !releaseData && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
+                ))}
+              </div>
+            )}
+            {hasImages && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+                {releaseImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                    className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
+                    style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
+                  >
+                    <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* ── Desktop: title / artist / purge tag block (inside blur zone) ── */}
+            <div className="px-4 pb-4" style={{ position: "relative", zIndex: 1 }}>
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{selectedAlbum.title}</h2>
+                  <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{selectedAlbum.artist}</p>
+                </div>
+                {selectedAlbum.purgeTag && !isEditMode && (
+                  <span className="flex-shrink-0 px-2.5 py-1 rounded-full capitalize mt-1" style={{
+                    fontSize: "11px", fontWeight: 500,
+                    backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
+                    color: purgeTagColor[selectedAlbum.purgeTag],
+                  }}>{selectedAlbum.purgeTag}</span>
+                )}
+              </div>
             </div>
           </div>
         ) : null}
 
-        {/* ═══ Image thumbnail strip ═══ */}
-        {isLoadingRelease && !releaseData && (
-          <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
-            ))}
-          </div>
-        )}
-        {hasImages && (
-          <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-            {releaseImages.map((img, idx) => (
-              <button
-                key={idx}
-                onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
-                className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
-                style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
-              >
-                <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {hideHeader ? (
-          /* ── Mobile: purge tag below carousel ── */
-          selectedAlbum.purgeTag && !isEditMode ? (
-            <div className="px-4 pb-2">
-              <span className="px-2.5 py-1 rounded-full capitalize" style={{
-                fontSize: "11px", fontWeight: 500,
-                backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
-                color: purgeTagColor[selectedAlbum.purgeTag],
-              }}>{selectedAlbum.purgeTag}</span>
-            </div>
-          ) : null
-        ) : (
-          /* ── Desktop: title / artist / purge tag block (unchanged) ── */
+        {!hideHeader && hideImage ? (
+          /* ── Desktop with hidden image: title / artist / purge tag block (no blur) ── */
           <div className="px-4 pb-4">
             <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
@@ -549,11 +647,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               )}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* ═══ Edit form / Your Copy section ═══ */}
         {isEditMode ? (
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-4" style={{ position: "relative", zIndex: 1, background: hideHeader ? `linear-gradient(to bottom, transparent, ${isDarkMode ? "#132B44" : "#FFFFFF"} 400px)` : undefined }}>
             <div className="rounded-[10px] p-3 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
               {/* Static read-only rows */}
               <DetailRow label="Year" value={String(selectedAlbum.year)} />
@@ -730,7 +828,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             </div>
           </div>
         ) : (
-          <>
+          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? `linear-gradient(to bottom, transparent, ${isDarkMode ? "#132B44" : "#FFFFFF"} 400px)` : undefined }}>
             {/* ═══ Your Copy ═══ */}
             <div className="px-4 pb-4">
               <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
@@ -791,11 +889,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 <p style={{ fontSize: "14px", fontWeight: 400, lineHeight: "1.6", color: "var(--c-text-secondary)" }}>{selectedAlbum.notes}</p>
               </div>
             )}
-          </>
+          </div>
         )}
 
         {!isEditMode && (
-          <>
+          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
             {/* ═══ Mark as Played button ═══ */}
             <div className="px-4 pb-6">
               <button
@@ -1095,7 +1193,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 </>
               );
             })()}
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -1567,6 +1665,7 @@ export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: bo
         backdropZIndex={110}
         sheetZIndex={120}
         shakeEntrance={shakeEntrance}
+        transparentBg
       >
         <AlbumDetailPanel hideHeader />
       </SlideOutPanel>

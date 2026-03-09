@@ -931,7 +931,7 @@ export function ReportsScreen() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div
-        className="flex-shrink-0 flex items-center px-[16px] lg:px-[24px] pt-[8px] pb-[4px] lg:pt-[16px] lg:pb-[17px]"
+        className="flex-shrink-0 flex items-center px-[16px] lg:px-[24px] pt-[4px] pb-[2px] lg:pt-[16px] lg:pb-[17px]"
       >
         <h2
           className="screen-title"

@@ -246,7 +246,7 @@ export function Wantlist() {
       </div>
 
       {/* ===== MOBILE top controls ===== */}
-      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[8px] pb-[4px]">
+      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[4px] pb-[2px]">
         <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Wantlist</h2>
       </div>
 
