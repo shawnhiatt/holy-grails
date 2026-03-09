@@ -234,6 +234,7 @@ export function SlideOutPanel({
             paddingBottom: footer
               ? undefined
               : "calc(env(safe-area-inset-bottom, 0px) + 120px)",
+            ...(transparentBg ? { backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF" } : {}),
           }}
         >
           {children}

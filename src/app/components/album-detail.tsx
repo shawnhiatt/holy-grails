@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, ExternalLink, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ExternalLink, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, History, Gavel } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -65,6 +65,15 @@ function ArtBlurBackground({
 }) {
   return (
     <>
+      {/* Opaque base — prevents content behind the sheet from showing through */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
+          pointerEvents: "none",
+        }}
+      />
       {/* Blurred art fill — overflow hidden clips blur fringe */}
       <div
         style={{
@@ -85,8 +94,8 @@ function ArtBlurBackground({
             height: "120%",
             objectFit: "cover",
             filter: isDarkMode
-              ? "blur(70px) brightness(0.28) saturate(1.4)"
-              : "blur(70px) brightness(0.48) saturate(1.2)",
+              ? "blur(60px) brightness(0.54) saturate(1.4)"
+              : "blur(60px) brightness(0.72) saturate(1.2)",
             transform: "scale(1.1)",
             willChange: "filter",
           }}
@@ -829,6 +838,63 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </div>
         ) : (
           <div style={{ position: "relative", zIndex: 1, background: hideHeader ? `linear-gradient(to bottom, transparent, ${isDarkMode ? "#132B44" : "#FFFFFF"} 400px)` : undefined }}>
+            {/* ═══ Mark as Played button ═══ */}
+            {!isEditMode && (
+              <div className="px-4 pb-4">
+                <button
+                  onClick={handlePlayedToday}
+                  className="w-full flex items-center justify-center gap-2.5 py-3 rounded-[10px] tappable transition-all relative overflow-hidden"
+                  style={{
+                    backgroundColor: (playedToday || justPlayed)
+                      ? (isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)")
+                      : (isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)"),
+                    border: `1px solid ${(playedToday || justPlayed) ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#74889C") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
+                    color: isDarkMode ? "#ACDEF2" : "#00527A",
+                  }}
+                >
+                  <AnimatePresence mode="wait">
+                    {justPlayed ? (
+                      <motion.div
+                        key="check"
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: [1.12, 1], opacity: 1 }}
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        transition={{ duration: DURATION_SLOW, ease: EASE_IN_OUT }}
+                        className="flex items-center gap-2"
+                      >
+                        <Check size={18} />
+                        <span style={{ fontSize: "14px", fontWeight: 600 }}>Played!</span>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="play"
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+                        className="flex items-center gap-2"
+                      >
+                        <Play size={16} />
+                        <span style={{ fontSize: "14px", fontWeight: 600 }}>Mark as Played</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </button>
+                <p className="mt-2 text-center flex items-center justify-center gap-1.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {playedToday ? (
+                    <>
+                      <Check size={12} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
+                      <span style={{ color: isDarkMode ? "#ACDEF2" : "#00527A", fontWeight: 500 }}>Played today</span>
+                    </>
+                  ) : albumLastPlayed ? (
+                    <>Last played {formatDateShort(albumLastPlayed)}</>
+                  ) : (
+                    <>No plays logged</>
+                  )}
+                </p>
+              </div>
+            )}
+
             {/* ═══ Your Copy ═══ */}
             <div className="px-4 pb-4">
               <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
@@ -879,6 +945,125 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 {selectedAlbum.customFields?.map((cf, i) => (
                   <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} />
                 ))}
+
+                {/* ═══ Add to a Session (inside Your Copy) ═══ */}
+                {!isEditMode && (
+                  <>
+                    <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
+                      <p className="mb-2" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        {inAnySession ? "Saved" : "Add to a Session"}
+                      </p>
+                      <div style={{ border: "1px solid var(--c-border-strong)", borderRadius: "10px", padding: "4px 8px", maxHeight: "240px", overflowY: "auto" }}>
+                        {[...sessions]
+                          .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
+                          .map((session) => {
+                            const inSession = isInSession(selectedAlbum.id, session.id);
+                            return (
+                              <InlineSessionRow
+                                key={session.id}
+                                label={session.name}
+                                count={session.albumIds.length}
+                                checked={inSession}
+                                onToggle={() => toggleAlbumInSession(selectedAlbum.id, session.id)}
+                                isDarkMode={isDarkMode}
+                              />
+                            );
+                          })}
+                        {!showNewSession ? (
+                          <button
+                            onClick={() => setShowNewSession(true)}
+                            className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors"
+                            style={{ color: "var(--c-text-secondary)" }}
+                          >
+                            <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
+                              <Plus size={14} />
+                            </div>
+                            <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 py-2 px-1">
+                            <input
+                              ref={newSessionInputRef}
+                              type="text"
+                              value={newSessionName}
+                              onChange={(e) => setNewSessionName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleCreateSession();
+                                if (e.key === "Escape") {
+                                  setShowNewSession(false);
+                                  setNewSessionName("");
+                                }
+                              }}
+                              placeholder="Session name..."
+                              maxLength={100}
+                              className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: 400,
+                                color: "var(--c-text)",
+                                backgroundColor: "var(--c-input-bg)",
+                                border: "1px solid var(--c-border)",
+                                fontFamily: "'DM Sans', system-ui, sans-serif",
+                              }}
+                            />
+                            <button
+                              onClick={handleCreateSession}
+                              disabled={!newSessionName.trim()}
+                              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center tappable transition-colors"
+                              style={{
+                                backgroundColor: newSessionName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
+                                color: newSessionName.trim() ? "#0C284A" : "var(--c-text-faint)",
+                              }}
+                            >
+                              <Check size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ═══ Rate for Purge (inside Your Copy) ═══ */}
+                    <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
+                      <p className="mb-2" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        Rate for Purge
+                      </p>
+                      <div style={{ display: "flex", flexDirection: "row", gap: "8px" }}>
+                        {(["keep", "maybe", "cut"] as const).map((tag) => {
+                          const isActive = selectedAlbum.purgeTag === tag;
+                          const label = tag.charAt(0).toUpperCase() + tag.slice(1);
+                          return (
+                            <button
+                              key={tag}
+                              className="tappable"
+                              onClick={() => {
+                                const t = selectedAlbum.purgeTag === tag ? null : tag;
+                                setPurgeTag(selectedAlbum.id, t);
+                                if (t) purgeToast(t, isDarkMode, selectedAlbum.title);
+                                else purgeClearToast();
+                              }}
+                              style={{
+                                flex: 1,
+                                height: "36px",
+                                borderRadius: "10px",
+                                border: isActive ? `2px solid ${purgeButtonText(tag, isDarkMode)}` : "none",
+                                fontSize: "13px",
+                                fontWeight: 600,
+                                fontFamily: "'DM Sans', system-ui, sans-serif",
+                                backgroundColor: purgeButtonBg(tag, isDarkMode),
+                                color: purgeButtonText(tag, isDarkMode),
+                                cursor: "pointer",
+                                opacity: isActive ? 1 : 0.55,
+                                transition: "opacity 0.15s ease",
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -894,68 +1079,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
         {!isEditMode && (
           <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
-            {/* ═══ Mark as Played button ═══ */}
-            <div className="px-4 pb-6">
-              <button
-                onClick={handlePlayedToday}
-                className="w-full flex items-center justify-center gap-2.5 py-3 rounded-[10px] tappable transition-all relative overflow-hidden"
-                style={{
-                  backgroundColor: (playedToday || justPlayed)
-                    ? (isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)")
-                    : (isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)"),
-                  border: `1px solid ${(playedToday || justPlayed) ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#74889C") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
-                  color: isDarkMode ? "#ACDEF2" : "#00527A",
-                }}
-              >
-                <AnimatePresence mode="wait">
-                  {justPlayed ? (
-                    <motion.div
-                      key="check"
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: [1.12, 1], opacity: 1 }}
-                      exit={{ scale: 0.8, opacity: 0 }}
-                      transition={{ duration: DURATION_SLOW, ease: EASE_IN_OUT }}
-                      className="flex items-center gap-2"
-                    >
-                      <Check size={18} />
-                      <span style={{ fontSize: "14px", fontWeight: 600 }}>Played!</span>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="play"
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.9, opacity: 0 }}
-                      transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
-                      className="flex items-center gap-2"
-                    >
-                      <Play size={16} />
-                      <span style={{ fontSize: "14px", fontWeight: 600 }}>Mark as Played</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </button>
-              <p className="mt-2 text-center flex items-center justify-center gap-1.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                {playedToday ? (
-                  <>
-                    <Check size={12} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
-                    <span style={{ color: isDarkMode ? "#ACDEF2" : "#00527A", fontWeight: 500 }}>Played today</span>
-                  </>
-                ) : albumLastPlayed ? (
-                  <>Last played {formatDateShort(albumLastPlayed)}</>
-                ) : (
-                  <>No plays logged</>
-                )}
-              </p>
-            </div>
-
-            {/* Wantlist button intentionally absent from collection view — available in WantItemDetailPanel and other non-collection contexts */}
-            <div className="px-4 pb-6">
-              <a href={selectedAlbum.discogsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 hover:underline" style={{ color: "var(--c-link)", fontSize: "14px", fontWeight: 500 }}>
-                View on Discogs<ExternalLink size={14} />
-              </a>
-            </div>
-
             {/* ═══ Community (enriched, 3-stat row) ═══ */}
             {isLoadingRelease ? (
               <div className="px-4 pb-6">
@@ -973,129 +1096,29 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               <CommunityRow community={releaseData!.community!} />
             ) : null}
 
-            <MarketValueSection album={selectedAlbum} sessionToken={sessionToken} />
-
-            {/* ═══ Sessions ═══ */}
-            <div className="px-4 pb-6">
-              <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>
-                {inAnySession ? "Saved" : "Save for Later"}
-              </p>
-
-              <div style={{ border: "1px solid var(--c-border-strong)", borderRadius: "10px", padding: "4px 8px", maxHeight: "240px", overflowY: "auto" }}>
-                {/* All sessions sorted by recency */}
-                {[...sessions]
-                  .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
-                  .map((session) => {
-                    const inSession = isInSession(selectedAlbum.id, session.id);
-                    return (
-                      <InlineSessionRow
-                        key={session.id}
-                        label={session.name}
-                        count={session.albumIds.length}
-                        checked={inSession}
-                        onToggle={() => toggleAlbumInSession(selectedAlbum.id, session.id)}
-                        isDarkMode={isDarkMode}
-                      />
-                    );
-                  })}
-
-                {/* New Session row */}
-                {!showNewSession ? (
-                  <button
-                    onClick={() => setShowNewSession(true)}
-                    className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors"
-                    style={{ color: "var(--c-text-secondary)" }}
-                  >
-                    <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
-                      <Plus size={14} />
-                    </div>
-                    <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 py-2 px-1">
-                    <input
-                      ref={newSessionInputRef}
-                      type="text"
-                      value={newSessionName}
-                      onChange={(e) => setNewSessionName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleCreateSession();
-                        if (e.key === "Escape") {
-                          setShowNewSession(false);
-                          setNewSessionName("");
-                        }
-                      }}
-                      placeholder="Session name..."
-                      maxLength={100}
-                      className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 400,
-                        color: "var(--c-text)",
-                        backgroundColor: "var(--c-input-bg)",
-                        border: "1px solid var(--c-border)",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                      }}
-                    />
-                    <button
-                      onClick={handleCreateSession}
-                      disabled={!newSessionName.trim()}
-                      className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center tappable transition-colors"
-                      style={{
-                        backgroundColor: newSessionName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
-                        color: newSessionName.trim() ? "#0C284A" : "var(--c-text-faint)",
-                      }}
-                    >
-                      <Check size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ═══ Rate for Purge ═══ */}
-            <div className="px-4 pb-6">
-              <p
-                className="mb-2"
-                style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}
-              >
-                Rate for Purge
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "row", gap: "8px" }}>
-                {(["keep", "maybe", "cut"] as const).map((tag) => {
-                  const isActive = selectedAlbum.purgeTag === tag;
-                  const label = tag.charAt(0).toUpperCase() + tag.slice(1);
-                  return (
-                    <button
-                      key={tag}
-                      className="tappable"
-                      onClick={() => {
-                        const t = selectedAlbum.purgeTag === tag ? null : tag;
-                        setPurgeTag(selectedAlbum.id, t);
-                        if (t) purgeToast(t, isDarkMode, selectedAlbum.title);
-                        else purgeClearToast();
-                      }}
-                      style={{
-                        flex: 1,
-                        height: "36px",
-                        borderRadius: "10px",
-                        border: isActive ? `2px solid ${purgeButtonText(tag, isDarkMode)}` : "none",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                        backgroundColor: purgeButtonBg(tag, isDarkMode),
-                        color: purgeButtonText(tag, isDarkMode),
-                        cursor: "pointer",
-                        opacity: isActive ? 1 : 0.55,
-                        transition: "opacity 0.15s ease",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* ═══ Research Links ═══ */}
+            <div className="px-4 pb-6 grid grid-cols-3 gap-2">
+              {[
+                { href: selectedAlbum.discogsUrl, icon: <Disc3 size={20} />, label: "View on Discogs" },
+                { href: `https://www.discogs.com/sell/history/${selectedAlbum.release_id}`, icon: <History size={20} />, label: "Sold History" },
+                { href: `https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${selectedAlbum.artist} ${selectedAlbum.title}`)}&x=0&y=0`, icon: <Gavel size={20} />, label: "Auction History" },
+              ].map(({ href, icon, label }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
+                  style={{
+                    backgroundColor: "var(--c-surface-alt)",
+                    border: "1px solid var(--c-border)",
+                    color: "var(--c-text-secondary)",
+                  }}
+                >
+                  {icon}
+                  <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>{label}</span>
+                </a>
+              ))}
             </div>
 
             {/* ═══ Enriched Content Tabs ═══ */}
@@ -1420,7 +1443,7 @@ function CommunityRow({ community }: { community: { rating: number | null; ratin
   ];
 
   return (
-    <div className="px-4 pb-6">
+    <div className="px-4 pt-2 pb-6">
       <div className="grid grid-cols-3">
         {stats.map(({ icon, value, label }) => (
           <div key={label} className="flex flex-col items-center gap-1">
