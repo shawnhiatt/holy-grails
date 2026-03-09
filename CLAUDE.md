@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.4.2
+# CLAUDE.md — Holy Grails v0.4.3
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -177,7 +177,7 @@ src/
       sessions.tsx
       settings-screen.tsx
       splash-screen.tsx
-      slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet.
+      slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD). Project ID: `AsNXonIuH0GaiKmG36KD`. Falls back to `#01294D` if WebGL is unavailable.
@@ -486,7 +486,7 @@ All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zoom
 
 ### Album Detail Edit Mode
 The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCondition`, `sleeveCondition`, `notes`, and `folder`. Key patterns:
-- Edit mode is entered via a `Pencil` (16px) icon button in the panel header. For desktop (`hideHeader=false`) it sits beside the X close button. For mobile (`hideHeader=true`) it sits in the album title row.
+- Edit mode is entered via a `Pencil` (16px) icon button. On mobile, the edit button sits in the "YOUR COPY" card header row (right-aligned). On desktop (`hideHeader=false`) it sits beside the X close button in the panel header.
 - Edit mode is not accessible while `isSyncing` — the button is hidden during sync.
 - `isEditMode` state resets whenever `selectedAlbum` changes.
 - On Save: Convex proxy actions first (`proxyUpdateCollectionInstance` / `proxyMoveToFolder`), then local state + Convex cache update via `updateAlbum` from context. On failure: error toast, stay in edit mode so the user can retry. Never trigger a full re-sync.
@@ -494,6 +494,7 @@ The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCo
 - `updateAlbum(albumId, fields)` in `app-context.tsx` updates local albums state and fires `collection.updateInstance` Convex mutation. Pattern mirrors `setPurgeTag`.
 - Condition grades for the dropdowns: use `CONDITION_GRADES` exported from `discogs-api.ts` — do not hardcode them.
 - Custom field ID resolution for the Discogs update happens inside `proxyUpdateCollectionInstance` — it fetches the user's field definitions server-side to map field names to IDs.
+- All `<select>` elements in edit mode use `appearance: none` with a custom SVG chevron background image. Arrow color switches by theme (`#AAAAAA` dark, `#333333` light). `paddingRight: 36px` prevents text overlap with the arrow. This ensures consistent select styling on iOS Safari where native select arrows do not respect dark mode.
 
 ### Album Detail Enriched Metadata
 The album detail panel lazy-loads enriched metadata from the Discogs `/releases/{release_id}` endpoint via `proxyFetchRelease`. Key patterns:
@@ -501,8 +502,15 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Stale guard**: The `useEffect` fetch uses a `let stale = false` + cleanup return pattern to prevent state updates after the component unmounts or the album changes.
 - **Hook ordering**: All hooks (`useState`, `useEffect`, `useCallback`, `useMemo`, `useAction`) must be called unconditionally before the two early returns (want item guard and null album guard). Moving hooks below early returns causes "Rendered fewer hooks than expected" errors.
 - **ReleaseData shape**: `{ country, notes, tracklist, credits, community, identifiers, genres, styles }`.
-- **Panel section order**: Hero → Your Copy (Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Discogs link → Mark as Played → Tracklist (collapsible, auto-collapses >8 tracks) → Credits (collapsed default, grouped by role) → Pressing Notes (collapsed default) → Identifiers (collapsed default) → Community (compact row) → Market Value → Sessions → Rate for Purge.
-- **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section. Never merge these.
+- **Mobile hero image**: On mobile (`hideHeader === true`), the panel renders a padded square cover image (`px-4 pt-3`, `rounded-[12px]`, `aspect-square`, `1px solid var(--c-border-strong)`) with a gradient scrim overlay (`linear-gradient(to top, rgba(0,0,0,0.82), transparent)`) covering the bottom 55%. Album title (22px, Bricolage Grotesque 700, white) and artist · year (15px, weight 500, white 80%) float as text on the gradient. Desktop side panel layout is unchanged.
+- **Thumbnail carousel**: `mt-3` spacing below the hero image.
+- **Purge tag**: Renders in its own `px-4 pb-2` row below the carousel (left-aligned), only when present and not in edit mode. No longer part of the title block.
+- **"Your Copy" card header**: On mobile, the metadata card has a "YOUR COPY" section label (16px, fontWeight 600, `var(--c-text)`) matching other section heading styles, with the edit pencil button right-aligned in the header row.
+- **Panel section order**: Hero → Thumbnail carousel → Purge tag → Your Copy (with section header, Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Discogs link → Mark as Played → Enriched Tabs (mobile) or accordion sections (desktop) → Community (compact row) → Market Value → Sessions → Rate for Purge.
+- **Enriched content tabs (mobile)**: On mobile, Tracklist, Credits, Pressing Notes, and Identifiers render as a sticky horizontal tab bar instead of accordion sections. Tabs with no data are hidden after the enriched fetch resolves. During loading, all four tabs show at `opacity: 0.4` with a skeleton below. Active tab uses `2px solid #EBFD00` underline indicator. Tab bar uses `position: sticky; top: 0; z-index: 10` with a background matching the sheet's hardcoded background (`isDarkMode ? "#132B44" : "#FFFFFF"`). An IntersectionObserver sentinel pattern applies `paddingTop: 48px` only when the tab bar is stuck, clearing the close button. `tabBarStuck` state resets on album change. On desktop, the original accordion sections remain.
+- **Section component props**: `hideTitle` prop added to `TracklistSection`, `CreditsSection`, `PressingNotesSection` — suppresses section headings when rendered inside tab content on mobile. `hideToggle` prop added to `TracklistSection` — shows full tracklist without Show More truncation on mobile tabs.
+- **Inner scroll container**: The `div.flex-1.overflow-y-auto` inside `AlbumDetailPanel` conditionally applies `overflow-y-auto` only on desktop (`hideHeader === false`). On mobile, `overflow-y` is removed so `position: sticky` resolves against `scrollRef` in `SlideOutPanel`.
+- **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section (or Pressing Notes tab on mobile). Never merge these.
 - **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
 - **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads, matching the market-value pattern.
 
@@ -539,6 +547,10 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 **From the Depths:** 2x2 grid on mobile, 3x3 grid on desktop. Uses `DepthsAlbumCard` with `compact` and `dominantColor` props — shows only title, artist, and date (no year/label/folder meta line).
 
 **Dominant color cards:** `DominantColorCard` (`dominant-color-card.tsx`) extracts the dominant color from album artwork via canvas sampling and uses it as the card background. Text contrast (light/dark) is determined by WCAG 2.1 relative luminance. Images are proxied through `/img-proxy/` (Vite dev proxy + Vercel rewrite) to avoid CORS canvas tainting. The component sets CSS custom properties (`--dc-bg`, `--dc-text`, `--dc-text-secondary`, `--dc-text-muted`) for children to consume. `DepthsAlbumCard` supports a `dominantColor` boolean prop that wraps the card in `DominantColorCard` and switches text colors to `--dc-*` vars with `--c-*` fallbacks. A `compact` boolean prop reduces font sizes and hides the year/label/folder meta line.
+
+### Following Screen (following-screen.tsx)
+- **Avatar size**: 80px (with 28px fallback initials). Button container width: 92px.
+- **Avatar row sort order**: Sorted by most recent `followingFeed` entry per user (descending). Users with no feed entries fall to end, tiebroken alphabetically. Sort is derived via `useMemo` and applied only to the avatar row display order — does not affect the main user list.
 
 ---
 

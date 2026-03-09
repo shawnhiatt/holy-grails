@@ -4,6 +4,32 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.4.3 — Album Detail Mobile Hero + Enriched Tabs
+
+### Album Detail
+
+- Full-bleed hero image on mobile — padded square cover with gradient scrim overlay, title and artist floating as white text on the gradient
+- Thumbnail carousel spacing tightened with `mt-3` below hero
+- Standalone title/artist block removed from mobile — now lives in the gradient scrim
+- Purge tag relocated to its own row below the carousel (left-aligned, hidden in edit mode)
+- "Your Copy" card header added on mobile with "YOUR COPY" section label and edit pencil button right-aligned
+- Enriched content tabs replace accordion sections on mobile — sticky horizontal tab bar for Tracklist, Credits, Pressing Notes, and Identifiers with `#EBFD00` underline indicator
+- Tabs with no data hidden after enriched fetch resolves; all four show at `opacity: 0.4` during loading with skeleton below
+- IntersectionObserver sentinel pattern adds `paddingTop: 48px` when tab bar is stuck to clear close button
+- Inner scroll container `overflow-y-auto` now conditional — desktop only, removed on mobile so `position: sticky` resolves correctly against `SlideOutPanel` scrollRef
+- `hideTitle` prop added to `TracklistSection`, `CreditsSection`, `PressingNotesSection` for tab content rendering
+- `hideToggle` prop added to `TracklistSection` — shows full tracklist without Show More truncation
+- Custom SVG select arrows on all edit mode `<select>` elements — `appearance: none` with theme-aware arrow color (`#AAAAAA` dark, `#333333` light) for iOS dark mode compatibility
+- SlideOutPanel drag handle padding tightened from `py-3` to `py-1.5`
+- SlideOutPanel close button updated to `rgba(0,0,0,0.45)` background with `backdrop-filter: blur(6px)` and white icon for contrast over artwork
+
+### Following Screen
+
+- Followed user avatars increased from 48px to 80px with 28px fallback initials
+- Avatar row sorted by most recent `followingFeed` activity per user (descending), users with no feed entries fall to end tiebroken alphabetically
+
+---
+
 ## 0.4.2 — Album Detail Panel Redesign + Color System Standardization
 
 ### Album Detail Panel
