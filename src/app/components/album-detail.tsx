@@ -98,8 +98,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
   const [isLoadingRelease, setIsLoadingRelease] = useState(false);
 
-  // Tracklist show more/less state
-  const [tracklistExpanded, setTracklistExpanded] = useState(false);
+  // Enriched content tab state
+  const [activeTab, setActiveTab] = useState<'tracklist' | 'credits' | 'pressing' | 'identifiers'>('tracklist');
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -114,7 +114,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     autoCheckedRef.current = null;
     setIsEditMode(false);
     setIsSaving(false);
-    setTracklistExpanded(false);
+    setActiveTab('tracklist');
     setLightboxOpen(false);
     setLightboxIndex(0);
   }, [selectedAlbum?.id]);
@@ -159,6 +159,21 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
     return () => { stale = true; };
   }, [selectedAlbum?.release_id, sessionToken]);
+
+  // Auto-correct activeTab when releaseData loads if current tab has no data
+  useEffect(() => {
+    if (!releaseData) return;
+    const tabHasData: Record<string, boolean> = {
+      tracklist: releaseData.tracklist.length > 0,
+      credits: releaseData.credits.length > 0,
+      pressing: releaseData.notes.length > 0,
+      identifiers: releaseData.identifiers.length > 0,
+    };
+    if (!tabHasData[activeTab]) {
+      const firstWithData = (['tracklist', 'credits', 'pressing', 'identifiers'] as const).find(t => tabHasData[t]);
+      if (firstWithData) setActiveTab(firstWithData);
+    }
+  }, [releaseData]);
 
   // Enter edit mode — initialize form fields from current album
   const enterEditMode = useCallback(() => {
@@ -411,7 +426,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1${hideHeader ? '' : ' overflow-y-auto'}`}>
         {/* ═══ Hero ═══ */}
         {!hideImage && hideHeader ? (
           /* ── Mobile: padded cover with gradient scrim ── */
@@ -947,45 +962,97 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               </div>
             </div>
 
-            {/* ═══ Tracklist (enriched, collapsible) ═══ */}
-            {isLoadingRelease ? (
-              <EnrichedSkeleton label="Tracklist" rows={4} />
-            ) : hasTracklist ? (
-              <TracklistSection
-                tracklist={releaseData!.tracklist}
-                isExpanded={tracklistExpanded}
-                onToggle={() => setTracklistExpanded(v => !v)}
-                allDurationsMissing={allDurationsMissing}
-              />
-            ) : null}
+            {/* ═══ Enriched Content Tabs ═══ */}
+            {(() => {
+              const hasIdentifiers = releaseData && releaseData.identifiers.length > 0;
+              const anyTabHasData = hasTracklist || hasCredits || hasPressingNotes || hasIdentifiers;
+              const isLoading = isLoadingRelease && !releaseData;
 
-            {/* ═══ Credits (enriched) ═══ */}
-            {isLoadingRelease ? (
-              <EnrichedSkeleton label="Credits" rows={3} />
-            ) : hasCredits ? (
-              <CreditsSection groupedCredits={groupedCredits} />
-            ) : null}
+              // Hide entirely if loaded and no data
+              if (!isLoading && !anyTabHasData) return null;
 
-            {/* ═══ Pressing Notes (enriched) ═══ */}
-            {isLoadingRelease ? (
-              <EnrichedSkeleton label="Pressing Notes" rows={2} />
-            ) : hasPressingNotes ? (
-              <PressingNotesSection notes={releaseData!.notes} />
-            ) : null}
+              const tabs = [
+                { key: 'tracklist' as const, label: 'Tracklist', hasData: !!hasTracklist },
+                { key: 'credits' as const, label: 'Credits', hasData: !!hasCredits },
+                { key: 'pressing' as const, label: 'Pressing Notes', hasData: !!hasPressingNotes },
+                { key: 'identifiers' as const, label: 'Identifiers', hasData: !!hasIdentifiers },
+              ];
 
-            {/* ═══ Identifiers (enriched) ═══ */}
-            {isLoadingRelease ? (
-              <EnrichedSkeleton label="Identifiers" rows={2} />
-            ) : releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
-              <div className="px-4 pb-6">
-                <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Identifiers</p>
-                <div className="flex flex-col gap-1.5">
-                  {releaseData.identifiers.map((id, i) => (
-                    <DetailRow key={`id-${i}`} label={id.type} value={id.value} />
-                  ))}
-                </div>
-              </div>
-            ) : null}
+              const visibleTabs = isLoading ? tabs : tabs.filter(t => t.hasData);
+
+              return (
+                <>
+                  {/* Tab bar */}
+                  <div
+                    className="overflow-x-auto no-scrollbar"
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 10,
+                      backgroundColor: "var(--c-surface)",
+                      borderBottom: "1px solid var(--c-border)",
+                    }}
+                  >
+                    <div className="flex">
+                      {visibleTabs.map((tab) => {
+                        const isActive = !isLoading && activeTab === tab.key;
+                        return (
+                          <button
+                            key={tab.key}
+                            onClick={() => !isLoading && setActiveTab(tab.key)}
+                            disabled={isLoading}
+                            style={{
+                              padding: "8px 16px",
+                              fontSize: "13px",
+                              fontWeight: 500,
+                              color: isLoading ? "var(--c-text-muted)" : isActive ? "var(--c-text)" : "var(--c-text-muted)",
+                              opacity: isLoading ? 0.4 : 1,
+                              borderBottom: isActive ? "2px solid #EBFD00" : "2px solid transparent",
+                              background: "none",
+                              cursor: isLoading ? "default" : "pointer",
+                              whiteSpace: "nowrap",
+                              fontFamily: "'DM Sans', system-ui, sans-serif",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Tab content */}
+                  <div className="pt-3">
+                    {isLoading ? (
+                      <div className="px-4 pb-6">
+                        <EnrichedSkeleton label="" rows={4} />
+                      </div>
+                    ) : activeTab === 'tracklist' && hasTracklist ? (
+                      <TracklistSection
+                        tracklist={releaseData!.tracklist}
+                        isExpanded={true}
+                        onToggle={() => {}}
+                        allDurationsMissing={allDurationsMissing}
+                        hideToggle
+                      />
+                    ) : activeTab === 'credits' && hasCredits ? (
+                      <CreditsSection groupedCredits={groupedCredits} />
+                    ) : activeTab === 'pressing' && hasPressingNotes ? (
+                      <PressingNotesSection notes={releaseData!.notes} />
+                    ) : activeTab === 'identifiers' && releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
+                      <div className="px-4 pb-6">
+                        <div className="flex flex-col gap-1.5">
+                          {releaseData.identifiers.map((id, i) => (
+                            <DetailRow key={`id-${i}`} label={id.type} value={id.value} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              );
+            })()}
           </>
         )}
       </div>
@@ -1086,14 +1153,16 @@ function TracklistSection({
   isExpanded,
   onToggle,
   allDurationsMissing,
+  hideToggle = false,
 }: {
   tracklist: { position: string; title: string; duration: string }[];
   isExpanded: boolean;
   onToggle: () => void;
   allDurationsMissing: boolean;
+  hideToggle?: boolean;
 }) {
   const SHOW_COUNT = 5;
-  const shouldFade = tracklist.length > SHOW_COUNT;
+  const shouldFade = !hideToggle && tracklist.length > SHOW_COUNT;
   const visibleTracks = shouldFade && !isExpanded ? tracklist.slice(0, SHOW_COUNT) : tracklist;
 
   return (
