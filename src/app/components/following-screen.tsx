@@ -1251,14 +1251,29 @@ function PopulatedFollowingView({
 
   // From the Depths — uses followingFeed cache (available immediately from Convex)
   // rather than followedUsers[].collection which requires API hydration.
+  // Seeded shuffle: same selection persists for 12 hours, then rotates.
   const MAX_CARDS_PER_USER = 4;
+  const depthsBucket = useMemo(() => Math.floor(Date.now() / (12 * 60 * 60 * 1000)), []);
   const depthsPicks = useMemo(() => {
+    // Simple seeded PRNG (mulberry32)
+    function seededRng(seed: number) {
+      let s = seed | 0;
+      return () => {
+        s = (s + 0x6D2B79F5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
     const results: { username: string; avatar: string; userId: string; album: Album; cardKey: string }[] = [];
     // Build a username → followedUser.id lookup
     const userIdMap = new Map(followedUsers.map(f => [f.username.toLowerCase(), f.id]));
     for (const entry of followingFeed) {
       if (entry.recent_albums.length === 0) continue;
-      const shuffled = [...entry.recent_albums].sort(() => Math.random() - 0.5);
+      // Seed per user + time bucket so each user gets a stable but unique shuffle
+      const userSeed = entry.followed_username.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const rng = seededRng(depthsBucket * 31 + userSeed);
+      const shuffled = [...entry.recent_albums].sort(() => rng() - 0.5);
       const picks = shuffled.slice(0, MAX_CARDS_PER_USER);
       const avatar = followingAvatars.get(entry.followed_username) || "";
       const userId = userIdMap.get(entry.followed_username.toLowerCase()) || `f-${entry.followed_username}`;
@@ -1293,7 +1308,7 @@ function PopulatedFollowingView({
       }
     }
     return results;
-  }, [followingFeed, followingAvatars, followedUsers]);
+  }, [followingFeed, followingAvatars, followedUsers, depthsBucket]);
 
   const handleHeartTap = useCallback(async (item: ActivityItem) => {
     // Already in collection or already in flight — no action
@@ -1466,27 +1481,8 @@ function PopulatedFollowingView({
                             maxWidth: "100%",
                           } as React.CSSProperties}
                         >
-                          From {username}&rsquo;s crates
+                          From {username}&rsquo;s collection
                         </p>
-                      </div>
-                    }
-                    footer={
-                      <div className="flex justify-end mt-[8px]">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onSelectUser(userId); }}
-                          className="cursor-pointer tappable"
-                          style={{
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            color: "var(--c-link)",
-                            fontFamily: "'DM Sans', system-ui, sans-serif",
-                            background: "none",
-                            border: "none",
-                            padding: 0,
-                          }}
-                        >
-                          View their collection
-                        </button>
                       </div>
                     }
                   />
