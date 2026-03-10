@@ -70,7 +70,6 @@ export function UnicornScene({ className }: UnicornSceneProps) {
   const sceneRef = useRef<UnicornScene | null>(null);
 
   useEffect(() => {
-    console.log("[UnicornScene] effect fired — webGLSupported:", webGLSupported, "failed:", failed);
     if (!webGLSupported || failed) return;
     let stale = false;
     let rafId: number | null = null;
@@ -90,7 +89,6 @@ export function UnicornScene({ className }: UnicornSceneProps) {
       if (el && parent) {
         el.style.width = parent.offsetWidth + "px";
         el.style.height = parent.offsetHeight + "px";
-        console.log("[UnicornScene] container size before addScene:", parent.offsetWidth, "x", parent.offsetHeight, "| window.innerHeight:", window.innerHeight);
       }
 
       window.UnicornStudio.addScene({
