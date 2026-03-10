@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { PillLogo } from "./navigation";
 
 const DISMISS_KEY = "hg_install_nudge_dismissed";
 
@@ -134,24 +135,7 @@ export function InstallNudge() {
 
             {/* Content */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 24px" }}>
-              <img
-                src="/favicon-96x96.png"
-                alt=""
-                style={{ width: 48, height: 48, borderRadius: 8 }}
-              />
-
-              <p
-                style={{
-                  marginTop: 8,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  color: "var(--c-text)",
-                  fontFamily: "'DM Sans', system-ui, sans-serif",
-                  textAlign: "center",
-                }}
-              >
-                Holy Grails
-              </p>
+              <PillLogo className="w-[160px] h-auto" />
 
               <p
                 style={{

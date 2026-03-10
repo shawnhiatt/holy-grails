@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { useApp, type Screen } from "./app-context";
 import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
-import logoSvg from "../../imports/logo-holy-grails.svg";
+import logoDark from "../../imports/logo-holy-grails-dark.svg";
+import logoLight from "../../imports/logo-holy-grails-light.svg";
 
 /** Desktop top nav — left group */
 const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
@@ -128,11 +129,13 @@ function ThemeSwitch({
   );
 }
 
-/** Pill-shaped logo — single source from SVG file */
-export function PillLogo({ className, onClick }: { className?: string; onClick?: () => void }) {
+/** Pill-shaped logo — theme-aware, switches between dark/light SVG variants */
+export function PillLogo({ className, onClick, forceDark }: { className?: string; onClick?: () => void; forceDark?: boolean }) {
+  const { isDarkMode } = useApp();
+  const src = forceDark || isDarkMode ? logoDark : logoLight;
   return (
     <img
-      src={logoSvg}
+      src={src}
       alt="Holy Grails"
       className={className}
       onClick={onClick}
