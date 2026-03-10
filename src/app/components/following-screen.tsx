@@ -162,9 +162,6 @@ export function FollowingScreen() {
         <div className="flex items-start justify-between">
           <div>
             <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
-            <p className="mt-0.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-              Browse the collections you follow
-            </p>
           </div>
           <button
             onClick={() => { setShowAddForm(true); setAddError(""); }}

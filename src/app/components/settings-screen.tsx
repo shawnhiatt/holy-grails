@@ -586,18 +586,6 @@ export function SettingsScreen() {
                 })}
               </div>
             </div>
-            <button
-              onClick={() => setShowDefaultScreenPicker(true)}
-              className="flex items-center justify-between gap-3 cursor-pointer"
-            >
-              <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Default screen</p>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {DEFAULT_SCREEN_OPTIONS.find((o) => o.value === defaultScreen)?.label ?? "Feed"}
-                </span>
-                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
-              </div>
-            </button>
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Hide purge indicators</p>
@@ -654,6 +642,21 @@ export function SettingsScreen() {
                     boxShadow: "var(--c-shadow-sm)",
                   }}
                 />
+              </button>
+            </div>
+             <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Default screen</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>The first screen shown when you open the app</p>
+              </div>
+              <button
+                onClick={() => setShowDefaultScreenPicker(true)}
+                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
+              >
+                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {DEFAULT_SCREEN_OPTIONS.find((o) => o.value === defaultScreen)?.label ?? "Feed"}
+                </span>
+                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
               </button>
             </div>
           </div>
