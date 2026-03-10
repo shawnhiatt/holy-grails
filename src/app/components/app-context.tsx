@@ -1216,8 +1216,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         following_username: user.username,
         avatar_url: user.avatar || undefined,
       });
+      // Fetch the new user's recent albums for the following feed cache
+      proxyFetchUserCollectionPage({ sessionToken, username: user.username, page: 1, perPage: 50 })
+        .then(async (recentAlbums) => {
+          await upsertFollowingFeedMut({
+            sessionToken,
+            followed_username: user.username,
+            recent_albums: recentAlbums,
+          });
+          setFollowingFeed((prev) => {
+            const filtered = prev.filter(e => e.followed_username !== user.username);
+            return [...filtered, {
+              followed_username: user.username,
+              lastSyncedAt: Date.now(),
+              recent_albums: recentAlbums,
+            }];
+          });
+        })
+        .catch((e) => console.warn(`[FollowingFeed] Could not sync @${user.username}:`, e));
     }
-  }, [sessionToken, addFollowingMut]);
+  }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, upsertFollowingFeedMut]);
 
   const removeFollowedUser = useCallback((userId: string) => {
     setFollowedUsers((prev) => {
