@@ -492,14 +492,14 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             </div>
             {/* ═══ Image thumbnail strip (mobile) ═══ */}
             {isLoadingRelease && !releaseData && (
-              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              <div className="px-4 mt-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
                 ))}
               </div>
             )}
             {hasImages && (
-              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              <div className="px-4 mt-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {releaseImages.map((img, idx) => (
                   <button
                     key={idx}
@@ -510,16 +510,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </button>
                 ))}
-              </div>
-            )}
-            {/* ── Mobile: purge tag below carousel ── */}
-            {selectedAlbum.purgeTag && !isEditMode && (
-              <div className="px-4 pb-2">
-                <span className="px-2.5 py-1 rounded-full capitalize" style={{
-                  fontSize: "11px", fontWeight: 500,
-                  backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
-                  color: purgeTagColor[selectedAlbum.purgeTag],
-                }}>{selectedAlbum.purgeTag}</span>
               </div>
             )}
           </>
@@ -593,7 +583,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
         {/* ═══ Edit form / Your Copy section ═══ */}
         {isEditMode ? (
-          <div className="px-4 pb-4" style={{ position: "relative", zIndex: 1, background: hideHeader ? `linear-gradient(to bottom, transparent, ${isDarkMode ? "#132B44" : "#FFFFFF"} 400px)` : undefined }}>
+          <div className="px-4 pb-4">
             <div className="rounded-[10px] p-3 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
               {/* Static read-only rows */}
               <DetailRow label="Year" value={String(selectedAlbum.year)} />
@@ -770,10 +760,10 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             </div>
           </div>
         ) : (
-          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? `linear-gradient(to bottom, transparent, ${isDarkMode ? "#132B44" : "#FFFFFF"} 400px)` : undefined }}>
+          <div>
             {/* ═══ Mark as Played button ═══ */}
             {!isEditMode && (
-              <div className="px-4 pb-4">
+              <div className="px-4 pt-4 pb-4">
                 <button
                   onClick={handlePlayedToday}
                   className="w-full flex items-center justify-center gap-2.5 py-3 rounded-[10px] tappable transition-all relative overflow-hidden"
@@ -834,7 +824,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 {hideHeader && (
                   <div className="flex items-center justify-between mb-2.5">
                     <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Your Copy</span>
-                    {editButton}
+                    <div className="flex items-center gap-2">
+                      {selectedAlbum.purgeTag && !isEditMode && (
+                        <span className="px-2.5 py-1 rounded-full capitalize" style={{
+                          fontSize: "11px", fontWeight: 500,
+                          backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
+                          color: purgeTagColor[selectedAlbum.purgeTag],
+                        }}>{selectedAlbum.purgeTag}</span>
+                      )}
+                      {editButton}
+                    </div>
                   </div>
                 )}
                 <DetailRow label="Format" value={selectedAlbum.format} />
