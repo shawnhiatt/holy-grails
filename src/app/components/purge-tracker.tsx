@@ -316,7 +316,7 @@ export function PurgeCutDialog({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        exit={{ opacity: 0, pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         className="fixed inset-0 bg-black/40"
         style={{ zIndex: 88 }}

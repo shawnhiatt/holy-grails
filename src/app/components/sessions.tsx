@@ -363,7 +363,7 @@ function SessionDetail({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, pointerEvents: "none" as const }}
               transition={{ duration: 0.175, ease: EASE_OUT }}
               className="absolute inset-0 bg-black/40"
               onClick={() => setShowDeleteConfirm(false)}

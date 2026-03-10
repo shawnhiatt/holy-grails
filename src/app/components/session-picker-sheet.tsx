@@ -439,7 +439,7 @@ function MobileSheet({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        exit={{ opacity: 0, pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         className="fixed inset-0 bg-black/30 z-[80]"
         style={{ opacity: backdropOpacity }}
@@ -450,7 +450,7 @@ function MobileSheet({
       <motion.div
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
-        exit={{ y: "100%" }}
+        exit={{ y: "100%", pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}

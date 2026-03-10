@@ -119,10 +119,10 @@ export function SlideOutPanel({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        exit={{ opacity: 0, pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         className="fixed inset-0 bg-black/30"
-        style={{ zIndex: backdropZIndex, opacity: backdropOpacity }}
+        style={{ zIndex: backdropZIndex, opacity: backdropOpacity, pointerEvents: dismissed ? "none" : "auto" }}
         onClick={onClose}
       />
 
@@ -130,7 +130,7 @@ export function SlideOutPanel({
       {!title && <motion.button
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.8 }}
+        exit={{ opacity: 0, scale: 0.8, pointerEvents: "none" as const }}
         transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
         onClick={onClose}
         aria-label="Close"
@@ -152,7 +152,7 @@ export function SlideOutPanel({
       <motion.div
         initial={{ y: "100%", x: shakeEntrance ? 20 : 0 }}
         animate={dismissed ? undefined : { y: 0, x: 0 }}
-        exit={{ y: "100%" }}
+        exit={{ y: "100%", pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
