@@ -62,7 +62,7 @@ export function SplashScreen({
             className="flex flex-col items-center w-full"
           >
             {/* Pill logo — same as app header */}
-            <PillLogo className="w-full max-w-[400px] h-auto" />
+            <PillLogo className="w-full max-w-[400px] h-auto" forceDark />
 
             {/* Tagline */}
             <p

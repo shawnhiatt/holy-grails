@@ -33,9 +33,6 @@ interface SlideOutPanelProps {
   sheetZIndex?: number;
   /** Applies a subtle x-offset to the entrance animation (used by shake-to-random). */
   shakeEntrance?: boolean;
-  /** When true, the sheet background is transparent and the grab handle uses a
-      semi-transparent pill — lets child content (e.g. art blur) bleed to the top edge. */
-  transparentBg?: boolean;
 }
 
 export function SlideOutPanel({
@@ -48,7 +45,6 @@ export function SlideOutPanel({
   backdropZIndex = 110,
   sheetZIndex = 120,
   shakeEntrance = false,
-  transparentBg = false,
 }: SlideOutPanelProps) {
   const { isDarkMode } = useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -171,25 +167,19 @@ export function SlideOutPanel({
           bottom: "0px",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           maxHeight: "calc(100vh - 58px)",
-          backgroundColor: transparentBg ? "transparent" : isDarkMode ? "#132B44" : "#FFFFFF",
+          backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
         } as React.CSSProperties}
       >
-        {/* Grab handle — mobile only; desktop panels don't use bottom-sheet chrome.
-            When transparentBg, the handle floats over scroll content so the blur bleeds to the top. */}
+        {/* Grab handle — mobile only; desktop panels don't use bottom-sheet chrome. */}
         <div
-          className={`flex justify-center py-1.5 cursor-grab lg:hidden${transparentBg ? "" : " flex-shrink-0"}`}
-          style={{
-            touchAction: "none",
-            ...(transparentBg
-              ? { position: "absolute" as const, top: 0, left: 0, right: 0, zIndex: 10 }
-              : {}),
-          }}
+          className="flex justify-center py-1.5 cursor-grab lg:hidden flex-shrink-0"
+          style={{ touchAction: "none" }}
         >
           <div
             className="w-10 h-1 rounded-full"
-            style={{ backgroundColor: transparentBg ? "rgba(255,255,255,0.35)" : isDarkMode ? "#2D4A66" : "#D2D8DE" }}
+            style={{ backgroundColor: isDarkMode ? "#2D4A66" : "#D2D8DE" }}
           />
         </div>
 
@@ -234,7 +224,6 @@ export function SlideOutPanel({
             paddingBottom: footer
               ? undefined
               : "calc(env(safe-area-inset-bottom, 0px) + 120px)",
-            ...(transparentBg ? { backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF" } : {}),
           }}
         >
           {children}

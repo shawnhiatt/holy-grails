@@ -374,9 +374,7 @@ function AppContent() {
                       right: 0,
                       zIndex: 50,
                       background: heroVisible ? "transparent" : "var(--c-surface)",
-                      backdropFilter: heroVisible ? "blur(12px)" : "none",
-                      WebkitBackdropFilter: heroVisible ? "blur(12px)" : "none",
-                      transition: "background 300ms ease, backdrop-filter 300ms ease, -webkit-backdrop-filter 300ms ease",
+                      transition: "background 300ms ease",
                     }
                   : { flexShrink: 0 }),
               }}
