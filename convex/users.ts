@@ -153,33 +153,68 @@ export const deleteAllUserData = mutation({
     const user = await authenticateUser(ctx, args.sessionToken);
     const username = user.discogs_username;
 
-    // Helper to collect and delete all rows from a table by index
-    const deleteAll = async (table: string, index: string, key: string) => {
-      const rows = await ctx.db
-        .query(table as never)
-        .withIndex(index as never, (q: { eq: (field: string, value: string) => unknown }) =>
-          q.eq(key, username)
-        )
-        .collect();
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-      }
-    };
+    // Purge tags
+    const purgeTags = await ctx.db
+      .query("purge_tags")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of purgeTags) await ctx.db.delete(row._id);
 
-    // Tables using "by_username" index with "discogs_username" key
-    await deleteAll("purge_tags", "by_username", "discogs_username");
-    await deleteAll("sessions", "by_username", "discogs_username");
-    await deleteAll("last_played", "by_username", "discogs_username");
-    await deleteAll("want_priorities", "by_username", "discogs_username");
-    await deleteAll("following", "by_username", "discogs_username");
-    await deleteAll("wantlist", "by_username", "discogs_username");
-    await deleteAll("preferences", "by_username", "discogs_username");
+    // Sessions
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of sessions) await ctx.db.delete(row._id);
 
-    // Collection uses camelCase field name
-    await deleteAll("collection", "by_username", "discogsUsername");
+    // Last played
+    const lastPlayed = await ctx.db
+      .query("last_played")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of lastPlayed) await ctx.db.delete(row._id);
 
-    // Following feed uses "by_follower" index with "follower_username" key
-    await deleteAll("following_feed", "by_follower", "follower_username");
+    // Want priorities
+    const wantPriorities = await ctx.db
+      .query("want_priorities")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of wantPriorities) await ctx.db.delete(row._id);
+
+    // Following
+    const following = await ctx.db
+      .query("following")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of following) await ctx.db.delete(row._id);
+
+    // Wantlist
+    const wantlist = await ctx.db
+      .query("wantlist")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of wantlist) await ctx.db.delete(row._id);
+
+    // Preferences
+    const preferences = await ctx.db
+      .query("preferences")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of preferences) await ctx.db.delete(row._id);
+
+    // Collection (camelCase field)
+    const collection = await ctx.db
+      .query("collection")
+      .withIndex("by_username", (q) => q.eq("discogsUsername", username))
+      .collect();
+    for (const row of collection) await ctx.db.delete(row._id);
+
+    // Following feed
+    const followingFeed = await ctx.db
+      .query("following_feed")
+      .withIndex("by_follower", (q) => q.eq("follower_username", username))
+      .collect();
+    for (const row of followingFeed) await ctx.db.delete(row._id);
 
     // Delete the user record itself
     await ctx.db.delete(user._id);

@@ -138,7 +138,7 @@ interface AppState {
   userProfile: UserProfile | null;
   updateProfile: (fields: { profile?: string; location?: string }) => Promise<void>;
   // Developer / QA resets
-  wipeAllData: () => void;
+  wipeAllData: () => Promise<void>;
   // Connect Discogs flow trigger (from within the main app)
   connectDiscogsRequested: boolean;
   requestConnectDiscogs: () => void;
@@ -1648,11 +1648,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const wipeAllData = useCallback(async () => {
     // Delete all user data from Convex first (while token is still valid)
     if (sessionToken) {
-      try {
-        await deleteAllUserDataMut({ sessionToken });
-      } catch (err) {
-        console.error("[wipeAllData] Failed to delete Convex data:", err);
-      }
+      await deleteAllUserDataMut({ sessionToken });
     }
 
     // Then reset all client state

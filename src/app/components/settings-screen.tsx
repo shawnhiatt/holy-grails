@@ -178,8 +178,15 @@ export function SettingsScreen() {
       }
       toast.success("Sessions cleared.");
     } else if (confirmAction === "All data") {
-      await wipeAllData();
-      toast.success("All data deleted.");
+      try {
+        await wipeAllData();
+        toast.success("All data deleted.");
+      } catch (err) {
+        console.error("[Delete All Data] Failed:", err);
+        toast.error("Failed to delete data.");
+        setConfirmAction(null);
+        return;
+      }
     }
     setConfirmAction(null);
   };
