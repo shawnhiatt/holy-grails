@@ -89,6 +89,7 @@ export function UnicornScene({ className }: UnicornSceneProps) {
       if (el && parent) {
         el.style.width = parent.offsetWidth + "px";
         el.style.height = parent.offsetHeight + "px";
+        console.log("[UnicornScene] container size before addScene:", parent.offsetWidth, "x", parent.offsetHeight, "| window.innerHeight:", window.innerHeight);
       }
 
       window.UnicornStudio.addScene({
