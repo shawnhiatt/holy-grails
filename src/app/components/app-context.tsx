@@ -310,6 +310,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsertPreferencesMut = useMutation(api.preferences.upsert);
   const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
+  const deleteAllUserDataMut = useMutation(api.users.deleteAllUserData);
   const replaceCollectionMut = useMutation(api.collection.replaceAll);
   const updateInstanceMut = useMutation(api.collection.updateInstance);
   const updateCollectionValueMut = useMutation(api.users.updateCollectionValue);
@@ -1644,7 +1645,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Developer / QA resets ──
 
-  const wipeAllData = useCallback(() => {
+  const wipeAllData = useCallback(async () => {
+    // Delete all user data from Convex first (while token is still valid)
+    if (sessionToken) {
+      try {
+        await deleteAllUserDataMut({ sessionToken });
+      } catch (err) {
+        console.error("[wipeAllData] Failed to delete Convex data:", err);
+      }
+    }
+
+    // Then reset all client state
     setAlbums([]);
     setWants([]);
     setSessions([]);
@@ -1680,6 +1691,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       sessionStorage.removeItem("hg_oauth_token_secret");
     } catch { /* ignore */ }
+
+    // Prevent session restore from re-hydrating after data wipe
+    hasSignedOutRef.current = true;
+
     hydratedRef.current = {
       purgeTags: false,
       sessions: false,
@@ -1689,7 +1704,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       following: false,
     };
     initialSyncDoneRef.current = false;
-  }, [setDiscogsUsername]);
+  }, [sessionToken, deleteAllUserDataMut, setDiscogsUsername]);
 
   // ── Connect Discogs flow trigger ──
 

@@ -140,3 +140,48 @@ export const clearSession = mutation({
     await ctx.db.delete(user._id);
   },
 });
+
+/**
+ * Delete all user data across every Convex table.
+ * Nuclear option — wipes purge tags, sessions, last played, want priorities,
+ * following, following feed, collection cache, wantlist cache, preferences,
+ * and the user record itself.
+ */
+export const deleteAllUserData = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const username = user.discogs_username;
+
+    // Helper to collect and delete all rows from a table by index
+    const deleteAll = async (table: string, index: string, key: string) => {
+      const rows = await ctx.db
+        .query(table as never)
+        .withIndex(index as never, (q: { eq: (field: string, value: string) => unknown }) =>
+          q.eq(key, username)
+        )
+        .collect();
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+      }
+    };
+
+    // Tables using "by_username" index with "discogs_username" key
+    await deleteAll("purge_tags", "by_username", "discogs_username");
+    await deleteAll("sessions", "by_username", "discogs_username");
+    await deleteAll("last_played", "by_username", "discogs_username");
+    await deleteAll("want_priorities", "by_username", "discogs_username");
+    await deleteAll("following", "by_username", "discogs_username");
+    await deleteAll("wantlist", "by_username", "discogs_username");
+    await deleteAll("preferences", "by_username", "discogs_username");
+
+    // Collection uses camelCase field name
+    await deleteAll("collection", "by_username", "discogsUsername");
+
+    // Following feed uses "by_follower" index with "follower_username" key
+    await deleteAll("following_feed", "by_follower", "follower_username");
+
+    // Delete the user record itself
+    await ctx.db.delete(user._id);
+  },
+});

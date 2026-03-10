@@ -165,20 +165,22 @@ export function SettingsScreen() {
     toast.success("Signed out.");
   };
 
-  const handleConfirmClear = () => {
+  const handleConfirmClear = async () => {
     if (!confirmAction) return;
     if (confirmAction === "Purge data") {
       for (const a of albums) {
         if (a.purgeTag) deletePurgeTag(a.release_id);
       }
+      toast.success("Purge data cleared.");
     } else if (confirmAction === "Sessions") {
       for (const s of sessions) {
         deleteSession(s.id);
       }
-    } else if (confirmAction === "All local data") {
-      wipeAllData();
+      toast.success("Sessions cleared.");
+    } else if (confirmAction === "All data") {
+      await wipeAllData();
+      toast.success("All data deleted.");
     }
-    toast.success(`${confirmAction} cleared.`);
     setConfirmAction(null);
   };
 
@@ -662,8 +664,8 @@ export function SettingsScreen() {
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Gestures</h3>
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Shake to random</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Shake your device to open a random record</p>
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Shake for random</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Shake your device to open a random album</p>
                 {motionDenied && (
                   <p className="mt-1" style={{ fontSize: "12px", fontWeight: 400, color: isDarkMode ? "#FF98DA" : "#9A207C" }}>
                     Motion access denied. Enable in iOS Settings.
@@ -700,10 +702,10 @@ export function SettingsScreen() {
         <section className="mt-6">
           <div className="rounded-[12px] p-4 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Data</h3>
-            <button onClick={() => setConfirmAction("Purge data")} className="w-full flex items-center gap-2 py-2.5 px-3 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Purge Data</button>
-            <button onClick={() => setConfirmAction("Sessions")} className="w-full flex items-center gap-2 py-2.5 px-3 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Sessions</button>
+            <button onClick={() => setConfirmAction("Purge data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Purge Data</button>
+            <button onClick={() => setConfirmAction("Sessions")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Sessions</button>
             <div className="mt-1 pt-1" style={{ borderTop: "1px solid var(--c-border)" }}>
-              <button onClick={() => setConfirmAction("All local data")} className="w-full flex items-center gap-2 py-2.5 px-3 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive)" }}><Trash2 size={15} />Clear All Local Data</button>
+              <button onClick={() => setConfirmAction("All data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive)" }}><Trash2 size={15} />Delete All My Data</button>
             </div>
           </div>
         </section>
@@ -740,21 +742,21 @@ export function SettingsScreen() {
                 </div>
                 <div>
                   <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-                    {`Clear ${confirmAction}?`}
+                    {confirmAction === "All data" ? "Delete all data?" : `Clear ${confirmAction}?`}
                   </p>
                   <p className="mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>
                     {confirmAction === "Purge data"
                       ? "This removes all Keep, Cut, and Maybe tags from your collection. This cannot be undone."
                       : confirmAction === "Sessions"
                       ? "This deletes all saved sessions. This cannot be undone."
-                      : "This removes everything stored locally \u2014 purge tags, sessions, wantlist priorities, listening history, and cached pricing. Your Discogs collection is not affected."}
+                      : "This permanently deletes all Holy Grails data \u2014 purge tags, sessions, following, listening history, preferences, and cached data. Your Discogs account is not affected. You will be signed out."}
                   </p>
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button onClick={() => setConfirmAction(null)} className="flex-1 py-2.5 rounded-[10px] transition-colors cursor-pointer" style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>Cancel</button>
                 <button onClick={handleConfirmClear} className="flex-1 py-2.5 rounded-[10px] text-white transition-colors cursor-pointer" style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive)" }}>
-                  Clear
+                  {confirmAction === "All data" ? "Delete" : "Clear"}
                 </button>
               </div>
             </motion.div>
