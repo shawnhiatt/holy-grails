@@ -997,9 +997,6 @@ export function ReportsScreen() {
           <p className="max-w-xs" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", textWrap: "pretty" }}>
             Collection value from Discogs{lastSynced ? `, updated ${lastSynced}` : ""}.
           </p>
-          <p className="max-w-xs" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", textWrap: "pretty" }}>
-            Per-album pricing loaded for {pricedCount} of {albums.length} records — more loads as you browse.
-          </p>
         </div>
       </div>
       )}

@@ -801,7 +801,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               lineHeight: 1.4,
             }}
           >
-            From your Wantlist.
+            Select albums from your Wantlist.
           </p>
         </div>
         <button

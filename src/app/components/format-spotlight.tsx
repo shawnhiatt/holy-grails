@@ -118,7 +118,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
             lineHeight: 1.4,
           }}
         >
-          A format spotlight from your collection.
+          Highlighting a format from your collection.
         </p>
       </div>
 
@@ -165,9 +165,6 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
                     label={album.label}
                     variant="overlay"
                   />
-                }
-                footer={
-                  <FormatBadge label={spotlight.badge} />
                 }
               />
             </div>
