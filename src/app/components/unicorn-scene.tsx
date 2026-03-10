@@ -70,6 +70,7 @@ export function UnicornScene({ className }: UnicornSceneProps) {
   const sceneRef = useRef<UnicornScene | null>(null);
 
   useEffect(() => {
+    console.log("[UnicornScene] effect fired — webGLSupported:", webGLSupported, "failed:", failed);
     if (!webGLSupported || failed) return;
     let stale = false;
     let rafId: number | null = null;
