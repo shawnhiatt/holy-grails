@@ -72,25 +72,9 @@ export function UnicornScene({ className }: UnicornSceneProps) {
   useEffect(() => {
     if (!webGLSupported || failed) return;
     let stale = false;
-    let rafId: number | null = null;
 
     const initScene = () => {
       if (!window.UnicornStudio || stale) return;
-
-      // Fix A: Force #us-splash to explicit px dimensions before the SDK
-      // measures it. The SDK reads offsetHeight/offsetWidth to size the WebGL
-      // canvas and gl.viewport(). On iOS Safari with viewport-fit=cover the
-      // fixed container extends behind the browser chrome, but window.innerHeight
-      // (and any % that resolves through it) only covers the visual viewport.
-      // Reading offsetHeight from the parent (absolute inset-0 inside the fixed
-      // container) gives the true full-screen height.
-      const el = document.getElementById(ELEMENT_ID);
-      const parent = el?.parentElement;
-      if (el && parent) {
-        el.style.width = parent.offsetWidth + "px";
-        el.style.height = parent.offsetHeight + "px";
-      }
-
       window.UnicornStudio.addScene({
         elementId: ELEMENT_ID,
         filePath: SCENE_JSON,
@@ -104,11 +88,6 @@ export function UnicornScene({ className }: UnicornSceneProps) {
           } else {
             sceneRef.current = scene;
             setLoaded(true);
-            // Fix B: Re-measure after the first paint so any layout shift
-            // between script-load and first frame is corrected.
-            rafId = requestAnimationFrame(() => {
-              if (!stale) scene.resize();
-            });
           }
         })
         .catch(() => {
@@ -148,16 +127,8 @@ export function UnicornScene({ className }: UnicornSceneProps) {
       loadSDKAndInit();
     }
 
-    // Fix C: Re-run resize whenever the visual viewport changes (iOS Safari
-    // fires this as the address bar shows/hides). Without this the canvas
-    // stays at its init-time dimensions after the chrome animates away.
-    const onViewportResize = () => sceneRef.current?.resize();
-    window.visualViewport?.addEventListener("resize", onViewportResize);
-
     return () => {
       stale = true;
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      window.visualViewport?.removeEventListener("resize", onViewportResize);
       if (sceneRef.current) {
         sceneRef.current.destroy();
         sceneRef.current = null;

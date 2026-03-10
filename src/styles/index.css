@@ -3,13 +3,17 @@
 @import './theme.css';
 
 /* Prevent native pull-down bounce in PWA. Background on html ensures no
-   color flash if any overscroll does occur. Always dark because the pre-auth
-   screens (splash, loading) are always dark — this ensures the areas behind
-   iOS browser chrome / home indicator blend with the scene rather than
-   showing white. The main app content renders over this immediately. */
+   color flash if any overscroll does occur. Responds to system color scheme
+   since dark mode is JS-driven with no .dark class on html. */
 html {
   overscroll-behavior: none;
-  background-color: #0C1A2E;
+  background-color: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    background-color: #0C1A2E;
+  }
 }
 
 body {
