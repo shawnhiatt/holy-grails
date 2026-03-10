@@ -11,7 +11,9 @@
       "Bash(where.exe npx)",
       "Bash(PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/sshaw/AppData/Roaming/npm\" npm install)",
       "mcp__figma-remote-mcp__generate_figma_design",
-      "Bash(npx:*)"
+      "Bash(npx:*)",
+      "Bash(ls \"C:/Users/sshaw/OneDrive/Documents/Projects/Skills/pwa/.claude/\" 2>/dev/null && echo \"---\" && find \"C:/Users/sshaw/OneDrive/Documents/Projects/Skills/pwa/\" -name \"*.md\" 2>/dev/null | head -20)",
+      "Bash(mkdir -p \"C:/Users/sshaw/.claude/skills/pwa/references\" && cp \"C:/Users/sshaw/OneDrive/Documents/Projects/Skills/pwa/SKILL.md\" \"C:/Users/sshaw/.claude/skills/pwa/SKILL.md\" && cp \"C:/Users/sshaw/OneDrive/Documents/Projects/Skills/pwa/references/\"*.md \"C:/Users/sshaw/.claude/skills/pwa/references/\")"
     ]
   }
 }

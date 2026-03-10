@@ -22,6 +22,7 @@ import { SessionPickerSheet } from "./components/session-picker-sheet";
 import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 import { InstallNudge } from "./components/install-nudge";
+import { OfflineBanner } from "./components/offline-banner";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
 /* nav-clearance: scroll containers consume --nav-clearance for bottom padding */
@@ -361,6 +362,7 @@ function AppContent() {
             } as React.CSSProperties}
           >
             <InstallNudge />
+            <OfflineBanner />
             {/* Mobile header — always visible */}
             <div
               className="lg:hidden"

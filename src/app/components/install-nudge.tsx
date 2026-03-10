@@ -182,6 +182,7 @@ export function InstallNudge() {
                 style={{
                   width: isIOS ? "100%" : "auto",
                   height: isIOS ? 48 : "auto",
+                  minHeight: isIOS ? undefined : 44,
                   borderRadius: 9999,
                   border: isIOS ? "1px solid var(--c-border)" : "none",
                   backgroundColor: "transparent",

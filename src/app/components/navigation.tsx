@@ -72,6 +72,7 @@ function ThemeSwitch({
       : "rgba(209,216,223,0.3)";
 
   return (
+    <div className="flex items-center" style={{ minHeight: "44px" }}>
     <button
       onClick={onToggle}
       className="relative flex items-center rounded-full cursor-pointer transition-colors"
@@ -126,6 +127,7 @@ function ThemeSwitch({
         }}
       />
     </button>
+    </div>
   );
 }
 
@@ -163,14 +165,18 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
       <div className="flex items-center">
         <button
           onClick={() => setScreen("following")}
-          className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer"
+          className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
           title="Following"
-          style={{
-            color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
-            backgroundColor: screen === "following" ? activeBg : inactiveBg,
-          }}
         >
-          <Users size={18} strokeWidth={screen === "following" ? 1.83 : 1.3125} />
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{
+              color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
+              backgroundColor: screen === "following" ? activeBg : inactiveBg,
+            }}
+          >
+            <Users size={18} strokeWidth={screen === "following" ? 1.83 : 1.3125} />
+          </div>
         </button>
       </div>
 
@@ -183,25 +189,28 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
       <div className="flex items-center">
         <button
           onClick={() => setScreen("settings")}
-          className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer"
+          className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
           title="Settings"
-          style={{
-            color: screen === "settings" ? "#EBFD00" : "var(--c-text-muted)",
-            padding: userAvatar ? 0 : undefined,
-            overflow: userAvatar ? "hidden" : undefined,
-            backgroundColor: screen === "settings" ? activeBg : inactiveBg,
-          }}
         >
-          {userAvatar ? (
-            <img
-              src={userAvatar}
-              alt="Profile"
-              className="w-8 h-8 rounded-full object-cover"
-              style={{ border: screen === "settings" ? "2px solid #EBFD00" : "2px solid transparent" }}
-            />
-          ) : (
-            <UserRound size={18} strokeWidth={screen === "settings" ? 1.83 : 1.3125} />
-          )}
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{
+              color: screen === "settings" ? "#EBFD00" : "var(--c-text-muted)",
+              overflow: userAvatar ? "hidden" : undefined,
+              backgroundColor: screen === "settings" ? activeBg : inactiveBg,
+              border: userAvatar ? (screen === "settings" ? "2px solid #EBFD00" : "2px solid transparent") : undefined,
+            }}
+          >
+            {userAvatar ? (
+              <img
+                src={userAvatar}
+                alt="Profile"
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <UserRound size={18} strokeWidth={screen === "settings" ? 1.83 : 1.3125} />
+            )}
+          </div>
         </button>
       </div>
     </div>
@@ -235,6 +244,7 @@ export function BottomTabBar() {
           <button
             key={item.id}
             onClick={() => setScreen(item.id)}
+            aria-current={isActive ? "page" : undefined}
             className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] rounded-full tappable transition-all ${
               isActive ? "bg-[rgba(172,222,242,0.12)]" : ""
             }`}
@@ -281,6 +291,7 @@ export function DesktopTopNav() {
       <button
         key={item.id}
         onClick={() => setScreen(item.id)}
+        aria-current={isActive ? "page" : undefined}
         className="flex items-center gap-[7px] px-[12px] py-[7px] rounded-[8px] tappable transition-all cursor-pointer"
         style={{
           backgroundColor: isActive ? activeBg : "transparent",
