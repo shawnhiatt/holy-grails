@@ -32,13 +32,13 @@ export function SplashScreen({
 
   return (
     <div
-      className="w-screen flex flex-col overflow-hidden"
+      className="flex flex-col overflow-hidden"
       style={{
-        height: "100dvh",
+        position: "fixed",
+        inset: 0,
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: "#0C1A2E",
         background: "radial-gradient(ellipse 120% 60% at 50% 0%, #132B44 0%, #0C1A2E 100%)",
-        position: "relative",
       }}
     >
       {/* Fullscreen WebGL scene background */}
