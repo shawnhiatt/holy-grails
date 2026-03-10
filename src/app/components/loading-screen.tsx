@@ -78,7 +78,7 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
 
       <div
         className="flex flex-col items-center gap-3"
-        style={{ position: "relative", zIndex: 1 }}
+        style={{ position: "relative", zIndex: 1, paddingBottom: "8vh" }}
       >
         <Disc3 size={32} className="disc-spinner" style={{ color: "#ACDEF2" }} />
 

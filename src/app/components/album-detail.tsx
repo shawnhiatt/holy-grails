@@ -54,68 +54,6 @@ interface ReleaseData {
 // In-memory cache keyed by release_id — persists across panel open/close within the same app session
 const releaseDataCache = new Map<number, ReleaseData>();
 
-/* ─── Art blur background — decorative blurred cover behind hero zone ─── */
-
-function ArtBlurBackground({
-  src,
-  isDarkMode,
-}: {
-  src: string;
-  isDarkMode: boolean;
-}) {
-  return (
-    <>
-      {/* Opaque base — prevents content behind the sheet from showing through */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
-          pointerEvents: "none",
-        }}
-      />
-      {/* Blurred art fill — overflow hidden clips blur fringe */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          overflow: "hidden",
-          pointerEvents: "none",
-        }}
-      >
-        <img
-          src={src}
-          alt=""
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "-10%",
-            width: "120%",
-            height: "120%",
-            objectFit: "cover",
-            filter: isDarkMode
-              ? "blur(60px) brightness(0.54) saturate(1.4)"
-              : "blur(60px) brightness(0.72) saturate(1.2)",
-            transform: "scale(1.1)",
-            willChange: "filter",
-          }}
-        />
-      </div>
-      {/* Gradient fade: bottom fades to surface */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: isDarkMode
-            ? "linear-gradient(to bottom, transparent 30%, #132B44 95%)"
-            : "linear-gradient(to bottom, transparent 30%, #FFFFFF 95%)",
-          pointerEvents: "none",
-        }}
-      />
-    </>
-  );
-}
-
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
     selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
@@ -508,12 +446,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       <div className={`flex-1${hideHeader ? '' : ' overflow-y-auto'}`}>
         {/* ═══ Hero ═══ */}
         {!hideImage && hideHeader ? (
-          /* ── Mobile: hero zone with blur background ── */
-          <div style={{ position: "relative", paddingBottom: "400px", marginBottom: "-400px", zIndex: 0 }}>
-            {/* Mobile blur background */}
-            <ArtBlurBackground src={selectedAlbum.cover} isDarkMode={isDarkMode} />
-            {/* Cover image with gradient scrim */}
-            <div className="px-4" style={{ position: "relative", zIndex: 1, paddingTop: "24px" }}>
+          /* ── Mobile: hero image with gradient scrim ── */
+          <>
+            <div className="px-4 pt-3">
               <div className="relative w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
                 <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
                 {/* Gradient scrim */}
@@ -555,16 +490,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 </div>
               </div>
             </div>
-            {/* ═══ Image thumbnail strip (mobile, inside blur zone) ═══ */}
+            {/* ═══ Image thumbnail strip (mobile) ═══ */}
             {isLoadingRelease && !releaseData && (
-              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
                 ))}
               </div>
             )}
             {hasImages && (
-              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {releaseImages.map((img, idx) => (
                   <button
                     key={idx}
@@ -577,9 +512,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 ))}
               </div>
             )}
-            {/* ── Mobile: purge tag below carousel (inside blur zone) ── */}
+            {/* ── Mobile: purge tag below carousel ── */}
             {selectedAlbum.purgeTag && !isEditMode && (
-              <div className="px-4 pb-2" style={{ position: "relative", zIndex: 1 }}>
+              <div className="px-4 pb-2">
                 <span className="px-2.5 py-1 rounded-full capitalize" style={{
                   fontSize: "11px", fontWeight: 500,
                   backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
@@ -587,27 +522,25 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 }}>{selectedAlbum.purgeTag}</span>
               </div>
             )}
-          </div>
+          </>
         ) : !hideImage ? (
-          /* ── Desktop: padded cover wrapped in blur hero zone ── */
-          <div style={{ position: "relative", paddingBottom: "400px", marginBottom: "-400px" }}>
-            {/* Desktop blur background */}
-            <ArtBlurBackground src={selectedAlbum.cover} isDarkMode={isDarkMode} />
-            <div className="p-4" style={{ position: "relative", zIndex: 1 }}>
+          /* ── Desktop: padded cover ── */
+          <>
+            <div className="p-4">
               <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
                 <img src={selectedAlbum.cover} alt={selectedAlbum.title} className="w-full h-full object-cover" />
               </div>
             </div>
-            {/* ═══ Image thumbnail strip (desktop, inside blur zone) ═══ */}
+            {/* ═══ Image thumbnail strip (desktop) ═══ */}
             {isLoadingRelease && !releaseData && (
-              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
                 ))}
               </div>
             )}
             {hasImages && (
-              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {releaseImages.map((img, idx) => (
                   <button
                     key={idx}
@@ -620,8 +553,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 ))}
               </div>
             )}
-            {/* ── Desktop: title / artist / purge tag block (inside blur zone) ── */}
-            <div className="px-4 pb-4" style={{ position: "relative", zIndex: 1 }}>
+            {/* ── Desktop: title / artist / purge tag block ── */}
+            <div className="px-4 pb-4">
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{selectedAlbum.title}</h2>
@@ -636,7 +569,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 )}
               </div>
             </div>
-          </div>
+          </>
         ) : null}
 
         {!hideHeader && hideImage ? (
@@ -1688,7 +1621,6 @@ export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: bo
         backdropZIndex={110}
         sheetZIndex={120}
         shakeEntrance={shakeEntrance}
-        transparentBg
       >
         <AlbumDetailPanel hideHeader />
       </SlideOutPanel>
