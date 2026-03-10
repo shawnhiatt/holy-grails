@@ -375,7 +375,7 @@ function FollowedUserProfile({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, pointerEvents: "none" as const }}
               className="fixed inset-0 z-[200] flex items-center justify-center px-6"
               style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
               onClick={() => setShowRemoveConfirm(false)}
@@ -637,7 +637,7 @@ function FollowedUserProfile({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: "none" as const }}
             className="fixed inset-0 z-[200] flex items-center justify-center px-6"
             style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
             onClick={() => setShowRemoveConfirm(false)}
