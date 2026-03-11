@@ -3,7 +3,7 @@ import { ChevronLeft, Pencil, Trash2, Plus, Lock, Disc3, AlertTriangle } from "l
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 
 interface FoldersScreenProps {
   onBack: () => void;
@@ -353,7 +353,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.175, ease: EASE_OUT }}
+              transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
               className="absolute inset-0 bg-black/40"
               onClick={() => setConfirmDeleteId(null)}
             />
@@ -361,7 +361,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.225, ease: EASE_OUT }}
+              transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
               className="relative z-10 mx-6 w-full max-w-[340px] rounded-[16px] p-6"
               style={{ backgroundColor: "var(--c-surface)", boxShadow: "var(--c-card-shadow)" }}
             >

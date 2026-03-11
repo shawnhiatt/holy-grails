@@ -467,7 +467,7 @@ function MobileSheet({
           y: sheetY,
           bottom: 0,
           paddingBottom: "env(safe-area-inset-bottom, 16px)",
-          maxHeight: "calc(100vh - 58px)",
+          maxHeight: "calc(100dvh - 58px)",
           backgroundColor: "var(--c-surface)",
           boxShadow: "var(--c-card-shadow)",
           ...getContentTokens(isDarkMode),

@@ -162,6 +162,7 @@ src/
       feed-screen.tsx
       filter-drawer.tsx
       folders-screen.tsx  # Folder management subview (accessed from Settings > Tools > Folders). Create, rename, delete folders. Folders 0/1 are read-only. Uses inline edit and confirmation modal patterns from sessions.tsx.
+      format-spotlight.tsx  # Rotating obscure format highlights section on the home feed
       following-screen.tsx
       install-nudge.tsx   # Dismissible PWA install nudge bottom sheet for mobile browser users. Fixed-position sheet (z-[150]) with backdrop (z-[149]). Detects standalone mode, listens for beforeinstallprompt (Android), shows instructional copy (iOS). Dismissal persisted to localStorage. Mounted from App.tsx.
       last-played-utils.ts
@@ -169,6 +170,7 @@ src/
       motion-tokens.ts
       navigation.tsx
       no-discogs-card.tsx
+      offline-banner.tsx   # Banner shown when device has no network connection; uses z-[115]
       oauth-helpers.ts   # OAuth 1.0a initiation — kicks off Discogs redirect (no signing, just calls convex/oauth.ts)
       purge-colors.ts
       purge-tracker.tsx
@@ -182,6 +184,8 @@ src/
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD). Project ID: `AsNXonIuH0GaiKmG36KD`. Falls back to `#01294D` if WebGL is unavailable.
       use-shake.ts
+    hooks/
+      use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
       wantlist.tsx
       wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
       wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
@@ -283,8 +287,8 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-text` | `#0C284A` |
 | `--c-text-secondary` | `#455B75` |
 | `--c-text-tertiary` | `#617489` |
-| `--c-text-muted` | `#6B7B8E` |
-| `--c-text-faint` | `#8494A5` |
+| `--c-text-muted` | `#5E6E80` |
+| `--c-text-faint` | `#6E8093` |
 | `--c-border` | `#D2D8DE` |
 | `--c-border-strong` | `#74889C` |
 | `--c-chip-bg` | `#EFF1F3` |
@@ -313,8 +317,8 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-text-faint` | `#6A8099` |
 | `--c-border` | `#1A3350` |
 | `--c-border-strong` | `#2D4A66` |
-| `--c-chip-bg` | `#1A3350` |
-| `--c-input-bg` | `#0F2238` |
+| `--c-chip-bg` | `oklab(from #1A3350 calc(l - 0.03) a b)` |
+| `--c-input-bg` | `oklab(from #0F2238 calc(l - 0.04) a b)` |
 | `--c-destructive` | `#FF33B6` |
 | `--c-destructive-hover` | `#E6009E` |
 | `--c-destructive-tint` | `rgba(255, 51, 182, 0.08)` |
@@ -459,6 +463,32 @@ import { Disc3 } from "lucide-react"
 ### CSS Variables on Detached Components
 Session picker and other components that render outside the main `<main>` element must apply CSS variables inline on their container — they don't inherit from the main cascade.
 
+**Detached-component surface color pattern:** The following components use `isDarkMode ? "#132B44" : "#FFFFFF"` for their background color rather than `var(--c-surface)`. This is intentional — these components render in a context where CSS custom properties from the root are not inherited (detached from the main DOM tree or rendered via portals):
+
+- slide-out-panel.tsx
+- add-albums-drawer.tsx
+- session-picker-sheet.tsx
+- album-detail.tsx (two instances)
+- wantlist-crossover-prompt.tsx
+- purge-tracker.tsx
+- loading-screen.tsx
+
+`#132B44` (dark) and `#FFFFFF` (light) are the correct surface values for detached components. Do not change these to `var(--c-surface)` without first verifying CSS variable inheritance in that rendering context.
+
+### App-Level CSS Custom Properties
+
+- `--app-bg` — set dynamically in App.tsx as the scroll-fade gradient base color. Dark: `#0C1A2E`, Light: `#ACDEF2`. Used for the top-of-screen scroll fade overlay.
+- `--nav-clearance` — bottom padding calc used across 16+ screen components to clear the fixed navigation bar. Set in App.tsx or navigation.tsx.
+
+### CSS Utility Classes (theme.css)
+
+- `overlay-scroll` — enables momentum scrolling and overflow behavior for scrollable containers. Used across 6+ screen components.
+- `tappable` — applies press-state feedback styling for interactive elements.
+
+### Sonner Toast Theming
+
+`theme.css` contains an extensive custom Sonner toast palette (lines ~215–276). This is intentional and should not be removed or overridden.
+
 ### Safe Area Insets
 All bottom sheets and floating elements must account for iOS safe areas:
 
@@ -592,12 +622,15 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
 | Wantlist crossover prompt | `z-[125]` | wantlist-crossover-prompt.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |
+| Offline banner | `z-[115]` | offline-banner.tsx |
 | Album detail mobile backdrop | `z-[110]` | album-detail.tsx |
 | Desktop side panel | `z-[110]` | App.tsx |
 | Swiper lightbox overlay | `z-[100]` | crate-flip.tsx |
 | Swiper active card | `z-101` | crate-flip.tsx |
 | Scroll fade overlay | `z-100` | App.tsx |
 | Delete confirmation modals | `z-[90]` | sessions.tsx |
+| Purge tracker sheet | `z-[89]` | purge-tracker.tsx |
+| Purge tracker backdrop | `z-[88]` | purge-tracker.tsx |
 | Session picker mobile sheet | `z-[85]` | session-picker-sheet.tsx |
 | Session picker mobile backdrop | `z-[80]` | session-picker-sheet.tsx |
 | Add Albums drawer sheet | `z-[85]` | add-albums-drawer.tsx |
@@ -608,6 +641,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Alphabet index sidebar | `z-40` | album-grid.tsx, album-list.tsx |
 | Wantlist card close button | `z-[2]` | wantlist.tsx |
 | Wantlist card hover overlay | `z-[1]` | wantlist.tsx |
+
+Note: `z-10` is used for sticky elements (sticky tab bar in album-detail.tsx, sticky search in add-albums-drawer.tsx). These are local stacking context only and not part of the global layering system.
 
 Do not introduce new z-index values outside this hierarchy without checking for conflicts.
 

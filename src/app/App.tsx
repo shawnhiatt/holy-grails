@@ -338,7 +338,7 @@ function AppContent() {
 
   return (
     <div
-      className="h-screen w-screen flex flex-col overflow-hidden"
+      className="h-[100dvh] w-screen flex flex-col overflow-hidden"
       style={{
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: isDarkMode ? "#0C1A2E" : "#ACDEF2",

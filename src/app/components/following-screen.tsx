@@ -179,7 +179,7 @@ export function FollowingScreen() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: DURATION_NORMAL }}
             className="overflow-hidden flex-shrink-0"
           >
             <div className="px-[16px] lg:px-[24px] py-3" style={{ backgroundColor: "var(--c-surface-alt)" }}>
@@ -1411,7 +1411,7 @@ function PopulatedFollowingView({
                   key={`depths-${cardKey}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ duration: 0.45, ease: [0.25, 1, 0.5, 1] }}
+                  transition={{ duration: 0.45, ease: EASE_OUT }}
                   className="flex-shrink-0"
                   style={{ width: "270px" }}
                 >

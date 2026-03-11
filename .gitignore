@@ -18,3 +18,7 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Working docs
+BUGS.md
+AUDIT-*.md

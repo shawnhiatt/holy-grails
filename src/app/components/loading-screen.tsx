@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Disc3, WifiOff } from "lucide-react";
 import { motion } from "motion/react";
 import { UnicornScene } from "./unicorn-scene";
-import { EASE_OUT } from "./motion-tokens";
+import { EASE_OUT, DURATION_SLOW } from "./motion-tokens";
 import { useOnlineStatus } from "../hooks/use-online-status";
 
 interface LoadingScreenProps {
@@ -192,7 +192,7 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
                   animate={{ scaleX: displayProgress / 100 }}
                   transition={
                     isComplete
-                      ? { duration: 0.3, ease: EASE_OUT }
+                      ? { duration: DURATION_SLOW, ease: EASE_OUT }
                       : reducedMotion
                       ? { duration: 0 }
                       : { duration: 0.05, ease: "linear" }

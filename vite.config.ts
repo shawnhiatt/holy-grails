@@ -50,6 +50,7 @@ export default defineConfig({
     }),
   ],
   server: {
+    port: 1234,
     proxy: {
       '/img-proxy': {
         target: 'https://i.discogs.com',

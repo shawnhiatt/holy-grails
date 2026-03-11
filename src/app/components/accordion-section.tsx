@@ -1,6 +1,7 @@
 import type React from "react";
 import { ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { DURATION_NORMAL } from "./motion-tokens";
 
 /**
  * AccordionSection — shared expand/collapse panel used in album detail.
@@ -66,7 +67,7 @@ export function AccordionSection({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: DURATION_NORMAL }}
               className="overflow-hidden"
             >
               <div
