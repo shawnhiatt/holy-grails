@@ -4,6 +4,24 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## [0.5.0] — 2026-03-10
+
+### Changed
+- Replaced `h-screen` on root App container with `h-[100dvh]` to fix iOS Safari viewport clipping
+- Replaced `100vh` with `100dvh` in `calc()` expressions across `add-albums-drawer.tsx`, `filter-drawer.tsx`, `session-picker-sheet.tsx`, and `slide-out-panel.tsx`
+- Replaced hardcoded animation duration values with motion tokens (`DURATION_FAST`, `DURATION_NORMAL`, `DURATION_SLOW`) in `folders-screen.tsx`, `sessions.tsx`, `loading-screen.tsx`, `accordion-section.tsx`, and `following-screen.tsx`
+- Replaced inline `[0.25, 1, 0.5, 1]` easing value with `EASE_OUT` token in `following-screen.tsx`
+
+### Documentation
+- Corrected `--c-text-muted` and `--c-text-faint` light mode token values in CLAUDE.md to match `theme.ts`
+- Corrected `--c-chip-bg` and `--c-input-bg` dark mode values in CLAUDE.md to reflect oklab expressions
+- Added offline banner (z-115) and purge tracker (z-88/89) to documented z-index hierarchy
+- Added `format-spotlight.tsx`, `offline-banner.tsx`, and `use-online-status.ts` to file structure documentation
+- Documented `--app-bg`, `--nav-clearance`, `overlay-scroll`, `tappable`, and Sonner toast theming
+- Documented detached-component surface color pattern (`#132B44` / `#FFFFFF`)
+
+---
+
 ## 0.4.3 — Album Detail Mobile Hero + Enriched Tabs
 
 ### Album Detail
