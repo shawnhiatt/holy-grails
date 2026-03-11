@@ -61,7 +61,7 @@ export function FilterDrawer() {
       }
       backdropZIndex={60}
       sheetZIndex={70}
-      className="lg:bottom-auto lg:top-[72px] lg:left-1/2 lg:-translate-x-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100dvh-100px)]"
+      className="lg:bottom-auto lg:top-[72px] lg:left-1/2 lg:-translate-x-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100vh-100px)]"
     >
       <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
         <div className="mb-6">

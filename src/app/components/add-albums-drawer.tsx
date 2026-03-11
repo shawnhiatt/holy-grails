@@ -507,7 +507,7 @@ function MobileDrawerSheet({
           y: sheetY,
           bottom: 0,
           paddingBottom: "env(safe-area-inset-bottom, 16px)",
-          maxHeight: "calc(100dvh - 58px)",
+          maxHeight: "calc(100vh - 58px)",
           backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
