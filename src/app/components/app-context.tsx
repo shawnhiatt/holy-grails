@@ -138,6 +138,9 @@ interface AppState {
   userProfile: UserProfile | null;
   updateProfile: (fields: { profile?: string; location?: string }) => Promise<void>;
   // Developer / QA resets
+  clearPlayHistory: () => Promise<void>;
+  clearFollowedUsers: () => Promise<void>;
+  clearWantlistPriorities: () => Promise<void>;
   wipeAllData: () => Promise<void>;
   // Connect Discogs flow trigger (from within the main app)
   connectDiscogsRequested: boolean;
@@ -303,10 +306,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateSessionMut = useMutation(api.sessions.update);
   const removeSessionMut = useMutation(api.sessions.remove);
   const upsertLastPlayedMut = useMutation(api.last_played.upsert);
+  const clearLastPlayedMut = useMutation(api.last_played.clearAll);
   const upsertWantPriorityMut = useMutation(api.want_priorities.upsert);
+  const clearWantPrioritiesMut = useMutation(api.want_priorities.clearAll);
   const addFollowingMut = useMutation(api.following.add);
   const removeFollowingMut = useMutation(api.following.remove);
   const updateAvatarMut = useMutation(api.following.updateAvatar);
+  const clearFollowingMut = useMutation(api.following.clearAll);
   const upsertPreferencesMut = useMutation(api.preferences.upsert);
   const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
@@ -1661,6 +1667,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     initialSyncDoneRef.current = false;
   }, [sessionToken, clearSessionMut, setDiscogsUsername]);
 
+  // ── Clear actions (Settings > Data) ──
+
+  const clearPlayHistory = useCallback(async () => {
+    if (sessionToken) await clearLastPlayedMut({ sessionToken });
+    setLastPlayed({});
+  }, [sessionToken, clearLastPlayedMut]);
+
+  const clearFollowedUsers = useCallback(async () => {
+    if (sessionToken) await clearFollowingMut({ sessionToken });
+    setFollowedUsers([]);
+    setFollowingFeed([]);
+  }, [sessionToken, clearFollowingMut]);
+
+  const clearWantlistPriorities = useCallback(async () => {
+    if (sessionToken) await clearWantPrioritiesMut({ sessionToken });
+    setWants((prev) => prev.map((w) => ({ ...w, priority: false })));
+  }, [sessionToken, clearWantPrioritiesMut]);
+
   // ── Developer / QA resets ──
 
   const wipeAllData = useCallback(async () => {
@@ -1936,6 +1960,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       userAvatar,
       userProfile,
       updateProfile: updateProfileFn,
+      // Clear actions (Settings > Data)
+      clearPlayHistory,
+      clearFollowedUsers,
+      clearWantlistPriorities,
       // Developer / QA resets
       wipeAllData,
       // Connect Discogs flow trigger (from within the main app)
@@ -1994,6 +2022,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSyncing, isSyncingFollowing, syncProgress, lastSynced,
       syncFromDiscogs, syncStats,
       userAvatar, userProfile, updateProfileFn,
+      clearPlayHistory, clearFollowedUsers, clearWantlistPriorities,
       wipeAllData,
       connectDiscogsRequested, requestConnectDiscogs, clearConnectDiscogsRequest,
       sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
