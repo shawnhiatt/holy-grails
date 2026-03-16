@@ -1,7 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil } from "lucide-react";
-import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -54,11 +52,10 @@ export function SettingsScreen() {
     deletePurgeTag,
     wipeAllData,
     sessionToken,
+    clearPlayHistory,
+    clearFollowedUsers,
+    clearWantlistPriorities,
   } = useApp();
-
-  const clearLastPlayedMut = useMutation(api.last_played.clearAll);
-  const clearFollowingMut = useMutation(api.following.clearAll);
-  const clearWantPrioritiesMut = useMutation(api.want_priorities.clearAll);
 
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -186,7 +183,7 @@ export function SettingsScreen() {
       toast.success("Sessions cleared.");
     } else if (confirmAction === "Play history") {
       try {
-        if (sessionToken) await clearLastPlayedMut({ sessionToken });
+        await clearPlayHistory();
         toast.success("Play history cleared.");
       } catch (err) {
         console.error("[Clear Play History] Failed:", err);
@@ -196,7 +193,7 @@ export function SettingsScreen() {
       }
     } else if (confirmAction === "Followed users") {
       try {
-        if (sessionToken) await clearFollowingMut({ sessionToken });
+        await clearFollowedUsers();
         toast.success("Followed users cleared.");
       } catch (err) {
         console.error("[Clear Following] Failed:", err);
@@ -206,7 +203,7 @@ export function SettingsScreen() {
       }
     } else if (confirmAction === "Wantlist priorities") {
       try {
-        if (sessionToken) await clearWantPrioritiesMut({ sessionToken });
+        await clearWantlistPriorities();
         toast.success("Wantlist priorities cleared.");
       } catch (err) {
         console.error("[Clear Want Priorities] Failed:", err);
@@ -510,7 +507,7 @@ export function SettingsScreen() {
             >
               <SquareArrowOutUpRight size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
               <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                Purge Tracker
+                Purge
               </p>
             </button>
 

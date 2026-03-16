@@ -1183,7 +1183,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </button>
 
           {/* Image */}
-          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto" }}>
+          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto", paddingLeft: 16, paddingRight: 16 }}>
             <motion.img
               key={lightboxIndex}
               src={releaseImages[lightboxIndex].uri}
