@@ -1182,17 +1182,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             <X size={24} />
           </button>
 
-          {/* Image + chevron navigation */}
-          <div className="relative flex items-center justify-center w-full px-12" style={{ pointerEvents: "auto" }}>
-            {lightboxIndex > 0 && (
-              <button
-                onClick={() => setLightboxIndex(i => i - 1)}
-                className="absolute left-2 flex items-center justify-center"
-                style={{ color: "rgba(255,255,255,0.8)" }}
-              >
-                <ChevronLeft size={32} />
-              </button>
-            )}
+          {/* Image */}
+          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto" }}>
             <motion.img
               key={lightboxIndex}
               src={releaseImages[lightboxIndex].uri}
@@ -1216,24 +1207,54 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 userSelect: "none",
               }}
             />
-            {lightboxIndex < releaseImages.length - 1 && (
-              <button
-                onClick={() => setLightboxIndex(i => i + 1)}
-                className="absolute right-2 flex items-center justify-center"
-                style={{ color: "rgba(255,255,255,0.8)" }}
-              >
-                <ChevronRight size={32} />
-              </button>
-            )}
           </div>
 
-          {/* Counter */}
-          <p
-            className="mt-3"
-            style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
-          >
-            {lightboxIndex + 1} / {releaseImages.length}
-          </p>
+          {/* Counter / Navigation row */}
+          {releaseImages.length > 1 ? (
+            <div
+              className="flex items-center justify-center gap-5 mt-3"
+              style={{ pointerEvents: "auto" }}
+            >
+              <button
+                onClick={() => setLightboxIndex(i => i - 1)}
+                disabled={lightboxIndex === 0}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "rgba(255,255,255,0.8)",
+                  opacity: lightboxIndex === 0 ? 0.3 : 1,
+                }}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <p
+                style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", minWidth: "48px", textAlign: "center" }}
+              >
+                {lightboxIndex + 1} / {releaseImages.length}
+              </p>
+              <button
+                onClick={() => setLightboxIndex(i => i + 1)}
+                disabled={lightboxIndex === releaseImages.length - 1}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "rgba(255,255,255,0.8)",
+                  opacity: lightboxIndex === releaseImages.length - 1 ? 0.3 : 1,
+                }}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          ) : (
+            <p
+              className="mt-3"
+              style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
+            >
+              {lightboxIndex + 1} / {releaseImages.length}
+            </p>
+          )}
         </div>
       </>
     )}
