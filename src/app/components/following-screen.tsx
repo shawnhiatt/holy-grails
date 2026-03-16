@@ -163,12 +163,14 @@ export function FollowingScreen() {
           <div>
             <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
           </div>
-          <button
-            onClick={() => { setShowAddForm(true); setAddError(""); }}
-            className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer"
-          >
-            <UserPlus size={16} />
-          </button>
+          <div className="w-11 h-11 flex items-center justify-center">
+            <button
+              onClick={() => { setShowAddForm(true); setAddError(""); }}
+              className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer"
+            >
+              <UserPlus size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
