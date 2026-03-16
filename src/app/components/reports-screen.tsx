@@ -641,10 +641,10 @@ function ListeningActivitySection({
               lineHeight: 1.1,
             }}
           >
-            {lastListenedInfo.streak > 1 ? lastListenedInfo.streak : lastListenedInfo.lastDaysAgo === null || lastListenedInfo.lastDaysAgo === 0 ? "—" : lastListenedInfo.lastDaysAgo}
+            {lastListenedInfo.streak > 1 ? lastListenedInfo.streak : lastListenedInfo.lastDaysAgo === null ? "—" : lastListenedInfo.lastDaysAgo}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            {lastListenedInfo.streak > 1 ? "day streak" : lastListenedInfo.lastDaysAgo === null ? "no plays yet" : lastListenedInfo.lastDaysAgo === 0 ? "listened today" : "days since last"}
+            {lastListenedInfo.streak > 1 ? "day streak" : lastListenedInfo.lastDaysAgo === null ? "no plays yet" : "days since last"}
           </p>
         </div>
 
