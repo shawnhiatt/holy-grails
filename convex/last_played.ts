@@ -44,3 +44,17 @@ export const upsert = mutation({
     });
   },
 });
+
+export const clearAll = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const rows = await ctx.db
+      .query("last_played")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", user.discogs_username)
+      )
+      .collect();
+    for (const row of rows) await ctx.db.delete(row._id);
+  },
+});

@@ -96,3 +96,25 @@ export const remove = mutation({
     }
   },
 });
+
+export const clearAll = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const rows = await ctx.db
+      .query("following")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", user.discogs_username)
+      )
+      .collect();
+    for (const row of rows) await ctx.db.delete(row._id);
+    // Also clear cached following feed data
+    const feedRows = await ctx.db
+      .query("following_feed")
+      .withIndex("by_follower", (q) =>
+        q.eq("follower_username", user.discogs_username)
+      )
+      .collect();
+    for (const row of feedRows) await ctx.db.delete(row._id);
+  },
+});
