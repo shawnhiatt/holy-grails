@@ -534,7 +534,7 @@ function ListeningActivitySection({
   // Listening streak / last listened
   const lastListenedInfo = useMemo(() => {
     const dates = Object.values(lastPlayed).map((d) => new Date(d).getTime()).sort((a, b) => b - a);
-    if (dates.length === 0) return { streak: 0, lastDaysAgo: -1 };
+    if (dates.length === 0) return { streak: 0, lastDaysAgo: null as number | null };
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const dayMs = 86400000;
@@ -641,10 +641,10 @@ function ListeningActivitySection({
               lineHeight: 1.1,
             }}
           >
-            {lastListenedInfo.streak > 1 ? lastListenedInfo.streak : lastListenedInfo.lastDaysAgo}
+            {lastListenedInfo.streak > 1 ? lastListenedInfo.streak : lastListenedInfo.lastDaysAgo === null ? "—" : lastListenedInfo.lastDaysAgo}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            {lastListenedInfo.streak > 1 ? "day streak" : lastListenedInfo.lastDaysAgo === 0 ? "listened today" : "days since last"}
+            {lastListenedInfo.streak > 1 ? "day streak" : lastListenedInfo.lastDaysAgo === null ? "no plays yet" : lastListenedInfo.lastDaysAgo === 0 ? "listened today" : "days since last"}
           </p>
         </div>
 

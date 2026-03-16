@@ -1,14 +1,16 @@
+import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { WifiOff } from "lucide-react";
+import { WifiOff, X } from "lucide-react";
 import { useOnlineStatus } from "../hooks/use-online-status";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 
 export function OfflineBanner() {
   const { isOnline } = useOnlineStatus();
+  const [dismissed, setDismissed] = useState(false);
 
   return (
     <AnimatePresence>
-      {!isOnline && (
+      {!isOnline && !dismissed && (
         <motion.div
           initial={{ y: 8, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -33,6 +35,8 @@ export function OfflineBanner() {
             border: "1px solid var(--c-border-strong)",
             boxShadow: "var(--c-shadow-modal)",
             whiteSpace: "nowrap",
+            width: "fit-content",
+            maxWidth: "calc(100vw - 48px)",
           }}
           role="status"
           aria-live="polite"
@@ -48,6 +52,22 @@ export function OfflineBanner() {
           >
             You're offline — collection data unavailable
           </span>
+          <button
+            onClick={() => setDismissed(true)}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "var(--c-text-muted)",
+              marginLeft: 8,
+              flexShrink: 0,
+              lineHeight: 0,
+              cursor: "pointer",
+            }}
+            aria-label="Dismiss"
+          >
+            <X size={13} />
+          </button>
         </motion.div>
       )}
     </AnimatePresence>
