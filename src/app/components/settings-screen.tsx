@@ -510,7 +510,7 @@ export function SettingsScreen() {
             >
               <SquareArrowOutUpRight size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
               <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                Purge Tracker
+                Purge
               </p>
             </button>
 
