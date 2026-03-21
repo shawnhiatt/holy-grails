@@ -12,6 +12,7 @@ import {
   Newspaper,
 } from "lucide-react";
 import { useApp, type Screen } from "./app-context";
+import { useHaptic } from "@/hooks/useHaptic";
 import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
 import logoDark from "../../imports/logo-holy-grails-dark.svg";
 import logoLight from "../../imports/logo-holy-grails-light.svg";
@@ -219,6 +220,7 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
 
 export function BottomTabBar() {
   const { screen, setScreen } = useApp();
+  const triggerHaptic = useHaptic('light');
 
   return (
     <>
@@ -243,7 +245,7 @@ export function BottomTabBar() {
         return (
           <button
             key={item.id}
-            onClick={() => setScreen(item.id)}
+            onClick={() => { triggerHaptic(); setScreen(item.id); }}
             aria-current={isActive ? "page" : undefined}
             className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] rounded-full tappable transition-all ${
               isActive ? "bg-[rgba(172,222,242,0.12)]" : ""
