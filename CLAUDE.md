@@ -438,6 +438,10 @@ Only animate `transform` and `opacity`. Never animate `width`, `height`, `top`, 
 
 ## Cross-Cutting Patterns
 
+### Touch Handling on Interactive Cards
+
+All interactive card and row elements must include `touchAction: "manipulation"` in their inline style. This eliminates the 300ms double-tap delay and lets the browser handle vertical pan natively. Cards with explicit `onTouchStart`/`onTouchMove`/`onTouchEnd` handlers must use a Y-axis-only threshold of 10px in `onTouchMove` — check `clientY` delta only, never `clientX`. X-axis movement during a vertical scroll is noise and must not suppress a tap. Any new card type added to the app must follow both rules.
+
 ### iOS Safari Text Truncation
 Never use Tailwind's `truncate` class on album-facing text. Always use inline styles:
 

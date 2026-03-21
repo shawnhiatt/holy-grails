@@ -21,6 +21,10 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 - **App.tsx sheet gate** updated to `selectedAlbum || selectedWantItem || selectedFeedAlbum` — fixes silent panel-open failures when `selectedAlbum` is null.
 - **On the Hunt cards** (Feed screen) now correctly call `setShowAlbumDetail(true)` alongside `setSelectedWantItem` — was a latent bug exposed by the gate change.
 
+### Fixed
+
+- **Touch sensitivity on album cards** — accidental album detail opens during scroll on mobile. Two-part fix: (1) `touch-action: manipulation` added to all interactive card elements app-wide (album-grid, album-artwork-grid, album-list, crate-flip, feed-screen, following-screen, depths-album-card) — solves unprotected `onClick`-only cards with no JS changes; (2) explicit touch handlers updated from X-or-Y 6px threshold to Y-axis-only 10px threshold — X-axis movement during vertical scroll is no longer treated as a drag signal.
+
 ### Removed
 - **"View on Discogs" links** removed app-wide from all album and release detail contexts. OAuth flows unaffected.
 - **MarketValueSection** removed from `WantItemDetailPanel` and `ReleaseDetailPanel`. Remains in collection `AlbumDetailPanel` only.
