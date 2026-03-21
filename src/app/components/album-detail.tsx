@@ -1519,7 +1519,7 @@ function DestructiveButton({
       }}
     >
       {loading ? (
-        <Disc3 size={18} className="animate-spin" />
+        <Disc3 size={18} className="disc-spinner" />
       ) : (
         label
       )}
@@ -1610,12 +1610,18 @@ function WantItemDetailPanel({
   const tabSentinelRef = useRef<HTMLDivElement>(null);
   const [tabBarStuck, setTabBarStuck] = useState(false);
 
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
   // Reset state when item changes
   useEffect(() => {
     setConfirmRemove(false);
     setIsRemoving(false);
     setActiveTab('tracklist');
     setTabBarStuck(false);
+    setLightboxOpen(false);
+    setLightboxIndex(0);
   }, [item.release_id]);
 
   // IntersectionObserver for tab bar sticky
@@ -1720,8 +1726,11 @@ function WantItemDetailPanel({
   const hasCommunity = releaseData && releaseData.community &&
     (releaseData.community.ratingCount > 0 || releaseData.community.have > 0 || releaseData.community.want > 0);
   const allDurationsMissing = !!hasTracklist && releaseData!.tracklist.every(t => !t.duration);
+  const releaseImages = releaseData?.images || [];
+  const hasImages = releaseImages.length > 1;
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {!hideHeader && (
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderColor: "var(--c-border-strong)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}>
@@ -1733,29 +1742,145 @@ function WantItemDetailPanel({
       )}
 
       <div className={`flex-1${hideHeader ? '' : ' overflow-y-auto'}`}>
-        {!hideImage && (
-          <div className="p-4">
-            <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
-              <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
+        {/* ═══ Hero ═══ */}
+        {!hideImage && hideHeader ? (
+          /* ── Mobile: hero image with gradient scrim ── */
+          <>
+            <div className="px-4 pt-3">
+              <div className="relative w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+                <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
+                {/* Priority bolt overlay */}
+                <button
+                  onClick={() => toggleWantPriority(item.id)}
+                  className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
+                  style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
+                >
+                  <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                </button>
+                <div
+                  className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
+                  style={{
+                    height: "55%",
+                    background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.0) 100%)",
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: 700,
+                      lineHeight: "1.3",
+                      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                      color: "#ffffff",
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    }}
+                  >{item.title}</h2>
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 500,
+                      color: "rgba(255,255,255,0.80)",
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    }}
+                  >{[item.artist, item.year ? String(item.year) : ""].filter(Boolean).join(" · ")}</p>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
-
-        <div className="px-4 pb-4">
-          <div className="flex items-start gap-2">
-            <div className="flex-1 min-w-0">
+            {/* ═══ Image thumbnail strip (mobile) ═══ */}
+            {isLoadingRelease && !releaseData && (
+              <div className="px-4 mt-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
+                ))}
+              </div>
+            )}
+            {hasImages && (
+              <div className="px-4 mt-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {releaseImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                    className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
+                    style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
+                  >
+                    <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : !hideImage ? (
+          /* ── Desktop: padded cover ── */
+          <>
+            <div className="p-4">
+              <div className="relative w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+                <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
+                {/* Priority bolt overlay */}
+                <button
+                  onClick={() => toggleWantPriority(item.id)}
+                  className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
+                  style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
+                >
+                  <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                </button>
+              </div>
+            </div>
+            {/* ═══ Image thumbnail strip (desktop) ═══ */}
+            {isLoadingRelease && !releaseData && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
+                ))}
+              </div>
+            )}
+            {hasImages && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {releaseImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                    className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
+                    style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
+                  >
+                    <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* ── Desktop: title / artist block ── */}
+            <div className="px-4 pb-4">
               <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{item.title}</h2>
               <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{item.artist}</p>
             </div>
-            {/* Priority bolt */}
-            <button
-              onClick={() => toggleWantPriority(item.id)}
-              className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 mt-1"
-            >
-              <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
-            </button>
+          </>
+        ) : null}
+
+        {!hideHeader && hideImage ? (
+          /* ── Desktop with hidden image: title / artist + priority bolt block ── */
+          <div className="px-4 pb-4">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{item.title}</h2>
+                <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{item.artist}</p>
+              </div>
+              <button
+                onClick={() => toggleWantPriority(item.id)}
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 mt-1"
+              >
+                <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {/* Detail rows */}
         <div className="px-4 pb-4">
@@ -1890,6 +2015,104 @@ function WantItemDetailPanel({
         </div>
       </div>
     </div>
+
+    {/* ═══ Fullscreen Image Lightbox ═══ */}
+    {lightboxOpen && releaseImages.length > 0 && (
+      <>
+        <div
+          className="fixed inset-0"
+          style={{ zIndex: 135, backgroundColor: "rgba(0,0,0,0.92)" }}
+          onClick={() => setLightboxOpen(false)}
+        />
+        <div
+          className="fixed inset-0 flex flex-col items-center justify-center"
+          style={{ zIndex: 140, pointerEvents: "none" }}
+        >
+          <button
+            onClick={() => setLightboxOpen(false)}
+            className="absolute right-4 flex items-center justify-center"
+            style={{
+              top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+              width: 40,
+              height: 40,
+              color: "white",
+              pointerEvents: "auto",
+            }}
+          >
+            <X size={24} />
+          </button>
+          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto", paddingLeft: 16, paddingRight: 16 }}>
+            <motion.img
+              key={lightboxIndex}
+              src={releaseImages[lightboxIndex].uri}
+              alt={`Image ${lightboxIndex + 1} of ${releaseImages.length}`}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.1}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -50 && lightboxIndex < releaseImages.length - 1) {
+                  setLightboxIndex(i => i + 1);
+                } else if (info.offset.x > 50 && lightboxIndex > 0) {
+                  setLightboxIndex(i => i - 1);
+                }
+              }}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "85vh",
+                objectFit: "contain",
+                borderRadius: "8px",
+                cursor: "grab",
+                userSelect: "none",
+              }}
+            />
+          </div>
+          {releaseImages.length > 1 ? (
+            <div
+              className="flex items-center justify-center gap-5 mt-3"
+              style={{ pointerEvents: "auto" }}
+            >
+              <button
+                onClick={() => setLightboxIndex(i => i - 1)}
+                disabled={lightboxIndex === 0}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "rgba(255,255,255,0.8)",
+                  opacity: lightboxIndex === 0 ? 0.3 : 1,
+                }}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <p style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", minWidth: "48px", textAlign: "center" }}>
+                {lightboxIndex + 1} / {releaseImages.length}
+              </p>
+              <button
+                onClick={() => setLightboxIndex(i => i + 1)}
+                disabled={lightboxIndex === releaseImages.length - 1}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "rgba(255,255,255,0.8)",
+                  opacity: lightboxIndex === releaseImages.length - 1 ? 0.3 : 1,
+                }}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          ) : (
+            <p
+              className="mt-3"
+              style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
+            >
+              {lightboxIndex + 1} / {releaseImages.length}
+            </p>
+          )}
+        </div>
+      </>
+    )}
+    </>
   );
 }
 
