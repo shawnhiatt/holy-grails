@@ -713,7 +713,7 @@ export function SettingsScreen() {
         <section className="mt-6 mb-4">
           <div className="flex items-center gap-2" style={{ color: "var(--c-text-muted)" }}>
             <Info size={14} />
-            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v0.5.0. A Discogs companion app.</span>
+            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v0.5.1. A Discogs companion app.</span>
           </div>
         </section>
       </div>

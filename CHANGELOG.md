@@ -4,6 +4,30 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.5.1
+
+### Added
+- **ReleaseDetailPanel** — full album detail panel for non-collection albums. Opens from Following screen (all view modes) and Feed screen (Recent Activity, From the Depths, Decades). Shows hero image, thumbnail carousel, enriched tabs (Tracklist, Credits, Pressing Notes, Identifiers), community stats (Have It / Want It / Avg. Rating), Add to Collection CTA, and wantlist Heart button.
+- **Add to Collection** — new `proxyAddToCollection` Convex action (#19). Adds release to Discogs folder 1 (Uncategorized), updates local state and Convex cache. Success toast + panel close. No full re-sync.
+- **Remove from Collection** — new `removeFromCollection` context action backed by existing `proxyRemoveFromCollection`. Accessible via Edit mode danger zone in collection `AlbumDetailPanel`. Two-tap confirm pattern.
+- **WantItemDetailPanel enriched tabs** — Tracklist, Credits, Pressing Notes, and Identifiers tabs now load in the wantlist item detail panel, matching the collection panel experience.
+- **DestructiveButton** — shared two-tap confirm destructive action component local to `album-detail.tsx`. Used by all three panel variants for remove actions.
+- **selectedFeedAlbum** context slot — parallel to `selectedWantItem`, enables feed/following album detail routing.
+
+### Changed
+- **Sessions nav icon** updated from `Headphones` to `Music` in both mobile bottom bar and desktop top nav.
+- **Bookmark buttons removed** from all album card views (Grid, Artwork, List, Swiper). Session picker now accessed via the `Music` icon on the Recommended card and the inline album detail accordion.
+- **Heart icon** replaces Zap/bolt on the wantlist button in `ReleaseDetailPanel` for clarity.
+- **App.tsx sheet gate** updated to `selectedAlbum || selectedWantItem || selectedFeedAlbum` — fixes silent panel-open failures when `selectedAlbum` is null.
+- **On the Hunt cards** (Feed screen) now correctly call `setShowAlbumDetail(true)` alongside `setSelectedWantItem` — was a latent bug exposed by the gate change.
+
+### Removed
+- **"View on Discogs" links** removed app-wide from all album and release detail contexts. OAuth flows unaffected.
+- **MarketValueSection** removed from `WantItemDetailPanel` and `ReleaseDetailPanel`. Remains in collection `AlbumDetailPanel` only.
+- **WantlistHeartButton overlay instances** removed from all album artwork across Following and Feed screens.
+
+---
+
 ## [0.5.0] — 2026-03-10
 
 ### Changed

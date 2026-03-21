@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.5.0
+# CLAUDE.md — Holy Grails v0.5.1
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -95,7 +95,9 @@ All authenticated `useQuery` subscriptions in `app-context.tsx` use a shared `au
 
 All authenticated Discogs API calls go through server-side Convex actions in `convex/discogs.ts`. The client never calls the Discogs API directly. Actions look up the user's credentials server-side via `getUserCredentials` (an internalQuery in `convex/discogsHelpers.ts`) and sign requests using HMAC-SHA1.
 
-**convex/discogs.ts** — `"use node"` directive. Contains 18 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`. All take `sessionToken` as the first argument.
+**convex/discogs.ts** — `"use node"` directive. Contains 19 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`, `proxyAddToCollection`. All take `sessionToken` as the first argument.
+
+`proxyAddToCollection` — action #19. POSTs to `/users/{username}/collection/folders/{folder_id}/releases/{release_id}`. Defaults to folder 1 (Uncategorized). Returns `instance_id`. Caller inserts album into local state and Convex collection cache — no full re-sync.
 
 **convex/discogsHelpers.ts** — Contains `getUserCredentials` (internalQuery). Separated from `convex/discogs.ts` because Convex does not allow queries in `"use node"` runtime files. If adding new internal queries needed by Discogs actions, they must live here, not in `discogs.ts`.
 
@@ -543,6 +545,14 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section (or Pressing Notes tab on mobile). Never merge these.
 - **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
 - **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads, matching the market-value pattern.
+- **Sheet open gate (`App.tsx`):** The desktop side panel and mobile sheet open condition checks `selectedAlbum || selectedWantItem || selectedFeedAlbum`. Any new panel type added to `AlbumDetailPanel` routing must also be added to this gate or the sheet will silently refuse to open.
+- **DestructiveButton** — shared two-tap confirm button component, local to `album-detail.tsx`. Props: `label`, `confirming`, `loading`, `onClick`. Outlined with white text (first tap) → solid `#FF2D78` fill with white text (confirm tap) → `Disc3` spinner while async in flight. Used by `WantItemDetailPanel`, `AlbumDetailPanel` (remove from collection), and `ReleaseDetailPanel`.
+
+`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, Add to Collection CTA, and wantlist Heart button. Does not include Mark as Played, Purge, Edit, or session picker.
+
+Session picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper). Session picker is now accessed via (1) the `Music` icon button on the Recommended card in the Feed screen, and (2) the inline Save for Later accordion in `album-detail.tsx`.
+
+"View on Discogs" links removed app-wide from all album/release contexts. OAuth flows unaffected. `MarketValueSection` removed from `WantItemDetailPanel` and `ReleaseDetailPanel` — only present in collection `AlbumDetailPanel`.
 
 ### Image Sizing Convention
 Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
@@ -594,7 +604,7 @@ Floating pill bottom tab bar with 5 items:
 | 1 | Feed | Newspaper | `feed` |
 | 2 | Collection | GalleryVerticalEnd | `crate` |
 | 3 | Wantlist | Heart | `wants` |
-| 4 | Sessions | Headphones | `sessions` |
+| 4 | Sessions | Music | `sessions` |
 | 5 | Insights | BarChart3 | `reports` |
 
 Mobile header right group (2 buttons): Following (Users icon, navigates to `following`) + Settings avatar.
@@ -663,7 +673,9 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Folder management (create, rename, delete) from Settings > Tools > Folders via `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`
 - Discogs profile personalization in Settings — enriched profile data (location, bio, buyer/seller ratings, member since, contributions) fetched from `/users/{username}`, editable profile text and location via `proxyUpdateProfile`
 - Wantlist write operations (`proxyAddToWantlist`, `proxyRemoveFromWantlist`) via Convex proxy actions
-- `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`)
+- `selectedWantItem: WantItem | null` in AppState — parallel to `selectedAlbum`, used for wantlist item detail panel (`WantItemDetailPanel` in `album-detail.tsx`). Now includes enriched tabs (Tracklist, Credits, Pressing Notes, Identifiers) loaded via `proxyFetchRelease`, matching the `AlbumDetailPanel` tab pattern.
+- `selectedFeedAlbum: FeedAlbum | null` — context slot for following/feed album detail. Mirrors the `selectedWantItem` pattern exactly. Set by Following and Feed screen album art taps. Cleared on panel close.
+- `removeFromCollection(albumId)` in context — calls `proxyRemoveFromCollection` (action #9), removes album from local state and Convex collection cache on success. No full re-sync.
 - `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
 - Following screen activity feed hearts call Convex proxy actions with per-item Disc3 loading spinners
 - Following feed cache in Convex — powers Feed Recent Activity without requiring Following screen hydration
