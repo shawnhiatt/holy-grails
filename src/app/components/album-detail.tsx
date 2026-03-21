@@ -375,7 +375,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         item={selectedWantItem}
         hideHeader={hideHeader}
         hideImage={hideImage}
-        onClose={() => { setShowAlbumDetail(false); setSelectedWantItem(null); }}
+        onClose={() => { setShowAlbumDetail(false); setSelectedAlbumId(null); setSelectedWantItem(null); setSelectedFeedAlbum(null); }}
       />
     );
   }
@@ -386,7 +386,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         album={selectedFeedAlbum}
         hideHeader={hideHeader}
         hideImage={hideImage}
-        onClose={() => { setShowAlbumDetail(false); setSelectedFeedAlbum(null); }}
+        onClose={() => { setShowAlbumDetail(false); setSelectedAlbumId(null); setSelectedWantItem(null); setSelectedFeedAlbum(null); }}
       />
     );
   }
@@ -455,7 +455,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           <div className="flex items-center gap-1">
             {editButton}
             {!isEditMode && (
-              <button onClick={() => { setShowAlbumDetail(false); setSelectedAlbumId(null); }} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}><X size={18} /></button>
+              <button onClick={() => { setShowAlbumDetail(false); setSelectedAlbumId(null); setSelectedWantItem(null); setSelectedFeedAlbum(null); }} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}><X size={18} /></button>
             )}
           </div>
         </div>
@@ -1045,6 +1045,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   toast.success(`"${selectedAlbum.title}" removed from your collection.`);
                   setShowAlbumDetail(false);
                   setSelectedAlbumId(null);
+                  setSelectedWantItem(null);
+                  setSelectedFeedAlbum(null);
                 } catch (err) {
                   console.error("[AlbumDetail] Remove failed:", err);
                   toast.error("Couldn't remove. Try again.");
@@ -2552,12 +2554,13 @@ function ReleaseDetailPanel({
 }
 
 export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: boolean }) {
-  const { setShowAlbumDetail, setSelectedWantItem, setSelectedFeedAlbum } = useApp();
+  const { setShowAlbumDetail, setSelectedAlbumId, setSelectedWantItem, setSelectedFeedAlbum } = useApp();
   const handleClose = useCallback(() => {
     setShowAlbumDetail(false);
+    setSelectedAlbumId(null);
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
-  }, [setShowAlbumDetail, setSelectedWantItem, setSelectedFeedAlbum]);
+  }, [setShowAlbumDetail, setSelectedAlbumId, setSelectedWantItem, setSelectedFeedAlbum]);
   return (
     <div className="lg:hidden">
       <SlideOutPanel
