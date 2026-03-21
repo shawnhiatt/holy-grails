@@ -1438,9 +1438,9 @@ function CommunityRow({ community }: { community: { rating: number | null; ratin
     : "—";
 
   const stats = [
+    { icon: <Star size={18} color="#FFC107" />, value: avgRating, label: "AVG. RATING" },
     { icon: <GalleryVerticalEnd size={18} color="#3E9842" />, value: formatStatNumber(community.have), label: "HAVE IT" },
     { icon: <Heart size={18} color="#EF5350" />, value: formatStatNumber(community.want), label: "WANT IT" },
-    { icon: <Star size={18} color="#FFC107" />, value: avgRating, label: "AVG. RATING" },
   ];
 
   return (
