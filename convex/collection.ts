@@ -111,3 +111,75 @@ export const updateInstance = mutation({
     await ctx.db.patch(row._id, patch);
   },
 });
+
+/** Remove a single album from the collection cache by releaseId. */
+export const removeItem = mutation({
+  args: {
+    sessionToken: v.string(),
+    releaseId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const row = await ctx.db
+      .query("collection")
+      .withIndex("by_username_and_release", (q) =>
+        q.eq("discogsUsername", user.discogs_username).eq("releaseId", args.releaseId)
+      )
+      .first();
+    if (!row) return;
+    await ctx.db.delete(row._id);
+  },
+});
+
+/** Insert a single album into the collection cache (after "Add to Collection" action). */
+export const addItem = mutation({
+  args: {
+    sessionToken: v.string(),
+    releaseId: v.number(),
+    masterId: v.optional(v.number()),
+    instanceId: v.number(),
+    folderId: v.optional(v.number()),
+    artist: v.string(),
+    title: v.string(),
+    year: v.number(),
+    thumb: v.optional(v.string()),
+    cover: v.string(),
+    folder: v.string(),
+    label: v.string(),
+    catalogNumber: v.string(),
+    format: v.string(),
+    mediaCondition: v.string(),
+    sleeveCondition: v.string(),
+    pricePaid: v.string(),
+    notes: v.string(),
+    customFields: v.optional(
+      v.array(v.object({ name: v.string(), value: v.string() }))
+    ),
+    dateAdded: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    await ctx.db.insert("collection", {
+      discogsUsername: user.discogs_username,
+      releaseId: args.releaseId,
+      masterId: args.masterId,
+      instanceId: args.instanceId,
+      folderId: args.folderId,
+      artist: args.artist,
+      title: args.title,
+      year: args.year,
+      thumb: args.thumb,
+      cover: args.cover,
+      folder: args.folder,
+      label: args.label,
+      catalogNumber: args.catalogNumber,
+      format: args.format,
+      mediaCondition: args.mediaCondition,
+      sleeveCondition: args.sleeveCondition,
+      pricePaid: args.pricePaid,
+      notes: args.notes,
+      customFields: args.customFields,
+      dateAdded: args.dateAdded,
+    });
+  },
+});

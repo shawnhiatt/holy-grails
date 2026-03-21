@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
   UserPlus, ArrowLeft, Search, UserMinus, Lock,
-  Disc3, Users, Grid2x2, List, ExternalLink, Grid3x3,
+  Disc3, Users, Grid2x2, List, Grid3x3,
   Heart, X, GalleryVerticalEnd,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
@@ -13,7 +13,6 @@ import type { Album, FollowedUser, FeedAlbum, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, EASE_IN, DURATION_NORMAL, DURATION_FAST, DURATION_SLOW } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { DepthsAlbumCard } from "./depths-album-card";
-import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { useAction } from "convex/react";
@@ -30,7 +29,7 @@ const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[
 ];
 
 export function FollowingScreen() {
-  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing } = useApp();
+  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
   const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
@@ -163,7 +162,7 @@ export function FollowingScreen() {
           <div>
             <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
           </div>
-          <div className="w-11 h-11 flex items-center justify-center">
+          <div className="w-11 h-8 flex items-center justify-center">
             <button
               onClick={() => { setShowAddForm(true); setAddError(""); }}
               className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer"
@@ -289,7 +288,12 @@ function FollowedUserProfile({
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const { isDarkMode } = useApp();
+  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
+
+  const handleOpenAlbum = useCallback((item: Album | WantItem) => {
+    setSelectedFeedAlbum(toFeedAlbum(item));
+    setShowAlbumDetail(true);
+  }, [setSelectedFeedAlbum, setShowAlbumDetail]);
 
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
   const userCutReleaseIds = useMemo(() => new Set(userAlbums.filter((a) => a.purgeTag === "cut").map((a) => a.release_id)), [userAlbums]);
@@ -350,10 +354,6 @@ function FollowedUserProfile({
                 @{user.username}
               </h2>
             </div>
-            <a href={"https://www.discogs.com/user/" + user.username} target="_blank" rel="noopener noreferrer"
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}>
-              <ExternalLink size={16} />
-            </a>
             <button
               onClick={() => setShowRemoveConfirm(true)}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--c-destructive-tint)] cursor-pointer"
@@ -447,10 +447,6 @@ function FollowedUserProfile({
               @{user.username}
             </h2>
           </div>
-          <a href={"https://www.discogs.com/user/" + user.username} target="_blank" rel="noopener noreferrer"
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}>
-            <ExternalLink size={16} />
-          </a>
           <button
             onClick={() => setShowRemoveConfirm(true)}
             className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--c-destructive-tint)] cursor-pointer"
@@ -623,11 +619,11 @@ function FollowedUserProfile({
             )}
 
             {viewMode === "crate" ? (
-              <FollowedUserCrateView items={displayItems} />
+              <FollowedUserCrateView items={displayItems} onOpenAlbum={handleOpenAlbum} />
             ) : viewMode === "list" ? (
-              <FollowedUserListView items={displayItems} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} />
+              <FollowedUserListView items={displayItems} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} onOpenAlbum={handleOpenAlbum} />
             ) : (
-              <FollowedUserGridView items={displayItems} viewMode={viewMode} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} />
+              <FollowedUserGridView items={displayItems} viewMode={viewMode} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} onOpenAlbum={handleOpenAlbum} />
             )}
           </>
         )}
@@ -683,7 +679,7 @@ function FollowedUserProfile({
 }
 
 /* ====== Crate (swiper) view ====== */
-function FollowedUserCrateView({ items }: { items: (Album | WantItem)[] }) {
+function FollowedUserCrateView({ items, onOpenAlbum }: { items: (Album | WantItem)[]; onOpenAlbum: (item: Album | WantItem) => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const dragY = useMotionValue(0);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -739,8 +735,8 @@ function FollowedUserCrateView({ items }: { items: (Album | WantItem)[] }) {
   );
 
   const handleCardTap = useCallback((item: Album | WantItem) => {
-    window.open(`https://www.discogs.com/release/${item.release_id}`, "_blank", "noopener,noreferrer");
-  }, []);
+    onOpenAlbum(item);
+  }, [onOpenAlbum]);
 
   if (items.length === 0) {
     return (
@@ -899,19 +895,6 @@ function FollowedUserCrateView({ items }: { items: (Album | WantItem)[] }) {
                       >
                         {item.year}
                       </span>
-                      {/* Discogs link */}
-                      <a
-                        href={`https://www.discogs.com/release/${item.release_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 transition-opacity hover:opacity-80 pointer-events-auto"
-                        onClick={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        style={{ flexShrink: 0 }}
-                      >
-                        <span style={{ fontSize: "11px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "rgba(255,255,255,0.55)" }}>Discogs</span>
-                        <ExternalLink size={9} style={{ color: "rgba(255,255,255,0.45)" }} />
-                      </a>
                     </div>
                   </div>
                 </motion.div>
@@ -984,9 +967,24 @@ function FollowedUserCrateView({ items }: { items: (Album | WantItem)[] }) {
 }
 
 /* ====== Grid view ====== */
-function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds, userIds }: {
+function toFeedAlbum(item: Album | WantItem): FeedAlbum {
+  return {
+    release_id: item.release_id,
+    master_id: item.master_id,
+    title: item.title,
+    artist: item.artist,
+    year: item.year,
+    thumb: "thumb" in item ? item.thumb : item.cover,
+    cover: item.cover,
+    label: "label" in item ? item.label : "",
+    dateAdded: "dateAdded" in item ? (item as Album).dateAdded : "",
+  };
+}
+
+function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds, userIds, onOpenAlbum }: {
   items: (Album | WantItem)[]; viewMode: string; filter: FollowingFilter;
   userCutIds: Set<number>; userWantIds: Set<number>; userIds: Set<number>;
+  onOpenAlbum: (item: Album | WantItem) => void;
 }) {
   const { isDarkMode } = useApp();
   const isArtwork = viewMode === "artwork";
@@ -996,31 +994,18 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
       <AlbumArtwork<ArtworkGridItem & { release_id: number }>
         items={items.map((item) => ({ id: item.id, title: item.title, artist: item.artist, thumb: ("thumb" in item ? item.thumb : undefined) || undefined, cover: item.cover, release_id: item.release_id }))}
         bare
-        onItemClick={() => {}}
+        onItemClick={(item) => {
+          const source = items.find(i => i.id === item.id);
+          if (source) onOpenAlbum(source);
+        }}
         renderAction={() => null}
         renderIndicator={(item) => {
           const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
-          return (
-            <>
-              {badge && (
-                <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff", zIndex: 1 }}>
-                  {badge.label}
-                </div>
-              )}
-              <WantlistHeartButton
-                releaseId={item.release_id}
-                masterId={item.master_id}
-                title={item.title}
-                artist={item.artist}
-                cover={item.cover}
-                thumb={item.thumb}
-                year={0}
-                label=""
-                size={16}
-                variant="overlay"
-              />
-            </>
-          );
+          return badge ? (
+            <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff", zIndex: 1 }}>
+              {badge.label}
+            </div>
+          ) : null;
         }}
       />
     );
@@ -1031,7 +1016,8 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
       {items.map((item) => {
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
-          <div key={item.id} className="relative rounded-[10px] overflow-hidden group"
+          <div key={item.id} className="relative rounded-[10px] overflow-hidden group cursor-pointer"
+            onClick={() => onOpenAlbum(item)}
             style={{
               backgroundColor: "var(--c-surface)",
               border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
@@ -1044,18 +1030,6 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
                   {badge.label}
                 </div>
               )}
-              <WantlistHeartButton
-                releaseId={item.release_id}
-                masterId={item.master_id}
-                title={item.title}
-                artist={item.artist}
-                cover={item.cover}
-                thumb={"thumb" in item ? (item as any).thumb : undefined}
-                year={item.year}
-                label={"label" in item ? (item as any).label : ""}
-                size={16}
-                variant="overlay"
-              />
             </div>
             <div className="px-2.5 pt-2 pb-2.5" style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: "13px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: "1.25", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
@@ -1070,16 +1044,18 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
 }
 
 /* ====== List view ====== */
-function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds }: {
+function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds, onOpenAlbum }: {
   items: (Album | WantItem)[]; filter: FollowingFilter;
   userCutIds: Set<number>; userWantIds: Set<number>; userIds: Set<number>;
+  onOpenAlbum: (item: Album | WantItem) => void;
 }) {
   return (
     <div className="flex flex-col">
       {items.map((item) => {
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
-          <div key={item.id} className="flex items-center gap-3 px-[16px] lg:px-[24px] py-2.5"
+          <div key={item.id} className="flex items-center gap-3 px-[16px] lg:px-[24px] py-2.5 cursor-pointer tappable"
+            onClick={() => onOpenAlbum(item)}
             style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid", borderLeft: badge ? "3px solid " + badge.color : "3px solid transparent" }}>
             <img src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
             <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
@@ -1091,18 +1067,6 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds 
                 {badge.label}
               </span>
             )}
-            <WantlistHeartButton
-              releaseId={item.release_id}
-              masterId={item.master_id}
-              title={item.title}
-              artist={item.artist}
-              cover={item.cover}
-              thumb={"thumb" in item ? (item as any).thumb : undefined}
-              year={item.year}
-              label={"label" in item ? (item as any).label : ""}
-              size={16}
-              variant="inline"
-            />
           </div>
         );
       })}
@@ -1203,6 +1167,8 @@ function PopulatedFollowingView({
   followingAvatars: Map<string, string>;
   isSyncingFollowing: boolean;
 }) {
+  const { setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
+
   // Sort followedUsers by most recent activity in followingFeed (avatar row only)
   const sortedFollowedUsers = useMemo(() => {
     const recentActivityMap = new Map<string, number>();
@@ -1419,22 +1385,12 @@ function PopulatedFollowingView({
                 >
                   <DepthsAlbumCard
                     album={album}
-                    onTap={() => onSelectUser(userId)}
+                    onTap={() => {
+                      setSelectedFeedAlbum(toFeedAlbum(album));
+                      setShowAlbumDetail(true);
+                    }}
                     artworkPadded
                     dateLine={album.dateAdded ? `In their collection since ${formatCollectionSince(album.dateAdded)}` : undefined}
-                    overlay={
-                      <WantlistHeartButton
-                        releaseId={album.release_id}
-                        masterId={album.master_id}
-                        title={album.title}
-                        artist={album.artist}
-                        cover={album.cover}
-                        thumb={album.thumb}
-                        year={album.year}
-                        label={album.label}
-                        variant="overlay"
-                      />
-                    }
                     eyebrow={
                       <div className="flex items-center gap-[8px] px-[12px] pt-[12px] pb-[8px]">
                         <div
@@ -1531,7 +1487,24 @@ function PopulatedFollowingView({
                 }}
               >
                 {/* Album cover with avatar overlay */}
-                <div className="relative flex-shrink-0" style={{ width: "60px", height: "60px" }}>
+                <div
+                  className="relative flex-shrink-0 cursor-pointer"
+                  style={{ width: "60px", height: "60px" }}
+                  onClick={() => {
+                    setSelectedFeedAlbum({
+                      release_id: item.albumReleaseId,
+                      master_id: item.albumMasterId,
+                      title: item.albumTitle,
+                      artist: item.albumArtist,
+                      year: item.albumYear,
+                      thumb: item.albumCover,
+                      cover: item.albumCover,
+                      label: item.albumLabel,
+                      dateAdded: item.date || "",
+                    });
+                    setShowAlbumDetail(true);
+                  }}
+                >
                   <img
                     src={item.albumCover}
                     alt={item.albumTitle}

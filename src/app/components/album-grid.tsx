@@ -1,4 +1,3 @@
-import { Bookmark } from "lucide-react";
 import { useRef, useMemo } from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
@@ -49,7 +48,7 @@ interface AlbumGridProps {
 }
 
 export function AlbumGrid({ albums }: AlbumGridProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, openSessionPicker, isAlbumInAnySession, sortOption } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, sortOption } = useApp();
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter || rediscoverMode;
   const collectionEmpty = allAlbums.length === 0;
 
@@ -267,25 +266,6 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                         {album.folder}
                       </span>
                     </span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openSessionPicker(album.id); }}
-                      className="flex-shrink-0 tappable transition-colors"
-                      style={{
-                        padding: "12px",
-                        marginLeft: "auto",
-                        marginRight: "-12px",
-                        marginTop: "-12px",
-                        marginBottom: "-12px",
-                        color: isAlbumInAnySession(album.id)
-                          ? (isDarkMode ? "#ACDEF2" : "#00527A")
-                          : "var(--c-text-faint)",
-                      }}
-                    >
-                      <Bookmark
-                        size={14}
-                        {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
-                      />
-                    </button>
                   </div>
                 </div>
               </div>

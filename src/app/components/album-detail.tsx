@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, ExternalLink, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, History, Gavel } from "lucide-react";
+import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, History, Gavel } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import { MarketValueSection } from "./market-value";
+
 import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButtonText, purgeToast, purgeClearToast } from "./purge-colors";
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
-import { CONDITION_GRADES, type WantItem } from "./discogs-api";
+import { CONDITION_GRADES, type WantItem, type FeedAlbum } from "./discogs-api";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { conditionGradeColor as conditionColor } from "../../lib/condition-colors";
@@ -64,12 +64,14 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     sessions,
     isInSession, toggleAlbumInSession, createSessionDirect,
     // Edit
-    albums, isSyncing, discogsUsername, updateAlbum,
+    albums, isSyncing, discogsUsername, updateAlbum, removeFromCollection,
     folders,
     // Wantlist detail
     selectedWantItem, setSelectedWantItem,
+    // Feed album detail
+    selectedFeedAlbum, setSelectedFeedAlbum,
     // Wantlist add
-    isInWants, addToWantList,
+    isInWants, isInCollection, addToWantList, addToCollection,
   } = useApp();
   const proxyUpdateInstance = useAction(api.discogs.proxyUpdateCollectionInstance);
   const proxyMoveToFolder = useAction(api.discogs.proxyMoveToFolder);
@@ -92,6 +94,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     folder: "",
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [isAddingToWantlist, setIsAddingToWantlist] = useState(false);
 
   // Enriched release data state
@@ -118,6 +122,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     autoCheckedRef.current = null;
     setIsEditMode(false);
     setIsSaving(false);
+    setConfirmRemove(false);
+    setIsRemoving(false);
     setActiveTab('tracklist');
     setLightboxOpen(false);
     setLightboxIndex(0);
@@ -208,6 +214,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const cancelEdit = useCallback(() => {
     setIsEditMode(false);
     setIsSaving(false);
+    setConfirmRemove(false);
   }, []);
 
   // Available folders for the move-to-folder dropdown (exclude "All" virtual folder)
@@ -369,6 +376,17 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         hideHeader={hideHeader}
         hideImage={hideImage}
         onClose={() => { setShowAlbumDetail(false); setSelectedWantItem(null); }}
+      />
+    );
+  }
+
+  if (!selectedAlbum && !selectedWantItem && selectedFeedAlbum) {
+    return (
+      <ReleaseDetailPanel
+        album={selectedFeedAlbum}
+        hideHeader={hideHeader}
+        hideImage={hideImage}
+        onClose={() => { setShowAlbumDetail(false); setSelectedFeedAlbum(null); }}
       />
     );
   }
@@ -1009,6 +1027,35 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </div>
         )}
 
+        {/* ═══ Remove from Collection (edit mode only) ═══ */}
+        {isEditMode && selectedAlbum && (
+          <div className="px-4 pb-4 mt-4" style={{ borderTop: "1px solid var(--c-border)", paddingTop: "16px" }}>
+            <DestructiveButton
+              label={confirmRemove ? "Confirm Remove" : "Remove from Collection"}
+              confirming={confirmRemove}
+              loading={isRemoving}
+              onClick={async () => {
+                if (!confirmRemove) {
+                  setConfirmRemove(true);
+                  return;
+                }
+                setIsRemoving(true);
+                try {
+                  await removeFromCollection(selectedAlbum.id);
+                  toast.success(`"${selectedAlbum.title}" removed from your collection.`);
+                  setShowAlbumDetail(false);
+                  setSelectedAlbumId(null);
+                } catch (err) {
+                  console.error("[AlbumDetail] Remove failed:", err);
+                  toast.error("Couldn't remove. Try again.");
+                  setConfirmRemove(false);
+                  setIsRemoving(false);
+                }
+              }}
+            />
+          </div>
+        )}
+
         {!isEditMode && (
           <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
             {/* ═══ Community (enriched, 3-stat row) ═══ */}
@@ -1029,9 +1076,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             ) : null}
 
             {/* ═══ Research Links ═══ */}
-            <div className="px-4 pb-6 grid grid-cols-3 gap-2">
+            <div className="px-4 pb-6 grid grid-cols-2 gap-2">
               {[
-                { href: selectedAlbum.discogsUrl, icon: <Disc3 size={20} />, label: "View on Discogs" },
                 { href: `https://www.discogs.com/sell/history/${selectedAlbum.release_id}`, icon: <History size={20} />, label: "Sold History" },
                 { href: `https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${selectedAlbum.artist} ${selectedAlbum.title}`)}&x=0&y=0`, icon: <Gavel size={20} />, label: "Auction History" },
               ].map(({ href, icon, label }) => (
@@ -1439,6 +1485,46 @@ function DetailRow({ label, value, valueColor }: { label: string; value: string;
   );
 }
 
+function DestructiveButton({
+  label,
+  confirming,
+  loading,
+  onClick,
+}: {
+  label: string;
+  confirming: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="tappable w-full"
+      style={{
+        borderRadius: 14,
+        border: confirming ? "none" : "2px solid #FF2D78",
+        backgroundColor: confirming ? "#FF2D78" : "transparent",
+        color: "#FFFFFF",
+        fontSize: "15px",
+        fontWeight: 600,
+        paddingTop: 14,
+        paddingBottom: 14,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+      }}
+    >
+      {loading ? (
+        <Disc3 size={18} className="animate-spin" />
+      ) : (
+        label
+      )}
+    </button>
+  );
+}
+
 function InlineSessionRow({
   label,
   count,
@@ -1510,9 +1596,105 @@ function WantItemDetailPanel({
   hideImage?: boolean;
   onClose: () => void;
 }) {
-  const { toggleWantPriority, removeFromWantList, sessionToken } = useApp();
+  const { toggleWantPriority, removeFromWantList, sessionToken, isDarkMode } = useApp();
+  const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
   const [isRemoving, setIsRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+
+  // Enriched release data state
+  const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
+  const [isLoadingRelease, setIsLoadingRelease] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tracklist' | 'credits' | 'pressing' | 'identifiers'>('tracklist');
+  const tabSentinelRef = useRef<HTMLDivElement>(null);
+  const [tabBarStuck, setTabBarStuck] = useState(false);
+
+  // Reset state when item changes
+  useEffect(() => {
+    setConfirmRemove(false);
+    setIsRemoving(false);
+    setActiveTab('tracklist');
+    setTabBarStuck(false);
+  }, [item.release_id]);
+
+  // IntersectionObserver for tab bar sticky
+  useEffect(() => {
+    const sentinel = tabSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setTabBarStuck(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [item.release_id]);
+
+  // Fetch enriched release data
+  useEffect(() => {
+    if (!sessionToken) {
+      setReleaseData(null);
+      setIsLoadingRelease(false);
+      return;
+    }
+
+    const releaseId = item.release_id;
+    const cached = releaseDataCache.get(releaseId);
+    if (cached) {
+      setReleaseData(cached);
+      setIsLoadingRelease(false);
+      return;
+    }
+
+    let stale = false;
+    setIsLoadingRelease(true);
+    setReleaseData(null);
+
+    proxyFetchRelease({ sessionToken, releaseId })
+      .then((data) => {
+        if (stale) return;
+        const rd = data as ReleaseData;
+        releaseDataCache.set(releaseId, rd);
+        setReleaseData(rd);
+      })
+      .catch((err) => {
+        if (stale) return;
+        console.warn("[WantDetail] Release fetch failed:", err);
+      })
+      .finally(() => {
+        if (!stale) setIsLoadingRelease(false);
+      });
+
+    return () => { stale = true; };
+  }, [item.release_id, sessionToken]);
+
+  // Auto-correct activeTab when releaseData loads
+  useEffect(() => {
+    if (!releaseData) return;
+    const tabHasData: Record<string, boolean> = {
+      tracklist: releaseData.tracklist.length > 0,
+      credits: releaseData.credits.length > 0,
+      pressing: releaseData.notes.length > 0,
+      identifiers: releaseData.identifiers.length > 0,
+    };
+    if (!tabHasData[activeTab]) {
+      const firstWithData = (['tracklist', 'credits', 'pressing', 'identifiers'] as const).find(t => tabHasData[t]);
+      if (firstWithData) setActiveTab(firstWithData);
+    }
+  }, [releaseData]);
+
+  // Group credits by role
+  const groupedCredits = useMemo(() => {
+    if (!releaseData?.credits.length) return [];
+    const map = new Map<string, string[]>();
+    for (const c of releaseData.credits) {
+      const existing = map.get(c.role);
+      if (existing) {
+        if (!existing.includes(c.name)) existing.push(c.name);
+      } else {
+        map.set(c.role, [c.name]);
+      }
+    }
+    return Array.from(map.entries()).map(([role, names]) => ({ role, names }));
+  }, [releaseData?.credits]);
 
   const handleRemove = useCallback(async () => {
     setIsRemoving(true);
@@ -1529,6 +1711,14 @@ function WantItemDetailPanel({
     }
   }, [item.release_id, removeFromWantList, onClose]);
 
+  // Enriched data helpers
+  const hasTracklist = releaseData && releaseData.tracklist.length > 0;
+  const hasCredits = releaseData && releaseData.credits.length > 0;
+  const hasPressingNotes = releaseData && releaseData.notes.length > 0;
+  const hasCommunity = releaseData && releaseData.community &&
+    (releaseData.community.ratingCount > 0 || releaseData.community.have > 0 || releaseData.community.want > 0);
+  const allDurationsMissing = !!hasTracklist && releaseData!.tracklist.every(t => !t.duration);
+
   return (
     <div className="flex flex-col h-full">
       {!hideHeader && (
@@ -1540,7 +1730,7 @@ function WantItemDetailPanel({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1${hideHeader ? '' : ' overflow-y-auto'}`}>
         {!hideImage && (
           <div className="p-4">
             <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
@@ -1573,67 +1763,801 @@ function WantItemDetailPanel({
           </div>
         </div>
 
-        <div className="px-4 pb-4">
-          <a href={`https://www.discogs.com/release/${item.release_id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:underline" style={{ color: "var(--c-link)", fontSize: "14px", fontWeight: 500 }}>
-            View on Discogs<ExternalLink size={14} />
-          </a>
-        </div>
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
+          {/* ═══ Community (enriched, 3-stat row) ═══ */}
+          {isLoadingRelease ? (
+            <div className="px-4 pb-6">
+              <div className="flex items-start justify-around">
+                {[40, 56, 48].map((w, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1.5">
+                    <div className="rounded-full animate-pulse" style={{ width: "20px", height: "20px", backgroundColor: "var(--c-border)" }} />
+                    <div className="rounded-[4px] animate-pulse" style={{ width: `${w}px`, height: "18px", backgroundColor: "var(--c-border)" }} />
+                    <div className="rounded-[4px] animate-pulse" style={{ width: "48px", height: "10px", backgroundColor: "var(--c-border)" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : hasCommunity ? (
+            <CommunityRow community={releaseData!.community!} />
+          ) : null}
 
-        <MarketValueSection album={{ id: item.id, release_id: item.release_id, title: item.title, artist: item.artist, mediaCondition: "", cover: item.cover } as any} sessionToken={sessionToken} />
+          {/* ═══ Enriched Content Tabs ═══ */}
+          {(() => {
+            const hasIdentifiers = releaseData && releaseData.identifiers.length > 0;
+            const anyTabHasData = hasTracklist || hasCredits || hasPressingNotes || hasIdentifiers;
+            const isLoading = isLoadingRelease && !releaseData;
+
+            if (!isLoading && !anyTabHasData) return null;
+
+            const tabs = [
+              { key: 'tracklist' as const, label: 'Tracklist', hasData: !!hasTracklist },
+              { key: 'credits' as const, label: 'Credits', hasData: !!hasCredits },
+              { key: 'pressing' as const, label: 'Pressing Notes', hasData: !!hasPressingNotes },
+              { key: 'identifiers' as const, label: 'Identifiers', hasData: !!hasIdentifiers },
+            ];
+
+            const visibleTabs = isLoading ? tabs : tabs.filter(t => t.hasData);
+
+            return (
+              <>
+                <div ref={tabSentinelRef} style={{ height: 0, width: "100%", pointerEvents: "none" }} />
+                <div
+                  className="overflow-x-auto no-scrollbar"
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 10,
+                    backgroundColor: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : "var(--c-surface)",
+                    borderBottom: "1px solid var(--c-border)",
+                    paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
+                  }}
+                >
+                  <div className="flex">
+                    {visibleTabs.map((tab) => {
+                      const isActive = !isLoading && activeTab === tab.key;
+                      return (
+                        <button
+                          key={tab.key}
+                          onClick={() => !isLoading && setActiveTab(tab.key)}
+                          disabled={isLoading}
+                          style={{
+                            padding: "8px 16px",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            color: isLoading ? "var(--c-text-muted)" : isActive ? "var(--c-text)" : "var(--c-text-muted)",
+                            opacity: isLoading ? 0.4 : 1,
+                            borderBottom: isActive ? "2px solid #EBFD00" : "2px solid transparent",
+                            background: "none",
+                            cursor: isLoading ? "default" : "pointer",
+                            whiteSpace: "nowrap",
+                            fontFamily: "'DM Sans', system-ui, sans-serif",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-3">
+                  {isLoading ? (
+                    <div className="px-4 pb-6">
+                      <EnrichedSkeleton label="" rows={4} />
+                    </div>
+                  ) : activeTab === 'tracklist' && hasTracklist ? (
+                    <TracklistSection
+                      tracklist={releaseData!.tracklist}
+                      isExpanded={true}
+                      onToggle={() => {}}
+                      allDurationsMissing={allDurationsMissing}
+                      hideToggle
+                      hideTitle={hideHeader}
+                    />
+                  ) : activeTab === 'credits' && hasCredits ? (
+                    <CreditsSection groupedCredits={groupedCredits} hideTitle={hideHeader} />
+                  ) : activeTab === 'pressing' && hasPressingNotes ? (
+                    <PressingNotesSection notes={releaseData!.notes} hideTitle={hideHeader} />
+                  ) : activeTab === 'identifiers' && releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
+                    <div className="px-4 pb-6">
+                      <div className="flex flex-col gap-1.5">
+                        {releaseData.identifiers.map((id, i) => (
+                          <DetailRow key={`id-${i}`} label={id.type} value={id.value} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            );
+          })()}
+        </div>
 
         {/* Remove from Wantlist */}
         <div className="px-4 pb-6">
-          {!confirmRemove ? (
-            <button
-              onClick={() => setConfirmRemove(true)}
-              className="w-full py-3 rounded-[10px] transition-colors"
-              style={{
-                fontSize: "14px",
-                fontWeight: 600,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                backgroundColor: "var(--c-destructive-tint)",
-                color: "var(--c-destructive)",
-                border: "1px solid rgba(255,51,182,0.2)",
-              }}
-            >
-              Remove from Wantlist
-            </button>
-          ) : (
-            <button
-              onClick={handleRemove}
-              disabled={isRemoving}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors"
-              style={{
-                fontSize: "14px",
-                fontWeight: 600,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                backgroundColor: "var(--c-destructive)",
-                color: "#fff",
-                opacity: isRemoving ? 0.7 : 1,
-              }}
-            >
-              {isRemoving ? (
-                <>
-                  <Disc3 size={15} className="disc-spinner" />
-                  Removing...
-                </>
-              ) : (
-                "Confirm Remove"
-              )}
-            </button>
-          )}
+          <DestructiveButton
+            label={confirmRemove ? "Confirm Remove" : "Remove from Wantlist"}
+            confirming={confirmRemove}
+            loading={isRemoving}
+            onClick={() => {
+              if (!confirmRemove) setConfirmRemove(true);
+              else handleRemove();
+            }}
+          />
         </div>
       </div>
     </div>
   );
 }
 
+/* ─── Release Detail Panel (non-collection albums: feed, following) ─── */
+
+function ReleaseDetailPanel({
+  album,
+  hideHeader = false,
+  hideImage = false,
+  onClose,
+}: {
+  album: FeedAlbum;
+  hideHeader?: boolean;
+  hideImage?: boolean;
+  onClose: () => void;
+}) {
+  const {
+    sessionToken, isDarkMode, isInWants, isInCollection,
+    addToWantList, removeFromWantList, addToCollection,
+  } = useApp();
+  const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
+
+  // Enriched release data state
+  const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
+  const [isLoadingRelease, setIsLoadingRelease] = useState(false);
+
+  // Enriched content tab state
+  const [activeTab, setActiveTab] = useState<'tracklist' | 'credits' | 'pressing' | 'identifiers'>('tracklist');
+
+  // Tab bar sticky sentinel
+  const tabSentinelRef = useRef<HTMLDivElement>(null);
+  const [tabBarStuck, setTabBarStuck] = useState(false);
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Action states
+  const [isAddingToCollection, setIsAddingToCollection] = useState(false);
+  const [isAddingToWantlist, setIsAddingToWantlist] = useState(false);
+  const [confirmRemoveWant, setConfirmRemoveWant] = useState(false);
+  const [isRemovingWant, setIsRemovingWant] = useState(false);
+
+  // Reset state when album changes
+  useEffect(() => {
+    setActiveTab('tracklist');
+    setLightboxOpen(false);
+    setLightboxIndex(0);
+    setTabBarStuck(false);
+    setIsAddingToCollection(false);
+    setIsAddingToWantlist(false);
+    setConfirmRemoveWant(false);
+    setIsRemovingWant(false);
+  }, [album.release_id]);
+
+  // IntersectionObserver for tab bar sticky
+  useEffect(() => {
+    const sentinel = tabSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setTabBarStuck(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [album.release_id]);
+
+  // Fetch enriched release data
+  useEffect(() => {
+    if (!sessionToken) {
+      setReleaseData(null);
+      setIsLoadingRelease(false);
+      return;
+    }
+
+    const releaseId = album.release_id;
+    const cached = releaseDataCache.get(releaseId);
+    if (cached) {
+      setReleaseData(cached);
+      setIsLoadingRelease(false);
+      return;
+    }
+
+    let stale = false;
+    setIsLoadingRelease(true);
+    setReleaseData(null);
+
+    proxyFetchRelease({ sessionToken, releaseId })
+      .then((data) => {
+        if (stale) return;
+        const rd = data as ReleaseData;
+        releaseDataCache.set(releaseId, rd);
+        setReleaseData(rd);
+      })
+      .catch((err) => {
+        if (stale) return;
+        console.warn("[ReleaseDetail] Release fetch failed:", err);
+      })
+      .finally(() => {
+        if (!stale) setIsLoadingRelease(false);
+      });
+
+    return () => { stale = true; };
+  }, [album.release_id, sessionToken]);
+
+  // Auto-correct activeTab when releaseData loads
+  useEffect(() => {
+    if (!releaseData) return;
+    const tabHasData: Record<string, boolean> = {
+      tracklist: releaseData.tracklist.length > 0,
+      credits: releaseData.credits.length > 0,
+      pressing: releaseData.notes.length > 0,
+      identifiers: releaseData.identifiers.length > 0,
+    };
+    if (!tabHasData[activeTab]) {
+      const firstWithData = (['tracklist', 'credits', 'pressing', 'identifiers'] as const).find(t => tabHasData[t]);
+      if (firstWithData) setActiveTab(firstWithData);
+    }
+  }, [releaseData]);
+
+  // Group credits by role
+  const groupedCredits = useMemo(() => {
+    if (!releaseData?.credits.length) return [];
+    const map = new Map<string, string[]>();
+    for (const c of releaseData.credits) {
+      const existing = map.get(c.role);
+      if (existing) {
+        if (!existing.includes(c.name)) existing.push(c.name);
+      } else {
+        map.set(c.role, [c.name]);
+      }
+    }
+    return Array.from(map.entries()).map(([role, names]) => ({ role, names }));
+  }, [releaseData?.credits]);
+
+  const alreadyInCollection = isInCollection(album.release_id, album.master_id);
+  const alreadyOnWantlist = isInWants(album.release_id, album.master_id);
+
+  const handleAddToCollection = useCallback(async () => {
+    if (isAddingToCollection || alreadyInCollection) return;
+    setIsAddingToCollection(true);
+    try {
+      await addToCollection(album.release_id);
+      toast.info(`"${album.title}" added to collection.`);
+      onClose();
+    } catch (err: any) {
+      console.error("[ReleaseDetail] Add to collection failed:", err);
+      toast.error("Failed to add. Try again.");
+      setIsAddingToCollection(false);
+    }
+  }, [album.release_id, album.title, isAddingToCollection, alreadyInCollection, addToCollection, onClose]);
+
+  const handleAddToWantlist = useCallback(async () => {
+    if (isAddingToWantlist || alreadyOnWantlist) return;
+    setIsAddingToWantlist(true);
+    try {
+      await addToWantList({
+        id: `w-${album.release_id}`,
+        release_id: album.release_id,
+        master_id: album.master_id,
+        title: album.title,
+        artist: album.artist,
+        year: album.year,
+        thumb: album.thumb,
+        cover: album.cover,
+        label: album.label,
+        priority: false,
+      });
+      toast.info(`"${album.title}" added to Wantlist.`);
+    } catch (err: any) {
+      console.error("[ReleaseDetail] Add to wantlist failed:", err);
+      toast.error("Failed to add. Try again.");
+    } finally {
+      setIsAddingToWantlist(false);
+    }
+  }, [album, isAddingToWantlist, alreadyOnWantlist, addToWantList]);
+
+  const handleRemoveFromWantlist = useCallback(async () => {
+    setIsRemovingWant(true);
+    try {
+      await removeFromWantList(album.release_id);
+      toast.info(`"${album.title}" removed from Wantlist.`);
+      setConfirmRemoveWant(false);
+    } catch (err: any) {
+      console.error("[ReleaseDetail] Remove from wantlist failed:", err);
+      toast.error("Remove failed. Try again.");
+    } finally {
+      setIsRemovingWant(false);
+    }
+  }, [album.release_id, album.title, removeFromWantList]);
+
+  // Enriched data helpers
+  const hasTracklist = releaseData && releaseData.tracklist.length > 0;
+  const hasCredits = releaseData && releaseData.credits.length > 0;
+  const hasPressingNotes = releaseData && releaseData.notes.length > 0;
+  const hasCommunity = releaseData && releaseData.community &&
+    (releaseData.community.ratingCount > 0 || releaseData.community.have > 0 || releaseData.community.want > 0);
+  const releaseImages = releaseData?.images || [];
+  const hasImages = releaseImages.length > 1;
+  const allDurationsMissing = !!hasTracklist && releaseData!.tracklist.every(t => !t.duration);
+
+  return (
+    <>
+    <div className="flex flex-col h-full">
+      {!hideHeader && (
+        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderColor: "var(--c-border-strong)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}>
+          <h3 style={{ fontSize: "15px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
+            Release Details
+          </h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}><X size={18} /></button>
+        </div>
+      )}
+
+      <div className={`flex-1${hideHeader ? '' : ' overflow-y-auto'}`}>
+        {/* ═══ Hero ═══ */}
+        {!hideImage && hideHeader ? (
+          /* ── Mobile: hero image with gradient scrim ── */
+          <>
+            <div className="px-4 pt-3">
+              <div className="relative w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+                <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+                <div
+                  className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
+                  style={{
+                    height: "55%",
+                    background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.0) 100%)",
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: 700,
+                      lineHeight: "1.3",
+                      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                      color: "#ffffff",
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    }}
+                  >{album.title}</h2>
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 500,
+                      color: "rgba(255,255,255,0.80)",
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    }}
+                  >{[album.artist, album.year ? String(album.year) : ""].filter(Boolean).join(" · ")}</p>
+                </div>
+              </div>
+            </div>
+            {/* ═══ Image thumbnail strip (mobile) ═══ */}
+            {isLoadingRelease && !releaseData && (
+              <div className="px-4 mt-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
+                ))}
+              </div>
+            )}
+            {hasImages && (
+              <div className="px-4 mt-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {releaseImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                    className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
+                    style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
+                  >
+                    <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : !hideImage ? (
+          /* ── Desktop: padded cover ── */
+          <>
+            <div className="p-4">
+              <div className="w-full aspect-square rounded-[12px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+                <img src={album.cover} alt={album.title} className="w-full h-full object-cover" />
+              </div>
+            </div>
+            {/* ═══ Image thumbnail strip (desktop) ═══ */}
+            {isLoadingRelease && !releaseData && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex-shrink-0 rounded-[8px] animate-pulse" style={{ width: 64, height: 64, backgroundColor: "var(--c-border)" }} />
+                ))}
+              </div>
+            )}
+            {hasImages && (
+              <div className="px-4 mt-3 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {releaseImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }}
+                    className="flex-shrink-0 rounded-[8px] overflow-hidden tappable"
+                    style={{ width: 64, height: 64, border: "1px solid var(--c-border)", flexShrink: 0 }}
+                  >
+                    <img src={img.uri150} alt={`Image ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* ── Desktop: title / artist block ── */}
+            <div className="px-4 pb-4">
+              <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{album.title}</h2>
+              <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{album.artist}</p>
+            </div>
+          </>
+        ) : null}
+
+        {!hideHeader && hideImage ? (
+          <div className="px-4 pb-4">
+            <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{album.title}</h2>
+            <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{album.artist}</p>
+          </div>
+        ) : null}
+
+        {/* ═══ Action Buttons ═══ */}
+        <div className="px-4 pb-4 mt-4 flex flex-col gap-2">
+          {/* Collection button */}
+          {alreadyInCollection ? (
+            <div
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px]"
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: "rgba(62, 152, 66, 0.12)",
+                color: "#3E9842",
+                border: "1px solid rgba(62, 152, 66, 0.2)",
+              }}
+            >
+              <Check size={16} />
+              In Your Collection
+            </div>
+          ) : (
+            <button
+              onClick={handleAddToCollection}
+              disabled={isAddingToCollection}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: "#EBFD00",
+                color: "#0C284A",
+                opacity: isAddingToCollection ? 0.7 : 1,
+              }}
+            >
+              {isAddingToCollection ? (
+                <>
+                  <Disc3 size={15} className="disc-spinner" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus size={16} />
+                  Add to Collection
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Wantlist button */}
+          {alreadyOnWantlist ? (
+            <DestructiveButton
+              label={confirmRemoveWant ? "Confirm Remove" : "Remove from Wantlist"}
+              confirming={confirmRemoveWant}
+              loading={isRemovingWant}
+              onClick={() => {
+                if (!confirmRemoveWant) setConfirmRemoveWant(true);
+                else handleRemoveFromWantlist();
+              }}
+            />
+          ) : (
+            <button
+              onClick={handleAddToWantlist}
+              disabled={isAddingToWantlist}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: "var(--c-chip-bg)",
+                color: "var(--c-text-secondary)",
+                border: "1px solid var(--c-border)",
+                opacity: isAddingToWantlist ? 0.7 : 1,
+              }}
+            >
+              {isAddingToWantlist ? (
+                <>
+                  <Disc3 size={15} className="disc-spinner" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Heart size={16} />
+                  Add to Wantlist
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* ═══ Detail rows ═══ */}
+        <div className="px-4 pb-4">
+          <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+            <DetailRow label="Year" value={String(album.year)} />
+            <DetailRow label="Label" value={album.label} />
+          </div>
+        </div>
+
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
+          {/* ═══ Community (enriched, 3-stat row) ═══ */}
+          {isLoadingRelease ? (
+            <div className="px-4 pb-6">
+              <div className="flex items-start justify-around">
+                {[40, 56, 48].map((w, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1.5">
+                    <div className="rounded-full animate-pulse" style={{ width: "20px", height: "20px", backgroundColor: "var(--c-border)" }} />
+                    <div className="rounded-[4px] animate-pulse" style={{ width: `${w}px`, height: "18px", backgroundColor: "var(--c-border)" }} />
+                    <div className="rounded-[4px] animate-pulse" style={{ width: "48px", height: "10px", backgroundColor: "var(--c-border)" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : hasCommunity ? (
+            <CommunityRow community={releaseData!.community!} />
+          ) : null}
+
+          {/* ═══ Research Links ═══ */}
+          <div className="px-4 pb-6 grid grid-cols-2 gap-2">
+            {[
+              { href: `https://www.discogs.com/sell/history/${album.release_id}`, icon: <History size={20} />, label: "Sold History" },
+              { href: `https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${album.artist} ${album.title}`)}&x=0&y=0`, icon: <Gavel size={20} />, label: "Auction History" },
+            ].map(({ href, icon, label }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
+                style={{
+                  backgroundColor: "var(--c-surface-alt)",
+                  border: "1px solid var(--c-border)",
+                  color: "var(--c-text-secondary)",
+                }}
+              >
+                {icon}
+                <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>{label}</span>
+              </a>
+            ))}
+          </div>
+
+          {/* ═══ Enriched Content Tabs ═══ */}
+          {(() => {
+            const hasIdentifiers = releaseData && releaseData.identifiers.length > 0;
+            const anyTabHasData = hasTracklist || hasCredits || hasPressingNotes || hasIdentifiers;
+            const isLoading = isLoadingRelease && !releaseData;
+
+            if (!isLoading && !anyTabHasData) return null;
+
+            const tabs = [
+              { key: 'tracklist' as const, label: 'Tracklist', hasData: !!hasTracklist },
+              { key: 'credits' as const, label: 'Credits', hasData: !!hasCredits },
+              { key: 'pressing' as const, label: 'Pressing Notes', hasData: !!hasPressingNotes },
+              { key: 'identifiers' as const, label: 'Identifiers', hasData: !!hasIdentifiers },
+            ];
+
+            const visibleTabs = isLoading ? tabs : tabs.filter(t => t.hasData);
+
+            return (
+              <>
+                <div ref={tabSentinelRef} style={{ height: 0, width: "100%", pointerEvents: "none" }} />
+                <div
+                  className="overflow-x-auto no-scrollbar"
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 10,
+                    backgroundColor: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : "var(--c-surface)",
+                    borderBottom: "1px solid var(--c-border)",
+                    paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
+                  }}
+                >
+                  <div className="flex">
+                    {visibleTabs.map((tab) => {
+                      const isActive = !isLoading && activeTab === tab.key;
+                      return (
+                        <button
+                          key={tab.key}
+                          onClick={() => !isLoading && setActiveTab(tab.key)}
+                          disabled={isLoading}
+                          style={{
+                            padding: "8px 16px",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            color: isLoading ? "var(--c-text-muted)" : isActive ? "var(--c-text)" : "var(--c-text-muted)",
+                            opacity: isLoading ? 0.4 : 1,
+                            borderBottom: isActive ? "2px solid #EBFD00" : "2px solid transparent",
+                            background: "none",
+                            cursor: isLoading ? "default" : "pointer",
+                            whiteSpace: "nowrap",
+                            fontFamily: "'DM Sans', system-ui, sans-serif",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-3">
+                  {isLoading ? (
+                    <div className="px-4 pb-6">
+                      <EnrichedSkeleton label="" rows={4} />
+                    </div>
+                  ) : activeTab === 'tracklist' && hasTracklist ? (
+                    <TracklistSection
+                      tracklist={releaseData!.tracklist}
+                      isExpanded={true}
+                      onToggle={() => {}}
+                      allDurationsMissing={allDurationsMissing}
+                      hideToggle
+                      hideTitle={hideHeader}
+                    />
+                  ) : activeTab === 'credits' && hasCredits ? (
+                    <CreditsSection groupedCredits={groupedCredits} hideTitle={hideHeader} />
+                  ) : activeTab === 'pressing' && hasPressingNotes ? (
+                    <PressingNotesSection notes={releaseData!.notes} hideTitle={hideHeader} />
+                  ) : activeTab === 'identifiers' && releaseData?.identifiers && releaseData.identifiers.length > 0 ? (
+                    <div className="px-4 pb-6">
+                      <div className="flex flex-col gap-1.5">
+                        {releaseData.identifiers.map((id, i) => (
+                          <DetailRow key={`id-${i}`} label={id.type} value={id.value} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+
+    {/* ═══ Fullscreen Image Lightbox ═══ */}
+    {lightboxOpen && releaseImages.length > 0 && (
+      <>
+        <div
+          className="fixed inset-0"
+          style={{ zIndex: 135, backgroundColor: "rgba(0,0,0,0.92)" }}
+          onClick={() => setLightboxOpen(false)}
+        />
+        <div
+          className="fixed inset-0 flex flex-col items-center justify-center"
+          style={{ zIndex: 140, pointerEvents: "none" }}
+        >
+          <button
+            onClick={() => setLightboxOpen(false)}
+            className="absolute right-4 flex items-center justify-center"
+            style={{
+              top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+              width: 40,
+              height: 40,
+              color: "white",
+              pointerEvents: "auto",
+            }}
+          >
+            <X size={24} />
+          </button>
+
+          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto", paddingLeft: 16, paddingRight: 16 }}>
+            <motion.img
+              key={lightboxIndex}
+              src={releaseImages[lightboxIndex].uri}
+              alt={`Image ${lightboxIndex + 1} of ${releaseImages.length}`}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.1}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -50 && lightboxIndex < releaseImages.length - 1) {
+                  setLightboxIndex(i => i + 1);
+                } else if (info.offset.x > 50 && lightboxIndex > 0) {
+                  setLightboxIndex(i => i - 1);
+                }
+              }}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "85vh",
+                objectFit: "contain",
+                borderRadius: "8px",
+                cursor: "grab",
+                userSelect: "none",
+              }}
+            />
+          </div>
+
+          {releaseImages.length > 1 ? (
+            <div
+              className="flex items-center justify-center gap-5 mt-3"
+              style={{ pointerEvents: "auto" }}
+            >
+              <button
+                onClick={() => setLightboxIndex(i => i - 1)}
+                disabled={lightboxIndex === 0}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "rgba(255,255,255,0.8)",
+                  opacity: lightboxIndex === 0 ? 0.3 : 1,
+                }}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <p
+                style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", minWidth: "48px", textAlign: "center" }}
+              >
+                {lightboxIndex + 1} / {releaseImages.length}
+              </p>
+              <button
+                onClick={() => setLightboxIndex(i => i + 1)}
+                disabled={lightboxIndex === releaseImages.length - 1}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "rgba(255,255,255,0.8)",
+                  opacity: lightboxIndex === releaseImages.length - 1 ? 0.3 : 1,
+                }}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          ) : (
+            <p
+              className="mt-3"
+              style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
+            >
+              {lightboxIndex + 1} / {releaseImages.length}
+            </p>
+          )}
+        </div>
+      </>
+    )}
+    </>
+  );
+}
+
 export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: boolean }) {
-  const { setShowAlbumDetail, setSelectedWantItem } = useApp();
+  const { setShowAlbumDetail, setSelectedWantItem, setSelectedFeedAlbum } = useApp();
   const handleClose = useCallback(() => {
     setShowAlbumDetail(false);
     setSelectedWantItem(null);
-  }, [setShowAlbumDetail, setSelectedWantItem]);
+    setSelectedFeedAlbum(null);
+  }, [setShowAlbumDetail, setSelectedWantItem, setSelectedFeedAlbum]);
   return (
     <div className="lg:hidden">
       <SlideOutPanel

@@ -54,7 +54,7 @@ class ErrorBoundary extends Component<
 
 function AppContent() {
   const {
-    screen, showAlbumDetail, selectedAlbum, showFilterDrawer,
+    screen, showAlbumDetail, selectedAlbum, selectedWantItem, selectedFeedAlbum, showFilterDrawer,
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail,
     setScreen,
     connectDiscogsRequested, clearConnectDiscogsRequest,
@@ -393,7 +393,7 @@ function AppContent() {
         </div>
 
         <AnimatePresence>
-          {isDesktop && showAlbumDetail && selectedAlbum && (
+          {isDesktop && showAlbumDetail && (selectedAlbum || selectedWantItem || selectedFeedAlbum) && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 380, opacity: 1 }}
@@ -432,7 +432,7 @@ function AppContent() {
       <BottomTabBar />
 
       <AnimatePresence>
-        {showAlbumDetail && selectedAlbum && <AlbumDetailSheet shakeEntrance={shakeEntrance} />}
+        {showAlbumDetail && (selectedAlbum || selectedWantItem || selectedFeedAlbum) && <AlbumDetailSheet shakeEntrance={shakeEntrance} />}
       </AnimatePresence>
 
       <AnimatePresence>

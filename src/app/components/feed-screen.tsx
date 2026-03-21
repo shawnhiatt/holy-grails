@@ -6,7 +6,7 @@ import {
   Tag,
   ChevronRight,
   TrendingUp,
-  Bookmark,
+  Music,
   GalleryVerticalEnd,
   Zap,
 } from "lucide-react";
@@ -21,7 +21,6 @@ import { purgeIndicatorColor, purgeTagColor, purgeButtonBg, purgeButtonText, pur
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
-import { WantlistHeartButton } from "./wantlist-heart-button";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial } from "../utils/format";
 import { FormatSpotlight } from "./format-spotlight";
@@ -49,24 +48,24 @@ function pickRandom<T>(arr: T[]): T {
 
 const welcomeGreetings: Record<string, string[]> = {
   morning: [
-    "Good morning, [username].",
-    "Rise and shine, [username].",
-    "Morning, [username]. Time to put something on.",
+    "Mornin', [username].",
+    "Top o' the mornin' to ya, [username].",
+    "ZZZzzzzz...",
   ],
   afternoon: [
-    "Good afternoon, [username].",
-    "Afternoon, [username].",
-    "Hope your day's going well, [username].",
+    "Howdy, [username].",
+    "Sup, [username]?",
+    "Hope ya doin', [username]?",
   ],
   evening: [
-    "Good evening, [username].",
+    "Widing down, [username], aye?",
     "Evening, [username].",
-    "Wind down with something good, [username].",
+    "Whatcha spinnin', [username]?",
   ],
   lateNight: [
     "Still up, [username]?",
-    "Late night listening, [username]?",
-    "Good night, [username]. One more record.",
+    "One. more. record.",
+    "Nighty night, [username].",
   ],
 };
 
@@ -184,6 +183,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     followingAvatars,
     setSelectedWantItem,
     toggleWantPriority,
+    setSelectedFeedAlbum,
   } = useApp();
 
   // Per-item in-flight tracking for wantlist API calls
@@ -494,19 +494,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               onTap={handleDepthsTap}
               compact
               dominantColor
-              overlay={
-                <WantlistHeartButton
-                  releaseId={album.release_id}
-                  masterId={album.master_id}
-                  title={album.title}
-                  artist={album.artist}
-                  cover={album.cover}
-                  thumb={album.thumb}
-                  year={album.year}
-                  label={album.label}
-                  variant="overlay"
-                />
-              }
             />
           ))}
         </div>
@@ -527,19 +514,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               album={album}
               onTap={handleDepthsTap}
               dominantColor
-              overlay={
-                <WantlistHeartButton
-                  releaseId={album.release_id}
-                  masterId={album.master_id}
-                  title={album.title}
-                  artist={album.artist}
-                  cover={album.cover}
-                  thumb={album.thumb}
-                  year={album.year}
-                  label={album.label}
-                  variant="overlay"
-                />
-              }
             />
           ))}
         </div>
@@ -598,19 +572,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 album={album}
                 onTap={handleDepthsTap}
                 dominantColor
-                overlay={
-                  <WantlistHeartButton
-                    releaseId={album.release_id}
-                    masterId={album.master_id}
-                    title={album.title}
-                    artist={album.artist}
-                    cover={album.cover}
-                    thumb={album.thumb}
-                    year={album.year}
-                    label={album.label}
-                    variant="overlay"
-                  />
-                }
               />
             </div>
           ))}
@@ -634,19 +595,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               album={album}
               onTap={handleDepthsTap}
               dominantColor
-              overlay={
-                <WantlistHeartButton
-                  releaseId={album.release_id}
-                  masterId={album.master_id}
-                  title={album.title}
-                  artist={album.artist}
-                  cover={album.cover}
-                  thumb={album.thumb}
-                  year={album.year}
-                  label={album.label}
-                  variant="overlay"
-                />
-              }
             />
           ))}
         </div>
@@ -844,11 +792,12 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               key={`hunt-${item.id}`}
               role="button"
               tabIndex={0}
-              onClick={() => setSelectedWantItem(item)}
+              onClick={() => { setSelectedWantItem(item); setShowAlbumDetail(true); }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   setSelectedWantItem(item);
+                  setShowAlbumDetail(true);
                 }
               }}
               className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
@@ -941,11 +890,12 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             key={`hunt-d-${item.id}`}
             role="button"
             tabIndex={0}
-            onClick={() => setSelectedWantItem(item)}
+            onClick={() => { setSelectedWantItem(item); setShowAlbumDetail(true); }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 setSelectedWantItem(item);
+                setShowAlbumDetail(true);
               }
             }}
             className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
@@ -1068,7 +1018,24 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 }}
               >
                 {/* Album cover with avatar overlay */}
-                <div className="relative flex-shrink-0" style={{ width: "60px", height: "60px" }}>
+                <div
+                  className="relative flex-shrink-0 cursor-pointer"
+                  style={{ width: "60px", height: "60px" }}
+                  onClick={() => {
+                    setSelectedFeedAlbum({
+                      release_id: item.albumReleaseId,
+                      master_id: item.albumMasterId,
+                      title: item.albumTitle,
+                      artist: item.albumArtist,
+                      year: item.albumYear,
+                      thumb: item.albumThumb || item.albumCover,
+                      cover: item.albumCover,
+                      label: item.albumLabel,
+                      dateAdded: item.date || "",
+                    });
+                    setShowAlbumDetail(true);
+                  }}
+                >
                   <img
                     src={item.albumThumb || item.albumCover}
                     alt={item.albumTitle}
@@ -1825,7 +1792,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             draggable={false}
           />
-          {/* Bookmark button — bottom right of artwork */}
+          {/* Music button — bottom right of artwork */}
           <div
             onClick={(e) => e.stopPropagation()}
             style={{ position: "absolute", bottom: "10px", right: "10px", zIndex: 2 }}
@@ -1849,7 +1816,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 border: "none",
               }}
             >
-              <Bookmark
+              <Music
                 size={16}
                 color={isAlbumInAnySession(album.id) ? "#EBFD00" : "#FFFFFF"}
                 {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}

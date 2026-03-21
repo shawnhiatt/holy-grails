@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Disc3, Grid2x2, List, Zap, Grid3x3, X, ExternalLink } from "lucide-react";
+import { Search, Disc3, Grid2x2, List, Zap, Grid3x3, X } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
 import { toast } from "sonner";
 import { useApp, type ViewMode } from "./app-context";
@@ -558,19 +558,6 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
                             {item.label}
                           </span>
                         </span>
-                        {/* Discogs link */}
-                        <a
-                          href={`https://www.discogs.com/release/${item.release_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 transition-opacity hover:opacity-80 pointer-events-auto"
-                          onClick={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          style={{ flexShrink: 0 }}
-                        >
-                          <span style={{ fontSize: "11px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "rgba(255,255,255,0.55)" }}>Discogs</span>
-                          <ExternalLink size={9} style={{ color: "rgba(255,255,255,0.45)" }} />
-                        </a>
                       </div>
                     </div>
                   )}
@@ -816,18 +803,6 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                   <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{want.artist} · {want.year}</p>
                 </div>
                 <span className="hidden sm:block flex-shrink-0" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{want.label}</span>
-                <a
-                  href={`https://www.discogs.com/release/${want.release_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-shrink-0 flex items-center gap-1.5 p-2 transition-opacity hover:opacity-80"
-                  style={{ color: "var(--c-text-muted)" }}
-                  title="View on Discogs"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <span className="hidden lg:inline" style={{ fontSize: "12px", fontWeight: 500 }}>View on Discogs</span>
-                  <ExternalLink size={15} />
-                </a>
                 <button onClick={() => togglePriority(want.id)} className="flex-shrink-0 p-2 transition-transform hover:scale-110">
                   {want.priority ? (
                     <Zap size={18}
@@ -952,18 +927,6 @@ function WantGridCard({ item, togglePriority, isDarkMode, sessionToken, onSelect
             <p style={{ fontSize: "11px", fontWeight: 400, color: "rgba(255,255,255,0.45)" }}>No copies for sale</p>
           ) : null}
 
-          {/* View on Discogs button */}
-          <a
-            href={discogsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-full transition-colors hover:bg-white/25"
-            style={{ backgroundColor: "rgba(255,255,255,0.15)", backdropFilter: "blur(4px)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span style={{ fontSize: "11px", fontWeight: 600, color: "white" }}>View on Discogs</span>
-            <ExternalLink size={11} className="text-white" />
-          </a>
         </div>
 
         <button
@@ -978,17 +941,6 @@ function WantGridCard({ item, togglePriority, isDarkMode, sessionToken, onSelect
         <p className="line-clamp-1 mt-[1px]" style={{ fontSize: "12px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-secondary)", lineHeight: "1.3" }}>{item.artist}</p>
         <div className="flex items-center justify-between mt-[2px] min-w-0">
           <span style={{ fontSize: "11px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-muted)" }}>{item.year}</span>
-          <a
-            href={discogsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="lg:hidden flex items-center gap-1 transition-opacity hover:opacity-80"
-            onClick={(e) => e.stopPropagation()}
-            style={{ color: "var(--c-text-muted)" }}
-          >
-            <span style={{ fontSize: "10px", fontWeight: 500 }}>Discogs</span>
-            <ExternalLink size={10} />
-          </a>
         </div>
       </div>
     </div>

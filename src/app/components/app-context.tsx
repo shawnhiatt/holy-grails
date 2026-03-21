@@ -158,9 +158,15 @@ interface AppState {
   firstSessionJustCreated: boolean;
   // Album instance editing
   updateAlbum: (albumId: string, fields: Partial<Album>) => void;
+  removeFromCollection: (albumId: string) => Promise<void>;
   // Wantlist detail panel
   selectedWantItem: WantItem | null;
   setSelectedWantItem: (item: WantItem | null) => void;
+  // Feed album detail panel (non-collection albums)
+  selectedFeedAlbum: FeedAlbum | null;
+  setSelectedFeedAlbum: (album: FeedAlbum | null) => void;
+  // Add to collection
+  addToCollection: (releaseId: number) => Promise<void>;
   // Wantlist crossover (wantlist items now in collection after sync)
   collectionCrossoverQueue: WantItem[];
   dismissCrossover: (releaseId: number) => void;
@@ -260,6 +266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
   const [selectedWantItem, setSelectedWantItem] = useState<WantItem | null>(null);
+  const [selectedFeedAlbum, setSelectedFeedAlbum] = useState<FeedAlbum | null>(null);
   const [collectionCrossoverQueue, setCollectionCrossoverQueue] = useState<WantItem[]>([]);
   const [followingFeed, setFollowingFeed] = useState<FollowingFeedEntry[]>([]);
 
@@ -341,6 +348,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const proxyRenameFolder = useAction(api.discogs.proxyRenameFolder);
   const proxyDeleteFolder = useAction(api.discogs.proxyDeleteFolder);
   const proxyUpdateProfile = useAction(api.discogs.proxyUpdateProfile);
+  const proxyAddToCollection = useAction(api.discogs.proxyAddToCollection);
+  const addCollectionItemMut = useMutation(api.collection.addItem);
+  const removeCollectionItemMut = useMutation(api.collection.removeItem);
 
   // ── Refs for latest Convex data (used in sync functions) ──
   const purgeTagsRef = useRef(convexPurgeTags);
@@ -1111,6 +1121,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       priority: result.priority,
     }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
+
+  const addToCollection = useCallback(async (releaseId: number): Promise<void> => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    const result = await proxyAddToCollection({ sessionToken, username: discogsUsername, releaseId, folderId: 1 });
+    // Build Album object from the returned data
+    const folderName = folders.find(f => f.id === 1)?.name || "Uncategorized";
+    const newAlbum: Album = {
+      id: `${result.release_id}-${result.instance_id}`,
+      release_id: result.release_id,
+      master_id: result.master_id,
+      instance_id: result.instance_id,
+      folder_id: result.folder_id,
+      title: result.title ?? "",
+      artist: result.artist ?? "",
+      year: result.year ?? 0,
+      thumb: result.thumb ?? "",
+      cover: result.cover ?? "",
+      folder: folderName,
+      label: result.label ?? "",
+      catalogNumber: result.catalogNumber ?? "",
+      format: result.format ?? "",
+      mediaCondition: "",
+      sleeveCondition: "",
+      pricePaid: "",
+      notes: "",
+      dateAdded: result.dateAdded ?? new Date().toISOString(),
+      discogsUrl: result.discogsUrl ?? `https://www.discogs.com/release/${releaseId}`,
+      purgeTag: null,
+    };
+    setAlbums((prev) => {
+      if (prev.some(a => a.release_id === result.release_id)) return prev;
+      return [...prev, newAlbum];
+    });
+    // Keep Convex collection cache in sync
+    addCollectionItemMut({
+      sessionToken,
+      releaseId: newAlbum.release_id,
+      masterId: newAlbum.master_id,
+      instanceId: newAlbum.instance_id,
+      folderId: newAlbum.folder_id,
+      artist: newAlbum.artist,
+      title: newAlbum.title,
+      year: newAlbum.year,
+      thumb: newAlbum.thumb || undefined,
+      cover: newAlbum.cover,
+      folder: newAlbum.folder,
+      label: newAlbum.label,
+      catalogNumber: newAlbum.catalogNumber,
+      format: newAlbum.format,
+      mediaCondition: newAlbum.mediaCondition,
+      sleeveCondition: newAlbum.sleeveCondition,
+      pricePaid: newAlbum.pricePaid,
+      notes: newAlbum.notes,
+      dateAdded: newAlbum.dateAdded,
+    }).catch((e) => console.warn("[Convex] Collection add failed:", e));
+  }, [sessionToken, discogsUsername, proxyAddToCollection, addCollectionItemMut, folders]);
+
+  const removeFromCollection = useCallback(async (albumId: string): Promise<void> => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    const album = albums.find(a => a.id === albumId);
+    if (!album) throw new Error("Album not found");
+    await proxyRemoveFromCollection({
+      sessionToken,
+      username: discogsUsername,
+      folderId: album.folder_id,
+      releaseId: album.release_id,
+      instanceId: album.instance_id,
+    });
+    setAlbums(prev => prev.filter(a => a.id !== albumId));
+    removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
+      .catch(e => console.warn("[Convex] Collection remove failed:", e));
+  }, [sessionToken, discogsUsername, albums, proxyRemoveFromCollection, removeCollectionItemMut]);
 
   const removeFromWantList = useCallback(async (releaseId: string | number): Promise<void> => {
     const rid = Number(releaseId);
@@ -1982,9 +2064,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       firstSessionJustCreated,
       // Album instance editing
       updateAlbum,
+      removeFromCollection,
       // Wantlist detail panel
       selectedWantItem,
       setSelectedWantItem,
+      // Feed album detail panel
+      selectedFeedAlbum,
+      setSelectedFeedAlbum,
+      addToCollection,
       // Wantlist crossover
       collectionCrossoverQueue,
       dismissCrossover,
@@ -2028,8 +2115,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
       isInSession, toggleAlbumInSession, createSessionDirect,
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
-      updateAlbum,
-      selectedWantItem,
+      updateAlbum, removeFromCollection,
+      selectedWantItem, selectedFeedAlbum, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
       followingFeed, followingAvatars,

@@ -1,4 +1,3 @@
-import { Bookmark } from "lucide-react";
 import { useRef, useMemo } from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
@@ -21,7 +20,7 @@ interface AlbumListProps {
 }
 
 export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, openSessionPicker, isAlbumInAnySession, sortOption } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, sortOption } = useApp();
   const collectionEmpty = allAlbums.length === 0;
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
@@ -166,23 +165,6 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                       {formatRelativeDate(lp)}
                     </span>
                   )}
-                  <div
-                    role="button"
-                    tabIndex={-1}
-                    onClick={(e) => { e.stopPropagation(); openSessionPicker(album.id); }}
-                    className="flex-shrink-0 tappable transition-colors cursor-pointer"
-                    style={{
-                      padding: "2px",
-                      color: isAlbumInAnySession(album.id)
-                        ? (isDarkMode ? "#ACDEF2" : "#00527A")
-                        : "var(--c-text-faint)",
-                    }}
-                  >
-                    <Bookmark
-                      size={14}
-                      {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
-                    />
-                  </div>
                 </div>
               </button>
             );

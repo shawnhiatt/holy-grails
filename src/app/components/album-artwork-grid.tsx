@@ -1,5 +1,4 @@
 import React, { useRef } from "react";
-import { Bookmark } from "lucide-react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
@@ -36,7 +35,7 @@ interface AlbumArtworkProps<T extends ArtworkGridItem = Album> {
  * Uniform square cards filled with cover art. Metadata on hover/tap overlay.
  */
 export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtworkProps<T>) {
-  const { setSelectedAlbumId, setShowAlbumDetail, hidePurgeIndicators, albums: allAlbums, isDarkMode, setScreen, openSessionPicker, isAlbumInAnySession } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, hidePurgeIndicators, albums: allAlbums, isDarkMode, setScreen } = useApp();
   const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
   // Support both `items` and legacy `albums` prop
@@ -147,21 +146,6 @@ export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtw
               </div>
               {props.renderAction ? (
                 props.renderAction(item)
-              ) : isCollectionMode ? (
-                <button
-                  onClick={(e) => { e.stopPropagation(); openSessionPicker(item.id); }}
-                  className="flex-shrink-0 tappable transition-colors"
-                  style={{
-                    padding: "12px",
-                    margin: "-12px",
-                    color: isAlbumInAnySession(item.id) ? "#ACDEF2" : "rgba(255,255,255,0.6)",
-                  }}
-                >
-                  <Bookmark
-                    size={14}
-                    {...(isAlbumInAnySession(item.id) ? { fill: "currentColor" } : {})}
-                  />
-                </button>
               ) : null}
             </div>
           </div>

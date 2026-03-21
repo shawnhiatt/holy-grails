@@ -1255,3 +1255,82 @@ export const proxyUpdateProfile = action({
     };
   },
 });
+
+// 19. Add release to collection
+export const proxyAddToCollection = action({
+  args: {
+    sessionToken: v.string(),
+    username: v.string(),
+    releaseId: v.number(),
+    folderId: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const folderId = args.folderId ?? 1; // default to Uncategorized
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${folderId}/releases/${args.releaseId}`;
+    const res = await discogsFetch(
+      "POST",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `Failed to add release ${args.releaseId} to collection (${res.status})${body ? ": " + body : ""}`
+      );
+    }
+    const data = await res.json();
+    const instanceId: number = data.instance_id;
+
+    // Fetch release info to build a full Album-like object
+    const releaseUrl = `${BASE}/releases/${args.releaseId}`;
+    const releaseRes = await discogsFetch(
+      "GET",
+      releaseUrl,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!releaseRes.ok) {
+      // Return minimal data even if release fetch fails
+      return {
+        instance_id: instanceId,
+        release_id: args.releaseId,
+        folder_id: folderId,
+      };
+    }
+    const rd = await releaseRes.json();
+    const artist = (rd.artists || [])
+      .map((a: { name: string; anv: string }) =>
+        formatArtistName(a.anv || a.name)
+      )
+      .join(", ");
+    const label = rd.labels?.[0]?.name || "Unknown";
+    const catno = rd.labels?.[0]?.catno || "";
+    const formatParts: string[] = [];
+    for (const fmt of rd.formats || []) {
+      if (fmt.name) formatParts.push(fmt.name);
+      for (const desc of fmt.descriptions || []) formatParts.push(desc);
+    }
+
+    return {
+      instance_id: instanceId,
+      release_id: args.releaseId,
+      master_id: rd.master_id || undefined,
+      folder_id: folderId,
+      title: rd.title ?? "",
+      artist,
+      year: rd.year ?? 0,
+      thumb: rd.thumb || "",
+      cover: rd.images?.[0]?.uri || rd.thumb || "",
+      label,
+      catalogNumber: catno,
+      format: formatParts.join(", "),
+      dateAdded: new Date().toISOString(),
+      discogsUrl: rd.uri ? `https://www.discogs.com${rd.uri.replace("https://api.discogs.com", "")}` : `https://www.discogs.com/release/${args.releaseId}`,
+    };
+  },
+});

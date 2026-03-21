@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, type PanInfo } from "motion/react";
-import { X, Bookmark } from "lucide-react";
+import { X } from "lucide-react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { lastPlayedLabel } from "./last-played-utils";
@@ -16,7 +16,7 @@ interface CrateFlipProps {
 export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightboxDeactivate }: CrateFlipProps) {
   const {
     setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed,
-    openSessionPicker, isAlbumInAnySession, hideGalleryMeta,
+    hideGalleryMeta,
   } = useApp();
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -289,25 +289,6 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
                   </div>
                   )}
 
-                  {/* Bookmark icon */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openSessionPicker(album.id);
-                    }}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors"
-                    style={{
-                      backgroundColor: "rgba(0,0,0,0.35)",
-                      color: isAlbumInAnySession(album.id)
-                        ? (isDarkMode ? "#ACDEF2" : "#ACDEF2")
-                        : "rgba(255,255,255,0.7)",
-                    }}
-                  >
-                    <Bookmark
-                      size={16}
-                      {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
-                    />
-                  </button>
                 </motion.div>
               );
             })}
