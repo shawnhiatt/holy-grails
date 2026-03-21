@@ -51,6 +51,10 @@ export function SettingsScreen() {
     deleteSession,
     deletePurgeTag,
     wipeAllData,
+    sessionToken,
+    clearPlayHistory,
+    clearFollowedUsers,
+    clearWantlistPriorities,
   } = useApp();
 
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
@@ -177,6 +181,36 @@ export function SettingsScreen() {
         deleteSession(s.id);
       }
       toast.success("Sessions cleared.");
+    } else if (confirmAction === "Play history") {
+      try {
+        await clearPlayHistory();
+        toast.success("Play history cleared.");
+      } catch (err) {
+        console.error("[Clear Play History] Failed:", err);
+        toast.error("Failed to clear play history.");
+        setConfirmAction(null);
+        return;
+      }
+    } else if (confirmAction === "Followed users") {
+      try {
+        await clearFollowedUsers();
+        toast.success("Followed users cleared.");
+      } catch (err) {
+        console.error("[Clear Following] Failed:", err);
+        toast.error("Failed to clear followed users.");
+        setConfirmAction(null);
+        return;
+      }
+    } else if (confirmAction === "Wantlist priorities") {
+      try {
+        await clearWantlistPriorities();
+        toast.success("Wantlist priorities cleared.");
+      } catch (err) {
+        console.error("[Clear Want Priorities] Failed:", err);
+        toast.error("Failed to clear priorities.");
+        setConfirmAction(null);
+        return;
+      }
     } else if (confirmAction === "All data") {
       try {
         await wipeAllData();
@@ -458,100 +492,53 @@ export function SettingsScreen() {
           </div>
         </section>
 
-        {/* Tools section — visible on all viewports; 2-col grid on desktop */}
+        {/* Tools section — 3-column icon grid */}
         <section className="mt-6">
           <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)", marginBottom: "12px" }}>Tools</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {/* Purge Tracker card — wraps nav action + optional Purge Cut secondary action */}
-            <div
-              className="rounded-[12px] overflow-hidden"
-              style={{
-                backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
-                border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
-              }}
-            >
-              <button
-                onClick={() => setScreen("purge")}
-                className="w-full p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
-              >
-                <SquareArrowOutUpRight size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                    Purge Tracker
-                  </p>
-                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
-                    Rate your collection — keep, cut, or maybe.
-                  </p>
-                </div>
-                <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
-              </button>
-
-              {cutAlbums.length > 0 && !purgeProgress && (
-                <div style={{ borderTop: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}` }}>
-                  <button
-                    onClick={() => setShowPurgeCutDialog(true)}
-                    disabled={isSyncing}
-                    className="w-full px-4 py-2.5 flex items-center gap-1.5 cursor-pointer transition-opacity hover:opacity-70 disabled:opacity-40"
-                    style={{ fontSize: "13px", fontWeight: 500, color: isDarkMode ? "#FF98DA" : "#9A207C", fontFamily: "'DM Sans', system-ui, sans-serif" }}
-                  >
-                    <Trash2 size={13} className="flex-shrink-0" />
-                    Purge Cut ({cutAlbums.length})
-                  </button>
-                </div>
-              )}
-
-              {purgeProgress && (
-                <div style={{ borderTop: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}` }}>
-                  <div className="px-4 py-2.5 flex items-center gap-1.5">
-                    <Disc3 size={13} className="disc-spinner flex-shrink-0" style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }} />
-                    <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                      Removing {purgeProgress.current} of {purgeProgress.total}...
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Insights card */}
+          <div className="grid grid-cols-3 gap-3">
+            {/* Purge Tracker tile */}
             <button
-              onClick={() => setScreen("reports")}
-              className="rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
+              onClick={() => setScreen("purge")}
+              className="rounded-[12px] flex flex-col items-center justify-center gap-2 py-4 px-3 cursor-pointer transition-opacity hover:opacity-90"
               style={{
                 backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
                 border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
               }}
             >
-              <BarChart3 size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                  Insights
-                </p>
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
-                  Collection stats and value over time.
-                </p>
-              </div>
-              <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
+              <SquareArrowOutUpRight size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
+              <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                Purge
+              </p>
             </button>
 
-            {/* Folders card */}
+            {/* Insights tile */}
             <button
-              onClick={() => setShowFolders(true)}
-              className="rounded-[12px] p-4 flex items-center gap-3 text-left cursor-pointer transition-opacity hover:opacity-90"
+              onClick={() => setScreen("reports")}
+              className="rounded-[12px] flex flex-col items-center justify-center gap-2 py-4 px-3 cursor-pointer transition-opacity hover:opacity-90"
               style={{
                 backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
                 border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
               }}
             >
-              <FolderOpen size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                  Folders
-                </p>
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", marginTop: "2px" }}>
-                  Manage your collection folders.
-                </p>
-              </div>
-              <ChevronRight size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} className="flex-shrink-0" />
+              <BarChart3 size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
+              <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                Insights
+              </p>
+            </button>
+
+            {/* Folders tile */}
+            <button
+              onClick={() => setShowFolders(true)}
+              className="rounded-[12px] flex flex-col items-center justify-center gap-2 py-4 px-3 cursor-pointer transition-opacity hover:opacity-90"
+              style={{
+                backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.12)",
+                border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
+              }}
+            >
+              <FolderOpen size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
+              <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                Folders
+              </p>
             </button>
           </div>
         </section>
@@ -714,6 +701,9 @@ export function SettingsScreen() {
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Data</h3>
             <button onClick={() => setConfirmAction("Purge data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Purge Data</button>
             <button onClick={() => setConfirmAction("Sessions")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Sessions</button>
+            <button onClick={() => setConfirmAction("Play history")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Play History</button>
+            <button onClick={() => setConfirmAction("Followed users")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Followed Users</button>
+            <button onClick={() => setConfirmAction("Wantlist priorities")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Wantlist Priorities</button>
             <div className="mt-1 pt-1" style={{ borderTop: "1px solid var(--c-border)" }}>
               <button onClick={() => setConfirmAction("All data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive)" }}><Trash2 size={15} />Delete All My Data</button>
             </div>
@@ -759,6 +749,12 @@ export function SettingsScreen() {
                       ? "This removes all Keep, Cut, and Maybe tags from your collection. This cannot be undone."
                       : confirmAction === "Sessions"
                       ? "This deletes all saved sessions. This cannot be undone."
+                      : confirmAction === "Play history"
+                      ? "This removes all last-played timestamps. This cannot be undone."
+                      : confirmAction === "Followed users"
+                      ? "This will also remove their cached collection data."
+                      : confirmAction === "Wantlist priorities"
+                      ? "This removes all custom priority rankings from your wantlist. This cannot be undone."
                       : "This permanently deletes all Holy Grails data \u2014 purge tags, sessions, following, listening history, preferences, and cached data. Your Discogs account is not affected. You will be signed out."}
                   </p>
                 </div>
