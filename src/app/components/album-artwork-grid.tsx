@@ -2,6 +2,7 @@ import React, { useRef } from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
+import { isScrollingRecently } from "../lib/scroll-state";
 
 /** Minimal shape every artwork grid item must satisfy */
 export interface ArtworkGridItem {
@@ -89,11 +90,11 @@ export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtw
           key={item.id}
           role="button"
           tabIndex={0}
-          onClick={() => handleClick(item)}
+          onClick={() => { if (isScrollingRecently()) return; handleClick(item); }}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(item); } }}
           onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
           onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
-          onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); handleClick(item); } touchState.current = null; }}
+          onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { if (isScrollingRecently()) { touchState.current = null; return; } e.preventDefault(); handleClick(item); } touchState.current = null; }}
           className="relative overflow-hidden group focus:outline-none cursor-pointer"
           style={{
             aspectRatio: "1 / 1",

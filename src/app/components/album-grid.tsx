@@ -3,6 +3,7 @@ import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
+import { isScrollingRecently } from "../lib/scroll-state";
 
 /* ─── Section Divider Logic ─── */
 
@@ -160,11 +161,11 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
               <div
                 role="button"
                 tabIndex={0}
-                onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
+                onClick={() => { if (isScrollingRecently()) return; setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } }}
                 onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
                 onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
-                onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
+                onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { if (isScrollingRecently()) { touchState.current = null; return; } e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
                 className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
                 style={{
                   backgroundColor: "var(--c-surface)",

@@ -17,6 +17,7 @@ import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { isScrollingRecently } from "../lib/scroll-state";
 
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
 type FollowingTab = "collection" | "wants";
@@ -1018,7 +1019,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
           <div key={item.id} className="relative rounded-[10px] overflow-hidden group cursor-pointer"
-            onClick={() => onOpenAlbum(item)}
+            onClick={() => { if (isScrollingRecently()) return; onOpenAlbum(item); }}
             style={{
               backgroundColor: "var(--c-surface)",
               border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
@@ -1057,7 +1058,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds,
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
           <div key={item.id} className="flex items-center gap-3 px-[16px] lg:px-[24px] py-2.5 cursor-pointer tappable"
-            onClick={() => onOpenAlbum(item)}
+            onClick={() => { if (isScrollingRecently()) return; onOpenAlbum(item); }}
             style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid", borderLeft: badge ? "3px solid " + badge.color : "3px solid transparent", touchAction: "manipulation" }}>
             <img src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
             <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
@@ -1493,6 +1494,7 @@ function PopulatedFollowingView({
                   className="relative flex-shrink-0 cursor-pointer"
                   style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
                   onClick={() => {
+                    if (isScrollingRecently()) return;
                     setSelectedFeedAlbum({
                       release_id: item.albumReleaseId,
                       master_id: item.albumMasterId,

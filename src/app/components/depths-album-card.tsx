@@ -2,6 +2,7 @@ import React from "react";
 import type { ReactNode } from "react";
 import type { Album } from "./discogs-api";
 import { DominantColorCard } from "./dominant-color-card";
+import { isScrollingRecently } from "../lib/scroll-state";
 
 function formatAddedDate(iso: string): string {
   const d = new Date(iso);
@@ -161,7 +162,7 @@ export function DepthsAlbumCard({
       <DominantColorCard
         imageUrl={album.cover}
         className="cursor-pointer"
-        onClick={() => onTap(album.id)}
+        onClick={() => { if (isScrollingRecently()) return; onTap(album.id); }}
         style={{ boxShadow: "var(--c-card-shadow)", touchAction: "manipulation" }}
       >
         {cardContent}
@@ -178,7 +179,7 @@ export function DepthsAlbumCard({
         boxShadow: "var(--c-card-shadow)",
         touchAction: "manipulation",
       }}
-      onClick={() => onTap(album.id)}
+      onClick={() => { if (isScrollingRecently()) return; onTap(album.id); }}
     >
       {cardContent}
     </div>

@@ -18,6 +18,7 @@ import type { Screen } from "./app-context";
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { purgeIndicatorColor, purgeTagColor, purgeButtonBg, purgeButtonText, purgeToast } from "./purge-colors";
+import { isScrollingRecently } from "../lib/scroll-state";
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
@@ -610,6 +611,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         role="button"
         tabIndex={0}
         onClick={() => {
+          if (isScrollingRecently()) return;
           setSelectedAlbumId(album.id);
           setShowAlbumDetail(true);
         }}
@@ -793,7 +795,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               key={`hunt-${item.id}`}
               role="button"
               tabIndex={0}
-              onClick={() => { setSelectedWantItem(item); setShowAlbumDetail(true); }}
+              onClick={() => { if (isScrollingRecently()) return; setSelectedWantItem(item); setShowAlbumDetail(true); }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -892,7 +894,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             key={`hunt-d-${item.id}`}
             role="button"
             tabIndex={0}
-            onClick={() => { setSelectedWantItem(item); setShowAlbumDetail(true); }}
+            onClick={() => { if (isScrollingRecently()) return; setSelectedWantItem(item); setShowAlbumDetail(true); }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -1025,6 +1027,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   className="relative flex-shrink-0 cursor-pointer"
                   style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
                   onClick={() => {
+                    if (isScrollingRecently()) return;
                     setSelectedFeedAlbum({
                       release_id: item.albumReleaseId,
                       master_id: item.albumMasterId,
@@ -1608,7 +1611,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 src={purgeEvalAlbum.cover}
                 alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                 className="w-full aspect-square rounded-[8px] object-cover cursor-pointer"
-                onClick={() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); }}
+                onClick={() => { if (isScrollingRecently()) return; setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); }}
               />
               {/* Metadata */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingTop: "12px" }}>
@@ -1700,7 +1703,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     objectFit: "cover",
                     flexShrink: 0,
                   }}
-                  onClick={() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); }}
+                  onClick={() => { if (isScrollingRecently()) return; setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); }}
                 />
                 {/* Metadata panel */}
                 <div
@@ -1784,7 +1787,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <DominantColorCard
         imageUrl={album.cover}
         className="cursor-pointer group"
-        onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
+        onClick={() => { if (isScrollingRecently()) return; setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
         style={{ display: "flex", flexDirection: "column", touchAction: "manipulation" }}
       >
         {/* Cover art */}
