@@ -150,6 +150,7 @@ export function PillLogo({ className, onClick, forceDark }: { className?: string
 
 export function MobileHeader({ transparent = false }: { transparent?: boolean }) {
   const { screen, setScreen, isDarkMode, userAvatar } = useApp();
+  const triggerHapticLight = useHaptic('light');
 
   const activeBg = "rgba(172,222,242,0.12)";
   const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
@@ -165,7 +166,7 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
       {/* Left: Following */}
       <div className="flex items-center">
         <button
-          onClick={() => setScreen("following")}
+          onClick={() => { triggerHapticLight(); setScreen("following"); }}
           className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
           title="Following"
         >
@@ -189,7 +190,7 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
       {/* Right: Settings avatar */}
       <div className="flex items-center">
         <button
-          onClick={() => setScreen("settings")}
+          onClick={() => { triggerHapticLight(); setScreen("settings"); }}
           className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
           title="Settings"
         >

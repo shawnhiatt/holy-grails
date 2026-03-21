@@ -10,6 +10,7 @@ import { getPriceAtCondition } from "./market-value";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeIndicatorColor, purgeButtonBg, purgeButtonText, purgeToast } from "./purge-colors";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { useHaptic } from "@/hooks/useHaptic";
 
 export function PurgeTracker() {
   const {
@@ -19,6 +20,7 @@ export function PurgeTracker() {
     isDarkMode, isAuthenticated, isSyncing,
     executePurgeCut, purgeProgress,
   } = useApp();
+  const triggerHaptic = useHaptic('medium');
   const proxyFetchMarketData = useAction(api.discogs.proxyFetchMarketData);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -243,7 +245,7 @@ export function PurgeTracker() {
                 key={album.id}
                 album={album}
                 onTag={handlePurgeTag}
-                onTap={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
+                onTap={() => { triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
                 showPrice={purgeFilter === "cut"}
                 priceTrigger={cutValueTrigger}
                 isDark={isDarkMode}

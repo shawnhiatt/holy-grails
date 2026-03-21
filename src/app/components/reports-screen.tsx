@@ -13,6 +13,7 @@ import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purg
 import { formatDateShort } from "./last-played-utils";
 import { toast } from "sonner";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { useHaptic } from "@/hooks/useHaptic";
 
 /* ─── Track which screen opened Reports ─── */
 let _entryScreen: Screen = "settings";
@@ -918,6 +919,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 
 export function ReportsScreen() {
   const { albums, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
+  const triggerHaptic = useHaptic('medium');
 
   const pricedCount = useMemo(() => {
     let count = 0;
@@ -982,7 +984,7 @@ export function ReportsScreen() {
               isDarkMode={isDarkMode}
               markPlayed={markPlayed}
               onNeverPlayedTap={() => { setNeverPlayedFilter(true); setScreen("crate"); }}
-              onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
+              onAlbumTap={(id) => { triggerHaptic(); setSelectedAlbumId(id); setShowAlbumDetail(true); }}
             />
           </div>
 

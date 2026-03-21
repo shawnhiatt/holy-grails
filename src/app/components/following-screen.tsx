@@ -13,6 +13,7 @@ import type { Album, FollowedUser, FeedAlbum, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, EASE_IN, DURATION_NORMAL, DURATION_FAST, DURATION_SLOW } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { DepthsAlbumCard } from "./depths-album-card";
+import { useHaptic } from "@/hooks/useHaptic";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { useAction } from "convex/react";
@@ -290,11 +291,13 @@ function FollowedUserProfile({
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
+  const triggerHaptic = useHaptic('medium');
 
   const handleOpenAlbum = useCallback((item: Album | WantItem) => {
+    triggerHaptic();
     setSelectedFeedAlbum(toFeedAlbum(item));
     setShowAlbumDetail(true);
-  }, [setSelectedFeedAlbum, setShowAlbumDetail]);
+  }, [triggerHaptic, setSelectedFeedAlbum, setShowAlbumDetail]);
 
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
   const userCutReleaseIds = useMemo(() => new Set(userAlbums.filter((a) => a.purgeTag === "cut").map((a) => a.release_id)), [userAlbums]);
@@ -1171,6 +1174,7 @@ function PopulatedFollowingView({
   isSyncingFollowing: boolean;
 }) {
   const { setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
+  const triggerHaptic = useHaptic('medium');
 
   // Sort followedUsers by most recent activity in followingFeed (avatar row only)
   const sortedFollowedUsers = useMemo(() => {
@@ -1389,6 +1393,7 @@ function PopulatedFollowingView({
                   <DepthsAlbumCard
                     album={album}
                     onTap={() => {
+                      triggerHaptic();
                       setSelectedFeedAlbum(toFeedAlbum(album));
                       setShowAlbumDetail(true);
                     }}
@@ -1495,6 +1500,7 @@ function PopulatedFollowingView({
                   style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
                   onClick={() => {
                     if (isScrollingRecently()) return;
+                    triggerHaptic();
                     setSelectedFeedAlbum({
                       release_id: item.albumReleaseId,
                       master_id: item.albumMasterId,

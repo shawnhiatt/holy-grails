@@ -3,6 +3,7 @@ import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { isScrollingRecently } from "../lib/scroll-state";
+import { useHaptic } from "@/hooks/useHaptic";
 
 /** Minimal shape every artwork grid item must satisfy */
 export interface ArtworkGridItem {
@@ -37,6 +38,7 @@ interface AlbumArtworkProps<T extends ArtworkGridItem = Album> {
  */
 export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtworkProps<T>) {
   const { setSelectedAlbumId, setShowAlbumDetail, hidePurgeIndicators, albums: allAlbums, isDarkMode, setScreen } = useApp();
+  const triggerHaptic = useHaptic('medium');
   const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
   // Support both `items` and legacy `albums` prop
@@ -72,6 +74,7 @@ export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtw
   }
 
   const handleClick = (item: T) => {
+    triggerHaptic();
     if (props.onItemClick) {
       props.onItemClick(item);
     } else {

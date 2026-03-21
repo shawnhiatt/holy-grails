@@ -7,12 +7,14 @@ import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { AddAlbumsDrawer } from "./add-albums-drawer";
 import { SwipeToDelete } from "./swipe-to-delete";
+import { useHaptic } from "@/hooks/useHaptic";
 
 export function Sessions() {
   const {
     sessions, albums, deleteSession, renameSession, createSessionDirect, isAuthenticated,
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInSession, reorderSessionAlbums,
   } = useApp();
+  const triggerHaptic = useHaptic('medium');
 
   const [showNewSession, setShowNewSession] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
@@ -59,7 +61,7 @@ export function Sessions() {
           }}
           onRename={(name) => renameSession(activeSession.id, name)}
           onOpenDrawer={() => setShowAddDrawer(true)}
-          onAlbumTap={(albumId) => { setSelectedAlbumId(albumId); setShowAlbumDetail(true); }}
+          onAlbumTap={(albumId) => { triggerHaptic(); setSelectedAlbumId(albumId); setShowAlbumDetail(true); }}
           onRemoveAlbum={(albumId) => toggleAlbumInSession(albumId, activeSession.id)}
           onReorderAlbums={reorderSessionAlbums}
         />

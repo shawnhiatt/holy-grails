@@ -10,6 +10,7 @@ import { getCachedMarketData } from "./discogs-api";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { useHaptic } from "@/hooks/useHaptic";
 
 import { AlbumArtwork } from "./album-artwork-grid";
 
@@ -174,11 +175,13 @@ const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
 
 export function Wantlist() {
   const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
+  const triggerHaptic = useHaptic('medium');
 
   const handleSelectWant = useCallback((item: WantItem) => {
+    triggerHaptic();
     setSelectedWantItem(item);
     setShowAlbumDetail(true);
-  }, [setSelectedWantItem, setShowAlbumDetail]);
+  }, [triggerHaptic, setSelectedWantItem, setShowAlbumDetail]);
 
   const filteredWants = useMemo(() => {
     let result = [...wants];

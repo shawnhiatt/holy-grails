@@ -5,6 +5,7 @@ import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { lastPlayedLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
+import { useHaptic } from "@/hooks/useHaptic";
 
 interface CrateFlipProps {
   albums: Album[];
@@ -18,6 +19,7 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
     setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed,
     hideGalleryMeta,
   } = useApp();
+  const triggerHaptic = useHaptic('medium');
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const dragY = useMotionValue(0);
@@ -75,10 +77,11 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
 
   const handleCardTap = useCallback(
     (albumId: string) => {
+      triggerHaptic();
       setSelectedAlbumId(albumId);
       setShowAlbumDetail(true);
     },
-    [setSelectedAlbumId, setShowAlbumDetail]
+    [triggerHaptic, setSelectedAlbumId, setShowAlbumDetail]
   );
 
   if (albums.length === 0) {
