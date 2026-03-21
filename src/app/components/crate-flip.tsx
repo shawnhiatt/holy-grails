@@ -153,6 +153,7 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
                     scale: isCurrent ? 1 : scale,
                     pointerEvents: isCurrent ? "auto" : "none",
                     opacity: isCurrent ? 1 : Math.max(baseOpacity, 1 - reversePos * (1 - baseOpacity) / 1.5),
+                    touchAction: "manipulation",
                   }}
                   initial={{ scale: 0.92, opacity: 0 }}
                   animate={{ scale: isCurrent ? 1 : scale, opacity: 1, y: isCurrent ? 0 : offsetY }}
@@ -167,7 +168,7 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
                       }
                     : {})}
                   onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; suppressNextClick.current = false; }}
-                  onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                  onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
                   onTouchEnd={() => { if (isCurrent && touchState.current && !touchState.current.moved) { suppressNextClick.current = true; handleCardTap(album.id); } touchState.current = null; }}
                   onClick={() => { if (suppressNextClick.current) { suppressNextClick.current = false; return; } if (isCurrent) handleCardTap(album.id); }}
                 >

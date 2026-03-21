@@ -116,10 +116,10 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                 key={album.id}
                 onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
                 onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
-                onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
                 onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
                 className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
-                style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)" }}
+                style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
               >
                 <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
                   <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />

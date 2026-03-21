@@ -162,7 +162,7 @@ export function DepthsAlbumCard({
         imageUrl={album.cover}
         className="cursor-pointer"
         onClick={() => onTap(album.id)}
-        style={{ boxShadow: "var(--c-card-shadow)" }}
+        style={{ boxShadow: "var(--c-card-shadow)", touchAction: "manipulation" }}
       >
         {cardContent}
       </DominantColorCard>
@@ -176,6 +176,7 @@ export function DepthsAlbumCard({
         backgroundColor: "var(--c-surface)",
         border: "1px solid var(--c-border)",
         boxShadow: "var(--c-card-shadow)",
+        touchAction: "manipulation",
       }}
       onClick={() => onTap(album.id)}
     >

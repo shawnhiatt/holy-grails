@@ -163,13 +163,14 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                 onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } }}
                 onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
-                onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
                 onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
                 className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
                 style={{
                   backgroundColor: "var(--c-surface)",
                   border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D1D8DF"}`,
                   boxShadow: "var(--c-card-shadow)",
+                  touchAction: "manipulation",
                 }}
               >
                 {/* Cover art */}

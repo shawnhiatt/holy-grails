@@ -810,6 +810,7 @@ function FollowedUserCrateView({ items, onOpenAlbum }: { items: (Album | WantIte
                     scale: isCurrent ? 1 : scale,
                     pointerEvents: isCurrent ? "auto" : "none",
                     opacity: isCurrent ? 1 : Math.max(baseOpacity, 1 - reversePos * (1 - baseOpacity) / 1.5),
+                    touchAction: "manipulation",
                   }}
                   initial={{ scale: 0.92, opacity: 0 }}
                   animate={{ scale: isCurrent ? 1 : scale, opacity: 1, y: isCurrent ? 0 : offsetY }}
@@ -824,7 +825,7 @@ function FollowedUserCrateView({ items, onOpenAlbum }: { items: (Album | WantIte
                       }
                     : {})}
                   onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; suppressNextClick.current = false; }}
-                  onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientX - touchState.current.startX) > 6 || Math.abs(t.clientY - touchState.current.startY) > 6) touchState.current.moved = true; }}
+                  onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
                   onTouchEnd={() => { if (isCurrent && touchState.current && !touchState.current.moved) { suppressNextClick.current = true; handleCardTap(item); } touchState.current = null; }}
                   onClick={() => { if (suppressNextClick.current) { suppressNextClick.current = false; return; } if (isCurrent) handleCardTap(item); }}
                 >
@@ -1022,6 +1023,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
               backgroundColor: "var(--c-surface)",
               border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
               boxShadow: "var(--c-card-shadow)",
+              touchAction: "manipulation",
             }}>
             <div className="relative aspect-square overflow-hidden">
               <img src={item.cover} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
@@ -1056,7 +1058,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds,
         return (
           <div key={item.id} className="flex items-center gap-3 px-[16px] lg:px-[24px] py-2.5 cursor-pointer tappable"
             onClick={() => onOpenAlbum(item)}
-            style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid", borderLeft: badge ? "3px solid " + badge.color : "3px solid transparent" }}>
+            style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid", borderLeft: badge ? "3px solid " + badge.color : "3px solid transparent", touchAction: "manipulation" }}>
             <img src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
             <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
@@ -1489,7 +1491,7 @@ function PopulatedFollowingView({
                 {/* Album cover with avatar overlay */}
                 <div
                   className="relative flex-shrink-0 cursor-pointer"
-                  style={{ width: "60px", height: "60px" }}
+                  style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
                   onClick={() => {
                     setSelectedFeedAlbum({
                       release_id: item.albumReleaseId,

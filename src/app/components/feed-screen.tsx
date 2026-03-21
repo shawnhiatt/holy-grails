@@ -627,6 +627,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           backgroundColor: "var(--c-surface)",
           border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
           boxShadow: "var(--c-card-shadow)",
+          touchAction: "manipulation",
         }}
       >
         {/* Cover art */}
@@ -807,6 +808,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 backgroundColor: "var(--c-surface)",
                 border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
                 boxShadow: "var(--c-card-shadow)",
+                touchAction: "manipulation",
               }}
             >
               {/* Cover art */}
@@ -903,6 +905,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               backgroundColor: "var(--c-surface)",
               border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
               boxShadow: "var(--c-card-shadow)",
+              touchAction: "manipulation",
             }}
           >
             {/* Cover art */}
@@ -1020,7 +1023,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 {/* Album cover with avatar overlay */}
                 <div
                   className="relative flex-shrink-0 cursor-pointer"
-                  style={{ width: "60px", height: "60px" }}
+                  style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
                   onClick={() => {
                     setSelectedFeedAlbum({
                       release_id: item.albumReleaseId,
@@ -1782,7 +1785,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         imageUrl={album.cover}
         className="cursor-pointer group"
         onClick={() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
-        style={{ display: "flex", flexDirection: "column" }}
+        style={{ display: "flex", flexDirection: "column", touchAction: "manipulation" }}
       >
         {/* Cover art */}
         <div className="relative aspect-square overflow-hidden" style={{ borderRadius: "12px 12px 0 0" }}>
