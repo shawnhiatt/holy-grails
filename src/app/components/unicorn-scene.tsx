@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const CDN_SRC =
-  "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v2.1.0-1/dist/unicornStudio.umd.js";
+  "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v2.1.4/dist/unicornStudio.umd.js";
 const SCENE_JSON = "/splash-screen.json";
 
 // Performance note: if the scene causes frame drops on the loading screen during
