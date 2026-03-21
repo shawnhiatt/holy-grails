@@ -28,8 +28,9 @@ export function OfflineBanner() {
             alignItems: "center",
             gap: 8,
             paddingLeft: 14,
-            paddingRight: 14,
-            height: 36,
+            paddingRight: 10,
+            paddingTop: 9,
+            paddingBottom: 9,
             borderRadius: 9999,
             backgroundColor: "var(--c-surface)",
             border: "1px solid var(--c-border-strong)",
@@ -57,12 +58,13 @@ export function OfflineBanner() {
             style={{
               background: "none",
               border: "none",
-              padding: 0,
+              padding: "2px",
               color: "var(--c-text-muted)",
-              marginLeft: 8,
               flexShrink: 0,
               lineHeight: 0,
               cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
             }}
             aria-label="Dismiss"
           >
