@@ -10,7 +10,6 @@ import {
   type FollowedUser,
   type FeedAlbum,
   clearCollectionValue,
-  clearAllMarketData,
   setCollectionValueCache,
   type CollectionValue,
   type UserProfile,
@@ -1735,7 +1734,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Clear cached data
     clearCollectionValue();
-    clearAllMarketData();
 
     // Reset hydration flags
     hydratedRef.current = {
@@ -1807,7 +1805,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFirstSessionJustCreated(false);
     setSyncFailed(false);
     clearCollectionValue();
-    clearAllMarketData();
     try {
       sessionStorage.removeItem("hg_oauth_token_secret");
     } catch { /* ignore */ }

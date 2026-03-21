@@ -7,8 +7,7 @@ import {
 import { useApp, type Screen } from "./app-context";
 import type { Album } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
-import { getCachedMarketData, getCachedCollectionValue } from "./discogs-api";
-import { getPriceAtCondition } from "./market-value";
+import { getCachedCollectionValue } from "./discogs-api";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
 import { toast } from "sonner";
@@ -98,22 +97,6 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
   const minimum = collectionValue?.minimum ?? 0;
   const maximum = collectionValue?.maximum ?? 0;
 
-  // Purge impact — uses condition-matched prices only (no fallback to pricePaid)
-  const cutAlbums = albums.filter((a) => a.purgeTag === "cut");
-  const cutPileData = useMemo(() => {
-    let total = 0;
-    let pricedCount = 0;
-    for (const album of cutAlbums) {
-      const cached = getCachedMarketData(album.release_id);
-      const price = getPriceAtCondition(album, cached);
-      if (price) {
-        total += price.value;
-        pricedCount++;
-      }
-    }
-    return { total, pricedCount, albumCount: cutAlbums.length };
-  }, [cutAlbums]);
-
   return (
     <div
       className="rounded-[12px] p-4 lg:p-5"
@@ -176,30 +159,6 @@ function CollectionValueSection({ albums }: { albums: Album[] }) {
             </p>
           </div>
 
-          {/* Purge impact callout */}
-          {cutAlbums.length > 0 && cutPileData.pricedCount > 0 && (
-            <div
-              className="mt-4 rounded-[10px] px-4 py-3"
-              style={{
-                backgroundColor: "var(--c-surface-alt)",
-                border: `1px solid ${"var(--c-border-strong)"}`,
-              }}
-            >
-              <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
-                Selling your Cut pile shifts your collection value from{" "}
-                <span style={{ fontWeight: 600, color: "var(--c-text)" }}>{formatCurrency(median)}</span>
-                {" "}to{" "}
-                <span style={{ fontWeight: 600, color: "var(--c-text)" }}>{formatCurrency(median - cutPileData.total)}</span>
-                {" "}
-                <span style={{ fontWeight: 600, color: "var(--c-destructive)" }}>(&minus;{formatCurrency(cutPileData.total)})</span>
-              </p>
-              {cutPileData.pricedCount < cutPileData.albumCount && (
-                <p className="mt-1.5" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-                  Based on {cutPileData.pricedCount} of {cutPileData.albumCount} Cut records with available pricing.
-                </p>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>
@@ -774,22 +733,6 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
     return { keep, cut, maybe, unrated, total, rated, pct };
   }, [albums]);
 
-  // Cut pile value
-  const cutAlbums = albums.filter((a) => a.purgeTag === "cut");
-  const cutPileData = useMemo(() => {
-    let total = 0;
-    let pricedCount = 0;
-    for (const album of cutAlbums) {
-      const cached = getCachedMarketData(album.release_id);
-      const price = getPriceAtCondition(album, cached);
-      if (price) {
-        total += price.value;
-        pricedCount++;
-      }
-    }
-    return { total, pricedCount, albumCount: cutAlbums.length };
-  }, [cutAlbums]);
-
   // Donut chart SVG
   const radius = 58;
   const stroke = 10;
@@ -893,18 +836,6 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         ))}
       </div>
 
-      {/* Cut pile value */}
-      {stats.cut > 0 && cutPileData.pricedCount > 0 && (
-        <p className="mt-4 text-center" style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)" }}>
-          Cut pile worth approximately {formatCurrency(cutPileData.total)}
-          {cutPileData.pricedCount < cutPileData.albumCount && (
-            <span style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", marginTop: 2 }}>
-              {cutPileData.pricedCount} of {cutPileData.albumCount} priced
-            </span>
-          )}
-        </p>
-      )}
-
       {/* Activity summary */}
       <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
         {stats.rated > 0
@@ -920,14 +851,6 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 export function ReportsScreen() {
   const { albums, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
   const triggerHaptic = useHaptic('medium');
-
-  const pricedCount = useMemo(() => {
-    let count = 0;
-    for (const a of albums) {
-      if (getCachedMarketData(a.release_id)) count++;
-    }
-    return count;
-  }, [albums]);
 
   return (
     <div className="flex flex-col h-full">

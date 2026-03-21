@@ -3,7 +3,6 @@ import {
   Heart,
   Scissors,
   Disc3,
-  Tag,
   ChevronRight,
   TrendingUp,
   Music,
@@ -274,17 +273,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     () => albums.filter((a) => !lastPlayed[a.id]).length,
     [albums, lastPlayed]
   );
-
-  const cutPileValue = useMemo(() => {
-    const cutAlbums = albums.filter((a) => a.purgeTag === "cut");
-    // Sum pricePaid as a rough estimate for cut pile value
-    let total = 0;
-    for (const a of cutAlbums) {
-      const match = a.pricePaid?.match(/[\d.]+/);
-      if (match) total += parseFloat(match[0]);
-    }
-    return total;
-  }, [albums]);
 
   const keepCount = useMemo(() => albums.filter((a) => a.purgeTag === "keep").length, [albums]);
   const cutCount = useMemo(() => albums.filter((a) => a.purgeTag === "cut").length, [albums]);
@@ -1437,19 +1425,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         />
       </div>
 
-      {/* Cut pile value */}
-      {cutPileValue > 0 && (
-        <InsightRow
-          icon={<Tag size={16} style={{ color: "var(--c-text-muted)" }} />}
-          label={`Cut pile worth ~${formatCurrency(cutPileValue)}`}
-          isDarkMode={isDarkMode}
-          onTap={() => {
-            setPurgeFilter("cut");
-            setScreen("purge");
-          }}
-          showDivider={false}
-        />
-      )}
     </div>
   );
 

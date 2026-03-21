@@ -1,12 +1,8 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Check, Minus, HelpCircle, Disc3, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
-import { getCachedMarketData } from "./discogs-api";
-import { useAction } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { getPriceAtCondition } from "./market-value";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeIndicatorColor, purgeButtonBg, purgeButtonText, purgeToast } from "./purge-colors";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
@@ -16,12 +12,10 @@ export function PurgeTracker() {
   const {
     albums, purgeFilter, setPurgeFilter, setPurgeTag,
     setSelectedAlbumId, setShowAlbumDetail,
-    sessionToken, discogsUsername,
     isDarkMode, isAuthenticated, isSyncing,
     executePurgeCut, purgeProgress,
   } = useApp();
   const triggerHaptic = useHaptic('medium');
-  const proxyFetchMarketData = useAction(api.discogs.proxyFetchMarketData);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -47,89 +41,13 @@ export function PurgeTracker() {
     return a.purgeTag === purgeFilter;
   });
 
-  // Cut pile value calculation — uses cached market data only
-  const cutAlbums = useMemo(() => albums.filter((a) => a.purgeTag === "cut"), [albums]);
-  const [cutValueLoading, setCutValueLoading] = useState(false);
-  const [cutValueTrigger, setCutValueTrigger] = useState(0);
-
-  const cutPileValue = useMemo(() => {
-    // Read trigger to re-compute when data loads
-    void cutValueTrigger;
-    let total = 0;
-    let pricedCount = 0;
-    let unavailableCount = 0;
-    let currency = "USD";
-    for (const album of cutAlbums) {
-      const cached = getCachedMarketData(album.release_id);
-      if (!cached) {
-        // Unpriced — no fetch has occurred yet
-        continue;
-      }
-      const price = getPriceAtCondition(album, cached);
-      if (price) {
-        total += price.value;
-        pricedCount++;
-        currency = price.currency;
-      } else {
-        // Unavailable — fetch occurred but no condition-matched price
-        unavailableCount++;
-      }
-    }
-    return { total, pricedCount, unavailableCount, currency, albumCount: cutAlbums.length };
-  }, [cutAlbums, cutValueTrigger]);
-
-  // Auto-fetch prices for Cut albums when Cut filter is active (batched, rate-limited)
-  useEffect(() => {
-    if (purgeFilter !== "cut" || !sessionToken || cutAlbums.length === 0) return;
-    let cancelled = false;
-
-    const fetchBatch = async () => {
-      const unfetched = cutAlbums.filter((a) => !getCachedMarketData(a.release_id));
-      if (unfetched.length === 0) return;
-
-      setCutValueLoading(true);
-      for (const album of unfetched) {
-        if (cancelled) break;
-        try {
-          await proxyFetchMarketData({ sessionToken, releaseId: album.release_id });
-          setCutValueTrigger((t) => t + 1);
-        } catch (e) {
-          console.warn("[Purge] Failed to fetch market data for", album.release_id);
-        }
-        // Rate limit: ~500ms between calls to stay well within 60/min
-        if (!cancelled) await new Promise((r) => setTimeout(r, 500));
-      }
-      setCutValueLoading(false);
-    };
-
-    fetchBatch();
-    return () => { cancelled = true; };
-  }, [purgeFilter, cutAlbums, sessionToken, proxyFetchMarketData]);
-
-  // Background fetch pricing when an album is tagged as Cut
-  const backgroundFetchForCut = useCallback(async (albumId: string) => {
-    const album = albums.find((a) => a.id === albumId);
-    if (!album || !sessionToken) return;
-    if (getCachedMarketData(album.release_id)) return; // already cached
-    try {
-      await proxyFetchMarketData({ sessionToken, releaseId: album.release_id });
-      setCutValueTrigger((t) => t + 1);
-    } catch (e) {
-      console.warn("[Purge] Background fetch failed for", album.release_id);
-    }
-  }, [albums, sessionToken, proxyFetchMarketData]);
-
   const handlePurgeTag = useCallback((albumId: string, tag: PurgeTag) => {
     setPurgeTag(albumId, tag);
     if (tag) {
       const album = albums.find((a) => a.id === albumId);
       purgeToast(tag, isDarkMode, album?.title);
-      // If tagged as Cut, trigger background pricing fetch
-      if (tag === "cut") {
-        backgroundFetchForCut(albumId);
-      }
     }
-  }, [albums, setPurgeTag, isDarkMode, backgroundFetchForCut]);
+  }, [albums, setPurgeTag, isDarkMode]);
 
   return (
     <div className="flex flex-col h-full">
@@ -184,49 +102,6 @@ export function PurgeTracker() {
         </div>
       )}
 
-      {/* Cut value summary */}
-      {purgeFilter === "cut" && cutAlbums.length > 0 && (
-        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pb-[12px]">
-          <div className="rounded-[10px] py-3 px-4 text-center" style={{ backgroundColor: purgeTagBg("cut", isDarkMode), border: `1px solid ${purgeTagBorder("cut", isDarkMode)}` }}>
-            {cutPileValue.pricedCount === 0 ? (
-              /* No albums priced yet — don't show $0.00 */
-              <>
-                <p className="mt-1" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
-                  {cutValueLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Disc3 size={16} className="disc-spinner" /> Loading pricing estimates...
-                    </span>
-                  ) : (
-                    "Browse your Cut records to load pricing estimates."
-                  )}
-                </p>
-              </>
-            ) : (
-              /* At least one album priced — show the total */
-              <>
-                <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)", letterSpacing: "0.5px", textTransform: "uppercase" }}>
-                  Your Cut pile is worth approximately
-                </p>
-                <p className="mt-1" style={{ fontSize: "28px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-                  {cutPileValue.currency === "USD" ? "$" : cutPileValue.currency === "EUR" ? "\u20AC" : cutPileValue.currency === "GBP" ? "\u00A3" : ""}
-                  {cutPileValue.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                {cutPileValue.pricedCount < cutPileValue.albumCount ? (
-                  <p className="mt-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                    {cutPileValue.pricedCount} of {cutPileValue.albumCount} Cut records priced — browse unpriced records to complete the estimate.
-                    {cutValueLoading && <Disc3 size={10} className="inline-block disc-spinner ml-1" />}
-                  </p>
-                ) : (
-                  <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                    At your copies' condition grades.
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: (purgeFilter === "cut" && cutCount > 0 && !purgeProgress) ? "24px" : "calc(24px + var(--nav-clearance, 0px))" }}>
         {filteredAlbums.length === 0 ? (
           <div className="flex items-center justify-center py-16">
@@ -246,8 +121,6 @@ export function PurgeTracker() {
                 album={album}
                 onTag={handlePurgeTag}
                 onTap={() => { triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
-                showPrice={purgeFilter === "cut"}
-                priceTrigger={cutValueTrigger}
                 isDark={isDarkMode}
               />
             ))}
@@ -450,8 +323,8 @@ function StatChip({ label, tag, count, isActive, onClick, isDark }: {
   );
 }
 
-function SwipeableAlbumRow({ album, onTag, onTap, showPrice, priceTrigger, isDark }: {
-  album: Album; onTag: (id: string, tag: PurgeTag) => void; onTap: () => void; showPrice?: boolean; priceTrigger?: number; isDark: boolean;
+function SwipeableAlbumRow({ album, onTag, onTap, isDark }: {
+  album: Album; onTag: (id: string, tag: PurgeTag) => void; onTap: () => void; isDark: boolean;
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -462,14 +335,6 @@ function SwipeableAlbumRow({ album, onTag, onTap, showPrice, priceTrigger, isDar
   const hasDragged = useRef(false);
   const pointerStartX = useRef(0);
   const currentOffset = useRef(0);
-
-  // Inline price for Cut albums
-  const inlinePrice = useMemo(() => {
-    if (!showPrice) return null;
-    void priceTrigger;
-    const cached = getCachedMarketData(album.release_id);
-    return getPriceAtCondition(album, cached);
-  }, [showPrice, album, priceTrigger]);
 
   const keepClr = purgeTagColor("keep", isDark);
   const cutClr = purgeTagColor("cut", isDark);
@@ -594,21 +459,6 @@ function SwipeableAlbumRow({ album, onTag, onTap, showPrice, priceTrigger, isDar
             <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
             <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}</p>
           </div>
-          {showPrice && inlinePrice && (
-            <span
-              className="flex-shrink-0 px-1.5 py-0.5 rounded-[6px] mr-0.5"
-              style={{
-                fontSize: "12px",
-                fontWeight: 600,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                color: "var(--c-text-muted)",
-                backgroundColor: "var(--c-chip-bg)",
-              }}
-            >
-              {inlinePrice.currency === "USD" ? "$" : inlinePrice.currency === "EUR" ? "\u20AC" : inlinePrice.currency === "GBP" ? "\u00A3" : ""}
-              {Math.round(inlinePrice.value)}
-            </span>
-          )}
           <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "keep" ? null : "keep"); }}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"

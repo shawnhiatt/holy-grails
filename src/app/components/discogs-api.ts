@@ -113,23 +113,6 @@ export interface CollectionValue {
   fetchedAt: number;
 }
 
-export interface ConditionPrice {
-  condition: string;
-  value: number;
-  currency: string;
-}
-
-export interface MarketplaceStats {
-  lowestPrice: number | null;
-  numForSale: number;
-  currency: string;
-}
-
-export interface MarketData {
-  prices: ConditionPrice[];
-  stats: MarketplaceStats;
-  fetchedAt: number;
-}
 
 // ─── Vinyl-only filter ───
 
@@ -163,31 +146,6 @@ export const CONDITION_SHORT: Record<string, string> = {
   "Fair (F)": "F",
   "Poor (P)": "P",
 };
-
-/**
- * Normalize a user's mediaCondition string to match the Discogs API condition keys.
- * e.g. "Near Mint (NM)" → "Near Mint (NM or M-)"
- *      "VG+" → "Very Good Plus (VG+)"
- */
-export function normalizeCondition(raw: string): string | null {
-  if (!raw) return null;
-  const lower = raw.toLowerCase().trim();
-  for (const grade of CONDITION_GRADES) {
-    if (grade.toLowerCase() === lower) return grade;
-    const shortMatch = CONDITION_SHORT[grade];
-    if (shortMatch && lower === shortMatch.toLowerCase()) return grade;
-    // Partial match: "near mint (nm)" should match "Near Mint (NM or M-)"
-    if (grade.toLowerCase().startsWith(lower.split("(")[0].trim().toLowerCase())) {
-      // Additional check for parenthetical
-      const rawAbbrev = (raw.match(/\(([^)]+)\)/) || [])[1]?.toLowerCase();
-      const gradeAbbrev = (grade.match(/\(([^)]+)\)/) || [])[1]?.toLowerCase();
-      if (!rawAbbrev || (gradeAbbrev && gradeAbbrev.includes(rawAbbrev))) {
-        return grade;
-      }
-    }
-  }
-  return null;
-}
 
 // ─── Custom Fields utility ───
 
@@ -243,18 +201,6 @@ export function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
 }
 
 // ─── In-memory caches ───
-
-// Market data cache keyed by release_id
-const marketCache = new Map<number, MarketData>();
-
-export function getCachedMarketData(releaseId: number): MarketData | null {
-  return marketCache.get(releaseId) || null;
-}
-
-/** Clear all per-album market data from the in-memory cache */
-export function clearAllMarketData(): void {
-  marketCache.clear();
-}
 
 // Collection value cache
 let _collectionValue: CollectionValue | null = null;

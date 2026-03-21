@@ -6,9 +6,6 @@ import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
-import { getCachedMarketData } from "./discogs-api";
-import { useAction } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { useHaptic } from "@/hooks/useHaptic";
 
@@ -649,7 +646,7 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
 }
 
 function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
-  const { isDarkMode, sessionToken } = useApp();
+  const { isDarkMode } = useApp();
 
   const alphabetEntries = useWantAlphabetIndex(wants);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
@@ -712,7 +709,7 @@ function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 key={item.want.id}
                 className="relative min-w-0"
               >
-                <WantGridCard item={item.want} togglePriority={togglePriority} isDarkMode={isDarkMode} sessionToken={sessionToken} onSelect={onSelect} />
+                <WantGridCard item={item.want} togglePriority={togglePriority} isDarkMode={isDarkMode} onSelect={onSelect} />
               </div>
             );
           })}
@@ -853,51 +850,15 @@ function WantArtworkView({ wants, togglePriority, onSelect }: { wants: WantItem[
   );
 }
 
-/** Grid card with lazy-loaded marketplace data on hover */
-function WantGridCard({ item, togglePriority, isDarkMode, sessionToken, onSelect }: {
+function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
   item: WantItem;
   togglePriority: (id: string) => void;
   isDarkMode: boolean;
-  sessionToken: string | null;
   onSelect: (item: WantItem) => void;
 }) {
-  const proxyFetchMarketData = useAction(api.discogs.proxyFetchMarketData);
-  const [marketStats, setMarketStats] = useState<{ numForSale: number; lowestPrice: number | null; currency: string } | null>(null);
-  const [isLoadingMarket, setIsLoadingMarket] = useState(false);
-  const fetchedRef = useRef(false);
-
-  const handleMouseEnter = useCallback(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    // Check cache first
-    const cached = getCachedMarketData(item.release_id);
-    if (cached) {
-      setMarketStats(cached.stats);
-      return;
-    }
-    // Fetch from API
-    setIsLoadingMarket(true);
-    if (!sessionToken) return;
-    proxyFetchMarketData({ sessionToken, releaseId: item.release_id })
-      .then((data) => setMarketStats(data.stats))
-      .catch(() => { /* silently fail */ })
-      .finally(() => setIsLoadingMarket(false));
-  }, [item.release_id, sessionToken, proxyFetchMarketData]);
-
-  const discogsUrl = `https://www.discogs.com/release/${item.release_id}`;
-  const sellUrl = `https://www.discogs.com/sell/release/${item.release_id}`;
-
-  const formatPrice = (value: number, currency: string) => {
-    if (currency === "USD") return `$${value.toFixed(2)}`;
-    if (currency === "EUR") return `\u20AC${value.toFixed(2)}`;
-    if (currency === "GBP") return `\u00A3${value.toFixed(2)}`;
-    return `${value.toFixed(2)} ${currency}`;
-  };
-
   return (
     <div
       className="relative w-full min-w-0 rounded-[10px] overflow-hidden group cursor-pointer"
-      onMouseEnter={handleMouseEnter}
       onClick={() => onSelect(item)}
       style={{
         backgroundColor: "var(--c-surface)",
@@ -907,30 +868,6 @@ function WantGridCard({ item, togglePriority, isDarkMode, sessionToken, onSelect
     >
       <div className="relative aspect-square overflow-hidden">
         <img src={item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
-
-        {/* Hover overlay with marketplace data + View on Discogs */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3 z-[1]">
-          {/* Marketplace stats */}
-          {isLoadingMarket ? (
-            <p style={{ fontSize: "11px", fontWeight: 400, color: "rgba(255,255,255,0.5)" }}>Loading marketplace...</p>
-          ) : marketStats && marketStats.numForSale > 0 ? (
-            <a
-              href={sellUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition-opacity hover:opacity-80"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.85)", lineHeight: 1.3 }}>
-                {marketStats.numForSale} {marketStats.numForSale === 1 ? "copy" : "copies"} for sale
-                {marketStats.lowestPrice !== null && ` from ${formatPrice(marketStats.lowestPrice, marketStats.currency)}`}
-              </p>
-            </a>
-          ) : marketStats ? (
-            <p style={{ fontSize: "11px", fontWeight: 400, color: "rgba(255,255,255,0.45)" }}>No copies for sale</p>
-          ) : null}
-
-        </div>
 
         <button
           onClick={() => togglePriority(item.id)}

@@ -311,18 +311,6 @@ function parseCurrencyString(raw: unknown): number {
   return parseFloat(cleaned);
 }
 
-// Condition grades (same as discogs-api.ts)
-const CONDITION_GRADES = [
-  "Mint (M)",
-  "Near Mint (NM or M-)",
-  "Very Good Plus (VG+)",
-  "Very Good (VG)",
-  "Good Plus (G+)",
-  "Good (G)",
-  "Fair (F)",
-  "Poor (P)",
-];
-
 // ─── Shared fetch helpers ───
 
 interface FolderInfo {
@@ -617,78 +605,7 @@ export const proxyFetchWantlist = action({
   },
 });
 
-// 5. Fetch market data (price suggestions + marketplace stats)
-export const proxyFetchMarketData = action({
-  args: { sessionToken: v.string(), releaseId: v.number() },
-  handler: async (ctx, args) => {
-    const creds = await ctx.runQuery(
-      internal.discogsHelpers.getUserCredentials,
-      { sessionToken: args.sessionToken }
-    );
-
-    const prices: {
-      condition: string;
-      value: number;
-      currency: string;
-    }[] = [];
-    let stats = {
-      lowestPrice: null as number | null,
-      numForSale: 0,
-      currency: "USD",
-    };
-
-    // Price suggestions
-    try {
-      const url = `${BASE}/marketplace/price_suggestions/${args.releaseId}`;
-      const res = await discogsFetch(
-        "GET",
-        url,
-        creds.access_token,
-        creds.token_secret
-      );
-      if (res.ok) {
-        const data = await res.json();
-        for (const grade of CONDITION_GRADES) {
-          const entry = data[grade];
-          if (entry && typeof entry.value === "number") {
-            prices.push({
-              condition: grade,
-              value: entry.value,
-              currency: entry.currency || "USD",
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("[Discogs] Price suggestions failed:", e);
-    }
-
-    // Marketplace stats
-    try {
-      const url = `${BASE}/marketplace/stats/${args.releaseId}`;
-      const res = await discogsFetch(
-        "GET",
-        url,
-        creds.access_token,
-        creds.token_secret
-      );
-      if (res.ok) {
-        const data = await res.json();
-        stats = {
-          lowestPrice: data.lowest_price?.value ?? null,
-          numForSale: data.num_for_sale ?? 0,
-          currency: data.lowest_price?.currency ?? "USD",
-        };
-      }
-    } catch (e) {
-      console.warn("[Discogs] Marketplace stats failed:", e);
-    }
-
-    return { prices, stats, fetchedAt: Date.now() };
-  },
-});
-
-// 6. Fetch collection value
+// 5. Fetch collection value
 export const proxyFetchCollectionValue = action({
   args: { sessionToken: v.string(), username: v.string() },
   handler: async (ctx, args) => {
