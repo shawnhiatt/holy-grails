@@ -1502,24 +1502,19 @@ function DestructiveButton({
     <button
       onClick={onClick}
       disabled={loading}
-      className="tappable w-full"
+      className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
       style={{
-        borderRadius: 14,
-        border: confirming ? "none" : "2px solid #FF2D78",
+        fontSize: "14px",
+        fontWeight: 600,
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        border: "1px solid #FF2D78",
         backgroundColor: confirming ? "#FF2D78" : "transparent",
         color: "#FFFFFF",
-        fontSize: "15px",
-        fontWeight: 600,
-        paddingTop: 14,
-        paddingBottom: 14,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
+        minHeight: 45,
       }}
     >
       {loading ? (
-        <Disc3 size={18} className="disc-spinner" />
+        <Disc3 size={15} className="disc-spinner" />
       ) : (
         label
       )}
@@ -1598,10 +1593,11 @@ function WantItemDetailPanel({
   hideImage?: boolean;
   onClose: () => void;
 }) {
-  const { toggleWantPriority, removeFromWantList, sessionToken, isDarkMode } = useApp();
+  const { toggleWantPriority, removeFromWantList, addToCollection, isInCollection, albums, setSelectedAlbumId, setSelectedWantItem, sessionToken, isDarkMode } = useApp();
   const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
   const [isRemoving, setIsRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [isAddingToCollection, setIsAddingToCollection] = useState(false);
 
   // Enriched release data state
   const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
@@ -1618,6 +1614,7 @@ function WantItemDetailPanel({
   useEffect(() => {
     setConfirmRemove(false);
     setIsRemoving(false);
+    setIsAddingToCollection(false);
     setActiveTab('tracklist');
     setTabBarStuck(false);
     setLightboxOpen(false);
@@ -1718,6 +1715,22 @@ function WantItemDetailPanel({
       setConfirmRemove(false);
     }
   }, [item.release_id, removeFromWantList, onClose]);
+
+  const alreadyInCollection = isInCollection(item.release_id, item.master_id);
+
+  const handleAddToCollection = useCallback(async () => {
+    if (isAddingToCollection || alreadyInCollection) return;
+    setIsAddingToCollection(true);
+    try {
+      await addToCollection(item.release_id);
+      toast.info(`"${item.title}" added to collection.`);
+      onClose();
+    } catch (err: any) {
+      console.error("[WantDetail] Add to collection failed:", err);
+      toast.error("Failed to add. Try again.");
+      setIsAddingToCollection(false);
+    }
+  }, [item.release_id, item.title, isAddingToCollection, alreadyInCollection, addToCollection, onClose]);
 
   // Enriched data helpers
   const hasTracklist = releaseData && releaseData.tracklist.length > 0;
@@ -1882,6 +1895,73 @@ function WantItemDetailPanel({
           </div>
         ) : null}
 
+        {/* ═══ Action Buttons ═══ */}
+        <div className="px-4 pb-4 mt-4 flex flex-col gap-2">
+          {/* Collection button */}
+          {alreadyInCollection ? (
+            <button
+              onClick={() => {
+                const rid = Number(item.release_id);
+                const match = albums.find((a) => Number(a.release_id) === rid) ||
+                  (item.master_id && item.master_id > 0 ? albums.find((a) => a.master_id === item.master_id) : undefined);
+                if (match) {
+                  setSelectedWantItem(null);
+                  setSelectedAlbumId(match.id);
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] tappable transition-colors"
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: "rgba(62, 152, 66, 0.12)",
+                color: "#3E9842",
+                border: "1px solid rgba(62, 152, 66, 0.2)",
+              }}
+            >
+              <GalleryVerticalEnd size={16} />
+              View Your Copy
+            </button>
+          ) : (
+            <button
+              onClick={handleAddToCollection}
+              disabled={isAddingToCollection}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: "#EBFD00",
+                color: "#0C284A",
+                opacity: isAddingToCollection ? 0.7 : 1,
+              }}
+            >
+              {isAddingToCollection ? (
+                <>
+                  <Disc3 size={15} className="disc-spinner" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus size={16} />
+                  Add to Collection
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Wantlist button */}
+          <DestructiveButton
+            label={confirmRemove ? "Confirm Remove" : "Remove from Wantlist"}
+            confirming={confirmRemove}
+            loading={isRemoving}
+            onClick={() => {
+              if (!confirmRemove) setConfirmRemove(true);
+              else handleRemove();
+            }}
+          />
+        </div>
+
         {/* Detail rows */}
         <div className="px-4 pb-4">
           <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
@@ -2001,18 +2081,6 @@ function WantItemDetailPanel({
           })()}
         </div>
 
-        {/* Remove from Wantlist */}
-        <div className="px-4 pb-6">
-          <DestructiveButton
-            label={confirmRemove ? "Confirm Remove" : "Remove from Wantlist"}
-            confirming={confirmRemove}
-            loading={isRemoving}
-            onClick={() => {
-              if (!confirmRemove) setConfirmRemove(true);
-              else handleRemove();
-            }}
-          />
-        </div>
       </div>
     </div>
 
@@ -2132,6 +2200,7 @@ function ReleaseDetailPanel({
   const {
     sessionToken, isDarkMode, isInWants, isInCollection,
     addToWantList, removeFromWantList, addToCollection,
+    albums, setSelectedAlbumId, setSelectedFeedAlbum,
   } = useApp();
   const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
 
@@ -2444,8 +2513,17 @@ function ReleaseDetailPanel({
         <div className="px-4 pb-4 mt-4 flex flex-col gap-2">
           {/* Collection button */}
           {alreadyInCollection ? (
-            <div
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px]"
+            <button
+              onClick={() => {
+                const rid = Number(album.release_id);
+                const match = albums.find((a) => Number(a.release_id) === rid) ||
+                  (album.master_id && album.master_id > 0 ? albums.find((a) => a.master_id === album.master_id) : undefined);
+                if (match) {
+                  setSelectedFeedAlbum(null);
+                  setSelectedAlbumId(match.id);
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] tappable transition-colors"
               style={{
                 fontSize: "14px",
                 fontWeight: 600,
@@ -2455,9 +2533,9 @@ function ReleaseDetailPanel({
                 border: "1px solid rgba(62, 152, 66, 0.2)",
               }}
             >
-              <Check size={16} />
-              In Your Collection
-            </div>
+              <GalleryVerticalEnd size={16} />
+              View Your Copy
+            </button>
           ) : (
             <button
               onClick={handleAddToCollection}

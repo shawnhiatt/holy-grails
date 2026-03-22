@@ -290,14 +290,21 @@ function FollowedUserProfile({
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
+  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId } = useApp();
   const triggerHaptic = useHaptic('medium');
 
   const handleOpenAlbum = useCallback((item: Album | WantItem) => {
     triggerHaptic();
+    const rid = Number(item.release_id);
+    const mid = 'master_id' in item ? item.master_id : undefined;
+    if (isInCollection(rid, mid)) {
+      const match = albums.find((a) => Number(a.release_id) === rid) ||
+        (mid && mid > 0 ? albums.find((a) => a.master_id === mid) : undefined);
+      if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
+    }
     setSelectedFeedAlbum(toFeedAlbum(item));
     setShowAlbumDetail(true);
-  }, [triggerHaptic, setSelectedFeedAlbum, setShowAlbumDetail]);
+  }, [triggerHaptic, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId]);
 
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
   const userCutReleaseIds = useMemo(() => new Set(userAlbums.filter((a) => a.purgeTag === "cut").map((a) => a.release_id)), [userAlbums]);
@@ -1173,7 +1180,7 @@ function PopulatedFollowingView({
   followingAvatars: Map<string, string>;
   isSyncingFollowing: boolean;
 }) {
-  const { setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
+  const { setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId } = useApp();
   const triggerHaptic = useHaptic('medium');
 
   // Sort followedUsers by most recent activity in followingFeed (avatar row only)
@@ -1394,6 +1401,13 @@ function PopulatedFollowingView({
                     album={album}
                     onTap={() => {
                       triggerHaptic();
+                      const rid = Number(album.release_id);
+                      const mid = album.master_id;
+                      if (isInCollection(rid, mid)) {
+                        const match = albums.find((a) => Number(a.release_id) === rid) ||
+                          (mid && mid > 0 ? albums.find((a) => a.master_id === mid) : undefined);
+                        if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
+                      }
                       setSelectedFeedAlbum(toFeedAlbum(album));
                       setShowAlbumDetail(true);
                     }}
@@ -1501,6 +1515,12 @@ function PopulatedFollowingView({
                   onClick={() => {
                     if (isScrollingRecently()) return;
                     triggerHaptic();
+                    if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
+                      const rid = Number(item.albumReleaseId);
+                      const match = albums.find((a) => Number(a.release_id) === rid) ||
+                        (item.albumMasterId && item.albumMasterId > 0 ? albums.find((a) => a.master_id === item.albumMasterId) : undefined);
+                      if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
+                    }
                     setSelectedFeedAlbum({
                       release_id: item.albumReleaseId,
                       master_id: item.albumMasterId,

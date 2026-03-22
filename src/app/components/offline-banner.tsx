@@ -51,7 +51,7 @@ export function OfflineBanner() {
               color: "var(--c-text-secondary)",
             }}
           >
-            You're offline — collection data unavailable
+            You're offline. Collection data unavailable.
           </span>
           <button
             onClick={() => setDismissed(true)}

@@ -185,6 +185,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setSelectedWantItem,
     toggleWantPriority,
     setSelectedFeedAlbum,
+    isInCollection,
   } = useApp();
   const triggerHaptic = useHaptic('medium');
 
@@ -1024,6 +1025,12 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   onClick={() => {
                     if (isScrollingRecently()) return;
                     triggerHaptic();
+                    if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
+                      const rid = Number(item.albumReleaseId);
+                      const match = albums.find((a) => Number(a.release_id) === rid) ||
+                        (item.albumMasterId && item.albumMasterId > 0 ? albums.find((a) => a.master_id === item.albumMasterId) : undefined);
+                      if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
+                    }
                     setSelectedFeedAlbum({
                       release_id: item.albumReleaseId,
                       master_id: item.albumMasterId,
