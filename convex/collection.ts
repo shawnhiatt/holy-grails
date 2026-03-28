@@ -38,7 +38,13 @@ export const replaceAll = mutation({
         pricePaid: v.string(),
         notes: v.string(),
         customFields: v.optional(
-          v.array(v.object({ name: v.string(), value: v.string() }))
+          v.array(v.object({
+            name: v.string(),
+            value: v.string(),
+            fieldId: v.optional(v.number()),
+            type: v.optional(v.string()),
+            options: v.optional(v.array(v.string())),
+          }))
         ),
         dateAdded: v.string(),
       })
@@ -81,6 +87,13 @@ export const updateInstance = mutation({
     folder: v.optional(v.string()),
     folderId: v.optional(v.number()),
     instanceId: v.optional(v.number()),
+    customFields: v.optional(v.array(v.object({
+      name: v.string(),
+      value: v.string(),
+      fieldId: v.optional(v.number()),
+      type: v.optional(v.string()),
+      options: v.optional(v.array(v.string())),
+    }))),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -100,6 +113,7 @@ export const updateInstance = mutation({
       folder?: string;
       folderId?: number;
       instanceId?: number;
+      customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
     } = {};
     if (args.mediaCondition !== undefined) patch.mediaCondition = args.mediaCondition;
     if (args.sleeveCondition !== undefined) patch.sleeveCondition = args.sleeveCondition;
@@ -107,6 +121,7 @@ export const updateInstance = mutation({
     if (args.folder !== undefined) patch.folder = args.folder;
     if (args.folderId !== undefined) patch.folderId = args.folderId;
     if (args.instanceId !== undefined) patch.instanceId = args.instanceId;
+    if (args.customFields !== undefined) patch.customFields = args.customFields;
 
     await ctx.db.patch(row._id, patch);
   },
@@ -153,7 +168,13 @@ export const addItem = mutation({
     pricePaid: v.string(),
     notes: v.string(),
     customFields: v.optional(
-      v.array(v.object({ name: v.string(), value: v.string() }))
+      v.array(v.object({
+        name: v.string(),
+        value: v.string(),
+        fieldId: v.optional(v.number()),
+        type: v.optional(v.string()),
+        options: v.optional(v.array(v.string())),
+      }))
     ),
     dateAdded: v.string(),
   },

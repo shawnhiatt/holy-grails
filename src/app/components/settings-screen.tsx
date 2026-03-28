@@ -231,7 +231,7 @@ export function SettingsScreen() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[2px] lg:pt-[16px] lg:pb-[17px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
         <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Settings</h2>
       </div>
 

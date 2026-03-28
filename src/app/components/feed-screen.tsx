@@ -59,7 +59,7 @@ const welcomeGreetings: Record<string, string[]> = {
     "Hope ya doin', [username]?",
   ],
   evening: [
-    "Widing down, [username], aye?",
+    "Winding down, [username]?",
     "Evening, [username].",
     "Whatcha spinnin', [username]?",
   ],

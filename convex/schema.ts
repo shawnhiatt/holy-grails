@@ -76,7 +76,13 @@ export default defineSchema({
     sleeveCondition: v.string(),
     pricePaid: v.string(),
     notes: v.string(),
-    customFields: v.optional(v.array(v.object({ name: v.string(), value: v.string() }))),
+    customFields: v.optional(v.array(v.object({
+      name: v.string(),
+      value: v.string(),
+      fieldId: v.optional(v.number()),
+      type: v.optional(v.string()),
+      options: v.optional(v.array(v.string())),
+    }))),
     dateAdded: v.string(),
   })
     .index("by_username", ["discogsUsername"])

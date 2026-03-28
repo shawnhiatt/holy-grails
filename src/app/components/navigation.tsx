@@ -184,7 +184,7 @@ export function MobileHeader({ transparent = false }: { transparent?: boolean })
 
       {/* Center: Pill logo */}
       <button onClick={() => setScreen("feed")} className="shrink-0 cursor-pointer">
-        <PillLogo className="h-[42px] w-auto" />
+        <PillLogo className="h-[38px] w-auto" />
       </button>
 
       {/* Right: Settings avatar */}

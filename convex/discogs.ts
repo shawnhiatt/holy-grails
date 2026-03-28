@@ -154,8 +154,7 @@ interface FieldMap {
   mediaConditionId: number | null;
   sleeveConditionId: number | null;
   notesId: number | null;
-  pricePaidId: number | null;
-  otherFields: Map<number, string>;
+  otherFields: Map<number, { name: string; type: string; options?: string[] }>;
 }
 
 function formatArtistName(name: string): string {
@@ -167,7 +166,6 @@ function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
     mediaConditionId: null,
     sleeveConditionId: null,
     notesId: null,
-    pricePaidId: null,
     otherFields: new Map(),
   };
   for (const f of fields) {
@@ -178,16 +176,8 @@ function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
       result.sleeveConditionId = f.id;
     } else if (lower === "notes") {
       result.notesId = f.id;
-    } else if (
-      lower === "price paid" ||
-      lower === "price" ||
-      lower === "cost" ||
-      lower === "purchase price" ||
-      lower.includes("price paid")
-    ) {
-      result.pricePaidId = f.id;
     } else {
-      result.otherFields.set(f.id, f.name);
+      result.otherFields.set(f.id, { name: f.name, type: f.type, options: f.options });
     }
   }
   return result;
@@ -220,7 +210,7 @@ interface ProxyAlbum {
   sleeveCondition: string;
   pricePaid: string;
   notes: string;
-  customFields?: { name: string; value: string }[];
+  customFields?: { name: string; value: string; fieldId: number; type: string; options?: string[] }[];
   dateAdded: string;
   discogsUrl: string;
 }
@@ -246,8 +236,7 @@ function mapRelease(
   const noteValues: string[] = [];
   const mediaCondition: string[] = [];
   const sleeveCondition: string[] = [];
-  const pricePaid: string[] = [];
-  const customFields: { name: string; value: string }[] = [];
+  const customFields: { name: string; value: string; fieldId: number; type: string; options?: string[] }[] = [];
 
   for (const n of r.notes || []) {
     if (!n.value) continue;
@@ -266,18 +255,33 @@ function mapRelease(
       n.field_id === fieldMap.notesId
     ) {
       noteValues.push(n.value);
-    } else if (
-      fieldMap.pricePaidId != null &&
-      n.field_id === fieldMap.pricePaidId
-    ) {
-      pricePaid.push(n.value);
     } else {
-      const customName = fieldMap.otherFields.get(n.field_id);
-      if (customName) {
-        customFields.push({ name: customName, value: n.value });
+      const customField = fieldMap.otherFields.get(n.field_id);
+      if (customField) {
+        customFields.push({
+          name: customField.name,
+          value: n.value,
+          fieldId: n.field_id,
+          type: customField.type,
+          ...(customField.options && { options: customField.options }),
+        });
       } else {
         noteValues.push(n.value);
       }
+    }
+  }
+
+  // Include all defined custom fields (even unset ones) so they're available in edit mode
+  const setFieldIds = new Set(customFields.map(cf => cf.fieldId));
+  for (const [fieldId, fieldInfo] of fieldMap.otherFields) {
+    if (!setFieldIds.has(fieldId)) {
+      customFields.push({
+        name: fieldInfo.name,
+        value: "",
+        fieldId,
+        type: fieldInfo.type,
+        ...(fieldInfo.options && { options: fieldInfo.options }),
+      });
     }
   }
 
@@ -298,7 +302,7 @@ function mapRelease(
     format: formatParts.join("; ") || "Vinyl",
     mediaCondition: mediaCondition.join(" · "),
     sleeveCondition: sleeveCondition.join(" · "),
-    pricePaid: pricePaid.join(" · "),
+    pricePaid: "",
     notes: noteValues.join(" · "),
     customFields: customFields.length > 0 ? customFields : undefined,
     dateAdded: r.date_added ? r.date_added.split("T")[0] : "",
@@ -660,6 +664,10 @@ export const proxyUpdateCollectionInstance = action({
       sleeveCondition: v.optional(v.string()),
       notes: v.optional(v.string()),
     }),
+    customFields: v.optional(v.array(v.object({
+      fieldId: v.number(),
+      value: v.string(),
+    }))),
   },
   handler: async (ctx, args) => {
     const creds = await ctx.runQuery(
@@ -697,6 +705,12 @@ export const proxyUpdateCollectionInstance = action({
       fieldMap.notesId != null
     ) {
       updates.push({ fieldId: fieldMap.notesId, value: args.fields.notes });
+    }
+
+    if (args.customFields) {
+      for (const cf of args.customFields) {
+        updates.push({ fieldId: cf.fieldId, value: cf.value });
+      }
     }
 
     for (const update of updates) {

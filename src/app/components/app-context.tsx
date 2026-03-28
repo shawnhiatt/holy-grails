@@ -1037,6 +1037,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...(fields.folder !== undefined && { folder: fields.folder }),
         ...(fields.folder_id !== undefined && { folderId: fields.folder_id }),
         ...(fields.instance_id !== undefined && { instanceId: fields.instance_id }),
+        ...(fields.customFields !== undefined && { customFields: fields.customFields }),
       }).catch(console.error);
     }
   }, [sessionToken, updateInstanceMut]);
@@ -1728,6 +1729,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFirstSessionJustCreated(false);
     setSyncFailed(false);
     setScreenRaw("feed"); // Navigate away from any authenticated-only screen
+    setColorModeRaw("dark"); // Reset to dark so splash screen has no white flash
 
     // Prevent session restore from re-hydrating after explicit sign-out
     hasSignedOutRef.current = true;

@@ -116,7 +116,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[2px] lg:pt-[16px] lg:pb-[8px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[12px]">
         <div className="flex items-center gap-2">
           <button
             onClick={onBack}

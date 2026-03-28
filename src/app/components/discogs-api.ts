@@ -33,7 +33,7 @@ export interface Album {
   pricePaid: string;
   notes: string;
   /** Arbitrary user-defined Discogs custom fields (e.g. "Acquired From", "Last Cleaned") */
-  customFields?: { name: string; value: string }[];
+  customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
   dateAdded: string;
   discogsUrl: string;
   purgeTag: PurgeTag;
@@ -161,9 +161,8 @@ export interface FieldMap {
   mediaConditionId: number | null;
   sleeveConditionId: number | null;
   notesId: number | null;
-  pricePaidId: number | null;
-  /** All other custom fields: field_id → field name */
-  otherFields: Map<number, string>;
+  /** All other custom fields: field_id → field info */
+  otherFields: Map<number, { name: string; type: string; options?: string[] }>;
 }
 
 export function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
@@ -171,7 +170,6 @@ export function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
     mediaConditionId: null,
     sleeveConditionId: null,
     notesId: null,
-    pricePaidId: null,
     otherFields: new Map(),
   };
 
@@ -184,16 +182,8 @@ export function buildFieldMap(fields: DiscogsCustomField[]): FieldMap {
       result.sleeveConditionId = f.id;
     } else if (lower === "notes") {
       result.notesId = f.id;
-    } else if (
-      lower === "price paid" ||
-      lower === "price" ||
-      lower === "cost" ||
-      lower === "purchase price" ||
-      lower.includes("price paid")
-    ) {
-      result.pricePaidId = f.id;
     } else {
-      result.otherFields.set(f.id, f.name);
+      result.otherFields.set(f.id, { name: f.name, type: f.type, options: f.options });
     }
   }
 

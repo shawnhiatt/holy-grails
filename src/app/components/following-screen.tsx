@@ -159,7 +159,7 @@ export function FollowingScreen() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[2px] lg:pt-[16px] lg:pb-[17px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
@@ -348,7 +348,7 @@ function FollowedUserProfile({
   if (user.isPrivate) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex-shrink-0 px-[16px] lg:px-[24px] py-[12px] lg:pt-[16px] lg:pb-[17px]">
+        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
           <div className="flex items-center gap-3">
             <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer" style={{ color: "var(--c-text)" }}>
               <ArrowLeft size={20} />

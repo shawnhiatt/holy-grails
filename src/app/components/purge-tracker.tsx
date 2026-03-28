@@ -51,7 +51,7 @@ export function PurgeTracker() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[2px] lg:pt-[16px] lg:pb-[17px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
         <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Purge Tracker</h2>
         <p className="mt-0.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Evaluate your collection</p>
       </div>
@@ -63,7 +63,7 @@ export function PurgeTracker() {
         />
       ) : (
       <>
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] py-[10px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[16px]">
         <div className="flex items-center justify-between mb-1.5">
           <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>{ratedCount} of {totalCount} evaluated — {Math.round(progress)}%</span>
           <span style={{ fontSize: "14px", fontWeight: 600, color: purgeTagColor("cut", isDarkMode) }}>{unratedCount > 0 ? `${unratedCount} still waiting for a verdict.` : "Every record has been evaluated. Rare discipline."}</span>

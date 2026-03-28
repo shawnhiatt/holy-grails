@@ -24,6 +24,7 @@ interface EditFields {
   sleeveCondition: string;
   notes: string;
   folder: string;
+  customFields: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
 }
 
 /* ─── Enriched release data types + cache ─── */
@@ -92,6 +93,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     sleeveCondition: "",
     notes: "",
     folder: "",
+    customFields: [],
   });
   const [isSaving, setIsSaving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -206,6 +208,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       sleeveCondition: selectedAlbum.sleeveCondition || "",
       notes: selectedAlbum.notes || "",
       folder: selectedAlbum.folder || "",
+      customFields: (selectedAlbum.customFields || []).map(cf => ({ ...cf })),
     });
     setIsEditMode(true);
   }, [selectedAlbum]);
@@ -248,10 +251,22 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         conditionOrNotesChanged = true;
       }
 
+      // Detect custom field changes
+      const origCustomFields = selectedAlbum.customFields || [];
+      const changedCustomFields: { fieldId: number; value: string }[] = [];
+      for (let i = 0; i < editFields.customFields.length; i++) {
+        const edited = editFields.customFields[i];
+        const orig = origCustomFields[i];
+        if (orig && edited.value !== orig.value && edited.fieldId) {
+          changedCustomFields.push({ fieldId: edited.fieldId, value: edited.value });
+        }
+      }
+      const customFieldsChanged = changedCustomFields.length > 0;
+
       const folderChanged = editFields.folder !== selectedAlbum.folder;
       const newFolderEntry = folderOptions.find(f => f.name === editFields.folder);
 
-      if (conditionOrNotesChanged) {
+      if (conditionOrNotesChanged || customFieldsChanged) {
         await proxyUpdateInstance({
           sessionToken,
           username: discogsUsername,
@@ -259,6 +274,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           releaseId: selectedAlbum.release_id,
           instanceId: selectedAlbum.instance_id,
           fields: fieldsChanged,
+          ...(customFieldsChanged && { customFields: changedCustomFields }),
         });
       }
 
@@ -286,6 +302,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           folder_id: newFolderId,
           instance_id: newInstanceId,
         }),
+        ...(customFieldsChanged && { customFields: editFields.customFields }),
       };
       updateAlbum(selectedAlbum.id, albumUpdates);
 
@@ -734,6 +751,71 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   }}
                 />
               </div>
+
+              {/* Custom fields */}
+              {editFields.customFields.map((cf, i) => (
+                <div key={`cf-edit-${i}`} className="flex flex-col gap-1">
+                  <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>{cf.name}</label>
+                  {cf.type === "dropdown" && cf.options ? (
+                    <select
+                      value={cf.value}
+                      onChange={(e) => setEditFields((prev) => {
+                        const updated = [...prev.customFields];
+                        updated[i] = { ...updated[i], value: e.target.value };
+                        return { ...prev, customFields: updated };
+                      })}
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 400,
+                        color: "var(--c-text)",
+                        backgroundColor: "var(--c-input-bg)",
+                        border: "1px solid var(--c-border)",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        paddingRight: "36px",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        outline: "none",
+                        width: "100%",
+                        appearance: "none",
+                        WebkitAppearance: "none",
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                        backgroundRepeat: "no-repeat",
+                        backgroundPosition: "right 12px center",
+                        backgroundSize: "16px 16px",
+                      }}
+                    >
+                      <option value="">Not set</option>
+                      {cf.options.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <textarea
+                      value={cf.value}
+                      onChange={(e) => setEditFields((prev) => {
+                        const updated = [...prev.customFields];
+                        updated[i] = { ...updated[i], value: e.target.value };
+                        return { ...prev, customFields: updated };
+                      })}
+                      rows={2}
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 400,
+                        color: "var(--c-text)",
+                        backgroundColor: "var(--c-input-bg)",
+                        border: "1px solid var(--c-border)",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        outline: "none",
+                        width: "100%",
+                        resize: "none",
+                        lineHeight: "1.5",
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
 
             {/* Save / Cancel */}
@@ -821,17 +903,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     )}
                   </AnimatePresence>
                 </button>
-                <p className="mt-2 text-center flex items-center justify-center gap-1.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {playedToday ? (
-                    <>
-                      <Check size={12} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
-                      <span style={{ color: isDarkMode ? "#ACDEF2" : "#00527A", fontWeight: 500 }}>Played today</span>
-                    </>
-                  ) : albumLastPlayed ? (
-                    <>Last played {formatDateShort(albumLastPlayed)}</>
-                  ) : (
-                    <>No plays logged</>
-                  )}
+                <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
+                  {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged"}
                 </p>
               </div>
             )}
@@ -891,10 +964,10 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 <DetailRow label="Folder" value={selectedAlbum.folder} />
                 <DetailRow label="Media" value={selectedAlbum.mediaCondition} valueColor={conditionColor(selectedAlbum.mediaCondition, isDarkMode)} />
                 <DetailRow label="Sleeve" value={selectedAlbum.sleeveCondition} valueColor={conditionColor(selectedAlbum.sleeveCondition, isDarkMode)} />
-                {selectedAlbum.pricePaid && <DetailRow label="Paid" value={selectedAlbum.pricePaid} />}
-                {selectedAlbum.customFields?.map((cf, i) => (
+                {selectedAlbum.customFields?.filter(cf => cf.value).map((cf, i) => (
                   <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} />
                 ))}
+                {selectedAlbum.notes && <DetailRow label="Notes" value={selectedAlbum.notes} />}
 
                 {/* ═══ Add to a Session (inside Your Copy) ═══ */}
                 {!isEditMode && (
@@ -1017,13 +1090,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               </div>
             </div>
 
-            {/* User personal notes — always visible, never collapsible */}
-            {selectedAlbum.notes && (
-              <div className="px-4 pb-6">
-                <p className="mb-2" style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Notes</p>
-                <p style={{ fontSize: "14px", fontWeight: 400, lineHeight: "1.6", color: "var(--c-text-secondary)" }}>{selectedAlbum.notes}</p>
-              </div>
-            )}
+            {/* User personal notes — now displayed inside Your Copy card */}
           </div>
         )}
 

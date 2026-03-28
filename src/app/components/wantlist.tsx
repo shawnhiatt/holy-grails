@@ -206,13 +206,13 @@ export function Wantlist() {
       <div
         className="hidden lg:flex flex-shrink-0"
       >
-        <div className="flex items-center gap-[30px] px-[24px] py-[16px] w-full">
+        <div className="flex items-center gap-[30px] px-[24px] pt-[8px] pb-[20px] w-full">
           <h2 style={{ fontSize: "48px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Wantlist</h2>
         </div>
       </div>
 
       {/* ===== DESKTOP search/filter/view controls (gray content area) ===== */}
-      <div className="hidden lg:flex items-center gap-[16px] px-[24px] py-[16px] flex-shrink-0">
+      <div className="hidden lg:flex items-center gap-[16px] px-[24px] pt-[8px] pb-[16px] flex-shrink-0">
         {/* Search field — flex-1 */}
         <div className="flex-1 flex items-center gap-2 rounded-full px-[15px] min-w-0" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "39px" }}>
           <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
@@ -246,12 +246,12 @@ export function Wantlist() {
       </div>
 
       {/* ===== MOBILE top controls ===== */}
-      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[4px] pb-[2px]">
+      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[2px] pb-[8px]">
         <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Wantlist</h2>
       </div>
 
       {/* ===== MOBILE search/filter/view controls ===== */}
-      <div className="lg:hidden flex-shrink-0 px-[16px] py-[10px]">
+      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[2px] pb-[8px]">
         <div className="flex items-center gap-[10px]">
           <div className="flex items-center gap-[8px] rounded-full px-[14.5px] min-w-0 flex-1" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "34px" }}>
             <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
