@@ -596,6 +596,27 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 - **Avatar size**: 80px (with 28px fallback initials). Button container width: 92px.
 - **Avatar row sort order**: Sorted by most recent `followingFeed` entry per user (descending). Users with no feed entries fall to end, tiebroken alphabetically. Sort is derived via `useMemo` and applied only to the avatar row display order — does not affect the main user list.
 
+### Reports & Insights (reports-screen.tsx)
+
+**Sections** (uses recharts library):
+1. **Stat line**: Compact plain text below the "Insights" heading — "{N} collected · {N} on wantlist". DM Sans 13px, font-weight 500, var(--c-text-muted). No card, no border.
+2. **Collection Value**: Hero median value in green, min/max range.
+3. **Condition**: Standalone card with color-coded horizontal bar chart per condition grade and "X% of your collection is NM or better" green pill callout. Uses conditionGradeColor spectrum. Not part of the Breakdown card.
+4. **Breakdown**: Tabbed card with three tabs:
+   - *By Folder*: Two-column ranked list (folder name + count, divider rows, no bars, no cap — all folders shown)
+   - *By Decade*: recharts BarChart. Filters albums with year < 1900. Peak decade bar rendered in #EBFD00. Yellow pill callout below: "{decade} is your most collected decade" with faint yellow background (rgba(235,253,0,0.08)), border (rgba(235,253,0,0.2)). Hidden if fewer than 3 distinct decades.
+   - *By Format*: 2×2 stat grid of format types (LP, 12", 7", Box Set etc.). Format strings are normalized: split on comma and semicolon, strip "Vinyl", "Album", "All Media", "Reissue", "Compilation", "Stereo", "Mono", "Promo", "Limited Edition", "Deluxe Edition", "Remaster", "Special Edition", "Club Edition", "Transcription", "Unofficial Release", "White Label", "Record Store Day".
+5. **Top Artists**: Ranked list (#1–#10). Filters to artists with 2+ albums. Hidden if fewer than 3 qualify. Excludes "Various", "Various Artists", "Unknown Artist", "Unknown". #1 rank in #EBFD00, #2–3 in var(--c-text-muted), #4+ in var(--c-text-faint). Disambig suffixes (e.g. " (2)") stripped before grouping.
+6. **Top Labels**: Lollipop chart (thin stem + dot). Filters to labels with 2+ albums, cap 10. Hidden if fewer than 3 qualify. Dot color: CHART_BLUE (#0DB1F2).
+7. **Listening Activity**: Stats grid (played this month in green Keep styling, days since last played, no plays recorded count), "No Spins on File" neglected album list, "Recently Played" list (max 5, hidden entirely if no plays logged).
+8. **Purge Progress**: Donut ring, 2×2 stat grid (Keep/Cut/Maybe/Unrated).
+
+**Minimum data thresholds** (sections render null if not met — no empty states):
+- Top Artists: 3+ artists with 2+ albums
+- Top Labels: 3+ labels with 2+ albums
+- By Decade golden era callout: 3+ distinct decades
+- By Format tab: 2+ distinct format types
+
 ---
 
 ## Navigation Structure

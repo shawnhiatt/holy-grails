@@ -4,6 +4,35 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.5.2 — 2026-03-28
+
+### Insights screen overhaul
+
+#### Fixes
+- Removed duplicate "By Condition" tab from Breakdown card — standalone Condition card with color-coded bars and NM% callout is the sole condition visualization
+- Added compact stat line below Insights heading: "{N} collected · {N} on wantlist" (plain text, no card)
+- Fixed "no play recorded" → "no plays recorded" everywhere in the Listening section
+- Fixed days-since-last-played calculation: now normalizes to start-of-day before diffing, so a play yesterday correctly returns 1 instead of 0
+- Renamed label to "days since last played"
+
+#### New sections
+- **Top Artists**: Ranked list (#1–10), artists with 2+ albums only, minimum 3 to display. Filters generic entries (Various, Unknown). #1 highlighted in yellow.
+- **Top Labels**: Lollipop chart, labels with 2+ albums, cap 10, minimum 3 to display
+- **By Format tab**: Added to Breakdown card (replaces removed By Condition tab). Normalized format string parsing. Rendered as 2×2 stat grid.
+
+#### Visualization improvements
+- By Folder tab: replaced horizontal bars with two-column ranked list, no row cap, handles long folder names
+- By Decade tab: filters invalid years (< 1900), all labels now render, peak decade bar in #EBFD00, "Most collected decade" yellow pill callout
+- Top Artists changed from bar chart to editorial ranking list
+- Top Labels changed from bar chart to lollipop (thin stem + dot) chart
+
+#### Listening section
+- Removed "It's been a while" suggestion card
+- Added Recently Played list (max 5, hidden if no plays logged), styled identically to No Spins on File
+- "Played this month" stat cell now uses green Keep purge tag styling
+
+---
+
 ## 0.5.1
 
 ### Added

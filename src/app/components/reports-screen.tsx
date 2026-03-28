@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Play } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
@@ -266,7 +265,7 @@ function ConditionSection({ albums }: { albums: Album[] }) {
 
 /* ─────────────────── SECTION 3: Collection Breakdown ─────────────────── */
 
-type BreakdownTab = "folder" | "decade" | "condition";
+type BreakdownTab = "folder" | "decade" | "format";
 
 function CollectionBreakdownSection({ albums }: { albums: Album[] }) {
   const { isDarkMode } = useApp();
@@ -275,7 +274,7 @@ function CollectionBreakdownSection({ albums }: { albums: Album[] }) {
   const tabs: { id: BreakdownTab; label: string }[] = [
     { id: "folder", label: "By Folder" },
     { id: "decade", label: "By Decade" },
-    { id: "condition", label: "By Condition" },
+    { id: "format", label: "By Format" },
   ];
 
   return (
@@ -314,7 +313,7 @@ function CollectionBreakdownSection({ albums }: { albums: Album[] }) {
 
       {tab === "folder" && <ByFolderChart albums={albums} isDark={isDarkMode} />}
       {tab === "decade" && <ByDecadeChart albums={albums} isDark={isDarkMode} />}
-      {tab === "condition" && <ByConditionChart albums={albums} isDark={isDarkMode} />}
+      {tab === "format" && <ByFormatChart albums={albums} isDark={isDarkMode} />}
     </div>
   );
 }
@@ -330,37 +329,31 @@ function ByFolderChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
       .map(([folder, count]) => ({ folder, count }));
   }, [albums]);
 
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-
   return (
-    <div className="flex flex-col gap-2.5">
-      {data.map((d) => (
-        <div key={d.folder} className="flex items-center gap-3">
+    <div className="flex flex-col">
+      {data.map((d, i) => (
+        <div
+          key={d.folder}
+          className="flex items-center justify-between py-2.5"
+          style={i < data.length - 1 ? { borderBottom: "1px solid var(--c-border)" } : undefined}
+        >
           <span
-            className="shrink-0 text-right"
             style={{
-              width: 110,
-              fontSize: "12px",
+              fontSize: "13px",
               fontWeight: 500,
-              color: "var(--c-text-secondary)",
+              color: "var(--c-text)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
             }}
           >
             {d.folder}
           </span>
-          <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: "var(--c-input-bg)" }}>
-            <div
-              className="h-full rounded-[4px] transition-all"
-              style={{
-                width: `${(d.count / maxCount) * 100}%`,
-                backgroundColor: CHART_BLUE,
-                minWidth: 4,
-              }}
-            />
-          </div>
           <span
-            className="shrink-0"
-            style={{ width: 28, fontSize: "12px", fontWeight: 600, color: "var(--c-text)", textAlign: "right" }}
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: "var(--c-text)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+            }}
           >
             {d.count}
           </span>
@@ -374,6 +367,7 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
   const data = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of albums) {
+      if (!a.year || a.year < 1900) continue;
       const decade = getDecade(a.year);
       map.set(decade, (map.get(decade) || 0) + 1);
     }
@@ -384,80 +378,292 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
 
   const maxCount = Math.max(...data.map((d) => d.count), 1);
 
+  const goldenEra = useMemo(() => {
+    if (data.length < 3) return null;
+    let peak = data[0];
+    for (const d of data) {
+      if (d.count > peak.count) peak = d;
+    }
+    return peak.decade;
+  }, [data]);
+
   return (
-    <div style={{ height: 180 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
-          <XAxis
-            dataKey="decade"
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
-            allowDecimals={false}
-          />
-          <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} albums`} />} />
-          <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36}>
-            {data.map((entry, i) => (
-              <Cell key={i} fill={CHART_BLUE} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div>
+      <div style={{ height: 180 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
+            <XAxis
+              dataKey="decade"
+              tickLine={false}
+              axisLine={false}
+              interval={0}
+              tick={{ fontSize: 10, fill: "var(--c-text-faint)" }}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
+              allowDecimals={false}
+            />
+            <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} albums`} />} />
+            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36}>
+              {data.map((entry, i) => (
+                <Cell key={i} fill={goldenEra && entry.decade === goldenEra ? "#EBFD00" : CHART_BLUE} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {goldenEra && (
+        <div
+          className="mt-3 rounded-[10px] px-4 py-3 flex items-center gap-3"
+          style={{
+            backgroundColor: "rgba(235, 253, 0, 0.08)",
+            border: "1px solid rgba(235, 253, 0, 0.2)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "28px",
+              fontWeight: 700,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              color: "#EBFD00",
+              letterSpacing: "-1px",
+              lineHeight: 1,
+            }}
+          >
+            {goldenEra}
+          </span>
+          <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.4, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            is your most collected decade
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
-function ByConditionChart({ albums, isDark }: { albums: Album[]; isDark: boolean }) {
+/* ─────────────────── SECTION: Artists ─────────────────── */
+
+function ArtistsSection({ albums }: { albums: Album[] }) {
+  const data = useMemo(() => {
+    const exclude = new Set(["various", "various artists", "unknown artist", "unknown"]);
+    const map = new Map<string, number>();
+    for (const a of albums) {
+      const name = a.artist.replace(/\s*\(\d+\)$/, "");
+      if (exclude.has(name.trim().toLowerCase())) continue;
+      map.set(name, (map.get(name) || 0) + 1);
+    }
+    return [...map.entries()]
+      .filter(([, count]) => count >= 2)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([artist, count]) => ({ artist, count }));
+  }, [albums]);
+
+  if (data.length < 3) return null;
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Top Artists</p>
+      <div className="flex flex-col mt-4">
+        {data.map((d, i) => {
+          const rankColor = i === 0 ? "#EBFD00" : i < 3 ? "var(--c-text-muted)" : "var(--c-text-faint)";
+          return (
+            <div
+              key={d.artist}
+              className="flex items-center py-2.5"
+              style={i < data.length - 1 ? { borderBottom: "1px solid var(--c-border)" } : undefined}
+            >
+              <span
+                className="shrink-0"
+                style={{
+                  width: 28,
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  color: rankColor,
+                  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                }}
+              >
+                #{i + 1}
+              </span>
+              <span
+                className="flex-1 mx-3"
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--c-text)",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  display: "block",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  WebkitTextOverflow: "ellipsis",
+                } as React.CSSProperties}
+              >
+                {d.artist}
+              </span>
+              <span
+                className="shrink-0"
+                style={{ width: 28, fontSize: "13px", fontWeight: 700, color: "var(--c-text-muted)", textAlign: "right", fontFamily: "'DM Sans', system-ui, sans-serif" }}
+              >
+                {d.count}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+        Artists with 2+ records
+      </p>
+    </div>
+  );
+}
+
+/* ─────────────────── SECTION: Labels ─────────────────── */
+
+function LabelsSection({ albums }: { albums: Album[] }) {
   const data = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of albums) {
-      const label = normalizeConditionLabel(a.mediaCondition);
-      map.set(label, (map.get(label) || 0) + 1);
+      if (a.label) map.set(a.label, (map.get(a.label) || 0) + 1);
     }
-    return CONDITION_ORDER
-      .filter((c) => map.has(c))
-      .map((c) => ({ condition: c, count: map.get(c)! }));
+    return [...map.entries()]
+      .filter(([, count]) => count >= 2)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([label, count]) => ({ label, count }));
   }, [albums]);
+
+  if (data.length < 3) return null;
 
   const maxCount = Math.max(...data.map((d) => d.count), 1);
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Top Labels</p>
+      <div className="flex flex-col gap-2.5 mt-4">
+        {data.map((d) => (
+          <div key={d.label} className="flex items-center gap-3" style={{ height: 32 }}>
+            <span
+              className="shrink-0 text-right"
+              style={{
+                width: 140,
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--c-text-secondary)",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                WebkitTextOverflow: "ellipsis",
+              } as React.CSSProperties}
+            >
+              {d.label}
+            </span>
+            <div className="flex-1 relative flex items-center">
+              <div
+                className="absolute"
+                style={{
+                  left: 0,
+                  width: `calc(${(d.count / maxCount) * 100}% - 3px)`,
+                  height: 3,
+                  backgroundColor: "var(--c-border-strong)",
+                  borderRadius: 2,
+                  minWidth: 4,
+                }}
+              />
+              <div
+                className="absolute"
+                style={{
+                  left: `calc(${(d.count / maxCount) * 100}% - 3px)`,
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor: CHART_BLUE,
+                  transform: "translateX(-50%)",
+                }}
+              />
+            </div>
+            <span
+              className="shrink-0"
+              style={{ width: 28, fontSize: "12px", fontWeight: 600, color: "var(--c-text)", textAlign: "right" }}
+            >
+              {d.count}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+        Labels with 2+ records
+      </p>
+    </div>
+  );
+}
+
+function ByFormatChart({ albums, isDark }: { albums: Album[]; isDark: boolean }) {
+  const strip = new Set(["Vinyl", "Album", "All Media", "Record Store Day", "Reissue", "Compilation", "Stereo", "Mono", "Promo", "Limited Edition", "Deluxe Edition", "Remaster", "Special Edition", "Club Edition", "Transcription", "Unofficial Release", "White Label"]);
+
+  const data = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of albums) {
+      if (!a.format) continue;
+      const tokens = a.format.split(/[,;]/).map((t) => t.trim()).filter((t) => t && !strip.has(t));
+      const key = tokens.length > 0 ? tokens[0] : "Vinyl";
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return [...map.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 8)
+      .map(([format, count]) => ({ format, count }));
+  }, [albums]);
+
+  return (
+    <div className={data.length <= 3 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
       {data.map((d) => (
-        <div key={d.condition} className="flex items-center gap-3">
-          <span
-            className="shrink-0 text-right"
+        <div
+          key={d.format}
+          className="rounded-[10px] py-3 px-3 text-center"
+          style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
+        >
+          <div
             style={{
-              width: 36,
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "var(--c-text-secondary)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: "28px",
+              fontWeight: 700,
+              color: "var(--c-text)",
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              letterSpacing: "-0.5px",
+              lineHeight: 1,
             }}
           >
-            {d.condition}
-          </span>
-          <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: "var(--c-input-bg)" }}>
-            <div
-              className="h-full rounded-[4px] transition-all"
-              style={{
-                width: `${(d.count / maxCount) * 100}%`,
-                backgroundColor: CHART_BLUE,
-                minWidth: 4,
-              }}
-            />
-          </div>
-          <span
-            className="shrink-0"
-            style={{ width: 28, fontSize: "12px", fontWeight: 600, color: "var(--c-text)", textAlign: "right" }}
-          >
             {d.count}
-          </span>
+          </div>
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 500,
+              color: "var(--c-text-muted)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              marginTop: 2,
+            }}
+          >
+            {d.format}
+          </div>
         </div>
       ))}
     </div>
@@ -508,7 +714,7 @@ function ListeningActivitySection({
         break;
       }
     }
-    const lastDaysAgo = Math.floor((Date.now() - dates[0]) / dayMs);
+    const lastDaysAgo = Math.floor((today - Math.floor(dates[0] / dayMs) * dayMs) / dayMs);
     return { streak, lastDaysAgo };
   }, [lastPlayed]);
 
@@ -525,22 +731,18 @@ function ListeningActivitySection({
         album: a,
         sortKey: lp ? new Date(lp).getTime() : new Date(a.dateAdded).getTime(),
         neverPlayed: !lp,
-        label: lp ? `Last played ${formatDateShort(lp)}` : `Added ${formatDateShort(a.dateAdded)}, no play recorded`,
+        label: lp ? `Last played ${formatDateShort(lp)}` : `Added ${formatDateShort(a.dateAdded)}, no plays recorded`,
       };
     }).sort((a, b) => a.sortKey - b.sortKey);
     return candidates.slice(0, 4);
   }, [albums, lastPlayed]);
 
-  // Suggestion: album added longest ago that was never played, or played once over a year ago
-  const suggestion = useMemo(() => {
-    const candidates = albums
-      .filter((a) => {
-        const lp = lastPlayed[a.id];
-        if (!lp) return true;
-        return Date.now() - new Date(lp).getTime() > 365 * 86400000;
-      })
-      .sort((a, b) => new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime());
-    return candidates[0] || null;
+  // Recently played
+  const recentlyPlayed = useMemo(() => {
+    return albums
+      .filter((a) => !!lastPlayed[a.id])
+      .sort((a, b) => new Date(lastPlayed[b.id]).getTime() - new Date(lastPlayed[a.id]).getTime())
+      .slice(0, 5);
   }, [albums, lastPlayed]);
 
   const monthName = new Date().toLocaleDateString("en-US", { month: "long" });
@@ -564,8 +766,8 @@ function ListeningActivitySection({
         <div
           className="rounded-[10px] py-3 px-3 text-center"
           style={{
-            backgroundColor: isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)",
-            border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.35)"}`,
+            backgroundColor: purgeTagBg("keep", isDarkMode),
+            border: `1px solid ${purgeTagBorder("keep", isDarkMode)}`,
           }}
         >
           <span
@@ -573,7 +775,7 @@ function ListeningActivitySection({
               fontSize: "28px",
               fontWeight: 700,
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: isDarkMode ? "#ACDEF2" : "#00527A",
+              color: purgeTagColor("keep", isDarkMode),
               lineHeight: 1.1,
             }}
           >
@@ -604,7 +806,7 @@ function ListeningActivitySection({
             {lastListenedInfo.streak > 1 ? lastListenedInfo.streak : lastListenedInfo.lastDaysAgo === null ? "—" : lastListenedInfo.lastDaysAgo}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            {lastListenedInfo.streak > 1 ? "day streak" : lastListenedInfo.lastDaysAgo === null ? "no plays yet" : "days since last"}
+            {lastListenedInfo.streak > 1 ? "day streak" : lastListenedInfo.lastDaysAgo === null ? "no plays yet" : "days since last played"}
           </p>
         </div>
 
@@ -629,7 +831,7 @@ function ListeningActivitySection({
             {neverPlayedCount}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            no play recorded
+            no plays recorded
           </p>
         </button>
       </div>
@@ -675,41 +877,45 @@ function ListeningActivitySection({
         </div>
       </div>
 
-      {/* Suggestion card */}
-      {suggestion && (
-        <div
-          className="mt-5 rounded-[10px] p-4 flex gap-4 items-center"
-          style={{
-            backgroundColor: isDarkMode ? "rgba(172,222,242,0.06)" : "rgba(172,222,242,0.15)",
-            border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
-          }}
-        >
-          <div className="w-24 h-24 rounded-[8px] overflow-hidden flex-shrink-0">
-            <img src={suggestion.cover} alt="" className="w-full h-full object-cover" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontStyle: "italic" }}>
-              It's been a while — give {suggestion.title} another spin?
-            </p>
-            <p className="mt-1" style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-              {suggestion.title}
-            </p>
-            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-              {suggestion.artist}
-            </p>
-            <button
-              onClick={(e) => { e.stopPropagation(); markPlayed(suggestion.id); toast.info("Logged.", { duration: 1500 }); }}
-              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors"
-              style={{
-                fontSize: "12px",
-                fontWeight: 600,
-                backgroundColor: isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.4)",
-                color: isDarkMode ? "#ACDEF2" : "#00527A",
-              }}
-            >
-              <Play size={12} />
-              Played Today
-            </button>
+      {/* Recently Played */}
+      {recentlyPlayed.length > 0 && (
+        <div className="mt-4">
+          <p
+            className="mb-2"
+            style={{
+              fontSize: "11px",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              color: "var(--c-text-faint)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+            }}
+          >
+            Recently Played
+          </p>
+          <div className="flex flex-col gap-2">
+            {recentlyPlayed.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => onAlbumTap(a.id)}
+                className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
+                style={{
+                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                }}
+              >
+                <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
+                  <img src={a.thumb || a.cover} alt="" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                    {a.artist} — {a.title}
+                  </p>
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                    Played {formatDateShort(lastPlayed[a.id])}
+                  </p>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -849,7 +1055,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 /* ═══════════════════ MAIN REPORTS SCREEN ═══════════════════ */
 
 export function ReportsScreen() {
-  const { albums, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
+  const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
   const triggerHaptic = useHaptic('medium');
 
   return (
@@ -858,19 +1064,32 @@ export function ReportsScreen() {
       <div
         className="flex-shrink-0 flex items-center px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]"
       >
-        <h2
-          className="screen-title"
-          style={{
-            fontSize: "28px",
-            fontWeight: 600,
-            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-            letterSpacing: "-0.5px",
-            lineHeight: 1.25,
-            color: "var(--c-text)",
-          }}
-        >
-          Insights
-        </h2>
+        <div className="flex flex-col">
+          <h2
+            className="screen-title"
+            style={{
+              fontSize: "28px",
+              fontWeight: 600,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              letterSpacing: "-0.5px",
+              lineHeight: 1.25,
+              color: "var(--c-text)",
+            }}
+          >
+            Insights
+          </h2>
+          <p
+            className="mt-1"
+            style={{
+              fontSize: "13px",
+              fontWeight: 500,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              color: "var(--c-text-muted)",
+            }}
+          >
+            {albums.length} collected · {wants.length} on wantlist
+          </p>
+        </div>
       </div>
 
       {/* No Discogs connected */}
@@ -897,6 +1116,16 @@ export function ReportsScreen() {
           {/* Breakdown — full width */}
           <div className="lg:col-span-2">
             <CollectionBreakdownSection albums={albums} />
+          </div>
+
+          {/* Artists */}
+          <div className="lg:col-span-2">
+            <ArtistsSection albums={albums} />
+          </div>
+
+          {/* Labels */}
+          <div className="lg:col-span-2">
+            <LabelsSection albums={albums} />
           </div>
 
           {/* Section 5: Listening Activity */}
