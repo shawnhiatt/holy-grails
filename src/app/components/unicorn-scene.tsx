@@ -303,6 +303,7 @@ export function UnicornScene({ className }: UnicornSceneProps) {
         zIndex: 0,
         opacity: loaded ? 1 : 0,
         transition: "opacity 0.6s ease-out",
+        bottom: "calc(-1 * env(safe-area-inset-bottom, 0px))",
       }}
     >
       <div

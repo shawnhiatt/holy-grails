@@ -32,7 +32,7 @@ export function SplashScreen({
 
   return (
     <div
-      className="flex flex-col overflow-hidden"
+      className="flex flex-col"
       style={{
         position: "fixed",
         inset: 0,
@@ -42,7 +42,7 @@ export function SplashScreen({
       }}
     >
       {/* Fullscreen WebGL scene background */}
-      <UnicornScene className="absolute inset-0 w-full h-full" />
+      <UnicornScene className="absolute inset-x-0 top-0 w-full" />
 
       {/* Logo + button group — centered vertically within a min-height container
           so the button sits close to the wordmark and doesn't float to the
