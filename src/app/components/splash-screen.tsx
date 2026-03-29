@@ -34,7 +34,8 @@ export function SplashScreen({
     <div
       className="flex flex-col overflow-hidden"
       style={{
-        position: "fixed",
+        position: "absolute",
+        height: "calc(100dvh + 200px)",
         inset: 0,
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: "#0C1A2E",
@@ -49,7 +50,7 @@ export function SplashScreen({
           bottom of the viewport on tall screens */}
       <div
         className="flex-1 flex flex-col items-center justify-center px-6"
-        style={{ position: "relative", zIndex: 1 }}
+        style={{ position: "relative", zIndex: 1, top: -100 }}
       >
         <div
           className="flex flex-col items-center w-full max-w-[400px]"
