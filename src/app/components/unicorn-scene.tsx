@@ -199,6 +199,14 @@ export function UnicornScene({ className }: UnicornSceneProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const sceneRef = useRef<UnicornScene | null>(null);
+  const [bottomExtension] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    // Only extend in iOS standalone PWA mode.
+    // screen.height - window.innerHeight gives the exact pixel gap between
+    // the layout viewport and the physical screen bottom.
+    if (!(navigator as any).standalone) return 0;
+    return Math.max(0, window.screen.height - window.innerHeight);
+  });
 
   // Debug overlay state — only active when localStorage flag is set
   const [debugEnabled] = useState<boolean>(() => {
@@ -303,7 +311,7 @@ export function UnicornScene({ className }: UnicornSceneProps) {
         zIndex: 0,
         opacity: loaded ? 1 : 0,
         transition: "opacity 0.6s ease-out",
-        bottom: "calc(-1 * env(safe-area-inset-bottom, 0px))",
+        bottom: bottomExtension > 0 ? `-${bottomExtension}px` : "calc(-1 * env(safe-area-inset-bottom, 0px))",
       }}
     >
       <div
