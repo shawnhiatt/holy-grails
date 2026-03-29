@@ -31,7 +31,7 @@ const FORMAT_CATEGORIES: FormatCategory[] = [
   { patterns: ["etched"], header: "Etched Vinyl", badge: "Etched" },
   { patterns: ["flexi-disc", "flexi disc", "flexidisc"], header: "Flexi-Discs", badge: "Flexi-Disc" },
   // Obscure speed / format
-  { patterns: ["45 rpm"], header: "Your 45s", badge: "45 RPM" },
+  { patterns: ["45 rpm"], header: "Your 45 RPMs", badge: "45 RPM" },
   { patterns: ["78 rpm"], header: "Your 78s", badge: "78 RPM" },
   { patterns: ["mono"], header: "Mono Pressings", badge: "Mono" },
   { patterns: ["quadraphonic"], header: "Quadraphonic Records", badge: "Quadraphonic" },
