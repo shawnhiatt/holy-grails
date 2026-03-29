@@ -77,7 +77,8 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
     <div
       className="flex flex-col items-center justify-center overflow-hidden"
       style={{
-        position: "fixed",
+        position: "absolute",
+        height: "calc(100dvh + 200px)",
         inset: 0,
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: "#0C1A2E",
@@ -89,7 +90,7 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
 
       <div
         className="flex flex-col items-center gap-3"
-        style={{ position: "relative", zIndex: 1 }}
+        style={{ position: "relative", zIndex: 1, top: -100 }}
       >
         {showOfflineMessage ? (
           /* Offline fallback — shown after 5s with no connection */
