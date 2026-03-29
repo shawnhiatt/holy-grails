@@ -6,6 +6,9 @@ import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { isScrollingRecently } from "../lib/scroll-state";
 import { useHaptic } from "@/hooks/useHaptic";
 
+const hasYear = (year: number | null | undefined): year is number =>
+  year != null && year !== 0;
+
 /* ─── Section Divider Logic ─── */
 
 export const DIVIDER_SORT_OPTS = new Set([
@@ -225,6 +228,7 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                       fontWeight: 400,
                       fontFamily: "'DM Sans', system-ui, sans-serif",
                       color: "var(--c-text-muted)",
+                      visibility: hasYear(album.year) ? "visible" : "hidden",
                     }}
                   >
                     {album.year}

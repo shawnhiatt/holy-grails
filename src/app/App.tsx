@@ -60,7 +60,7 @@ function AppContent() {
     connectDiscogsRequested, clearConnectDiscogsRequest,
     sessionPickerAlbumId,
     isAuthenticated, isAuthLoading, isSyncing, isSyncingFollowing, syncProgress, loginWithOAuth,
-    shakeToRandom,
+    shakeToRandom, setShakeToRandom,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [splashDismissed, setSplashDismissed] = useState(false);
@@ -79,6 +79,34 @@ function AppContent() {
   // Guards against the ~1ms window where isAuthLoading and isSyncing are both
   // false before the actual sync has started. Prevents premature 'complete'.
   const hasSeenSyncingRef = useRef(false);
+  // Guards the iOS motion permission check so it only fires once per session.
+  const hasDonePermissionCheckRef = useRef(false);
+
+  // On boot, silently verify iOS motion permission is still valid when the
+  // shake preference is enabled. iOS can revoke DeviceMotion permission after
+  // clearing browsing data or reinstalling the PWA. If revoked, reset the
+  // preference and show a toast so the user knows to re-enable it.
+  useEffect(() => {
+    if (hasDonePermissionCheckRef.current) return;
+    if (!shakeToRandom) return;
+    if (typeof DeviceMotionEvent === 'undefined') return;
+    if (typeof (DeviceMotionEvent as any).requestPermission !== 'function') return;
+
+    hasDonePermissionCheckRef.current = true;
+
+    (async () => {
+      try {
+        const result = await (DeviceMotionEvent as any).requestPermission();
+        if (result !== 'granted') {
+          setShakeToRandom(false);
+          toast("Shake permission was reset by iOS. Re-enable in Settings to reactivate.", { duration: 5000 });
+        }
+      } catch {
+        setShakeToRandom(false);
+        toast("Shake permission was reset by iOS. Re-enable in Settings to reactivate.", { duration: 5000 });
+      }
+    })();
+  }, [shakeToRandom, setShakeToRandom]);
 
   // Enter 'syncing' once isAuthLoading becomes true (returning user session start)
   useEffect(() => {

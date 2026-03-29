@@ -20,6 +20,9 @@ import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { isScrollingRecently } from "../lib/scroll-state";
 
+const hasYear = (year: number | null | undefined): year is number =>
+  year != null && year !== 0;
+
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
 type FollowingTab = "collection" | "wants";
 
@@ -903,6 +906,7 @@ function FollowedUserCrateView({ items, onOpenAlbum }: { items: (Album | WantIte
                           fontFamily: "'DM Sans', system-ui, sans-serif",
                           color: "rgba(255,255,255,0.65)",
                           flexShrink: 0,
+                          visibility: hasYear(item.year) ? "visible" : "hidden",
                         }}
                       >
                         {item.year}
@@ -1047,7 +1051,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
             <div className="px-2.5 pt-2 pb-2.5" style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: "13px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: "1.25", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
               <p className="mt-[1px]" style={{ fontSize: "12px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-secondary)", lineHeight: "1.3", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist}</p>
-              <span style={{ fontSize: "11px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-muted)" }}>{item.year}</span>
+              <span style={{ fontSize: "11px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-muted)", visibility: hasYear(item.year) ? "visible" : "hidden" }}>{item.year}</span>
             </div>
           </div>
         );
@@ -1073,7 +1077,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds,
             <img src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
             <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
-              <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist} &middot; {item.year}</p>
+              <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist}{hasYear(item.year) ? ` \u00B7 ${item.year}` : ""}</p>
             </div>
             {badge && (
               <span className="px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: badge.color + "20", fontSize: "11px", fontWeight: 600, color: badge.color }}>

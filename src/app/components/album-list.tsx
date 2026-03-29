@@ -8,6 +8,9 @@ import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { isScrollingRecently } from "../lib/scroll-state";
 import { useHaptic } from "@/hooks/useHaptic";
 
+const hasYear = (year: number | null | undefined): year is number =>
+  year != null && year !== 0;
+
 type ListRenderItem =
   | { kind: "divider"; label: string; firstAlbumIndex: number; isFirst: boolean }
   | { kind: "album"; album: Album };
@@ -129,7 +132,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
-                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist} · {album.year}</p>
+                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}{hasYear(album.year) ? ` · ${album.year}` : ""}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <div className="flex items-center gap-2">

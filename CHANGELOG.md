@@ -31,6 +31,15 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 - Added Recently Played list (max 5, hidden if no plays logged), styled identically to No Spins on File
 - "Played this month" stat cell now uses green Keep purge tag styling
 
+### Fixed (QA pass)
+
+- **Shake permission reset** — On app boot, if Shake for Random is enabled, `App.tsx` silently checks whether iOS motion permission is still valid via `DeviceMotionEvent.requestPermission()`. If permission has been revoked (e.g. after PWA reinstall or clearing browsing data), the toggle is reset to `false` in Convex and a toast is shown: "Shake permission was reset by iOS. Re-enable in Settings to reactivate." Check runs once per session, iOS only.
+- **Year = 0 suppression** — Discogs returns `0` for year when a pressing has no release date. Year is now suppressed app-wide (detail panels, list rows, grid cards, swiper cards, feed cards, following cards) when the value is `0`, `null`, or `undefined`. A `hasYear` guard is defined locally in each affected file. No data layer changes.
+- **Grid card height consistency** — Cards with no year now use `visibility: hidden` on the year element rather than removing it from the DOM, so cards with and without a year remain the same height in grid views. Detail panel `DetailRow` year entries are still fully removed when absent.
+- **No Spins on File daily rotation** — The neglected album list in Insights previously always showed the same albums (oldest added). It now uses a seeded shuffle keyed to the current calendar date (seed: `YYYYMMDD` integer via `mulberry32`), so the same 4 albums appear all day but a new set is shown each day.
+- **Keyboard dismiss on panel open** — `SlideOutPanel` blurs the active element on mount, dismissing the iOS software keyboard whenever any panel opens over an active text input (e.g. collection search). App-wide coverage — no per-handler changes needed.
+- **ReleaseDetailPanel button styles** — "Add to Collection", "Add to Wantlist", and "Remove from Wantlist" buttons in `ReleaseDetailPanel` now use a unified neutral surface style (`var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color). Leading icons removed from all three. `DestructiveButton` gains an optional `variant?: "destructive" | "neutral"` prop (defaults to `"destructive"`); `ReleaseDetailPanel` passes `variant="neutral"`. Other panel uses of `DestructiveButton` are unchanged.
+
 ---
 
 ## 0.5.1

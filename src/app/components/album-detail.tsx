@@ -14,6 +14,9 @@ import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { conditionGradeColor as conditionColor } from "../../lib/condition-colors";
 
+const hasYear = (year: number | null | undefined): year is number =>
+  year != null && year !== 0;
+
 /* Bottom sheet safe area standard:
    - Outer container bottom: 0, paddingBottom: env(safe-area-inset-bottom, 16px)
    - Inner scroll content paddingBottom: calc(env(safe-area-inset-bottom, 0px) + 120px)
@@ -621,7 +624,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           <div className="px-4 pb-4">
             <div className="rounded-[10px] p-3 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
               {/* Static read-only rows */}
-              <DetailRow label="Year" value={String(selectedAlbum.year)} />
+              {hasYear(selectedAlbum.year) && <DetailRow label="Year" value={String(selectedAlbum.year)} />}
               <DetailRow label="Label" value={selectedAlbum.label} />
               <DetailRow label="Catalog #" value={selectedAlbum.catalogNumber} />
               <DetailRow label="Format" value={selectedAlbum.format} />
@@ -930,7 +933,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 <DetailRow label="Format" value={selectedAlbum.format} />
                 <DetailRow label="Label" value={selectedAlbum.label} />
                 <DetailRow label="Catalog #" value={selectedAlbum.catalogNumber} />
-                <DetailRow label="Year" value={String(selectedAlbum.year)} />
+                {hasYear(selectedAlbum.year) && <DetailRow label="Year" value={String(selectedAlbum.year)} />}
                 {releaseData?.country ? (
                   <DetailRow label="Country" value={releaseData.country} />
                 ) : isLoadingRelease ? (
@@ -1559,12 +1562,15 @@ function DestructiveButton({
   confirming,
   loading,
   onClick,
+  variant = "destructive",
 }: {
   label: string;
   confirming: boolean;
   loading: boolean;
   onClick: () => void;
+  variant?: "destructive" | "neutral";
 }) {
+  const isNeutral = variant === "neutral";
   return (
     <button
       onClick={onClick}
@@ -1574,14 +1580,14 @@ function DestructiveButton({
         fontSize: "14px",
         fontWeight: 600,
         fontFamily: "'DM Sans', system-ui, sans-serif",
-        border: "1px solid #FF2D78",
-        backgroundColor: confirming ? "#FF2D78" : "transparent",
-        color: "#FFFFFF",
+        border: isNeutral ? "1px solid var(--c-border-strong)" : "1px solid #FF2D78",
+        backgroundColor: isNeutral ? "var(--c-surface)" : confirming ? "#FF2D78" : "transparent",
+        color: isNeutral ? "var(--c-text)" : "#FFFFFF",
         minHeight: 45,
       }}
     >
       {loading ? (
-        <Disc3 size={15} className="disc-spinner" />
+        <Disc3 size={15} className="disc-spinner" style={isNeutral ? { color: "var(--c-text-muted)" } : undefined} />
       ) : (
         label
       )}
@@ -2032,7 +2038,7 @@ function WantItemDetailPanel({
         {/* Detail rows */}
         <div className="px-4 pb-4">
           <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
-            <DetailRow label="Year" value={String(item.year)} />
+            {hasYear(item.year) && <DetailRow label="Year" value={String(item.year)} />}
             <DetailRow label="Label" value={item.label} />
           </div>
         </div>
@@ -2612,8 +2618,9 @@ function ReleaseDetailPanel({
                 fontSize: "14px",
                 fontWeight: 600,
                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                backgroundColor: "#EBFD00",
-                color: "#0C284A",
+                backgroundColor: "var(--c-surface)",
+                border: "1px solid var(--c-border-strong)",
+                color: "var(--c-text)",
                 opacity: isAddingToCollection ? 0.7 : 1,
               }}
             >
@@ -2623,10 +2630,7 @@ function ReleaseDetailPanel({
                   Adding...
                 </>
               ) : (
-                <>
-                  <Plus size={16} />
-                  Add to Collection
-                </>
+                "Add to Collection"
               )}
             </button>
           )}
@@ -2637,6 +2641,7 @@ function ReleaseDetailPanel({
               label={confirmRemoveWant ? "Confirm Remove" : "Remove from Wantlist"}
               confirming={confirmRemoveWant}
               loading={isRemovingWant}
+              variant="neutral"
               onClick={() => {
                 if (!confirmRemoveWant) setConfirmRemoveWant(true);
                 else handleRemoveFromWantlist();
@@ -2651,9 +2656,9 @@ function ReleaseDetailPanel({
                 fontSize: "14px",
                 fontWeight: 600,
                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                backgroundColor: "var(--c-chip-bg)",
-                color: "var(--c-text-secondary)",
-                border: "1px solid var(--c-border)",
+                backgroundColor: "var(--c-surface)",
+                border: "1px solid var(--c-border-strong)",
+                color: "var(--c-text)",
                 opacity: isAddingToWantlist ? 0.7 : 1,
               }}
             >
@@ -2663,10 +2668,7 @@ function ReleaseDetailPanel({
                   Adding...
                 </>
               ) : (
-                <>
-                  <Heart size={16} />
-                  Add to Wantlist
-                </>
+                "Add to Wantlist"
               )}
             </button>
           )}
@@ -2675,7 +2677,7 @@ function ReleaseDetailPanel({
         {/* ═══ Detail rows ═══ */}
         <div className="px-4 pb-4">
           <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
-            <DetailRow label="Year" value={String(album.year)} />
+            {hasYear(album.year) && <DetailRow label="Year" value={String(album.year)} />}
             <DetailRow label="Label" value={album.label} />
           </div>
         </div>

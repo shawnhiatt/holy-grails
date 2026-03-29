@@ -7,6 +7,9 @@ import { lastPlayedLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { useHaptic } from "@/hooks/useHaptic";
 
+const hasYear = (year: number | null | undefined): year is number =>
+  year != null && year !== 0;
+
 interface CrateFlipProps {
   albums: Album[];
   lightboxActive: boolean;
@@ -241,6 +244,7 @@ export function CrateFlip({ albums, lightboxActive, onLightboxActivate, onLightb
                           fontFamily: "'DM Sans', system-ui, sans-serif",
                           color: "rgba(255,255,255,0.65)",
                           flexShrink: 0,
+                          visibility: hasYear(album.year) ? "visible" : "hidden",
                         }}
                       >
                         {album.year}

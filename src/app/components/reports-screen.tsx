@@ -13,6 +13,31 @@ import { toast } from "sonner";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { useHaptic } from "@/hooks/useHaptic";
 
+/* ─── Daily rotation utilities ─── */
+function mulberry32(seed: number) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function seededShuffle<T>(array: T[], seed: number): T[] {
+  const arr = [...array];
+  const rand = mulberry32(seed);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function getDailySeed(): number {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
 /* ─── Track which screen opened Reports ─── */
 let _entryScreen: Screen = "settings";
 export function setReportEntryScreen(s: Screen) {
@@ -723,18 +748,14 @@ function ListeningActivitySection({
     return albums.filter((a) => !lastPlayed[a.id]).length;
   }, [albums, lastPlayed]);
 
-  // Longest neglected (oldest last played or added long ago, never played)
+  // Daily rotation of never-played albums
   const neglected = useMemo(() => {
-    const candidates = albums.map((a) => {
-      const lp = lastPlayed[a.id];
-      return {
-        album: a,
-        sortKey: lp ? new Date(lp).getTime() : new Date(a.dateAdded).getTime(),
-        neverPlayed: !lp,
-        label: lp ? `Last played ${formatDateShort(lp)}` : `Added ${formatDateShort(a.dateAdded)}, no plays recorded`,
-      };
-    }).sort((a, b) => a.sortKey - b.sortKey);
-    return candidates.slice(0, 4);
+    const pool = albums.filter((a) => !lastPlayed[a.id]);
+    return seededShuffle(pool, getDailySeed()).slice(0, 4).map((album) => ({
+      album,
+      neverPlayed: true,
+      label: `Added ${formatDateShort(album.dateAdded)}, no plays recorded`,
+    }));
   }, [albums, lastPlayed]);
 
   // Recently played

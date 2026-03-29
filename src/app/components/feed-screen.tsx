@@ -27,6 +27,9 @@ import { formatActivityDate, getInitial } from "../utils/format";
 import { FormatSpotlight } from "./format-spotlight";
 import { DominantColorCard } from "./dominant-color-card";
 
+const hasYear = (year: number | null | undefined): year is number =>
+  year != null && year !== 0;
+
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
@@ -56,7 +59,7 @@ const welcomeGreetings: Record<string, string[]> = {
   afternoon: [
     "Howdy, [username].",
     "Sup, [username]?",
-    "Hope ya doin', [username]?",
+    "How ya doin', [username]?",
   ],
   evening: [
     "Winding down, [username]?",
@@ -680,6 +683,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             {album.artist}
           </p>
           <div className="flex items-center gap-1.5 mt-[3px]" style={{ minWidth: 0, overflow: "hidden" }}>
+            {hasYear(album.year) && (
             <span
               style={{
                 fontSize: "11px",
@@ -691,6 +695,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             >
               {album.year}
             </span>
+            )}
             <span
               className="rounded-full"
               style={{
@@ -1649,7 +1654,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     lineHeight: 1.35,
                   }}
                 >
-                  {purgeEvalAlbum.year}{purgeEvalAlbum.folder ? ` \u00B7 ${purgeEvalAlbum.folder}` : ""}
+                  {[hasYear(purgeEvalAlbum.year) ? String(purgeEvalAlbum.year) : "", purgeEvalAlbum.folder || ""].filter(Boolean).join(" \u00B7 ")}
                 </p>
               </div>
               {/* Buttons */}
@@ -1749,7 +1754,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                         marginTop: "2px",
                       }}
                     >
-                      {purgeEvalAlbum.year}{purgeEvalAlbum.folder ? ` \u00B7 ${purgeEvalAlbum.folder}` : ""}
+                      {[hasYear(purgeEvalAlbum.year) ? String(purgeEvalAlbum.year) : "", purgeEvalAlbum.folder || ""].filter(Boolean).join(" \u00B7 ")}
                     </p>
                   </div>
                   {/* Button row */}

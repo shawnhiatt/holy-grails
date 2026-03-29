@@ -54,6 +54,11 @@ export function SlideOutPanel({
   const startYRef = useRef(0);
   const [dismissed, setDismissed] = useState(false);
 
+  // Dismiss software keyboard on panel open (iOS PWA)
+  useEffect(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+  }, []);
+
   // Attach non-passive touch listeners on the scroll container so we can
   // preventDefault during a pull-to-dismiss gesture (scrollTop === 0 + drag down).
   useEffect(() => {

@@ -181,11 +181,11 @@ src/
       sessions.tsx
       settings-screen.tsx
       splash-screen.tsx
-      slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork.
+      slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork. Blurs the active element on mount (`document.activeElement?.blur()`) to dismiss the iOS software keyboard whenever a panel opens over an active text input. App-wide — no individual tap handlers need to handle this.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD). Project ID: `AsNXonIuH0GaiKmG36KD`. Falls back to `#01294D` if WebGL is unavailable.
-      use-shake.ts
+      use-shake.ts  # Shake-to-Random gesture hook. Detects lateral shake via DeviceMotion API (threshold: 25 m/s²), fires callback, plays 40ms haptic on Android. Requires iOS DeviceMotionEvent.requestPermission() flow — toggle lives in Settings → Gestures. Preference persisted to Convex (`shake_to_random`). `App.tsx` performs a silent boot-time permission check: if `shakeToRandom` is `true` on load and `DeviceMotionEvent.requestPermission()` does not return `'granted'`, the preference is reset to `false` in Convex and a toast is shown. The check runs once per session via a `hasDonePermissionCheckRef` guard.
     hooks/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
       wantlist.tsx
@@ -550,13 +550,26 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
 - **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads, matching the market-value pattern.
 - **Sheet open gate (`App.tsx`):** The desktop side panel and mobile sheet open condition checks `selectedAlbum || selectedWantItem || selectedFeedAlbum`. Any new panel type added to `AlbumDetailPanel` routing must also be added to this gate or the sheet will silently refuse to open.
-- **DestructiveButton** — shared two-tap confirm button component, local to `album-detail.tsx`. Props: `label`, `confirming`, `loading`, `onClick`. Outlined with white text (first tap) → solid `#FF2D78` fill with white text (confirm tap) → `Disc3` spinner while async in flight. Used by `WantItemDetailPanel`, `AlbumDetailPanel` (remove from collection), and `ReleaseDetailPanel`.
+- **DestructiveButton** — shared two-tap confirm button component, local to `album-detail.tsx`. Props: `label`, `confirming`, `loading`, `onClick`, `variant?: "destructive" | "neutral"` (default: `"destructive"`). Destructive variant: outlined white text (first tap) → solid `#FF2D78` fill (confirm tap) → `Disc3` spinner while async in flight. Neutral variant: `var(--c-surface)` bg + `var(--c-border-strong)` border + `var(--c-text)` color in all states, no pink. Used by `WantItemDetailPanel`, `AlbumDetailPanel` (remove from collection) with `destructive`; `ReleaseDetailPanel` (remove from wantlist) with `neutral`.
 
-`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, Add to Collection CTA, and wantlist Heart button. Does not include Mark as Played, Purge, Edit, or session picker.
+`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, and action buttons. Does not include Mark as Played, Purge, Edit, or session picker. Action buttons ("Add to Collection", "Add to Wantlist", "Remove from Wantlist") all use neutral surface style — `var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color. No leading icons. "View Your Copy" (shown when already in collection) retains its green surface style. "Remove from Wantlist" uses `DestructiveButton` with `variant="neutral"`.
 
 Session picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper). Session picker is now accessed via (1) the `Music` icon button on the Recommended card in the Feed screen, and (2) the inline Save for Later accordion in `album-detail.tsx`.
 
 "View on Discogs" links removed app-wide from all album/release contexts. OAuth flows unaffected. `MarketValueSection` removed from `WantItemDetailPanel` and `ReleaseDetailPanel` — only present in collection `AlbumDetailPanel`.
+
+### Year Display Convention
+
+Discogs returns `0` for year when a pressing has no release date. Always guard year rendering with a `hasYear` check — do not render year anywhere in the UI when the value is `0`, `null`, or `undefined`.
+
+Define locally in each file that needs it:
+
+```ts
+const hasYear = (year: number | null | undefined): year is number =>
+  year != null && year !== 0;
+```
+
+In card grid contexts, use `visibility: hasYear(year) ? "visible" : "hidden"` on the year span (not conditional removal) to preserve card height consistency. In detail panel `DetailRow` elements, use conditional removal (`{hasYear(year) && <DetailRow ... />}`).
 
 ### Image Sizing Convention
 Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
