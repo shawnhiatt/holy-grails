@@ -60,6 +60,137 @@ const ELEMENT_ID = "us-splash";
  *
  * Usage: <UnicornScene className="absolute inset-0 w-full h-full" />
  */
+interface DebugMeasurements {
+  innerHeight: number;
+  innerWidth: number;
+  screenHeight: number;
+  screenWidth: number;
+  docClientHeight: number;
+  docClientWidth: number;
+  containerRectH: number;
+  containerRectW: number;
+  containerOffsetH: number;
+  containerOffsetW: number;
+  standalone: boolean | undefined;
+}
+
+interface DebugPostMeasurements {
+  canvasRectH: number | null;
+  canvasRectW: number | null;
+  canvasStyleH: string | null;
+  canvasStyleW: string | null;
+  canvasOffsetH: number | null;
+  canvasOffsetW: number | null;
+}
+
+function capturePreMeasurements(containerEl: HTMLElement): DebugMeasurements {
+  const rect = containerEl.getBoundingClientRect();
+  return {
+    innerHeight: window.innerHeight,
+    innerWidth: window.innerWidth,
+    screenHeight: screen.height,
+    screenWidth: screen.width,
+    docClientHeight: document.documentElement.clientHeight,
+    docClientWidth: document.documentElement.clientWidth,
+    containerRectH: rect.height,
+    containerRectW: rect.width,
+    containerOffsetH: containerEl.offsetHeight,
+    containerOffsetW: containerEl.offsetWidth,
+    standalone: (navigator as unknown as { standalone?: boolean }).standalone,
+  };
+}
+
+function capturePostMeasurements(containerEl: HTMLElement): DebugPostMeasurements {
+  const canvas = containerEl.querySelector("canvas");
+  if (!canvas) {
+    return { canvasRectH: null, canvasRectW: null, canvasStyleH: null, canvasStyleW: null, canvasOffsetH: null, canvasOffsetW: null };
+  }
+  const rect = canvas.getBoundingClientRect();
+  return {
+    canvasRectH: rect.height,
+    canvasRectW: rect.width,
+    canvasStyleH: canvas.style.height || null,
+    canvasStyleW: canvas.style.width || null,
+    canvasOffsetH: canvas.offsetHeight,
+    canvasOffsetW: canvas.offsetWidth,
+  };
+}
+
+function DebugOverlay({ pre, post }: { pre: DebugMeasurements | null; post: DebugPostMeasurements | null }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed || !pre) return null;
+
+  const style: React.CSSProperties = {
+    position: "fixed",
+    bottom: 8,
+    left: 8,
+    zIndex: 9999,
+    background: "rgba(0,0,0,0.75)",
+    color: "#fff",
+    fontFamily: "monospace",
+    fontSize: 11,
+    lineHeight: 1.4,
+    padding: 8,
+    borderRadius: 4,
+    maxWidth: 260,
+    pointerEvents: "auto",
+  };
+
+  const row = (label: string, value: unknown) => (
+    <div key={label}>{label}: {String(value)}</div>
+  );
+
+  return (
+    <div style={style}>
+      <div style={{ position: "relative", paddingRight: 16 }}>
+        <button
+          onClick={() => setDismissed(true)}
+          style={{
+            position: "absolute",
+            top: -4,
+            right: -4,
+            background: "none",
+            border: "none",
+            color: "#fff",
+            fontFamily: "monospace",
+            fontSize: 13,
+            cursor: "pointer",
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>PRE-INIT</div>
+        {row("innerHeight", pre.innerHeight)}
+        {row("innerWidth", pre.innerWidth)}
+        {row("screen.height", pre.screenHeight)}
+        {row("screen.width", pre.screenWidth)}
+        {row("docClientH", pre.docClientHeight)}
+        {row("docClientW", pre.docClientWidth)}
+        {row("containerRect.h", pre.containerRectH)}
+        {row("containerRect.w", pre.containerRectW)}
+        {row("containerOffset.h", pre.containerOffsetH)}
+        {row("containerOffset.w", pre.containerOffsetW)}
+        {row("standalone", pre.standalone)}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.3)", margin: "6px 0" }} />
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>POST-INIT</div>
+        {post ? (
+          <>
+            {row("canvasRect.h", post.canvasRectH)}
+            {row("canvasRect.w", post.canvasRectW)}
+            {row("canvas.style.h", post.canvasStyleH)}
+            {row("canvas.style.w", post.canvasStyleW)}
+            {row("canvasOffset.h", post.canvasOffsetH)}
+            {row("canvasOffset.w", post.canvasOffsetW)}
+          </>
+        ) : (
+          <div style={{ color: "#9EAFC2" }}>Loading...</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function UnicornScene({ className }: UnicornSceneProps) {
   // Detect WebGL synchronously on first render — avoids a flicker cycle.
   const [webGLSupported] = useState<boolean>(() =>
@@ -69,12 +200,26 @@ export function UnicornScene({ className }: UnicornSceneProps) {
   const [loaded, setLoaded] = useState(false);
   const sceneRef = useRef<UnicornScene | null>(null);
 
+  // Debug overlay state — only active when localStorage flag is set
+  const [debugEnabled] = useState<boolean>(() => {
+    try { return typeof window !== "undefined" && localStorage.getItem("hg_debug_viewport") === "1"; } catch { return false; }
+  });
+  const [debugPre, setDebugPre] = useState<DebugMeasurements | null>(null);
+  const [debugPost, setDebugPost] = useState<DebugPostMeasurements | null>(null);
+
   useEffect(() => {
     if (!webGLSupported || failed) return;
     let stale = false;
 
     const initScene = () => {
       if (!window.UnicornStudio || stale) return;
+
+      // Capture pre-init measurements for debug overlay
+      if (debugEnabled) {
+        const containerEl = document.getElementById(ELEMENT_ID);
+        if (containerEl) setDebugPre(capturePreMeasurements(containerEl));
+      }
+
       window.UnicornStudio.addScene({
         elementId: ELEMENT_ID,
         filePath: SCENE_JSON,
@@ -88,6 +233,12 @@ export function UnicornScene({ className }: UnicornSceneProps) {
           } else {
             sceneRef.current = scene;
             setLoaded(true);
+
+            // Capture post-init measurements for debug overlay
+            if (debugEnabled) {
+              const containerEl = document.getElementById(ELEMENT_ID);
+              if (containerEl) setDebugPost(capturePostMeasurements(containerEl));
+            }
           }
         })
         .catch(() => {
@@ -158,6 +309,7 @@ export function UnicornScene({ className }: UnicornSceneProps) {
         id={ELEMENT_ID}
         style={{ width: "100%", height: "100%" }}
       />
+      {debugEnabled && <DebugOverlay pre={debugPre} post={debugPost} />}
     </div>
   );
 }
