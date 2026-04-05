@@ -924,7 +924,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                         e.preventDefault();
                         const input = (e.currentTarget as HTMLLabelElement).querySelector("input");
                         if (input) {
-                          try { input.showPicker(); } catch { input.click(); }
+                          try { input.showPicker(); } catch { /* iOS: direct tap on overlay handles it */ }
                         }
                       }}
                     >
@@ -933,7 +933,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                         type="date"
                         max={new Date().toISOString().split("T")[0]}
                         onChange={handleDateChange}
-                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: "12px" }}
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: "16px" }}
                         tabIndex={-1}
                       />
                     </label>
