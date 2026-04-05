@@ -921,9 +921,10 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     <label
                       style={{ fontSize: "12px", position: "relative", display: "inline-block", cursor: "pointer", touchAction: "manipulation" }}
                       onClick={(e) => {
+                        e.preventDefault();
                         const input = (e.currentTarget as HTMLLabelElement).querySelector("input");
                         if (input) {
-                          try { input.showPicker(); } catch { /* iOS fallback — tap lands on input directly */ }
+                          try { input.showPicker(); } catch { input.click(); }
                         }
                       }}
                     >
