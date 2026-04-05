@@ -438,14 +438,21 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setTimeout(() => setJustPlayed(false), 1200);
   };
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (!val) return;
-    const [year, month, day] = val.split("-").map(Number);
-    const date = new Date(year, month - 1, day, 12, 0, 0);
-    markPlayedAt(selectedAlbum.id, date);
-    toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
-    e.target.value = "";
+  const openDatePicker = () => {
+    const input = document.createElement("input");
+    input.type = "date";
+    input.max = new Date().toISOString().split("T")[0];
+    input.style.cssText = "position:fixed;top:-200px;left:-200px;opacity:0;font-size:16px;";
+    document.body.appendChild(input);
+    input.addEventListener("change", () => {
+      if (input.value) {
+        const [y, m, d] = input.value.split("-").map(Number);
+        markPlayedAt(selectedAlbum.id, new Date(y, m - 1, d, 12, 0, 0));
+        toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
+      }
+      document.body.removeChild(input);
+    });
+    try { input.showPicker(); } catch { input.click(); }
   };
 
   const inAnySession = isAlbumInAnySession(selectedAlbum.id);
@@ -918,25 +925,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 </button>
                 <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
                   {justPlayed ? "Played today" : playedToday ? "Played today" : (
-                    <label
-                      style={{ fontSize: "12px", position: "relative", display: "inline-block", cursor: "pointer", touchAction: "manipulation" }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        const input = (e.currentTarget as HTMLLabelElement).querySelector("input");
-                        if (input) {
-                          try { input.showPicker(); } catch { /* iOS: direct tap on overlay handles it */ }
-                        }
-                      }}
+                    <span
+                      onClick={openDatePicker}
+                      style={{ cursor: "pointer", touchAction: "manipulation" }}
                     >
                       {albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged. Tap to log a past play."}
-                      <input
-                        type="date"
-                        max={new Date().toISOString().split("T")[0]}
-                        onChange={handleDateChange}
-                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: "16px" }}
-                        tabIndex={-1}
-                      />
-                    </label>
+                    </span>
                   )}
                 </p>
               </div>
