@@ -389,6 +389,25 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     return Array.from(map.entries()).map(([role, names]) => ({ role, names }));
   }, [releaseData?.credits]);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+  const albumIdRef = useRef(selectedAlbum?.id ?? "");
+  albumIdRef.current = selectedAlbum?.id ?? "";
+  const albumTitleRef = useRef(selectedAlbum?.title ?? "");
+  albumTitleRef.current = selectedAlbum?.title ?? "";
+
+  const datePickerRef = useCallback((node: HTMLInputElement | null) => {
+    if (!node) return;
+    const handler = () => {
+      const val = node.value;
+      if (!val) return;
+      const [y, m, d] = val.split("-").map(Number);
+      markPlayedAt(albumIdRef.current, new Date(y, m - 1, d, 12, 0, 0));
+      toast.info(`"${albumTitleRef.current}" played.`, { duration: 1500 });
+      node.value = todayStr;
+    };
+    node.addEventListener("change", handler);
+  }, [markPlayedAt, todayStr]);
+
   if (!selectedAlbum && selectedWantItem) {
     return (
       <WantItemDetailPanel
@@ -437,25 +456,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
     setTimeout(() => setJustPlayed(false), 1200);
   };
-
-  const todayStr = new Date().toISOString().split("T")[0];
-  const albumIdRef = useRef(selectedAlbum.id);
-  albumIdRef.current = selectedAlbum.id;
-  const albumTitleRef = useRef(selectedAlbum.title);
-  albumTitleRef.current = selectedAlbum.title;
-
-  const datePickerRef = useCallback((node: HTMLInputElement | null) => {
-    if (!node) return;
-    const handler = () => {
-      const val = node.value;
-      if (!val) return;
-      const [y, m, d] = val.split("-").map(Number);
-      markPlayedAt(albumIdRef.current, new Date(y, m - 1, d, 12, 0, 0));
-      toast.info(`"${albumTitleRef.current}" played.`, { duration: 1500 });
-      node.value = todayStr;
-    };
-    node.addEventListener("change", handler);
-  }, [markPlayedAt, todayStr]);
 
   const inAnySession = isAlbumInAnySession(selectedAlbum.id);
 
