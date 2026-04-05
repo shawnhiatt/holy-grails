@@ -439,15 +439,23 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   };
 
   const todayStr = new Date().toISOString().split("T")[0];
+  const albumIdRef = useRef(selectedAlbum.id);
+  albumIdRef.current = selectedAlbum.id;
+  const albumTitleRef = useRef(selectedAlbum.title);
+  albumTitleRef.current = selectedAlbum.title;
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (!val || val === todayStr) return;
-    const [y, m, d] = val.split("-").map(Number);
-    markPlayedAt(selectedAlbum.id, new Date(y, m - 1, d, 12, 0, 0));
-    toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
-    e.target.value = todayStr;
-  };
+  const datePickerRef = useCallback((node: HTMLInputElement | null) => {
+    if (!node) return;
+    const handler = () => {
+      const val = node.value;
+      if (!val) return;
+      const [y, m, d] = val.split("-").map(Number);
+      markPlayedAt(albumIdRef.current, new Date(y, m - 1, d, 12, 0, 0));
+      toast.info(`"${albumTitleRef.current}" played.`, { duration: 1500 });
+      node.value = todayStr;
+    };
+    node.addEventListener("change", handler);
+  }, [markPlayedAt, todayStr]);
 
   const inAnySession = isAlbumInAnySession(selectedAlbum.id);
 
@@ -918,19 +926,17 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   </AnimatePresence>
                 </button>
                 <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
-                  {justPlayed ? "Played today" : playedToday ? "Played today" : (
-                    <span style={{ position: "relative", display: "inline-block", cursor: "pointer", touchAction: "manipulation" }}>
-                      {albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged. Tap to log a past play."}
-                      <input
-                        type="date"
-                        defaultValue={todayStr}
-                        max={todayStr}
-                        onChange={handleDateChange}
-                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: "16px" }}
-                        tabIndex={-1}
-                      />
-                    </span>
-                  )}
+                  <span style={{ position: "relative", display: "inline-block", cursor: "pointer", touchAction: "manipulation" }}>
+                    {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged. Tap to log a past play."}
+                    <input
+                      ref={datePickerRef}
+                      type="date"
+                      defaultValue={todayStr}
+                      max={todayStr}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: "16px" }}
+                      tabIndex={-1}
+                    />
+                  </span>
                 </p>
               </div>
             )}
@@ -2033,8 +2039,9 @@ function WantItemDetailPanel({
                 fontSize: "14px",
                 fontWeight: 600,
                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                backgroundColor: "#EBFD00",
-                color: "#0C284A",
+                backgroundColor: "var(--c-surface)",
+                border: "1px solid var(--c-border-strong)",
+                color: "var(--c-text)",
                 opacity: isAddingToCollection ? 0.7 : 1,
               }}
             >
@@ -2044,10 +2051,7 @@ function WantItemDetailPanel({
                   Adding...
                 </>
               ) : (
-                <>
-                  <Plus size={16} />
-                  Add to Collection
-                </>
+                "Add to Collection"
               )}
             </button>
           )}
@@ -2057,6 +2061,7 @@ function WantItemDetailPanel({
             label={confirmRemove ? "Confirm Remove" : "Remove from Wantlist"}
             confirming={confirmRemove}
             loading={isRemoving}
+            variant="neutral"
             onClick={() => {
               if (!confirmRemove) setConfirmRemove(true);
               else handleRemove();
