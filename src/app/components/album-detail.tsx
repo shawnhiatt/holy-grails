@@ -438,13 +438,15 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setTimeout(() => setJustPlayed(false), 1200);
   };
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    if (!val) return;
+    if (!val || val === todayStr) return;
     const [y, m, d] = val.split("-").map(Number);
     markPlayedAt(selectedAlbum.id, new Date(y, m - 1, d, 12, 0, 0));
     toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
-    e.target.value = "";
+    e.target.value = todayStr;
   };
 
   const inAnySession = isAlbumInAnySession(selectedAlbum.id);
@@ -921,7 +923,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       {albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged. Tap to log a past play."}
                       <input
                         type="date"
-                        max={new Date().toISOString().split("T")[0]}
+                        defaultValue={todayStr}
+                        max={todayStr}
                         onChange={handleDateChange}
                         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: "16px" }}
                         tabIndex={-1}
