@@ -722,44 +722,15 @@ function ListeningActivitySection({
     }).length;
   }, [albums, lastPlayed]);
 
-  // Listening streak / last listened / longest streak
+  // Last listened
   const lastListenedInfo = useMemo(() => {
     const dates = Object.values(lastPlayed).map((d) => new Date(d).getTime()).sort((a, b) => b - a);
-    if (dates.length === 0) return { streak: 0, longestStreak: 0, lastDaysAgo: null as number | null };
+    if (dates.length === 0) return { lastDaysAgo: null as number | null };
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const dayMs = 86400000;
-
-    // Current streak — walk backward from today
-    let streak = 0;
-    let checkDay = today;
-    for (let i = 0; i < 365; i++) {
-      if (dates.some((d) => d >= checkDay && d < checkDay + dayMs)) {
-        streak++;
-        checkDay -= dayMs;
-      } else {
-        break;
-      }
-    }
-
-    // Longest streak — dedupe to unique days, sort ascending, find max run
-    const uniqueDays = new Set(dates.map((d) => Math.floor(d / dayMs)));
-    const sortedDays = Array.from(uniqueDays).sort((a, b) => a - b);
-    let longestStreak = 0;
-    let run = 1;
-    for (let i = 1; i < sortedDays.length; i++) {
-      if (sortedDays[i] === sortedDays[i - 1] + 1) {
-        run++;
-      } else {
-        if (run > longestStreak) longestStreak = run;
-        run = 1;
-      }
-    }
-    if (run > longestStreak) longestStreak = run;
-    if (sortedDays.length === 1) longestStreak = 1;
-
     const lastDaysAgo = Math.floor((today - Math.floor(dates[0] / dayMs) * dayMs) / dayMs);
-    return { streak, longestStreak, lastDaysAgo };
+    return { lastDaysAgo };
   }, [lastPlayed]);
 
   // Never played count
@@ -826,7 +797,7 @@ function ListeningActivitySection({
           </p>
         </div>
 
-        {/* Streak / last listened */}
+        {/* Days since last played */}
         <div
           className="rounded-[10px] py-3 px-3 text-center"
           style={{
@@ -843,10 +814,10 @@ function ListeningActivitySection({
               lineHeight: 1.1,
             }}
           >
-            {lastListenedInfo.streak > 1 ? lastListenedInfo.streak : lastListenedInfo.lastDaysAgo === null ? "—" : lastListenedInfo.lastDaysAgo}
+            {lastListenedInfo.lastDaysAgo === null ? "—" : lastListenedInfo.lastDaysAgo}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            {lastListenedInfo.streak > 1 ? "day streak" : lastListenedInfo.lastDaysAgo === null ? "no plays yet" : "days since last played"}
+            {lastListenedInfo.lastDaysAgo === null ? "no plays yet" : "days since last played"}
           </p>
         </div>
 
@@ -876,31 +847,6 @@ function ListeningActivitySection({
         </button>
       </div>
 
-      {/* Longest streak */}
-      {lastListenedInfo.longestStreak > 0 && (
-        <div
-          className="rounded-[10px] py-3 px-3 text-center mt-3"
-          style={{
-            backgroundColor: isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)",
-            border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.35)"}`,
-          }}
-        >
-          <span
-            style={{
-              fontSize: "28px",
-              fontWeight: 700,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: isDarkMode ? "#ACDEF2" : "#00527A",
-              lineHeight: 1.1,
-            }}
-          >
-            {lastListenedInfo.longestStreak} {lastListenedInfo.longestStreak === 1 ? "day" : "days"}
-          </span>
-          <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            longest streak
-          </p>
-        </div>
-      )}
 
       {/* No play recorded — neglected list */}
       <div className="mt-5">
