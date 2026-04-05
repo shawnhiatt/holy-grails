@@ -217,18 +217,17 @@ export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) 
               </div>
             </div>
 
-            {/* Cycling collection stats for returning users */}
-            {statPool.length > 0 && (
-              <div
-                style={{
-                  height: 20,
-                  marginTop: 16,
-                  position: "relative",
-                  display: "flex",
-                  justifyContent: "center",
-                }}
-              >
-                <AnimatePresence mode="wait">
+            {/* Cycling collection stats — always reserves space to prevent layout shift */}
+            <div
+              style={{
+                height: 20,
+                marginTop: 16,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <AnimatePresence mode="wait">
+                {statPool.length > 0 && (
                   <motion.span
                     key={statIndex}
                     initial={{ opacity: 0 }}
@@ -245,9 +244,9 @@ export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) 
                   >
                     {statPool[statIndex]}
                   </motion.span>
-                </AnimatePresence>
-              </div>
-            )}
+                )}
+              </AnimatePresence>
+            </div>
           </>
         )}
       </div>

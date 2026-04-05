@@ -1971,9 +1971,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Cached sync stats (derived from Convex queries, available before albums populates) ──
 
   const cachedSyncStats = useMemo<string[]>(() => {
-    // Only produce stats when albums state is still empty (loading screen visible)
-    // but Convex cache has data from a previous sync.
-    if (albums.length > 0) return [];
+    // Derived from Convex cache — available before albums state populates.
+    // Stays non-empty as long as cache has data so the loading screen can
+    // keep showing stats through all sync phases.
     if (!convexCollection || convexCollection.length === 0) return [];
 
     const cc = convexCollection;
@@ -2049,7 +2049,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return stats;
-  }, [albums.length, convexCollection, convexWantlist, convexLastPlayed, convexPurgeTags]);
+  }, [convexCollection, convexWantlist, convexLastPlayed, convexPurgeTags]);
 
   // ── Context value ──
 
