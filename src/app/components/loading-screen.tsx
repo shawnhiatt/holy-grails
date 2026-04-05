@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { Disc3, WifiOff } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { UnicornScene } from "./unicorn-scene";
-import { EASE_OUT, DURATION_SLOW } from "./motion-tokens";
+import { EASE_OUT, DURATION_SLOW, DURATION_NORMAL } from "./motion-tokens";
 import { useOnlineStatus } from "../hooks/use-online-status";
 
 interface LoadingScreenProps {
   message: string;
   progress?: number; // 0–100; omit for simulated indeterminate animation
+  /** Pre-computed cycling stats for returning users (derived from Convex cache) */
+  stats?: string[];
 }
 
 /**
@@ -15,13 +17,26 @@ interface LoadingScreenProps {
  * and the post-login sync. Shows the same splash video background as the
  * login screen, a Disc3 spinner, and an animated ellipsis below the message.
  */
-export function LoadingScreen({ message, progress }: LoadingScreenProps) {
+export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) {
   const [simProgress, setSimProgress] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const { isOnline } = useOnlineStatus();
+
+  // Cycling collection stats for returning users
+  const statPool = stats ?? [];
+  const [statIndex, setStatIndex] = useState(0);
+
+  useEffect(() => {
+    if (statPool.length === 0) return;
+    setStatIndex(0);
+    const id = setInterval(() => {
+      setStatIndex((i) => (i + 1) % statPool.length);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [statPool.length]);
 
   // After 5s of loading, if still offline, surface an offline message
   useEffect(() => {
@@ -201,6 +216,38 @@ export function LoadingScreen({ message, progress }: LoadingScreenProps) {
                 />
               </div>
             </div>
+
+            {/* Cycling collection stats for returning users */}
+            {statPool.length > 0 && (
+              <div
+                style={{
+                  height: 20,
+                  marginTop: 16,
+                  position: "relative",
+                  display: "flex",
+                  justifyContent: "center",
+                }}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={statIndex}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: DURATION_NORMAL }}
+                    style={{
+                      fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+                      fontSize: 13,
+                      fontWeight: 400,
+                      color: "#6A8099",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {statPool[statIndex]}
+                  </motion.span>
+                </AnimatePresence>
+              </div>
+            )}
           </>
         )}
       </div>

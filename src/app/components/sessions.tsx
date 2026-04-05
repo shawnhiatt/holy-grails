@@ -121,8 +121,8 @@ export function Sessions() {
           {sessions.length === 0 && !showNewSession ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
-              <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>What's spinning tonight?</p>
-              <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Set the order before the needle drops.</p>
+              <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>Create your first Session</p>
+              <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Save albums into Sessions for different listening occasions, moods, or themes.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">

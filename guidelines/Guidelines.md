@@ -291,7 +291,7 @@ Uses an internal list/detail view pattern — no draft mode, no floating bar.
 2. **Keeps**: Albums tagged "keep" in purge, same horizontal scroll thumbnail format.
 3. **Browse Everything**: Full album list with sticky search bar + folder filter chips. Rows show 44x44px thumbnail, title/artist with inline truncation, and checkbox. Sorted artist A->Z. Active folder chips use blue style.
 
-**Empty state** (no sessions): Headphones icon + "What's spinning tonight?" / "Set the order before the needle drops."
+**Empty state** (no sessions): Headphones icon + "Create your first Session" / "Save albums into Sessions for different listening occasions, moods, or themes."
 
 ### 4b. Saved for Later
 

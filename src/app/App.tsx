@@ -55,7 +55,7 @@ class ErrorBoundary extends Component<
 function AppContent() {
   const {
     screen, showAlbumDetail, selectedAlbum, selectedWantItem, selectedFeedAlbum, showFilterDrawer,
-    isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail,
+    isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail, cachedSyncStats,
     setScreen,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     sessionPickerAlbumId,
@@ -350,7 +350,11 @@ function AppContent() {
             onStatusChange={setAuthCallbackMessage}
           />
         )}
-        <LoadingScreen message={loadingMessage} progress={loadPhase === 'complete' ? 100 : undefined} />
+        <LoadingScreen
+          message={loadingMessage}
+          progress={loadPhase === 'complete' ? 100 : undefined}
+          stats={cachedSyncStats}
+        />
       </>
     );
   }

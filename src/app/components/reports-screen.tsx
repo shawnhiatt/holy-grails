@@ -668,6 +668,17 @@ function ByFormatChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
         >
           <div
             style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--c-text-secondary)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              marginBottom: 4,
+            }}
+          >
+            {d.format}
+          </div>
+          <div
+            style={{
               fontSize: "28px",
               fontWeight: 700,
               color: "var(--c-text)",
@@ -677,17 +688,6 @@ function ByFormatChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
             }}
           >
             {d.count}
-          </div>
-          <div
-            style={{
-              fontSize: "11px",
-              fontWeight: 500,
-              color: "var(--c-text-muted)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              marginTop: 2,
-            }}
-          >
-            {d.format}
           </div>
         </div>
       ))}
@@ -722,13 +722,15 @@ function ListeningActivitySection({
     }).length;
   }, [albums, lastPlayed]);
 
-  // Listening streak / last listened
+  // Listening streak / last listened / longest streak
   const lastListenedInfo = useMemo(() => {
     const dates = Object.values(lastPlayed).map((d) => new Date(d).getTime()).sort((a, b) => b - a);
-    if (dates.length === 0) return { streak: 0, lastDaysAgo: null as number | null };
+    if (dates.length === 0) return { streak: 0, longestStreak: 0, lastDaysAgo: null as number | null };
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const dayMs = 86400000;
+
+    // Current streak — walk backward from today
     let streak = 0;
     let checkDay = today;
     for (let i = 0; i < 365; i++) {
@@ -739,8 +741,25 @@ function ListeningActivitySection({
         break;
       }
     }
+
+    // Longest streak — dedupe to unique days, sort ascending, find max run
+    const uniqueDays = new Set(dates.map((d) => Math.floor(d / dayMs)));
+    const sortedDays = Array.from(uniqueDays).sort((a, b) => a - b);
+    let longestStreak = 0;
+    let run = 1;
+    for (let i = 1; i < sortedDays.length; i++) {
+      if (sortedDays[i] === sortedDays[i - 1] + 1) {
+        run++;
+      } else {
+        if (run > longestStreak) longestStreak = run;
+        run = 1;
+      }
+    }
+    if (run > longestStreak) longestStreak = run;
+    if (sortedDays.length === 1) longestStreak = 1;
+
     const lastDaysAgo = Math.floor((today - Math.floor(dates[0] / dayMs) * dayMs) / dayMs);
-    return { streak, lastDaysAgo };
+    return { streak, longestStreak, lastDaysAgo };
   }, [lastPlayed]);
 
   // Never played count
@@ -856,6 +875,32 @@ function ListeningActivitySection({
           </p>
         </button>
       </div>
+
+      {/* Longest streak */}
+      {lastListenedInfo.longestStreak > 0 && (
+        <div
+          className="rounded-[10px] py-3 px-3 text-center mt-3"
+          style={{
+            backgroundColor: isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)",
+            border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.35)"}`,
+          }}
+        >
+          <span
+            style={{
+              fontSize: "28px",
+              fontWeight: 700,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              color: isDarkMode ? "#ACDEF2" : "#00527A",
+              lineHeight: 1.1,
+            }}
+          >
+            {lastListenedInfo.longestStreak} {lastListenedInfo.longestStreak === 1 ? "day" : "days"}
+          </span>
+          <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
+            longest streak
+          </p>
+        </div>
+      )}
 
       {/* No play recorded — neglected list */}
       <div className="mt-5">

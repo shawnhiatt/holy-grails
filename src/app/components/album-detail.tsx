@@ -61,7 +61,7 @@ const releaseDataCache = new Map<number, ReleaseData>();
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
     selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
-    lastPlayed, markPlayed, isDarkMode,
+    lastPlayed, markPlayed, markPlayedAt, isDarkMode,
     // Session picker
     isAlbumInAnySession, mostRecentSessionId,
     // Inline session list
@@ -389,6 +389,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     return Array.from(map.entries()).map(([role, names]) => ({ role, names }));
   }, [releaseData?.credits]);
 
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
   if (!selectedAlbum && selectedWantItem) {
     return (
       <WantItemDetailPanel
@@ -436,6 +438,22 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setJustPlayed(true);
     toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
     setTimeout(() => setJustPlayed(false), 1200);
+  };
+
+  const openDatePicker = () => {
+    if (dateInputRef.current) {
+      dateInputRef.current.showPicker();
+    }
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (!val) return;
+    const [year, month, day] = val.split("-").map(Number);
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    markPlayedAt(selectedAlbum.id, date);
+    toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
+    e.target.value = "";
   };
 
   const inAnySession = isAlbumInAnySession(selectedAlbum.id);
@@ -906,8 +924,30 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     )}
                   </AnimatePresence>
                 </button>
+                <input
+                  ref={dateInputRef}
+                  type="date"
+                  max={new Date().toISOString().split("T")[0]}
+                  onChange={handleDateChange}
+                  style={{ position: "absolute", width: 0, height: 0, opacity: 0, pointerEvents: "none" }}
+                  tabIndex={-1}
+                />
                 <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
-                  {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged"}
+                  {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? (
+                    <span
+                      onClick={openDatePicker}
+                      style={{ cursor: "pointer", touchAction: "manipulation" }}
+                    >
+                      Last played {formatDateShort(albumLastPlayed)}
+                    </span>
+                  ) : (
+                    <span
+                      onClick={openDatePicker}
+                      style={{ cursor: "pointer", touchAction: "manipulation" }}
+                    >
+                      No plays logged. Tap to log a past play.
+                    </span>
+                  )}
                 </p>
               </div>
             )}
@@ -1149,26 +1189,32 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
             {/* ═══ Research Links ═══ */}
             <div className="px-4 pb-6 grid grid-cols-2 gap-2">
-              {[
-                { href: `https://www.discogs.com/sell/history/${selectedAlbum.release_id}`, icon: <History size={20} />, label: "Sold History" },
-                { href: `https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${selectedAlbum.artist} ${selectedAlbum.title}`)}&x=0&y=0`, icon: <Gavel size={20} />, label: "Auction History" },
-              ].map(({ href, icon, label }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
-                  style={{
-                    backgroundColor: "var(--c-surface-alt)",
-                    border: "1px solid var(--c-border)",
-                    color: "var(--c-text-secondary)",
-                  }}
-                >
-                  {icon}
-                  <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>{label}</span>
-                </a>
-              ))}
+              <button
+                onClick={() => window.open(`https://www.discogs.com/sell/history/${selectedAlbum.release_id}`, '_blank', 'noopener,noreferrer')}
+                className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
+                style={{
+                  backgroundColor: "var(--c-surface-alt)",
+                  border: "1px solid var(--c-border)",
+                  color: "var(--c-text-secondary)",
+                }}
+              >
+                <History size={20} />
+                <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Sold History</span>
+              </button>
+              <a
+                href={`https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${selectedAlbum.artist} ${selectedAlbum.title}`)}&x=0&y=0`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
+                style={{
+                  backgroundColor: "var(--c-surface-alt)",
+                  border: "1px solid var(--c-border)",
+                  color: "var(--c-text-secondary)",
+                }}
+              >
+                <Gavel size={20} />
+                <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Auction History</span>
+              </a>
             </div>
 
             {/* ═══ Enriched Content Tabs ═══ */}
@@ -2702,26 +2748,32 @@ function ReleaseDetailPanel({
 
           {/* ═══ Research Links ═══ */}
           <div className="px-4 pb-6 grid grid-cols-2 gap-2">
-            {[
-              { href: `https://www.discogs.com/sell/history/${album.release_id}`, icon: <History size={20} />, label: "Sold History" },
-              { href: `https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${album.artist} ${album.title}`)}&x=0&y=0`, icon: <Gavel size={20} />, label: "Auction History" },
-            ].map(({ href, icon, label }) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
-                style={{
-                  backgroundColor: "var(--c-surface-alt)",
-                  border: "1px solid var(--c-border)",
-                  color: "var(--c-text-secondary)",
-                }}
-              >
-                {icon}
-                <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>{label}</span>
-              </a>
-            ))}
+            <button
+              onClick={() => window.open(`https://www.discogs.com/sell/history/${album.release_id}`, '_blank', 'noopener,noreferrer')}
+              className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
+              style={{
+                backgroundColor: "var(--c-surface-alt)",
+                border: "1px solid var(--c-border)",
+                color: "var(--c-text-secondary)",
+              }}
+            >
+              <History size={20} />
+              <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Sold History</span>
+            </button>
+            <a
+              href={`https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${album.artist} ${album.title}`)}&x=0&y=0`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
+              style={{
+                backgroundColor: "var(--c-surface-alt)",
+                border: "1px solid var(--c-border)",
+                color: "var(--c-text-secondary)",
+              }}
+            >
+              <Gavel size={20} />
+              <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Auction History</span>
+            </a>
           </div>
 
           {/* ═══ Enriched Content Tabs ═══ */}

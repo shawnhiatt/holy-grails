@@ -101,6 +101,7 @@ interface AppState {
   // Last Played tracking
   lastPlayed: Record<string, string>;
   markPlayed: (albumId: string) => void;
+  markPlayedAt: (albumId: string, date: Date) => void;
   neverPlayedFilter: boolean;
   setNeverPlayedFilter: (v: boolean) => void;
   rediscoverMode: boolean;
@@ -177,6 +178,8 @@ interface AppState {
   // Following feed cache (startup-synced)
   followingFeed: FollowingFeedEntry[];
   followingAvatars: Map<string, string>;
+  // Cycling stats derived from Convex cache (available before albums state populates)
+  cachedSyncStats: string[];
 }
 
 const AppContext = getOrCreateContext();
@@ -1254,6 +1257,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionToken, upsertLastPlayedMut]);
 
+  const markPlayedAt = useCallback((albumId: string, date: Date) => {
+    setLastPlayed((prev) => ({
+      ...prev,
+      [albumId]: date.toISOString(),
+    }));
+    if (sessionToken) {
+      upsertLastPlayedMut({
+        sessionToken,
+        release_id: Number(albumId),
+        played_at: date.getTime(),
+      });
+    }
+  }, [sessionToken, upsertLastPlayedMut]);
+
   // ── Session operations ──
 
   const deleteSession = useCallback((sessionId: string) => {
@@ -1951,6 +1968,89 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     )[0].id;
   }, [sessions]);
 
+  // ── Cached sync stats (derived from Convex queries, available before albums populates) ──
+
+  const cachedSyncStats = useMemo<string[]>(() => {
+    // Only produce stats when albums state is still empty (loading screen visible)
+    // but Convex cache has data from a previous sync.
+    if (albums.length > 0) return [];
+    if (!convexCollection || convexCollection.length === 0) return [];
+
+    const cc = convexCollection;
+    const stats: string[] = [];
+
+    // 1. Total records
+    stats.push(`You own ${cc.length} records`);
+
+    // 2. Wantlist count
+    const wantCount = convexWantlist?.length ?? 0;
+    if (wantCount > 0) stats.push(`${wantCount} albums on your wantlist`);
+
+    // 3 & 9. Decades
+    const decades = new Set<string>();
+    for (const r of cc) {
+      if (r.year && r.year >= 1900) decades.add(`${Math.floor(r.year / 10) * 10}s`);
+    }
+    if (decades.size >= 2) stats.push(`Your collection spans ${decades.size} decades`);
+
+    // 4. LP count
+    const lpCount = cc.filter((r) => /\bLP\b/.test(r.format)).length;
+    if (lpCount > 0) stats.push(`${lpCount} LPs in your collection`);
+
+    // 5. Most collected artist
+    const excludeArtists = new Set(["various", "various artists", "unknown artist", "unknown"]);
+    const artistCounts: Record<string, number> = {};
+    for (const r of cc) {
+      const name = r.artist.replace(/\s*\(\d+\)$/, "");
+      if (!excludeArtists.has(name.toLowerCase())) {
+        artistCounts[name] = (artistCounts[name] || 0) + 1;
+      }
+    }
+    const topArtist = Object.entries(artistCounts).sort((a, b) => b[1] - a[1])[0];
+    if (topArtist && topArtist[1] >= 2) stats.push(`Your most collected artist is ${topArtist[0]}`);
+
+    // 6. Most collected label
+    const labelCounts: Record<string, number> = {};
+    for (const r of cc) {
+      if (r.label) labelCounts[r.label] = (labelCounts[r.label] || 0) + 1;
+    }
+    const topLabel = Object.entries(labelCounts).sort((a, b) => b[1] - a[1])[0];
+    if (topLabel && topLabel[1] >= 2) stats.push(`Your most collected label is ${topLabel[0]}`);
+
+    // 7 & 8. Played / unplayed
+    if (convexLastPlayed && convexLastPlayed.length > 0) {
+      const playedIds = new Set(convexLastPlayed.map((lp) => String(lp.release_id)));
+      const playedCount = cc.filter((r) => playedIds.has(String(r.releaseId))).length;
+      if (playedCount > 0) stats.push(`${playedCount} albums played so far`);
+      const unplayedCount = cc.length - playedCount;
+      if (unplayedCount > 0 && playedCount > 0) stats.push(`${unplayedCount} albums still unplayed`);
+    }
+
+    // 9. Oldest decade
+    const sortedDecades = [...decades].sort();
+    if (sortedDecades.length > 0) stats.push(`Your oldest decade is the ${sortedDecades[0]}`);
+
+    // 10. Purge tag counts
+    if (convexPurgeTags && convexPurgeTags.length > 0) {
+      let keepCount = 0, cutCount = 0, maybeCount = 0;
+      for (const t of convexPurgeTags) {
+        if (t.tag === "keep") keepCount++;
+        else if (t.tag === "cut") cutCount++;
+        else if (t.tag === "maybe") maybeCount++;
+      }
+      const tagTotal = keepCount + cutCount + maybeCount;
+      if (tagTotal > 0) {
+        const parts: string[] = [];
+        if (keepCount > 0) parts.push(`${keepCount} Keep`);
+        if (cutCount > 0) parts.push(`${cutCount} Cut`);
+        if (maybeCount > 0) parts.push(`${maybeCount} Maybe`);
+        stats.push(`${tagTotal} albums tagged ${parts.join(" / ")}`);
+      }
+    }
+
+    return stats;
+  }, [albums.length, convexCollection, convexWantlist, convexLastPlayed, convexPurgeTags]);
+
   // ── Context value ──
 
   const value = useMemo<AppState>(
@@ -2006,6 +2106,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Last Played tracking
       lastPlayed,
       markPlayed,
+      markPlayedAt,
       neverPlayedFilter,
       setNeverPlayedFilter,
       rediscoverMode,
@@ -2081,6 +2182,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAuthLoading,
       followingFeed,
       followingAvatars,
+      cachedSyncStats,
     }),
     [
       screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, followedUsers,
@@ -2094,7 +2196,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       showFilterDrawer, showAlbumDetail,
       purgeFilter, wantFilter, wantSearchQuery,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
-      lastPlayed, markPlayed,
+      lastPlayed, markPlayed, markPlayedAt,
       neverPlayedFilter,
       rediscoverMode,
       computedRediscoverAlbums,
@@ -2118,7 +2220,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedWantItem, selectedFeedAlbum, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
-      followingFeed, followingAvatars,
+      followingFeed, followingAvatars, cachedSyncStats,
     ]
   );
 
