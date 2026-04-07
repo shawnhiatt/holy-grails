@@ -100,6 +100,8 @@ interface AppState {
   setColorMode: (mode: "light" | "dark" | "system") => void;
   // Last Played tracking
   lastPlayed: Record<string, string>;
+  playCounts: Record<string, number>;
+  allPlayTimestamps: number[];
   markPlayed: (albumId: string) => void;
   markPlayedAt: (albumId: string, date: Date) => void;
   neverPlayedFilter: boolean;
@@ -182,6 +184,23 @@ interface AppState {
   cachedSyncStats: string[];
 }
 
+/** Build lastPlayed (most recent per release), playCounts, and allTimestamps from raw play records. */
+function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>) {
+  const lastPlayedMap: Record<string, string> = {};
+  const countMap: Record<string, number> = {};
+  const allTimestamps: number[] = [];
+  for (const lp of records) {
+    const key = String(lp.release_id);
+    countMap[key] = (countMap[key] || 0) + 1;
+    allTimestamps.push(lp.played_at);
+    const iso = new Date(lp.played_at).toISOString();
+    if (!lastPlayedMap[key] || iso > lastPlayedMap[key]) {
+      lastPlayedMap[key] = iso;
+    }
+  }
+  return { lastPlayedMap, countMap, allTimestamps };
+}
+
 const AppContext = getOrCreateContext();
 
 export function useApp(): AppState {
@@ -248,6 +267,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
   const [lastPlayed, setLastPlayed] = useState<Record<string, string>>({});
+  const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
+  const [allPlayTimestamps, setAllPlayTimestamps] = useState<number[]>([]);
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
   const [rediscoverMode, setRediscoverMode] = useState(false);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
@@ -314,7 +335,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createSessionMut = useMutation(api.sessions.create);
   const updateSessionMut = useMutation(api.sessions.update);
   const removeSessionMut = useMutation(api.sessions.remove);
-  const upsertLastPlayedMut = useMutation(api.last_played.upsert);
+  const logPlayMut = useMutation(api.last_played.logPlay);
   const clearLastPlayedMut = useMutation(api.last_played.clearAll);
   const upsertWantPriorityMut = useMutation(api.want_priorities.upsert);
   const clearWantPrioritiesMut = useMutation(api.want_priorities.clearAll);
@@ -533,11 +554,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Merge last played
           const lpData = lastPlayedRef.current;
           if (lpData !== undefined && lpData.length > 0) {
-            const map: Record<string, string> = {};
-            for (const lp of lpData) {
-              map[String(lp.release_id)] = new Date(lp.played_at).toISOString();
-            }
-            setLastPlayed(map);
+            const { lastPlayedMap, countMap, allTimestamps } = buildPlayMaps(lpData);
+            setLastPlayed(lastPlayedMap);
+            setPlayCounts(countMap);
+            setAllPlayTimestamps(allTimestamps);
             hydratedRef.current.lastPlayed = true;
           }
 
@@ -673,11 +693,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!hydratedRef.current.lastPlayed && convexLastPlayed !== undefined) {
       hydratedRef.current.lastPlayed = true;
       if (convexLastPlayed.length > 0) {
-        const map: Record<string, string> = {};
-        for (const lp of convexLastPlayed) {
-          map[String(lp.release_id)] = new Date(lp.played_at).toISOString();
-        }
-        setLastPlayed(map);
+        const { lastPlayedMap, countMap, allTimestamps } = buildPlayMaps(convexLastPlayed);
+        setLastPlayed(lastPlayedMap);
+        setPlayCounts(countMap);
+        setAllPlayTimestamps(allTimestamps);
       }
     }
   }, [convexLastPlayed]);
@@ -1248,28 +1267,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       [albumId]: now.toISOString(),
     }));
+    setPlayCounts((prev) => ({
+      ...prev,
+      [albumId]: (prev[albumId] || 0) + 1,
+    }));
+    setAllPlayTimestamps((prev) => [...prev, now.getTime()]);
     if (sessionToken) {
-      upsertLastPlayedMut({
+      logPlayMut({
         sessionToken,
         release_id: Number(albumId),
         played_at: now.getTime(),
       });
     }
-  }, [sessionToken, upsertLastPlayedMut]);
+  }, [sessionToken, logPlayMut]);
 
   const markPlayedAt = useCallback((albumId: string, date: Date) => {
     setLastPlayed((prev) => ({
       ...prev,
       [albumId]: date.toISOString(),
     }));
+    setPlayCounts((prev) => ({
+      ...prev,
+      [albumId]: (prev[albumId] || 0) + 1,
+    }));
+    setAllPlayTimestamps((prev) => [...prev, date.getTime()]);
     if (sessionToken) {
-      upsertLastPlayedMut({
+      logPlayMut({
         sessionToken,
         release_id: Number(albumId),
         played_at: date.getTime(),
       });
     }
-  }, [sessionToken, upsertLastPlayedMut]);
+  }, [sessionToken, logPlayMut]);
 
   // ── Session operations ──
 
@@ -1418,11 +1447,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Merge last played from current Convex data
       const lpData = lastPlayedRef.current;
       if (lpData !== undefined && lpData.length > 0) {
-        const map: Record<string, string> = {};
-        for (const lp of lpData) {
-          map[String(lp.release_id)] = new Date(lp.played_at).toISOString();
-        }
-        setLastPlayed(map);
+        const { lastPlayedMap, countMap } = buildPlayMaps(lpData);
+        setLastPlayed(lastPlayedMap);
+        setPlayCounts(countMap);
         hydratedRef.current.lastPlayed = true;
       }
 
@@ -2105,6 +2132,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setColorMode,
       // Last Played tracking
       lastPlayed,
+      playCounts,
+      allPlayTimestamps,
       markPlayed,
       markPlayedAt,
       neverPlayedFilter,
@@ -2196,7 +2225,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       showFilterDrawer, showAlbumDetail,
       purgeFilter, wantFilter, wantSearchQuery,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
-      lastPlayed, markPlayed, markPlayedAt,
+      lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt,
       neverPlayedFilter,
       rediscoverMode,
       computedRediscoverAlbums,

@@ -1,4 +1,5 @@
 import { useRef, useMemo } from "react";
+import { Play } from "lucide-react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
@@ -53,7 +54,7 @@ interface AlbumGridProps {
 }
 
 export function AlbumGrid({ albums }: AlbumGridProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, sortOption } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, sortOption, playCounts } = useApp();
   const triggerHaptic = useHaptic('medium');
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter || rediscoverMode;
   const collectionEmpty = allAlbums.length === 0;
@@ -192,6 +193,17 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                       className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
                       style={{ backgroundColor: purgeColors[album.purgeTag] || "transparent" }}
                     />
+                  )}
+                  {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
+                    <div
+                      className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+                      style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
+                    >
+                      <Play size={9} fill="white" color="white" />
+                      <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                        {playCounts[String(album.release_id)]}
+                      </span>
+                    </div>
                   )}
                 </div>
 

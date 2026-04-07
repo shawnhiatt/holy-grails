@@ -8,6 +8,7 @@ import {
   Music,
   GalleryVerticalEnd,
   Zap,
+  Play,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -189,6 +190,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     toggleWantPriority,
     setSelectedFeedAlbum,
     isInCollection,
+    playCounts,
   } = useApp();
   const triggerHaptic = useHaptic('medium');
 
@@ -490,6 +492,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               onTap={handleDepthsTap}
               compact
               dominantColor
+              playCount={playCounts[String(album.release_id)] ?? 0}
             />
           ))}
         </div>
@@ -510,6 +513,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               album={album}
               onTap={handleDepthsTap}
               dominantColor
+              playCount={playCounts[String(album.release_id)] ?? 0}
             />
           ))}
         </div>
@@ -568,6 +572,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 album={album}
                 onTap={handleDepthsTap}
                 dominantColor
+                playCount={playCounts[String(album.release_id)] ?? 0}
               />
             </div>
           ))}
@@ -591,6 +596,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               album={album}
               onTap={handleDepthsTap}
               dominantColor
+              playCount={playCounts[String(album.release_id)] ?? 0}
             />
           ))}
         </div>
@@ -642,6 +648,17 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
               style={{ backgroundColor: purgeColor }}
             />
+          )}
+          {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
+            <div
+              className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+              style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
+            >
+              <Play size={9} fill="white" color="white" />
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                {playCounts[String(album.release_id)]}
+              </span>
+            </div>
           )}
         </div>
 
@@ -1824,6 +1841,17 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               />
             </button>
           </div>
+          {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
+            <div
+              className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+              style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", zIndex: 2 }}
+            >
+              <Play size={9} fill="white" color="white" />
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                {playCounts[String(album.release_id)]}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Metadata — uses dominant color CSS vars */}

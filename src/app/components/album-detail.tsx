@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, History, Gavel } from "lucide-react";
+import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, Gavel } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButto
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, type WantItem, type FeedAlbum } from "./discogs-api";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { conditionGradeColor as conditionColor } from "../../lib/condition-colors";
 
@@ -61,7 +61,7 @@ const releaseDataCache = new Map<number, ReleaseData>();
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
     selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
-    lastPlayed, markPlayed, markPlayedAt, isDarkMode,
+    lastPlayed, playCounts, markPlayed, markPlayedAt, isDarkMode,
     // Session picker
     isAlbumInAnySession, mostRecentSessionId,
     // Inline session list
@@ -81,6 +81,13 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const proxyMoveToFolder = useAction(api.discogs.proxyMoveToFolder);
   const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
   const [justPlayed, setJustPlayed] = useState(false);
+  const [playHistoryExpanded, setPlayHistoryExpanded] = useState(false);
+
+  // Play history query — only fires when album is selected
+  const playHistory = useQuery(
+    api.last_played.getHistoryByRelease,
+    selectedAlbum && sessionToken ? { sessionToken, release_id: selectedAlbum.release_id } : "skip"
+  );
 
   // Inline session list state
   const [sessionListExpanded, setSessionListExpanded] = useState(false);
@@ -121,6 +128,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   // Reset all state when album changes
   useEffect(() => {
     setJustPlayed(false);
+    setPlayHistoryExpanded(false);
     setSessionListExpanded(false);
     setShowNewSession(false);
     setNewSessionName("");
@@ -1117,6 +1125,52 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                         })}
                       </div>
                     </div>
+
+                    {/* ═══ Play History (inside Your Copy) ═══ */}
+                    {(playCounts[selectedAlbum.id] || 0) >= 1 && (
+                      <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
+                        <button
+                          onClick={() => setPlayHistoryExpanded((v) => !v)}
+                          className="w-full flex items-center gap-2 tappable"
+                          style={{ touchAction: "manipulation" }}
+                        >
+                          <Play size={14} style={{ color: "var(--c-text-secondary)", flexShrink: 0 }} />
+                          <span style={{ flex: 1, textAlign: "left", fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)" }}>
+                            {playCounts[selectedAlbum.id] === 1 ? "1 Play" : `${playCounts[selectedAlbum.id]} Plays`}
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            style={{ color: "var(--c-text-muted)", flexShrink: 0 }}
+                            className={`transition-transform ${playHistoryExpanded ? "rotate-180" : ""}`}
+                          />
+                        </button>
+                        <AnimatePresence>
+                          {playHistoryExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: DURATION_NORMAL }}
+                              className="overflow-hidden"
+                            >
+                              <div className="flex flex-col gap-1 pt-2">
+                                {playHistory === undefined ? (
+                                  <div className="flex items-center justify-center py-2">
+                                    <Disc3 className="disc-spinner" size={16} style={{ color: "var(--c-text-muted)" }} />
+                                  </div>
+                                ) : playHistory.length === 0 ? null : (
+                                  playHistory.map((entry) => (
+                                    <div key={entry._id} style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingLeft: "22px" }}>
+                                      {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

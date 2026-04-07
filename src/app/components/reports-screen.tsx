@@ -700,6 +700,7 @@ function ByFormatChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
 function ListeningActivitySection({
   albums,
   lastPlayed,
+  allPlayTimestamps,
   isDarkMode,
   markPlayed,
   onNeverPlayedTap,
@@ -707,6 +708,7 @@ function ListeningActivitySection({
 }: {
   albums: Album[];
   lastPlayed: Record<string, string>;
+  allPlayTimestamps: number[];
   isDarkMode: boolean;
   markPlayed: (id: string) => void;
   onNeverPlayedTap: () => void;
@@ -721,6 +723,72 @@ function ListeningActivitySection({
       return lp && new Date(lp).getTime() >= monthStart;
     }).length;
   }, [albums, lastPlayed]);
+
+  // Streak calculation — consecutive days with at least one play
+  const { currentStreak, longestStreak } = useMemo(() => {
+    if (allPlayTimestamps.length === 0) return { currentStreak: 0, longestStreak: 0 };
+
+    // Collect unique calendar days (YYYY-MM-DD) from all play timestamps
+    const daySet = new Set<string>();
+    for (const ts of allPlayTimestamps) {
+      const d = new Date(ts);
+      daySet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    }
+
+    // Sort days descending
+    const sortedDays = Array.from(daySet).sort().reverse();
+
+    // Walk backward from today for current streak
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const dayMs = 86400000;
+
+    let current = 0;
+    let checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Allow streak to start from today or yesterday
+    const checkStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+    if (!daySet.has(checkStr)) {
+      // Check yesterday — streak can still count if you haven't played today yet
+      checkDate = new Date(checkDate.getTime() - dayMs);
+      const yStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+      if (!daySet.has(yStr)) {
+        // No play today or yesterday — current streak is 0
+      } else {
+        current = 1;
+        checkDate = new Date(checkDate.getTime() - dayMs);
+      }
+    } else {
+      current = 1;
+      checkDate = new Date(checkDate.getTime() - dayMs);
+    }
+    if (current > 0) {
+      while (true) {
+        const s = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+        if (!daySet.has(s)) break;
+        current++;
+        checkDate = new Date(checkDate.getTime() - dayMs);
+      }
+    }
+
+    // Longest streak — scan all sorted days for max consecutive run
+    let longest = 0;
+    if (sortedDays.length > 0) {
+      let run = 1;
+      for (let i = 1; i < sortedDays.length; i++) {
+        const prev = new Date(sortedDays[i - 1]).getTime();
+        const curr = new Date(sortedDays[i]).getTime();
+        if (prev - curr === dayMs) {
+          run++;
+        } else {
+          longest = Math.max(longest, run);
+          run = 1;
+        }
+      }
+      longest = Math.max(longest, run);
+    }
+
+    return { currentStreak: current, longestStreak: longest };
+  }, [allPlayTimestamps]);
 
   // Last listened
   const lastListenedInfo = useMemo(() => {
@@ -1067,7 +1135,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 /* ═══════════════════ MAIN REPORTS SCREEN ═══════════════════ */
 
 export function ReportsScreen() {
-  const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
+  const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
   const triggerHaptic = useHaptic('medium');
 
   return (
@@ -1145,6 +1213,7 @@ export function ReportsScreen() {
             <ListeningActivitySection
               albums={albums}
               lastPlayed={lastPlayed}
+              allPlayTimestamps={allPlayTimestamps}
               isDarkMode={isDarkMode}
               markPlayed={markPlayed}
               onNeverPlayedTap={() => { setNeverPlayedFilter(true); setScreen("crate"); }}

@@ -1,5 +1,6 @@
 import React from "react";
 import type { ReactNode } from "react";
+import { Play } from "lucide-react";
 import type { Album } from "./discogs-api";
 import { DominantColorCard } from "./dominant-color-card";
 import { isScrollingRecently } from "../lib/scroll-state";
@@ -39,6 +40,8 @@ export interface DepthsAlbumCardProps {
   compact?: boolean;
   /** If true, card background uses the dominant color extracted from the artwork */
   dominantColor?: boolean;
+  /** Play count — renders a pill overlay on the artwork when >= 1 */
+  playCount?: number;
 }
 
 export function DepthsAlbumCard({
@@ -51,6 +54,7 @@ export function DepthsAlbumCard({
   artworkPadded = false,
   compact = false,
   dominantColor = false,
+  playCount,
 }: DepthsAlbumCardProps) {
   const dateText = dateLine ?? formatAddedDate(album.dateAdded);
   const metaLine = [album.year, album.label, album.folder].filter(Boolean).join(" \u00B7 ");
@@ -80,6 +84,17 @@ export function DepthsAlbumCard({
             className="w-full h-full object-cover object-center block"
           />
           {overlay}
+          {(playCount ?? 0) >= 1 && (
+            <div
+              className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+              style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
+            >
+              <Play size={9} fill="white" color="white" />
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                {playCount}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

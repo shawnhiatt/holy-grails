@@ -15,7 +15,41 @@ export const getByUsername = query({
   },
 });
 
-export const upsert = mutation({
+export const getCountByRelease = query({
+  args: { sessionToken: v.string(), release_id: v.number() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const records = await ctx.db
+      .query("last_played")
+      .withIndex("by_release", (q) =>
+        q
+          .eq("discogs_username", user.discogs_username)
+          .eq("release_id", args.release_id)
+      )
+      .collect();
+    return records.length;
+  },
+});
+
+export const getHistoryByRelease = query({
+  args: { sessionToken: v.string(), release_id: v.number() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const records = await ctx.db
+      .query("last_played")
+      .withIndex("by_release", (q) =>
+        q
+          .eq("discogs_username", user.discogs_username)
+          .eq("release_id", args.release_id)
+      )
+      .collect();
+    return records
+      .map((r) => ({ _id: r._id, played_at: r.played_at }))
+      .sort((a, b) => b.played_at - a.played_at);
+  },
+});
+
+export const logPlay = mutation({
   args: {
     sessionToken: v.string(),
     release_id: v.number(),
@@ -23,20 +57,6 @@ export const upsert = mutation({
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
-    const existing = await ctx.db
-      .query("last_played")
-      .withIndex("by_release", (q) =>
-        q
-          .eq("discogs_username", user.discogs_username)
-          .eq("release_id", args.release_id)
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, { played_at: args.played_at });
-      return existing._id;
-    }
-
     return await ctx.db.insert("last_played", {
       discogs_username: user.discogs_username,
       release_id: args.release_id,

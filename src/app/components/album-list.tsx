@@ -1,4 +1,5 @@
 import { useRef, useMemo } from "react";
+import { Play } from "lucide-react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
@@ -25,7 +26,7 @@ interface AlbumListProps {
 }
 
 export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, sortOption } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, sortOption, playCounts } = useApp();
   const triggerHaptic = useHaptic('medium');
   const collectionEmpty = allAlbums.length === 0;
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
@@ -170,6 +171,17 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
                     >
                       {formatRelativeDate(lp)}
                     </span>
+                  )}
+                  {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
+                    <div
+                      className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+                      style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+                    >
+                      <Play size={9} fill="white" color="white" />
+                      <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                        {playCounts[String(album.release_id)]}
+                      </span>
+                    </div>
                   )}
                 </div>
               </button>

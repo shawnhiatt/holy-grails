@@ -70,7 +70,7 @@ interface FormatSpotlightProps {
 }
 
 export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
-  const { albums } = useApp();
+  const { albums, playCounts } = useApp();
 
   // Compute once on mount — does not re-randomize during session
   const [spotlight] = useState(() => {
@@ -153,6 +153,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
                 album={album}
                 onTap={handleTap}
                 dominantColor
+                playCount={playCounts[String(album.release_id)] ?? 0}
                 overlay={
                   <WantlistHeartButton
                     releaseId={album.release_id}
@@ -189,6 +190,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
               album={album}
               onTap={handleTap}
               dominantColor
+              playCount={playCounts[String(album.release_id)] ?? 0}
               overlay={
                 <WantlistHeartButton
                   releaseId={album.release_id}
