@@ -78,3 +78,18 @@ export const clearAll = mutation({
     for (const row of rows) await ctx.db.delete(row._id);
   },
 });
+
+// TEMPORARY — remove after prod clear
+export const clearAllAdmin = mutation({
+  args: { discogs_username: v.string() },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("last_played")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", args.discogs_username)
+      )
+      .collect();
+    for (const row of rows) await ctx.db.delete(row._id);
+    return { deleted: rows.length };
+  },
+});

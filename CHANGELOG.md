@@ -4,6 +4,46 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.5.3 — 2026-04-06
+
+### Play history, play count pills, and listening enhancements
+
+#### Play history (append model)
+- Migrated `last_played` from upsert to append model — every play logs a new record
+- `playCounts` and `allPlayTimestamps` exposed via app context
+
+#### Album detail — Mark as Played
+- Added "Log a past play" secondary link below the Mark as Played button, opens a native date picker capped at today
+- Tapping an existing "Last played" date opens the picker to edit it
+
+#### Play history UI
+- Play count summary row and history accordion added to "Your Copy" section in album detail panel
+- Shows play icon, count, and individual play dates newest first
+- Renders null when no plays logged
+
+#### Play count pill
+- Play icon + count overlay added to collection album card thumbnails across all surfaces — grid, list, artwork, feed (Recommended, Recently Added, Depths, Decades, Format Spotlight)
+- Only appears when play count >= 1
+- List view: pill repositioned from thumbnail overlay to right edge of list row, bottom-right, alongside purge dot indicator
+
+#### Streak calculation
+- Updated to work with append model play data
+- Both current streak and longest streak computed in the same useMemo pass
+
+#### Insights — By Format cards
+- Flipped label/number hierarchy — label now appears above the number for improved legibility
+
+#### Feed — Splash screen cycling stats
+- Returning users see rotating collection stats during sync progress screen
+
+#### Album detail — bottom gradient
+- Panel now has matching gradient fade at bottom consistent with other screens
+
+#### Investigated
+- Sold History link: investigated iOS Universal Link interception by Discogs native app; attempted bypass via window.open and intermediate redirect
+
+---
+
 ## 0.5.2 — 2026-03-28
 
 ### Insights screen overhaul
