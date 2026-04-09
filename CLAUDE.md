@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.5.1
+# CLAUDE.md — Holy Grails v0.5.4
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -484,7 +484,10 @@ Session picker and other components that render outside the main `<main>` elemen
 ### App-Level CSS Custom Properties
 
 - `--app-bg` — set dynamically in App.tsx as the scroll-fade gradient base color. Dark: `#0C1A2E`, Light: `#ACDEF2`. Used for the top-of-screen scroll fade overlay.
-- `--nav-clearance` — bottom padding calc used across 16+ screen components to clear the fixed navigation bar. Set in App.tsx or navigation.tsx.
+- `--nav-clearance` — `calc(84px + env(safe-area-inset-bottom, 0px))` — bottom padding calc used across 16+ screen components to clear the fixed navigation bar. Set in App.tsx or navigation.tsx.
+- `--slide-panel-footer-pb` — `84px` (mobile) / `16px` (desktop) — bottom padding for pinned sheet footers.
+- WantlistCrossoverPrompt bottom offset: `calc(72px + env(safe-area-inset-bottom, 0px))`
+- Scroll fade overlay height: `calc(128px + env(safe-area-inset-bottom, 0px))`
 
 ### CSS Utility Classes (theme.css)
 
@@ -557,6 +560,20 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 Session picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper). Session picker is now accessed via (1) the `Music` icon button on the Recommended card in the Feed screen, and (2) the inline Save for Later accordion in `album-detail.tsx`.
 
 "View on Discogs" links removed app-wide from all album/release contexts. OAuth flows unaffected. `MarketValueSection` removed from `WantItemDetailPanel` and `ReleaseDetailPanel` — only present in collection `AlbumDetailPanel`.
+
+### Search/Filter Row
+
+Standard row order (Collection, Wantlist, followed user profile):
+[Search bar — flex: 1] [Large grid toggle] [List toggle] [Filter button]
+
+Removed toggles: compact 3-column grid (Grid3x3) and swiper/disk (Disc3).
+These view modes no longer exist. VIEW_MODES and WANT_VIEW_MODES are
+reduced to `grid` and `list` only. A useEffect guard resets any stored
+`crate` or `artwork` view mode to `grid` on mount.
+
+Followed user profile (FollowedUserProfile in following-screen.tsx):
+Same row minus filter button — filter button is present but filter
+system is not yet fully wired. Do not remove the button.
 
 ### Year Display Convention
 
@@ -635,7 +652,16 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 ## Navigation Structure
 
 ### Mobile (< 1024px)
-Floating pill bottom tab bar with 5 items:
+Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
+
+- `left: 0`, `right: 0`, `bottom: 0`, `border-radius: 0`
+- Height: `calc(60px + env(safe-area-inset-bottom, 0px))`
+- `paddingBottom: env(safe-area-inset-bottom, 0px)` applied internally
+- Background: `linear-gradient(to bottom, rgb(33,69,100), rgb(1,41,77))`
+- Active item highlight: `rounded-[12px]` (not rounded-full)
+- The PWA standalone `.bottom-tab-bar` override has been removed — flush bar requires no override
+
+5 items:
 
 | Order | Label | Icon | Screen |
 |---|---|---|---|
@@ -645,8 +671,42 @@ Floating pill bottom tab bar with 5 items:
 | 4 | Sessions | Music | `sessions` |
 | 5 | Insights | BarChart3 | `reports` |
 
-Mobile header right group (2 buttons): Following (Users icon, navigates to `following`) + Settings avatar.
 **Purge is not in the mobile bottom bar** — Purge is accessed from the Feed screen card, Settings quick-access card, and Album Detail.
+
+### MobileHeader Variants
+
+MobileHeader is context-aware and renders one of five variants based on
+`screen` and `followedUserProfile` from AppContext.
+
+**Variant A — Feed**
+PillLogo (h-32px) left. Users icon + avatar right.
+Wordmark is the only screen where the logo appears in the header.
+
+**Variant B — Standard screens (Collection, Wantlist, Insights, Settings)**
+Screen title `<h1>` left (Bricolage Grotesque 700, 28px, truncating).
+Users icon + avatar right.
+
+**Variant C — Sessions**
+Screen title left. Yellow Plus button (w-8 h-8 rounded-full bg-[#EBFD00]) +
+users icon + avatar right. Plus button calls `onNewSession` from context.
+
+**Variant D — Following (no profile open)**
+Screen title left. Yellow UserPlus button + users icon + avatar right.
+UserPlus button calls `onAddFollowedUser` from context.
+
+**Variant E — Following (profile open, followedUserProfile !== null)**
+Back arrow + user avatar + @username (truncating) left.
+Muted UserMinus button (var(--c-text-muted), NOT destructive red) right.
+Back calls `onBackFromProfile`. Unfollow calls `onUnfollowUser` (triggers
+existing confirmation modal — does not unfollow directly).
+
+Title truncation on all variants: `white-space: nowrap`,
+`overflow: hidden`, `text-overflow: ellipsis`, `min-width: 0`,
+`flex: 1` on title wrapper. Right button group is `flex-shrink: 0`.
+
+SCREEN_TITLES map lives in `navigation.tsx`. Feed is intentionally omitted.
+Per-screen internal title bars have been removed from all screens —
+do not re-add them.
 
 ### Desktop (>= 1024px)
 Horizontal top nav with 8 items split left/center/right. Logo centered. Both groups are `flex-1`.
@@ -715,6 +775,14 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - `selectedFeedAlbum: FeedAlbum | null` — context slot for following/feed album detail. Mirrors the `selectedWantItem` pattern exactly. Set by Following and Feed screen album art taps. Cleared on panel close.
 - `removeFromCollection(albumId)` in context — calls `proxyRemoveFromCollection` (action #9), removes album from local state and Convex collection cache on success. No full re-sync.
 - `collectionCrossoverQueue` in context — queue of wantlist items found in collection after sync, drives the crossover prompt (`wantlist-crossover-prompt.tsx`)
+- Header action callbacks — registered by screens on mount, cleaned up on unmount. All use the double-arrow pattern to prevent React functional update auto-invocation:
+  - `setOnNewSession(() => () => fn())` ← correct
+  - `setOnNewSession(() => fn())` ← WRONG — triggers fn() immediately on mount
+  - `onNewSession` / `setOnNewSession` — registered by SessionsScreen
+  - `onAddFollowedUser` / `setOnAddFollowedUser` — registered by FollowingScreen
+  - `followedUserProfile` / `setFollowedUserProfile` — `{ username, avatarUrl? } | null`, set by FollowingScreen when a user profile is open, null when closed
+  - `onBackFromProfile` / `setOnBackFromProfile` — registered by FollowingScreen
+  - `onUnfollowUser` / `setOnUnfollowUser` — registered by FollowedUserProfile
 - Following screen activity feed hearts call Convex proxy actions with per-item Disc3 loading spinners
 - Following feed cache in Convex — powers Feed Recent Activity without requiring Following screen hydration
 - Wantlist cached in Convex — synced alongside collection with 24h TTL

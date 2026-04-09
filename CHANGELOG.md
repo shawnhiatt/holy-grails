@@ -4,6 +4,45 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## [0.5.4] — 2026-04-09
+
+### Navigation
+
+- Mobile bottom tab bar converted from floating pill to fixed flush bar
+- Removed side margins and border-radius from nav bar
+- Active tab highlight changed from `rounded-full` to `rounded-[12px]`
+- Nav height now expands with safe area: `calc(60px + env(safe-area-inset-bottom))`
+- Updated `--nav-clearance`, `--slide-panel-footer-pb`, scroll fade overlay, and WantlistCrossoverPrompt offset to match new geometry
+- Fixed Following screen double safe-area inset bug
+- Removed stale `pb-[112px]` / `pb-[120px]` dead-code classes from album-grid, album-list, and wantlist
+- Removed PWA standalone `.bottom-tab-bar` override (no longer needed)
+
+### Header
+
+- Removed HOLY GRAILS wordmark from all screens except Feed
+- MobileHeader is now context-aware with five variants (A–E) per screen
+- Screen titles rendered in header: Collection, Wantlist, Sessions, Insights, Following, Settings
+- Feed header renders wordmark left-aligned in title position
+- Sessions header: screen title + yellow Plus button (triggers new session form)
+- Following header: screen title + yellow UserPlus button (triggers add user form)
+- User profile header (Variant E): back arrow + avatar + @username + muted unfollow icon
+- Unfollow button de-emphasized to `var(--c-text-muted)` — triggers confirmation modal only
+- Per-screen internal title bars removed from all screens
+- Header action callbacks registered via AppContext with double-arrow pattern to prevent mount auto-trigger
+- Fixed React functional update bug causing New Session form and Add User input to auto-open on mount
+- `transparent` prop removed from MobileHeader (was a no-op)
+
+### Search / Filter Row
+
+- Removed compact 3-column grid toggle from Collection, Wantlist, and followed user profile view
+- Removed swiper/disk display toggle from Collection, Wantlist, and followed user profile view
+- Filter button repositioned to the right of view toggles on Collection and Wantlist
+- Filter button added to followed user profile view
+- Search bar expands to fill reclaimed space on all three screens
+- Added fallback: if swiper was the active view mode, resets to large grid on mount
+
+---
+
 ## 0.5.3 — 2026-04-06
 
 ### Play history, play count pills, and listening enhancements
