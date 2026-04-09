@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Disc3, Grid2x2, List, Zap, Grid3x3, X } from "lucide-react";
+import { Search, Grid2x2, List, Zap, X } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
 import { toast } from "sonner";
 import { useApp, type ViewMode } from "./app-context";
@@ -163,16 +163,19 @@ function getWantGroupLabel(item: WantItem): string {
 
 type WantViewMode = "crate" | "list" | "grid" | "artwork";
 
-const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
+const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
   { id: "grid", icon: Grid2x2, label: "Grid" },
-  { id: "artwork", icon: Grid3x3, label: "Artwork Grid" },
   { id: "list", icon: List, label: "List" },
-  { id: "crate", icon: Disc3, label: "Swiper" },
 ];
 
 export function Wantlist() {
   const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
   const triggerHaptic = useHaptic('medium');
+
+  // Fall back to grid if stored view mode is one that was removed
+  useEffect(() => {
+    if (viewMode === "crate" || viewMode === "artwork") setViewMode("grid");
+  }, [viewMode, setViewMode]);
 
   const handleSelectWant = useCallback((item: WantItem) => {
     triggerHaptic();

@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
-import { Search, SlidersHorizontal, List, Disc3, Grid2x2, Grid3x3, X, Compass } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { Search, SlidersHorizontal, List, Grid2x2, X, Compass } from "lucide-react";
 import { useApp, type ViewMode } from "./app-context";
 import { CrateFlip } from "./crate-flip";
 import { AlbumList } from "./album-list";
@@ -9,11 +9,9 @@ import { AlbumArtwork } from "./album-artwork-grid";
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 
-const VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
+const VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
   { id: "grid", icon: Grid2x2, label: "Grid" },
-  { id: "artwork", icon: Grid3x3, label: "Artwork Grid" },
   { id: "list", icon: List, label: "List" },
-  { id: "crate", icon: Disc3, label: "Swiper" },
 ];
 
 /** Shared view mode toggle pill (used in Collection + Wantlist) */
@@ -86,6 +84,11 @@ export function CrateBrowser() {
   } = useApp();
 
   const [lightboxActive, setLightboxActive] = useState(false);
+
+  // Fall back to grid if stored view mode is one that was removed
+  useEffect(() => {
+    if (viewMode === "crate" || viewMode === "artwork") setViewMode("grid");
+  }, [viewMode, setViewMode]);
 
   const handleLightboxActivate = useCallback(() => {
     setLightboxActive(true);
@@ -207,27 +210,24 @@ export function CrateBrowser() {
             <button onClick={() => setSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>
           )}
         </div>
-        {/* Filter button + active filter chips — flex-1 */}
-        <div className="flex-1 flex items-center gap-[16px] min-w-0">
-          <button
-            onClick={() => setShowFilterDrawer(true)}
-            className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
-            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-          >
-            <SlidersHorizontal size={18} />
-          </button>
-          {hasActiveFilters && (
-            <div className="flex items-center gap-[8px] shrink-0">
-              {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
-              {sortOption !== "artist-az" && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption("artist-az")} />}
-              {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
-            </div>
-          )}
-        </div>
-        {/* View toggle — right-aligned */}
-        <div className="flex items-center justify-end">
-          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
-        </div>
+        {/* Active filter chips */}
+        {hasActiveFilters && (
+          <div className="flex items-center gap-[8px] shrink-0">
+            {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
+            {sortOption !== "artist-az" && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption("artist-az")} />}
+            {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
+          </div>
+        )}
+        {/* View toggle */}
+        <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
+        {/* Filter button */}
+        <button
+          onClick={() => setShowFilterDrawer(true)}
+          className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
+          style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
+        >
+          <SlidersHorizontal size={18} />
+        </button>
       </div>
 
       {/* ===== MOBILE search/filter/view controls (gray content area) ===== */}
@@ -247,6 +247,7 @@ export function CrateBrowser() {
               <button onClick={() => setSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>
             )}
           </div>
+          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} compact />
           <button
             onClick={() => setShowFilterDrawer(true)}
             className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
@@ -254,7 +255,6 @@ export function CrateBrowser() {
           >
             <SlidersHorizontal size={18} />
           </button>
-          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} compact />
         </div>
 
         {/* Active filter chips (mobile) */}

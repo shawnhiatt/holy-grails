@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
   UserPlus, ArrowLeft, Search, UserMinus, Lock,
-  Disc3, Users, Grid2x2, List, Grid3x3,
+  Disc3, Users, Grid2x2, List, SlidersHorizontal,
   Heart, X, GalleryVerticalEnd,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
@@ -26,11 +26,9 @@ const hasYear = (year: number | null | undefined): year is number =>
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
 type FollowingTab = "collection" | "wants";
 
-const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[] = [
+const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
   { id: "grid", icon: Grid2x2, label: "Grid" },
-  { id: "artwork", icon: Grid3x3, label: "Artwork Grid" },
   { id: "list", icon: List, label: "List" },
-  { id: "crate", icon: Disc3, label: "Swiper" },
 ];
 
 export function FollowingScreen() {
@@ -296,6 +294,7 @@ function FollowedUserProfile({
   const [filter, setFilter] = useState<FollowingFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [showFilters, setShowFilters] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser } = useApp();
   const triggerHaptic = useHaptic('medium');
@@ -471,7 +470,7 @@ function FollowedUserProfile({
             />
             {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
           </div>
-          {tab === "collection" && (
+          {showFilters && tab === "collection" && (
             <div className="flex items-center gap-2 shrink-0">
               {FILTER_CHIPS.map((chip) => {
                 const isActive = filter === chip.id;
@@ -500,6 +499,13 @@ function FollowedUserProfile({
             </div>
           )}
           <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FOLLOWING_VIEW_MODES} />
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
+            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
+          >
+            <SlidersHorizontal size={18} />
+          </button>
         </div>
 
         {/* Mobile: search + view toggle row, then filter chips row */}
@@ -516,8 +522,15 @@ function FollowedUserProfile({
               {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
             </div>
             <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FOLLOWING_VIEW_MODES} compact />
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
+              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
+            >
+              <SlidersHorizontal size={18} />
+            </button>
           </div>
-          {tab === "collection" && (
+          {showFilters && tab === "collection" && (
             <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-1 no-scrollbar">
               {FILTER_CHIPS.map((chip) => {
                 const isActive = filter === chip.id;
