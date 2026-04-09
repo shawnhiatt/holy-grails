@@ -26,18 +26,14 @@ export function ViewModeToggle({
   modes?: typeof VIEW_MODES;
   compact?: boolean;
 }) {
-  const btnSize = compact ? "w-[26px] h-[26px]" : "w-[31px] h-[31px]";
-  const iconSize = compact ? 15 : 18;
-  const rounding = compact ? "rounded-[7.5px]" : "rounded-[9px]";
-  const btnRounding = compact ? "rounded-[5.5px]" : "rounded-[7px]";
-  const padding = compact ? "p-[4px]" : "p-[4.5px]";
-  const gap = compact ? "gap-[2px]" : "gap-[2.2px]";
+  const btnSize = compact ? "w-[34px] h-[34px]" : "w-[40px] h-[40px]";
+  const iconSize = 18;
   const height = compact ? "h-[34px]" : "h-[40px]";
 
   return (
     <div
-      className={`flex items-center ${gap} ${rounding} ${padding} ${height} shrink-0`}
-      style={{ backgroundColor: "var(--c-surface)", border: compact ? "0.94px solid var(--c-border-strong)" : "1px solid var(--c-border-strong)" }}
+      className={`flex items-center gap-[2px] rounded-[10px] ${height} shrink-0 overflow-hidden`}
+      style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
     >
       {modes.map((mode) => {
         const Icon = mode.icon;
@@ -46,12 +42,11 @@ export function ViewModeToggle({
             key={mode.id}
             onClick={() => setViewMode(mode.id)}
             title={mode.label}
-            className={`${btnSize} ${btnRounding} flex items-center justify-center transition-all ${
-              viewMode === mode.id
-                ? "bg-[#ACDEF2] text-[#0C284A]"
-                : ""
-            }`}
-            style={viewMode !== mode.id ? { color: "var(--c-text-muted)" } : undefined}
+            className={`${btnSize} flex items-center justify-center transition-all`}
+            style={{
+              backgroundColor: viewMode === mode.id ? "var(--c-surface-hover)" : undefined,
+              color: "var(--c-text-muted)",
+            }}
           >
             <Icon size={iconSize} />
           </button>

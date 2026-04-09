@@ -159,6 +159,7 @@ const SCREEN_TITLES: Partial<Record<Screen, string>> = {
   reports: "Insights",
   following: "Following",
   settings: "Settings",
+  purge: "Purge",
 };
 
 export function MobileHeader() {
@@ -324,7 +325,7 @@ export function MobileHeader() {
       <h1
         className="flex-1 min-w-0"
         style={{
-          fontSize: "28px",
+          fontSize: "32px",
           fontWeight: 700,
           fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
           letterSpacing: "-0.5px",

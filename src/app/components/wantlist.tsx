@@ -249,6 +249,7 @@ export function Wantlist() {
               style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
             {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
           </div>
+          <ViewModeToggle viewMode={viewMode} setViewMode={(v) => setViewMode(v as WantViewMode)} modes={WANT_VIEW_MODES} compact />
           <button onClick={() => setWantFilter(wantFilter === "all" ? "priority" : "all")}
             className={`w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors shrink-0 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#0C284A]" : ""}`}
             style={wantFilter !== "priority" ? { backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" } : undefined}
@@ -256,7 +257,6 @@ export function Wantlist() {
           >
             <Zap size={16} fill={wantFilter === "priority" ? "currentColor" : "none"} />
           </button>
-          <ViewModeToggle viewMode={viewMode} setViewMode={(v) => setViewMode(v as WantViewMode)} modes={WANT_VIEW_MODES} compact />
         </div>
       </div>
 
