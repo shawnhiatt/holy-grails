@@ -1145,19 +1145,6 @@ export function ReportsScreen() {
         className="flex-shrink-0 flex items-center px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]"
       >
         <div className="flex flex-col">
-          <h2
-            className="screen-title"
-            style={{
-              fontSize: "28px",
-              fontWeight: 600,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              letterSpacing: "-0.5px",
-              lineHeight: 1.25,
-              color: "var(--c-text)",
-            }}
-          >
-            Insights
-          </h2>
           <p
             className="mt-1"
             style={{

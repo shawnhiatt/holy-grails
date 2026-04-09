@@ -34,7 +34,7 @@ const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Disc3; label: string }[
 ];
 
 export function FollowingScreen() {
-  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setSelectedFeedAlbum, setShowAlbumDetail } = useApp();
+  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setSelectedFeedAlbum, setShowAlbumDetail, setOnAddFollowedUser, setFollowedUserProfile, setOnBackFromProfile, setOnUnfollowUser } = useApp();
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
   const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
@@ -49,6 +49,27 @@ export function FollowingScreen() {
     () => followedUsers.find((f) => f.id === selectedUserId) || null,
     [followedUsers, selectedUserId]
   );
+
+  // Register header add-user callback
+  useEffect(() => {
+    setOnAddFollowedUser(() => () => { setShowAddForm(true); setAddError(""); });
+    return () => setOnAddFollowedUser(null);
+  }, [setOnAddFollowedUser]);
+
+  // Surface selected user profile to header
+  useEffect(() => {
+    if (selectedUserId && selectedUser) {
+      setFollowedUserProfile({
+        username: selectedUser.username,
+        avatarUrl: selectedUser.avatar || undefined,
+      });
+      setOnBackFromProfile(() => () => setSelectedUserId(null));
+    } else {
+      setFollowedUserProfile(null);
+      setOnBackFromProfile(null);
+      setOnUnfollowUser(null);
+    }
+  }, [selectedUserId, selectedUser, setFollowedUserProfile, setOnBackFromProfile, setOnUnfollowUser]);
 
   const handleConnect = useCallback(async () => {
     const username = addUsername.trim();
@@ -161,23 +182,6 @@ export function FollowingScreen() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Following</h2>
-          </div>
-          <div className="w-11 h-8 flex items-center justify-center">
-            <button
-              onClick={() => { setShowAddForm(true); setAddError(""); }}
-              className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer"
-            >
-              <UserPlus size={16} />
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Add User Form */}
       <AnimatePresence>
         {showAddForm && (
@@ -293,8 +297,14 @@ function FollowedUserProfile({
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId } = useApp();
+  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser } = useApp();
   const triggerHaptic = useHaptic('medium');
+
+  // Register header unfollow callback
+  useEffect(() => {
+    setOnUnfollowUser(() => () => setShowRemoveConfirm(true));
+    return () => setOnUnfollowUser(null);
+  }, [setOnUnfollowUser]);
 
   const handleOpenAlbum = useCallback((item: Album | WantItem) => {
     triggerHaptic();
@@ -351,33 +361,6 @@ function FollowedUserProfile({
   if (user.isPrivate) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
-          <div className="flex items-center gap-3">
-            <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer" style={{ color: "var(--c-text)" }}>
-              <ArrowLeft size={20} />
-            </button>
-            {user.avatar ? (
-              <img src={user.avatar} alt={user.username} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: "2px solid var(--c-border)" }} />
-            ) : (
-              <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}>
-                <Users size={14} style={{ color: "var(--c-text-muted)" }} />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <h2 className="text-[22px] lg:text-[36px] leading-[1.2]" style={{ fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                @{user.username}
-              </h2>
-            </div>
-            <button
-              onClick={() => setShowRemoveConfirm(true)}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--c-destructive-tint)] cursor-pointer"
-              style={{ color: "var(--c-destructive)" }}
-              title="Unfollow"
-            >
-              <UserMinus size={16} />
-            </button>
-          </div>
-        </div>
         <div className="flex-1 flex flex-col items-center justify-center px-8">
           <Lock size={48} style={{ color: "var(--c-text-faint)" }} />
           <p className="mt-4 text-center" style={{ fontSize: "16px", fontWeight: 500, color: "var(--c-text-muted)" }}>Private Collection</p>
@@ -443,36 +426,9 @@ function FollowedUserProfile({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] py-[12px] lg:pt-[16px] lg:pb-[12px]">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer" style={{ color: "var(--c-text)" }}>
-            <ArrowLeft size={20} />
-          </button>
-          {user.avatar ? (
-            <img src={user.avatar} alt={user.username} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: "2px solid var(--c-border)" }} />
-          ) : (
-            <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}>
-              <Users size={14} style={{ color: "var(--c-text-muted)" }} />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[22px] lg:text-[36px] leading-[1.2]" style={{ fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-              @{user.username}
-            </h2>
-          </div>
-          <button
-            onClick={() => setShowRemoveConfirm(true)}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--c-destructive-tint)] cursor-pointer"
-            style={{ color: "var(--c-destructive)" }}
-            title="Unfollow"
-          >
-            <UserMinus size={16} />
-          </button>
-        </div>
-
-        {/* Collection / Wantlist toggle */}
-        <div className="flex mt-3 rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
+      {/* Collection / Wantlist toggle */}
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[12px] lg:pt-[16px] lg:pb-[12px]">
+        <div className="flex rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
           <button
             onClick={() => { setTab("collection"); setFilter("all"); }}
             className="flex-1 py-2 text-center transition-colors cursor-pointer"

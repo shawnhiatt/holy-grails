@@ -13,6 +13,7 @@ export function Sessions() {
   const {
     sessions, albums, deleteSession, renameSession, createSessionDirect, isAuthenticated,
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInSession, reorderSessionAlbums,
+    setOnNewSession,
   } = useApp();
   const triggerHaptic = useHaptic('medium');
 
@@ -47,6 +48,12 @@ export function Sessions() {
     }
   }, [activeSessionId, sessions]);
 
+  // Register header "+" callback
+  useEffect(() => {
+    setOnNewSession(() => () => setShowNewSession(true));
+    return () => setOnNewSession(null);
+  }, [setOnNewSession]);
+
   if (activeSession) {
     return (
       <>
@@ -76,18 +83,6 @@ export function Sessions() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Title bar */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
-        <div className="flex items-center justify-between">
-          <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Sessions</h2>
-          <div className="w-11 h-8 flex items-center justify-center">
-            <button onClick={() => setShowNewSession(true)} className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable">
-              <Plus size={20} />
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* New session input */}
       <AnimatePresence>
         {showNewSession && (

@@ -202,15 +202,6 @@ export function Wantlist() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ===== DESKTOP title bar (white bg + border) ===== */}
-      <div
-        className="hidden lg:flex flex-shrink-0"
-      >
-        <div className="flex items-center gap-[30px] px-[24px] pt-[8px] pb-[20px] w-full">
-          <h2 style={{ fontSize: "48px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Wantlist</h2>
-        </div>
-      </div>
-
       {/* ===== DESKTOP search/filter/view controls (gray content area) ===== */}
       <div className="hidden lg:flex items-center gap-[16px] px-[24px] pt-[8px] pb-[16px] flex-shrink-0">
         {/* Search field — flex-1 */}
@@ -243,11 +234,6 @@ export function Wantlist() {
         <div className="flex items-center justify-end">
           <ViewModeToggle viewMode={viewMode} setViewMode={(v) => setViewMode(v as WantViewMode)} modes={WANT_VIEW_MODES} />
         </div>
-      </div>
-
-      {/* ===== MOBILE top controls ===== */}
-      <div className="lg:hidden flex-shrink-0 px-[16px] pt-[2px] pb-[8px]">
-        <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Wantlist</h2>
       </div>
 
       {/* ===== MOBILE search/filter/view controls ===== */}

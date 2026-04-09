@@ -413,7 +413,7 @@ function AppContent() {
                   : { flexShrink: 0 }),
               }}
             >
-              <MobileHeader transparent={screen === "feed" && heroVisible} />
+              <MobileHeader />
             </div>
             <div
               className="flex-1 flex flex-col overflow-hidden"

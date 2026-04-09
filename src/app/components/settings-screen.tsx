@@ -231,10 +231,6 @@ export function SettingsScreen() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]">
-        <h2 className="screen-title" style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Settings</h2>
-      </div>
-
       <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
         <section className="mt-4">
           <div className="rounded-[12px] p-4 flex flex-col gap-4" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>

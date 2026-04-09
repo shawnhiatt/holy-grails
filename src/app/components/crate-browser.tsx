@@ -155,9 +155,6 @@ export function CrateBrowser() {
         className="hidden lg:flex flex-shrink-0"
       >
         <div className="flex items-center gap-[30px] px-[24px] pt-[8px] pb-[20px] w-full">
-          <div className="flex-1 flex items-center">
-            <h2 style={{ fontSize: "48px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Collection</h2>
-          </div>
           <div className="flex-1 flex flex-col items-end justify-center gap-[4px]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: "18px", textAlign: "right", color: isDarkMode ? "#9EAFC2" : "#3D5C77" }}>
             {albums.length > 0 ? (
             <>
@@ -230,15 +227,6 @@ export function CrateBrowser() {
         {/* View toggle — right-aligned */}
         <div className="flex items-center justify-end">
           <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
-        </div>
-      </div>
-
-      {/* ===== MOBILE title bar ===== */}
-      <div
-        className="lg:hidden flex-shrink-0 px-[16px] pt-[2px] pb-[8px]"
-      >
-        <div className="flex items-center justify-between">
-          <h2 style={{ fontSize: "28px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.5px", lineHeight: 1.25, color: "var(--c-text)" }}>Collection</h2>
         </div>
       </div>
 

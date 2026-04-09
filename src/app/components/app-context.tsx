@@ -182,6 +182,17 @@ interface AppState {
   followingAvatars: Map<string, string>;
   // Cycling stats derived from Convex cache (available before albums state populates)
   cachedSyncStats: string[];
+  // Header callbacks — registered by screen components, called by MobileHeader
+  onNewSession: (() => void) | null;
+  setOnNewSession: (fn: (() => void) | null) => void;
+  onAddFollowedUser: (() => void) | null;
+  setOnAddFollowedUser: (fn: (() => void) | null) => void;
+  followedUserProfile: { username: string; avatarUrl?: string } | null;
+  setFollowedUserProfile: (profile: { username: string; avatarUrl?: string } | null) => void;
+  onBackFromProfile: (() => void) | null;
+  setOnBackFromProfile: (fn: (() => void) | null) => void;
+  onUnfollowUser: (() => void) | null;
+  setOnUnfollowUser: (fn: (() => void) | null) => void;
 }
 
 /** Build lastPlayed (most recent per release), playCounts, and allTimestamps from raw play records. */
@@ -292,6 +303,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedFeedAlbum, setSelectedFeedAlbum] = useState<FeedAlbum | null>(null);
   const [collectionCrossoverQueue, setCollectionCrossoverQueue] = useState<WantItem[]>([]);
   const [followingFeed, setFollowingFeed] = useState<FollowingFeedEntry[]>([]);
+  // Header callbacks — registered by screen components
+  const [onNewSession, setOnNewSession] = useState<(() => void) | null>(null);
+  const [onAddFollowedUser, setOnAddFollowedUser] = useState<(() => void) | null>(null);
+  const [followedUserProfile, setFollowedUserProfile] = useState<{ username: string; avatarUrl?: string } | null>(null);
+  const [onBackFromProfile, setOnBackFromProfile] = useState<(() => void) | null>(null);
+  const [onUnfollowUser, setOnUnfollowUser] = useState<(() => void) | null>(null);
 
   // ── Convex queries ──
 
@@ -2212,6 +2229,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       followingFeed,
       followingAvatars,
       cachedSyncStats,
+      // Header callbacks
+      onNewSession,
+      setOnNewSession,
+      onAddFollowedUser,
+      setOnAddFollowedUser,
+      followedUserProfile,
+      setFollowedUserProfile,
+      onBackFromProfile,
+      setOnBackFromProfile,
+      onUnfollowUser,
+      setOnUnfollowUser,
     }),
     [
       screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, followedUsers,
@@ -2250,6 +2278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
       followingFeed, followingAvatars, cachedSyncStats,
+      onNewSession, onAddFollowedUser, followedUserProfile, onBackFromProfile, onUnfollowUser,
     ]
   );
 

@@ -10,6 +10,10 @@ import {
   Users,
   BarChart3,
   Newspaper,
+  Plus,
+  UserPlus,
+  UserMinus,
+  ArrowLeft,
 } from "lucide-react";
 import { useApp, type Screen } from "./app-context";
 import { useHaptic } from "@/hooks/useHaptic";
@@ -148,72 +152,194 @@ export function PillLogo({ className, onClick, forceDark }: { className?: string
   );
 }
 
-export function MobileHeader({ transparent = false }: { transparent?: boolean }) {
-  const { screen, setScreen, isDarkMode, userAvatar } = useApp();
+const SCREEN_TITLES: Partial<Record<Screen, string>> = {
+  crate: "Collection",
+  wants: "Wantlist",
+  sessions: "Sessions",
+  reports: "Insights",
+  following: "Following",
+  settings: "Settings",
+};
+
+export function MobileHeader() {
+  const {
+    screen, setScreen, isDarkMode, userAvatar,
+    onNewSession, onAddFollowedUser,
+    followedUserProfile, onBackFromProfile, onUnfollowUser,
+  } = useApp();
   const triggerHapticLight = useHaptic('light');
 
   const activeBg = "rgba(172,222,242,0.12)";
   const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
 
-  return (
-    <div
-      className="flex items-center justify-between lg:hidden px-[16px]"
-      style={{
-        height: "58px",
-        background: "transparent",
-      }}
-    >
-      {/* Left: Following */}
-      <div className="flex items-center">
-        <button
-          onClick={() => { triggerHapticLight(); setScreen("following"); }}
-          className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
-          title="Following"
+  const isProfileView = screen === "following" && followedUserProfile !== null;
+
+  // Shared right-side nav buttons (Following + Settings)
+  const navButtons = (
+    <div className="flex items-center flex-shrink-0">
+      <button
+        onClick={() => { triggerHapticLight(); setScreen("following"); }}
+        className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
+        title="Following"
+      >
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{
+            color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
+            backgroundColor: screen === "following" ? activeBg : inactiveBg,
+          }}
         >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center"
+          <Users size={18} strokeWidth={screen === "following" ? 1.83 : 1.3125} />
+        </div>
+      </button>
+      <button
+        onClick={() => { triggerHapticLight(); setScreen("settings"); }}
+        className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
+        title="Settings"
+      >
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{
+            color: screen === "settings" ? "#EBFD00" : "var(--c-text-muted)",
+            overflow: userAvatar ? "hidden" : undefined,
+            backgroundColor: screen === "settings" ? activeBg : inactiveBg,
+            border: userAvatar ? (screen === "settings" ? "2px solid #EBFD00" : "2px solid transparent") : undefined,
+          }}
+        >
+          {userAvatar ? (
+            <img
+              src={userAvatar}
+              alt="Profile"
+              className="w-8 h-8 rounded-full object-cover"
+            />
+          ) : (
+            <UserRound size={18} strokeWidth={screen === "settings" ? 1.83 : 1.3125} />
+          )}
+        </div>
+      </button>
+    </div>
+  );
+
+  // Variant E — Followed user profile sub-view
+  if (isProfileView) {
+    return (
+      <div
+        className="flex items-center lg:hidden px-[16px]"
+        style={{ height: "58px", background: "transparent" }}
+      >
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <button
+            onClick={() => { triggerHapticLight(); onBackFromProfile?.(); }}
+            className="w-9 h-9 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer flex-shrink-0"
+            style={{ color: "var(--c-text)" }}
+          >
+            <ArrowLeft size={20} />
+          </button>
+          {followedUserProfile.avatarUrl ? (
+            <img
+              src={followedUserProfile.avatarUrl}
+              alt={followedUserProfile.username}
+              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+              style={{ border: "2px solid var(--c-border)" }}
+            />
+          ) : (
+            <div
+              className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center"
+              style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}
+            >
+              <Users size={18} style={{ color: "var(--c-text-muted)" }} />
+            </div>
+          )}
+          <h1
+            className="flex-1 min-w-0"
             style={{
-              color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
-              backgroundColor: screen === "following" ? activeBg : inactiveBg,
+              fontSize: "22px",
+              fontWeight: 600,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              letterSpacing: "-0.5px",
+              color: "var(--c-text)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
-            <Users size={18} strokeWidth={screen === "following" ? 1.83 : 1.3125} />
-          </div>
+            @{followedUserProfile.username}
+          </h1>
+        </div>
+        <button
+          onClick={() => { triggerHapticLight(); onUnfollowUser?.(); }}
+          className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer flex-shrink-0"
+          style={{ color: "var(--c-text-muted)" }}
+          title="Unfollow"
+        >
+          <UserMinus size={16} />
         </button>
       </div>
+    );
+  }
 
-      {/* Center: Pill logo */}
-      <button onClick={() => setScreen("feed")} className="shrink-0 cursor-pointer">
-        <PillLogo className="h-[38px] w-auto" />
+  // Variant A — Feed screen (wordmark left, nav buttons right)
+  if (screen === "feed") {
+    return (
+      <div
+        className="flex items-center justify-between lg:hidden px-[16px]"
+        style={{ height: "58px", background: "transparent" }}
+      >
+        <PillLogo className="h-[32px] w-auto" />
+        {navButtons}
+      </div>
+    );
+  }
+
+  // Variants B/C/D — Title screens
+  const title = SCREEN_TITLES[screen];
+
+  // Screen-specific action button
+  let actionButton: React.ReactNode = null;
+  if (screen === "sessions") {
+    actionButton = (
+      <button
+        onClick={() => { triggerHapticLight(); onNewSession?.(); }}
+        className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable cursor-pointer flex-shrink-0"
+      >
+        <Plus size={18} />
       </button>
+    );
+  } else if (screen === "following") {
+    actionButton = (
+      <button
+        onClick={() => { triggerHapticLight(); onAddFollowedUser?.(); }}
+        className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable cursor-pointer flex-shrink-0"
+      >
+        <UserPlus size={16} />
+      </button>
+    );
+  }
 
-      {/* Right: Settings avatar */}
-      <div className="flex items-center">
-        <button
-          onClick={() => { triggerHapticLight(); setScreen("settings"); }}
-          className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
-          title="Settings"
-        >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center"
-            style={{
-              color: screen === "settings" ? "#EBFD00" : "var(--c-text-muted)",
-              overflow: userAvatar ? "hidden" : undefined,
-              backgroundColor: screen === "settings" ? activeBg : inactiveBg,
-              border: userAvatar ? (screen === "settings" ? "2px solid #EBFD00" : "2px solid transparent") : undefined,
-            }}
-          >
-            {userAvatar ? (
-              <img
-                src={userAvatar}
-                alt="Profile"
-                className="w-8 h-8 rounded-full object-cover"
-              />
-            ) : (
-              <UserRound size={18} strokeWidth={screen === "settings" ? 1.83 : 1.3125} />
-            )}
-          </div>
-        </button>
+  return (
+    <div
+      className="flex items-center lg:hidden px-[16px]"
+      style={{ height: "58px", background: "transparent" }}
+    >
+      <h1
+        className="flex-1 min-w-0"
+        style={{
+          fontSize: "28px",
+          fontWeight: 700,
+          fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+          letterSpacing: "-0.5px",
+          lineHeight: 1.25,
+          color: "var(--c-text)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {title}
+      </h1>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {actionButton}
+        {navButtons}
       </div>
     </div>
   );
@@ -232,7 +358,7 @@ export function BottomTabBar() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: "60px",
+        height: "calc(60px + env(safe-area-inset-bottom, 0px))",
         borderRadius: 0,
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         paddingLeft: "4px",
