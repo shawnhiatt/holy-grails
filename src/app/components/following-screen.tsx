@@ -238,7 +238,7 @@ export function FollowingScreen() {
       </AnimatePresence>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--nav-clearance, 80px))" }}>
+      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "var(--nav-clearance, 84px)" }}>
         {followedUsers.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 py-20">
             <Users size={48} style={{ color: "var(--c-text-faint)" }} />

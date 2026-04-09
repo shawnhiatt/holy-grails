@@ -54,7 +54,7 @@ export function WantlistCrossoverPrompt() {
           transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
           className="fixed left-[10px] right-[10px] lg:left-auto lg:right-6 lg:bottom-6 lg:w-[360px] rounded-[14px] overflow-hidden"
           style={{
-            bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+            bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
             zIndex: 125,
             backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
             boxShadow: "var(--c-shadow-modal)",

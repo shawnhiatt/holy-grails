@@ -287,7 +287,7 @@ function AppContent() {
     }
   };
 
-  const mobilePaddingBottom = isDesktop ? "0px" : "calc(96px + env(safe-area-inset-bottom, 0px))";
+  const mobilePaddingBottom = isDesktop ? "0px" : "calc(84px + env(safe-area-inset-bottom, 0px))";
   const contentTokens = useMemo(() => getContentTokens(isDarkMode), [isDarkMode]);
 
   // Sync html background with JS dark mode so overscroll/transparent areas don't show stale light color
@@ -454,7 +454,7 @@ function AppContent() {
           className="fixed left-0 right-0 pointer-events-none lg:hidden"
           style={{
             bottom: 0,
-            height: "calc(140px + 12px + env(safe-area-inset-bottom, 0px))",
+            height: "calc(128px + env(safe-area-inset-bottom, 0px))",
             zIndex: 100,
             background: "linear-gradient(to bottom, transparent, var(--app-bg))",
           }}

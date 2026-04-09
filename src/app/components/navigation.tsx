@@ -229,11 +229,12 @@ export function BottomTabBar() {
     <nav
       className="fixed z-[130] flex items-center justify-between lg:hidden bottom-tab-bar"
       style={{
-        bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
-        left: "10px",
-        right: "10px",
+        bottom: 0,
+        left: 0,
+        right: 0,
         height: "60px",
-        borderRadius: "9999px",
+        borderRadius: 0,
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
         paddingLeft: "4px",
         paddingRight: "4px",
         background: "linear-gradient(to bottom, rgb(33,69,100), rgb(1,41,77))",
@@ -248,7 +249,7 @@ export function BottomTabBar() {
             key={item.id}
             onClick={() => { triggerHaptic(); setScreen(item.id); }}
             aria-current={isActive ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] rounded-full tappable transition-all ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] rounded-[12px] tappable transition-all ${
               isActive ? "bg-[rgba(172,222,242,0.12)]" : ""
             }`}
           >
