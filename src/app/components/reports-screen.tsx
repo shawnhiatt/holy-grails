@@ -797,7 +797,9 @@ function ListeningActivitySection({
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const dayMs = 86400000;
-    const lastDaysAgo = Math.floor((today - Math.floor(dates[0] / dayMs) * dayMs) / dayMs);
+    const lastDate = new Date(dates[0]);
+    const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate()).getTime();
+    const lastDaysAgo = Math.round((today - lastDay) / dayMs);
     return { lastDaysAgo };
   }, [lastPlayed]);
 
@@ -873,20 +875,28 @@ function ListeningActivitySection({
             border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.35)"}`,
           }}
         >
-          <span
-            style={{
-              fontSize: "28px",
-              fontWeight: 700,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: isDarkMode ? "#ACDEF2" : "#00527A",
-              lineHeight: 1.1,
-            }}
-          >
-            {lastListenedInfo.lastDaysAgo === null ? "—" : lastListenedInfo.lastDaysAgo}
-          </span>
-          <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            {lastListenedInfo.lastDaysAgo === null ? "no plays yet" : "days since last played"}
-          </p>
+          {lastListenedInfo.lastDaysAgo === 0 || lastListenedInfo.lastDaysAgo === 1 ? (
+            <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--c-text-muted)", margin: "auto", display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+              {lastListenedInfo.lastDaysAgo === 0 ? "Last played earlier today!" : "Last played yesterday"}
+            </p>
+          ) : (
+            <>
+              <span
+                style={{
+                  fontSize: "28px",
+                  fontWeight: 700,
+                  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                  color: isDarkMode ? "#ACDEF2" : "#00527A",
+                  lineHeight: 1.1,
+                }}
+              >
+                {lastListenedInfo.lastDaysAgo === null ? "—" : lastListenedInfo.lastDaysAgo}
+              </span>
+              <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
+                {lastListenedInfo.lastDaysAgo === null ? "no plays yet" : "days since last played"}
+              </p>
+            </>
+          )}
         </div>
 
         {/* No play recorded */}

@@ -4,6 +4,27 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## [0.5.5] — 2025-04-09
+
+### Changed
+
+- Insights panels reordered: Collection Value → Listening → Purge Progress → remaining
+- "Days since last played" tile in Listening panel now shows "Last played today!" (0 days) or "Last played yesterday" (1 day) instead of a number
+
+### Added
+
+- 2x2 / 3x3 grid toggle restored on Collection, Wantlist, and Following screens; preference persists via existing Convex mechanism
+- "Open Purge" link added to Purge Progress panel header on Insights screen
+
+### Fixed
+
+- Following screen active page indicator now shows yellow outline ring on avatar, matching Settings screen
+- Folder pill on collection grid cards no longer clips prematurely (removed double-subtracted 32px max-width)
+- Label pill in wantlist crate overlay no longer hard-capped at 40% width
+- Sold History and Auction History buttons removed from release detail panel in all contexts
+
+---
+
 ## [0.5.4] — 2026-04-09
 
 ### Navigation

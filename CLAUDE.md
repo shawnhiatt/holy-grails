@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.5.4
+# CLAUDE.md — Holy Grails v0.5.5
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -646,6 +646,10 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 - Top Labels: 3+ labels with 2+ albums
 - By Decade golden era callout: 3+ distinct decades
 - By Format tab: 2+ distinct format types
+
+### Convex View Mode Fields
+
+`view_mode` and `want_view_mode` are stored as `v.optional(v.string())` — not string enums. Adding new view mode values (e.g. `"grid3"`) requires no schema change and no `npx convex deploy`.
 
 ---
 
