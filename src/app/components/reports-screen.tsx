@@ -1006,7 +1006,7 @@ function ListeningActivitySection({
 /* ─────────────────── SECTION 4: Purge Progress ─────────────────── */
 
 function PurgeProgressSection({ albums }: { albums: Album[] }) {
-  const { isDarkMode } = useApp();
+  const { isDarkMode, setScreen } = useApp();
 
   const stats = useMemo(() => {
     const keep = albums.filter((a) => a.purgeTag === "keep").length;
@@ -1042,9 +1042,24 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         boxShadow: "var(--c-card-shadow)",
       }}
     >
-      <p style={sectionHeaderStyle}>
-        Purge Progress
-      </p>
+      <div className="flex items-center justify-between">
+        <p style={sectionHeaderStyle}>Purge Progress</p>
+        <button
+          onClick={() => setScreen("purge")}
+          className="cursor-pointer"
+          style={{
+            fontSize: "12px",
+            fontWeight: 600,
+            color: "var(--c-link)",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            background: "none",
+            border: "none",
+            padding: 0,
+          }}
+        >
+          Open Purge
+        </button>
+      </div>
 
       {/* Progress ring */}
       <div className="flex justify-center mt-4 mb-4">
@@ -1175,6 +1190,24 @@ export function ReportsScreen() {
             <CollectionValueSection albums={albums} />
           </div>
 
+          {/* Listening Activity */}
+          <div className="lg:col-span-2">
+            <ListeningActivitySection
+              albums={albums}
+              lastPlayed={lastPlayed}
+              allPlayTimestamps={allPlayTimestamps}
+              isDarkMode={isDarkMode}
+              markPlayed={markPlayed}
+              onNeverPlayedTap={() => { setNeverPlayedFilter(true); setScreen("crate"); }}
+              onAlbumTap={(id) => { triggerHaptic(); setSelectedAlbumId(id); setShowAlbumDetail(true); }}
+            />
+          </div>
+
+          {/* Purge Progress */}
+          <div className="lg:col-span-2 lg:max-w-[50%] lg:mx-auto lg:w-full">
+            <PurgeProgressSection albums={albums} />
+          </div>
+
           {/* Condition — full width on mobile, half on desktop */}
           <div className="lg:col-span-2">
             <ConditionSection albums={albums} />
@@ -1193,24 +1226,6 @@ export function ReportsScreen() {
           {/* Labels */}
           <div className="lg:col-span-2">
             <LabelsSection albums={albums} />
-          </div>
-
-          {/* Section 5: Listening Activity */}
-          <div className="lg:col-span-2">
-            <ListeningActivitySection
-              albums={albums}
-              lastPlayed={lastPlayed}
-              allPlayTimestamps={allPlayTimestamps}
-              isDarkMode={isDarkMode}
-              markPlayed={markPlayed}
-              onNeverPlayedTap={() => { setNeverPlayedFilter(true); setScreen("crate"); }}
-              onAlbumTap={(id) => { triggerHaptic(); setSelectedAlbumId(id); setShowAlbumDetail(true); }}
-            />
-          </div>
-
-          {/* Section 4 */}
-          <div className="lg:col-span-2 lg:max-w-[50%] lg:mx-auto lg:w-full">
-            <PurgeProgressSection albums={albums} />
           </div>
         </div>
 

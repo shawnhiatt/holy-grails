@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
   UserPlus, ArrowLeft, Search, UserMinus, Lock,
-  Disc3, Users, Grid2x2, List, SlidersHorizontal,
+  Disc3, Users, Grid2x2, Grid3x3, List, SlidersHorizontal,
   Heart, X, GalleryVerticalEnd,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
@@ -25,11 +25,6 @@ const hasYear = (year: number | null | undefined): year is number =>
 
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
 type FollowingTab = "collection" | "wants";
-
-const FOLLOWING_VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
-  { id: "grid", icon: Grid2x2, label: "Grid" },
-  { id: "list", icon: List, label: "List" },
-];
 
 export function FollowingScreen() {
   const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setSelectedFeedAlbum, setShowAlbumDetail, setOnAddFollowedUser, setFollowedUserProfile, setOnBackFromProfile, setOnUnfollowUser } = useApp();
@@ -294,6 +289,20 @@ function FollowedUserProfile({
   const [filter, setFilter] = useState<FollowingFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+
+  const followingGridModes = useMemo(() => [
+    { id: viewMode === "grid3" ? "grid3" as ViewMode : "grid" as ViewMode, icon: viewMode === "grid3" ? Grid3x3 : Grid2x2, label: viewMode === "grid3" ? "Compact Grid" : "Grid" },
+    { id: "list" as ViewMode, icon: List, label: "List" },
+  ], [viewMode]);
+
+  const handleSetViewMode = useCallback((v: ViewMode) => {
+    if (v === "grid" || v === "grid3") {
+      setViewMode(viewMode === "grid3" ? "grid" : "grid3");
+    } else {
+      setViewMode(v);
+    }
+  }, [viewMode]);
+
   const [showFilters, setShowFilters] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser } = useApp();
@@ -498,7 +507,7 @@ function FollowedUserProfile({
               })}
             </div>
           )}
-          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FOLLOWING_VIEW_MODES} />
+          <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} />
           <button
             onClick={() => setShowFilters((v) => !v)}
             className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
@@ -521,7 +530,7 @@ function FollowedUserProfile({
               />
               {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
             </div>
-            <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} modes={FOLLOWING_VIEW_MODES} compact />
+            <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} compact />
             <button
               onClick={() => setShowFilters((v) => !v)}
               className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
@@ -997,7 +1006,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-[16px] lg:px-[24px] pt-3 pb-4">
+    <div className={`grid ${viewMode === "grid3" ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 px-[16px] lg:px-[24px] pt-3 pb-4`}>
       {items.map((item) => {
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (

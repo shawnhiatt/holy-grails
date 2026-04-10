@@ -54,7 +54,7 @@ interface AlbumGridProps {
 }
 
 export function AlbumGrid({ albums }: AlbumGridProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, sortOption, playCounts } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, sortOption, playCounts, viewMode } = useApp();
   const triggerHaptic = useHaptic('medium');
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter || rediscoverMode;
   const collectionEmpty = allAlbums.length === 0;
@@ -132,7 +132,7 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
   return (
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
-        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+        <div className={`grid ${viewMode === "grid3" ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
           {renderItems.map((item) => {
             if (item.kind === "divider") {
               return (
@@ -210,26 +210,37 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                 {/* Metadata */}
                 <div className="px-2.5 pt-2 pb-2.5 relative min-w-0 overflow-hidden">
                   <p
-                    className="line-clamp-1"
                     style={{
                       fontSize: "13px",
                       fontWeight: 600,
                       fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
                       color: "var(--c-text)",
                       lineHeight: "1.25",
-                    }}
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    } as React.CSSProperties}
                   >
                     {album.title}
                   </p>
                   <p
-                    className="line-clamp-1 mt-[1px]"
+                    className="mt-[1px]"
                     style={{
                       fontSize: "12px",
                       fontWeight: 400,
                       fontFamily: "'DM Sans', system-ui, sans-serif",
                       color: "var(--c-text-secondary)",
                       lineHeight: "1.3",
-                    }}
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    } as React.CSSProperties}
                   >
                     {album.artist}
                   </p>
@@ -260,7 +271,7 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
                       className="rounded-full"
                       style={{
                         display: "inline-flex",
-                        maxWidth: "calc(100% - 32px)",
+                        maxWidth: "100%",
                         overflow: "hidden",
                         flexShrink: 1,
                         minWidth: 0,

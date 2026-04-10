@@ -186,11 +186,12 @@ export function MobileHeader() {
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center"
           style={{
-            color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
+            color: "var(--c-text-muted)",
             backgroundColor: screen === "following" ? activeBg : inactiveBg,
+            border: screen === "following" ? "2px solid #EBFD00" : "2px solid transparent",
           }}
         >
-          <Users size={18} strokeWidth={screen === "following" ? 1.83 : 1.3125} />
+          <Users size={18} strokeWidth={1.3125} />
         </div>
       </button>
       <button
@@ -359,11 +360,9 @@ export function BottomTabBar() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: "calc(60px + env(safe-area-inset-bottom, 0px))",
+        height: "calc(54px + env(safe-area-inset-bottom, 0px))",
         borderRadius: 0,
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        paddingLeft: "4px",
-        paddingRight: "4px",
         background: "linear-gradient(to bottom, rgb(33,69,100), rgb(1,41,77))",
         boxShadow: "0 4px 24px rgba(1,41,77,0.25), 0 1px 0 rgba(172,222,242,0.08) inset",
       }}
@@ -376,7 +375,7 @@ export function BottomTabBar() {
             key={item.id}
             onClick={() => { triggerHaptic(); setScreen(item.id); }}
             aria-current={isActive ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] rounded-[12px] tappable transition-all ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] tappable transition-all ${
               isActive ? "bg-[rgba(172,222,242,0.12)]" : ""
             }`}
           >

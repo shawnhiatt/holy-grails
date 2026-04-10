@@ -655,10 +655,9 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 
 - `left: 0`, `right: 0`, `bottom: 0`, `border-radius: 0`
-- Height: `calc(60px + env(safe-area-inset-bottom, 0px))`
+- Height: `calc(54px + env(safe-area-inset-bottom, 0px))`
 - `paddingBottom: env(safe-area-inset-bottom, 0px)` applied internally
 - Background: `linear-gradient(to bottom, rgb(33,69,100), rgb(1,41,77))`
-- Active item highlight: `rounded-[12px]` (not rounded-full)
 - The PWA standalone `.bottom-tab-bar` override has been removed — flush bar requires no override
 
 5 items:

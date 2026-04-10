@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { Search, SlidersHorizontal, List, Grid2x2, X, Compass } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X, Compass } from "lucide-react";
 import { useApp, type ViewMode } from "./app-context";
 import { CrateFlip } from "./crate-flip";
 import { AlbumList } from "./album-list";
@@ -80,9 +80,17 @@ export function CrateBrowser() {
 
   const [lightboxActive, setLightboxActive] = useState(false);
 
-  // Fall back to grid if stored view mode is one that was removed
-  useEffect(() => {
-    if (viewMode === "crate" || viewMode === "artwork") setViewMode("grid");
+  const gridModes = useMemo(() => [
+    { id: viewMode === "grid3" ? "grid3" as ViewMode : "grid" as ViewMode, icon: viewMode === "grid3" ? Grid3x3 : Grid2x2, label: viewMode === "grid3" ? "Compact Grid" : "Grid" },
+    { id: "list" as ViewMode, icon: List, label: "List" },
+  ], [viewMode]);
+
+  const handleSetViewMode = useCallback((v: ViewMode) => {
+    if (v === "grid" || v === "grid3") {
+      setViewMode(viewMode === "grid3" ? "grid" : "grid3");
+    } else {
+      setViewMode(v);
+    }
   }, [viewMode, setViewMode]);
 
   const handleLightboxActivate = useCallback(() => {
@@ -214,7 +222,7 @@ export function CrateBrowser() {
           </div>
         )}
         {/* View toggle */}
-        <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
+        <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={gridModes} />
         {/* Filter button */}
         <button
           onClick={() => setShowFilterDrawer(true)}
@@ -242,7 +250,7 @@ export function CrateBrowser() {
               <button onClick={() => setSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>
             )}
           </div>
-          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} compact />
+          <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={gridModes} compact />
           <button
             onClick={() => setShowFilterDrawer(true)}
             className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
@@ -352,6 +360,7 @@ export function CrateBrowser() {
           )}
           {viewMode === "list" && <AlbumList key={`list|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
           {viewMode === "grid" && <AlbumGrid key={`grid|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
+          {viewMode === "grid3" && <AlbumGrid key={`grid3|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
           {viewMode === "artwork" && <AlbumArtwork key={`artwork|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
         </>
       )}

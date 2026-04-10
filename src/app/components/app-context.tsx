@@ -32,7 +32,7 @@ function getOrCreateContext(): React.Context<AppState | null> {
 }
 
 export type Screen = "crate" | "purge" | "sessions" | "wants" | "following" | "settings" | "reports" | "feed";
-export type ViewMode = "crate" | "list" | "grid" | "artwork";
+export type ViewMode = "crate" | "list" | "grid" | "artwork" | "grid3";
 export type SortOption =
   | "artist-az"
   | "artist-za"

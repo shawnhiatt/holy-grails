@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, Gavel } from "lucide-react";
+import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -1229,36 +1229,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             ) : hasCommunity ? (
               <CommunityRow community={releaseData!.community!} />
             ) : null}
-
-            {/* ═══ Research Links ═══ */}
-            <div className="px-4 pb-6 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => window.open(`https://www.discogs.com/sell/history/${selectedAlbum.release_id}`, '_blank', 'noopener,noreferrer')}
-                className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
-                style={{
-                  backgroundColor: "var(--c-surface-alt)",
-                  border: "1px solid var(--c-border)",
-                  color: "var(--c-text-secondary)",
-                }}
-              >
-                <History size={20} />
-                <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Sold History</span>
-              </button>
-              <a
-                href={`https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${selectedAlbum.artist} ${selectedAlbum.title}`)}&x=0&y=0`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
-                style={{
-                  backgroundColor: "var(--c-surface-alt)",
-                  border: "1px solid var(--c-border)",
-                  color: "var(--c-text-secondary)",
-                }}
-              >
-                <Gavel size={20} />
-                <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Auction History</span>
-              </a>
-            </div>
 
             {/* ═══ Enriched Content Tabs ═══ */}
             {(() => {
@@ -2787,36 +2757,6 @@ function ReleaseDetailPanel({
           ) : hasCommunity ? (
             <CommunityRow community={releaseData!.community!} />
           ) : null}
-
-          {/* ═══ Research Links ═══ */}
-          <div className="px-4 pb-6 grid grid-cols-2 gap-2">
-            <button
-              onClick={() => window.open(`https://www.discogs.com/sell/history/${album.release_id}`, '_blank', 'noopener,noreferrer')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
-              style={{
-                backgroundColor: "var(--c-surface-alt)",
-                border: "1px solid var(--c-border)",
-                color: "var(--c-text-secondary)",
-              }}
-            >
-              <History size={20} />
-              <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Sold History</span>
-            </button>
-            <a
-              href={`https://www.popsike.com/php/quicksearch.php?searchtext=${encodeURIComponent(`${album.artist} ${album.title}`)}&x=0&y=0`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex flex-col items-center gap-1.5 py-3 rounded-[10px] transition-opacity hover:opacity-80"
-              style={{
-                backgroundColor: "var(--c-surface-alt)",
-                border: "1px solid var(--c-border)",
-                color: "var(--c-text-secondary)",
-              }}
-            >
-              <Gavel size={20} />
-              <span style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", lineHeight: "1.3", color: "var(--c-text-muted)" }}>Auction History</span>
-            </a>
-          </div>
 
           {/* ═══ Enriched Content Tabs ═══ */}
           {(() => {

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Grid2x2, List, Zap, X } from "lucide-react";
+import { Search, Grid2x2, Grid3x3, List, Zap, X } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
 import { toast } from "sonner";
 import { useApp, type ViewMode } from "./app-context";
@@ -161,20 +161,21 @@ function getWantGroupLabel(item: WantItem): string {
   return /[A-Z]/.test(ch) ? ch : "#";
 }
 
-type WantViewMode = "crate" | "list" | "grid" | "artwork";
-
-const WANT_VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
-  { id: "grid", icon: Grid2x2, label: "Grid" },
-  { id: "list", icon: List, label: "List" },
-];
-
 export function Wantlist() {
   const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
   const triggerHaptic = useHaptic('medium');
 
-  // Fall back to grid if stored view mode is one that was removed
-  useEffect(() => {
-    if (viewMode === "crate" || viewMode === "artwork") setViewMode("grid");
+  const wantGridModes = useMemo(() => [
+    { id: viewMode === "grid3" ? "grid3" as ViewMode : "grid" as ViewMode, icon: viewMode === "grid3" ? Grid3x3 : Grid2x2, label: viewMode === "grid3" ? "Compact Grid" : "Grid" },
+    { id: "list" as ViewMode, icon: List, label: "List" },
+  ], [viewMode]);
+
+  const handleSetViewMode = useCallback((v: ViewMode) => {
+    if (v === "grid" || v === "grid3") {
+      setViewMode(viewMode === "grid3" ? "grid" : "grid3");
+    } else {
+      setViewMode(v);
+    }
   }, [viewMode, setViewMode]);
 
   const handleSelectWant = useCallback((item: WantItem) => {
@@ -235,7 +236,7 @@ export function Wantlist() {
         </div>
         {/* View toggle — right-aligned */}
         <div className="flex items-center justify-end">
-          <ViewModeToggle viewMode={viewMode} setViewMode={(v) => setViewMode(v as WantViewMode)} modes={WANT_VIEW_MODES} />
+          <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={wantGridModes} />
         </div>
       </div>
 
@@ -249,7 +250,7 @@ export function Wantlist() {
               style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
             {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
           </div>
-          <ViewModeToggle viewMode={viewMode} setViewMode={(v) => setViewMode(v as WantViewMode)} modes={WANT_VIEW_MODES} compact />
+          <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={wantGridModes} compact />
           <button onClick={() => setWantFilter(wantFilter === "all" ? "priority" : "all")}
             className={`w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors shrink-0 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#0C284A]" : ""}`}
             style={wantFilter !== "priority" ? { backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" } : undefined}
@@ -293,6 +294,7 @@ export function Wantlist() {
           {viewMode === "crate" && <WantCrateView key={`crate|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
           {viewMode === "list" && <WantlistView key={`list|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
           {viewMode === "grid" && <WantGridView key={`grid|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
+          {viewMode === "grid3" && <WantGridView key={`grid3|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} compact />}
           {viewMode === "artwork" && <WantArtworkView key={`artwork|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
         </>
       )}
@@ -530,7 +532,7 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
                             fontFamily: "'DM Sans', system-ui, sans-serif",
                             backgroundColor: "rgba(255,255,255,0.2)",
                             color: "rgba(255,255,255,0.85)",
-                            maxWidth: "40%",
+                            maxWidth: "100%",
                           }}
                         >
                           <span
@@ -634,7 +636,7 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
   );
 }
 
-function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
+function WantGridView({ wants, togglePriority, onSelect, compact }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void; compact?: boolean }) {
   const { isDarkMode } = useApp();
 
   const alphabetEntries = useWantAlphabetIndex(wants);
@@ -668,7 +670,7 @@ function WantGridView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
   return (
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
-        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
+        <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
           {wantRenderItems.map((item) => {
             if (item.kind === "divider") {
               return (
@@ -866,8 +868,8 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
         </button>
       </div>
       <div className="px-2.5 pt-2 pb-2.5 min-w-0 overflow-hidden">
-        <p className="line-clamp-1" style={{ fontSize: "13px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: "1.25" }}>{item.title}</p>
-        <p className="line-clamp-1 mt-[1px]" style={{ fontSize: "12px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-secondary)", lineHeight: "1.3" }}>{item.artist}</p>
+        <p style={{ fontSize: "13px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: "1.25", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
+        <p style={{ fontSize: "12px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-secondary)", lineHeight: "1.3", marginTop: "1px", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist}</p>
         <div className="flex items-center justify-between mt-[2px] min-w-0">
           <span style={{ fontSize: "11px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text-muted)" }}>{item.year}</span>
         </div>
