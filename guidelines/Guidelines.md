@@ -475,7 +475,7 @@ The app shows a splash/onboarding sequence when no data is loaded and no Discogs
 | 4 | Sessions | Headphones | `sessions` |
 | 5 | Insights | BarChart3 | `reports` |
 
-Active: `#EBFD00` icon + text, `bg-[rgba(172,222,242,0.12)]` background. Inactive: `#D1D8DF`.
+Active: `#EBFD00` icon + text, `bg-[rgba(255, 255, 255, 0)]` background. Inactive: `#D1D8DF`.
 Following and Settings are in the header, not the bottom bar.
 **Purge is not in the mobile bottom bar** — it is accessible from the Feed screen (Purge Tracker card), Settings (quick-access card, mobile only), and the Album Detail "Rate for Purge" section.
 

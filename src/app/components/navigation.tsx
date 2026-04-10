@@ -376,7 +376,7 @@ export function BottomTabBar() {
             onClick={() => { triggerHaptic(); setScreen(item.id); }}
             aria-current={isActive ? "page" : undefined}
             className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] tappable transition-all ${
-              isActive ? "bg-[rgba(172,222,242,0.12)]" : ""
+              isActive ? "bg-[rgba(255, 255, 255, 0)]" : ""
             }`}
           >
             <Icon
