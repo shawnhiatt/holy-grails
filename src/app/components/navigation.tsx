@@ -39,9 +39,9 @@ const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
 
 /** Mobile bottom bar */
 const MOBILE_NAV_ITEMS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
-  { id: "feed", label: "Feed", icon: Newspaper },
   { id: "crate", label: "Collection", icon: GalleryVerticalEnd },
   { id: "wants", label: "Wantlist", icon: Heart },
+  { id: "feed", label: "Feed", icon: Newspaper },
   { id: "sessions", label: "Sessions", icon: Music },
   { id: "reports", label: "Insights", icon: BarChart3 },
 ];

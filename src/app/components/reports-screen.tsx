@@ -863,7 +863,7 @@ function ListeningActivitySection({
             {playedThisMonth}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            played in {monthName}
+            played in<br/> {monthName}
           </p>
         </div>
 
@@ -920,51 +920,9 @@ function ListeningActivitySection({
             {neverPlayedCount}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            no plays recorded
+            no plays<br/> recorded
           </p>
         </button>
-      </div>
-
-
-      {/* No play recorded — neglected list */}
-      <div className="mt-5">
-        <p
-          className="mb-3"
-          style={{
-            fontSize: "12px",
-            fontWeight: 600,
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            color: "var(--c-text-muted)",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-          }}
-        >
-          No Spins on File
-        </p>
-        <div className="flex flex-col gap-2">
-          {neglected.map((item) => (
-            <button
-              key={item.album.id}
-              onClick={() => onAlbumTap(item.album.id)}
-              className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
-              style={{
-                backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
-              }}
-            >
-              <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                <img src={item.album.thumb || item.album.cover} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {item.album.artist} — {item.album.title}
-                </p>
-                <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {item.label}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Recently Played */}
@@ -1009,6 +967,48 @@ function ListeningActivitySection({
           </div>
         </div>
       )}
+
+      {/* No play recorded — neglected list */}
+      <div className="mt-5">
+        <p
+          className="mb-3"
+          style={{
+            fontSize: "12px",
+            fontWeight: 600,
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            color: "var(--c-text-muted)",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+          }}
+        >
+          No Spins on File
+        </p>
+        <div className="flex flex-col gap-2">
+          {neglected.map((item) => (
+            <button
+              key={item.album.id}
+              onClick={() => onAlbumTap(item.album.id)}
+              className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
+              style={{
+                backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+              }}
+            >
+              <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+                <img src={item.album.thumb || item.album.cover} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                  {item.album.artist} — {item.album.title}
+                </p>
+                <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                  {item.label}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -1218,14 +1218,14 @@ export function ReportsScreen() {
             <PurgeProgressSection albums={albums} />
           </div>
 
-          {/* Condition — full width on mobile, half on desktop */}
-          <div className="lg:col-span-2">
-            <ConditionSection albums={albums} />
-          </div>
-
           {/* Breakdown — full width */}
           <div className="lg:col-span-2">
             <CollectionBreakdownSection albums={albums} />
+          </div>
+
+          {/* Condition — full width on mobile, half on desktop */}
+          <div className="lg:col-span-2">
+            <ConditionSection albums={albums} />
           </div>
 
           {/* Artists */}
