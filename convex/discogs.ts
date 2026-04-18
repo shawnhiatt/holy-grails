@@ -732,7 +732,7 @@ export const proxyUpdateCollectionInstance = action({
   },
 });
 
-// 8. Move to folder
+// 8. Move to folder — single in-place POST preserves instance_id and date_added
 export const proxyMoveToFolder = action({
   args: {
     sessionToken: v.string(),
@@ -748,39 +748,23 @@ export const proxyMoveToFolder = action({
       { sessionToken: args.sessionToken }
     );
 
-    // Step 1: Add to new folder
-    const addUrl = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.newFolderId}/releases/${args.releaseId}`;
-    const addRes = await discogsFetch(
+    // Single call: POST to the existing instance URL with new folder_id in body
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.oldFolderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
+    const res = await discogsFetch(
       "POST",
-      addUrl,
+      url,
       creds.access_token,
-      creds.token_secret
+      creds.token_secret,
+      JSON.stringify({ folder_id: args.newFolderId })
     );
-    if (!addRes.ok) {
-      const body = await addRes.text().catch(() => "");
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
       throw new Error(
-        `Failed to add release ${args.releaseId} to folder ${args.newFolderId} (${addRes.status})${body ? ": " + body : ""}`
-      );
-    }
-    const addData = await addRes.json();
-    const newInstanceId = addData.instance_id as number;
-
-    // Step 2: Remove from old folder
-    const delUrl = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.oldFolderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
-    const delRes = await discogsFetch(
-      "DELETE",
-      delUrl,
-      creds.access_token,
-      creds.token_secret
-    );
-    if (delRes.status !== 404 && !delRes.ok) {
-      const body = await delRes.text().catch(() => "");
-      throw new Error(
-        `Failed to remove release ${args.releaseId} from folder ${args.oldFolderId} (${delRes.status})${body ? ": " + body : ""}`
+        `Failed to move release ${args.releaseId} to folder ${args.newFolderId} (${res.status})${body ? ": " + body : ""}`
       );
     }
 
-    return { newInstanceId };
+    return { success: true };
   },
 });
 

@@ -277,23 +277,10 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       const folderChanged = editFields.folder !== selectedAlbum.folder;
       const newFolderEntry = folderOptions.find(f => f.name === editFields.folder);
 
-      if (conditionOrNotesChanged || customFieldsChanged) {
-        await proxyUpdateInstance({
-          sessionToken,
-          username: discogsUsername,
-          folderId: selectedAlbum.folder_id,
-          releaseId: selectedAlbum.release_id,
-          instanceId: selectedAlbum.instance_id,
-          fields: fieldsChanged,
-          ...(customFieldsChanged && { customFields: changedCustomFields }),
-        });
-      }
-
-      let newInstanceId = selectedAlbum.instance_id;
       let newFolderId = selectedAlbum.folder_id;
 
       if (folderChanged && newFolderEntry) {
-        const result = await proxyMoveToFolder({
+        await proxyMoveToFolder({
           sessionToken,
           username: discogsUsername,
           oldFolderId: selectedAlbum.folder_id,
@@ -301,8 +288,19 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           releaseId: selectedAlbum.release_id,
           instanceId: selectedAlbum.instance_id,
         });
-        newInstanceId = result.newInstanceId;
         newFolderId = newFolderEntry.id;
+      }
+
+      if (conditionOrNotesChanged || customFieldsChanged) {
+        await proxyUpdateInstance({
+          sessionToken,
+          username: discogsUsername,
+          folderId: newFolderId,
+          releaseId: selectedAlbum.release_id,
+          instanceId: selectedAlbum.instance_id,
+          fields: fieldsChanged,
+          ...(customFieldsChanged && { customFields: changedCustomFields }),
+        });
       }
 
       // Update local state + Convex cache
@@ -311,7 +309,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         ...(folderChanged && newFolderEntry && {
           folder: editFields.folder,
           folder_id: newFolderId,
-          instance_id: newInstanceId,
         }),
         ...(customFieldsChanged && { customFields: editFields.customFields }),
       };
