@@ -292,12 +292,12 @@ function AppContent() {
 
   // Sync html background with JS dark mode so overscroll/transparent areas don't show stale light color
   useEffect(() => {
-    document.documentElement.style.backgroundColor = isDarkMode ? "#0C1A2E" : "#F9F9FA";
+    document.documentElement.style.backgroundColor = isDarkMode ? "#040E1C" : "#F9F9FA";
   }, [isDarkMode]);
 
   /** Radial gradient background — light cyan glow from top center */
   const gradientBg = isDarkMode
-    ? "radial-gradient(ellipse 120% 60% at 50% 0%, #132B44 0%, #0C1A2E 100%)"
+    ? "radial-gradient(ellipse 120% 60% at 50% 0%, #0D2137 0%, #040E1C 100%)"
     : "radial-gradient(200% 100% at 50% 0%, #FFF 21.36%, #ACDEF2 100%)";
 
   const handleLoginWithDiscogs = useCallback(async () => {

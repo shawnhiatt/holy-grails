@@ -661,7 +661,7 @@ Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 - `left: 0`, `right: 0`, `bottom: 0`, `border-radius: 0`
 - Height: `calc(54px + env(safe-area-inset-bottom, 0px))`
 - `paddingBottom: env(safe-area-inset-bottom, 0px)` applied internally
-- Background: `linear-gradient(to bottom, rgb(33,69,100), rgb(1,41,77))`
+- Background: `linear-gradient(to bottom, rgb(18,60,92), rgb(12,32,56))`
 - The PWA standalone `.bottom-tab-bar` override has been removed — flush bar requires no override
 
 5 items:

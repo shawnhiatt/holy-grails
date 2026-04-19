@@ -365,7 +365,7 @@ export function BottomTabBar() {
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         paddingLeft: "8px",
         paddingRight: "8px",
-        background: "linear-gradient(to bottom, rgb(33,69,100), rgb(1,41,77))",
+        background: "linear-gradient(to bottom, rgb(18,60,92), rgb(12,32,56))",
         boxShadow: "0 4px 24px rgba(1,41,77,0.25), 0 1px 0 rgba(172,222,242,0.08) inset",
       }}
     >

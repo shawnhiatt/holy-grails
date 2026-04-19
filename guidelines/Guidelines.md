@@ -463,7 +463,7 @@ The app shows a splash/onboarding sequence when no data is loaded and no Discogs
 - **Hides on scroll** (on supported screens) via CSS transform/margin-bottom transition. A 12px breathing-room spacer appears when header is hidden.
 
 **Bottom tab bar** (`BottomTabBar`, **floating pill** — `border-radius: 9999px`, positioned 12px from bottom with 10px side margins):
-- Background: `linear-gradient(to bottom, rgb(33,69,100), rgb(1,41,77))` (fully opaque, no backdrop-filter)
+- Background: `linear-gradient(to bottom, rgb(18,60,92), rgb(12,32,56))` (fully opaque, no backdrop-filter)
 - Box shadow: `0 4px 24px rgba(1,41,77,0.25)` + subtle `1px` inset highlight at `rgba(172,222,242,0.08)`
 - Height: 60px
 
