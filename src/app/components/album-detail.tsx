@@ -999,6 +999,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   </div>
                 ) : null}
                 <DetailRow label="Folder" value={selectedAlbum.folder} />
+                {selectedAlbum.dateAdded && (
+                  <DetailRow label="Added" value={formatDateShort(selectedAlbum.dateAdded)} />
+                )}
                 <DetailRow label="Media" value={selectedAlbum.mediaCondition} valueColor={conditionColor(selectedAlbum.mediaCondition, isDarkMode)} />
                 <DetailRow label="Sleeve" value={selectedAlbum.sleeveCondition} valueColor={conditionColor(selectedAlbum.sleeveCondition, isDarkMode)} />
                 {selectedAlbum.customFields?.filter(cf => cf.value).map((cf, i) => (
