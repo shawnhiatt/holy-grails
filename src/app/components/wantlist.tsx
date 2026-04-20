@@ -205,6 +205,14 @@ export function Wantlist() {
     }
   }, [wants, toggleWantPriority]);
 
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handler = () => mobileSearchRef.current?.focus();
+    window.addEventListener("hg:focus-filter", handler);
+    return () => window.removeEventListener("hg:focus-filter", handler);
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       {/* ===== DESKTOP search/filter/view controls (gray content area) ===== */}
@@ -246,7 +254,7 @@ export function Wantlist() {
         <div className="flex items-center gap-[10px]">
           <div className="flex items-center gap-[8px] rounded-full px-[14.5px] min-w-0 flex-1" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "34px" }}>
             <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
-            <input type="text" placeholder="Search..." value={wantSearchQuery} onChange={(e) => setWantSearchQuery(e.target.value)}
+            <input ref={mobileSearchRef} type="text" placeholder="Search..." value={wantSearchQuery} onChange={(e) => setWantSearchQuery(e.target.value)}
               className="flex-1 bg-transparent outline-none border-none min-w-0"
               style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
             {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}

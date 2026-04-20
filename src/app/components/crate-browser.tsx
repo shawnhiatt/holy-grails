@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X, Compass } from "lucide-react";
 import { useApp, type ViewMode } from "./app-context";
 import { CrateFlip } from "./crate-flip";
@@ -79,6 +79,13 @@ export function CrateBrowser() {
   } = useApp();
 
   const [lightboxActive, setLightboxActive] = useState(false);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handler = () => mobileSearchRef.current?.focus();
+    window.addEventListener("hg:focus-filter", handler);
+    return () => window.removeEventListener("hg:focus-filter", handler);
+  }, []);
 
   const gridModes = useMemo(() => [
     { id: viewMode === "grid3" ? "grid3" as ViewMode : "grid" as ViewMode, icon: viewMode === "grid3" ? Grid3x3 : Grid2x2, label: viewMode === "grid3" ? "Compact Grid" : "Grid" },
@@ -239,6 +246,7 @@ export function CrateBrowser() {
           <div className="flex items-center gap-[8px] rounded-full px-[14.5px] min-w-0 flex-1" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "34px" }}>
             <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
             <input
+              ref={mobileSearchRef}
               type="text"
               placeholder="Search..."
               value={searchQuery}

@@ -375,7 +375,13 @@ export function BottomTabBar() {
         return (
           <button
             key={item.id}
-            onClick={() => { triggerHaptic(); setScreen(item.id); }}
+            onClick={() => {
+              triggerHaptic();
+              if (isActive && (item.id === "crate" || item.id === "wants")) {
+                window.dispatchEvent(new CustomEvent("hg:focus-filter"));
+              }
+              setScreen(item.id);
+            }}
             aria-current={isActive ? "page" : undefined}
             className={`flex flex-1 flex-col items-center justify-center gap-[3px] px-[4px] h-[52px] tappable transition-all ${
               isActive ? "bg-[rgba(255, 255, 255, 0)]" : ""
