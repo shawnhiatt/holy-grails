@@ -4,6 +4,18 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## 0.5.6
+
+### Fixed
+- **Accidental card taps during scroll** — raised scroll-guard cooldown from 80ms → 250ms in `scroll-state.ts` to cover momentum-decay tap scenarios on iOS. Created shared `use-safe-tap.ts` hook implementing touch-slop (10px X+Y) + cooldown + `preventDefault` to suppress synthetic click. Retrofitted all 14 card tap sites across Collection, Wantlist, Feed, Following, and Depths screens. `dominant-color-card.tsx` extended to accept spread touch handlers. Two previously unguarded wantlist sites (`WantGridCard`, wantlist list row) now protected. All tap sites share one implementation.
+
+### Added
+- **Double-tap nav to focus filter** — tapping the active Collection or Wantlist nav item dispatches a `hg:focus-filter` custom event, focusing the sticky filter input and raising the keyboard. No new context slots; only the mounted screen's listener fires.
+- **"Added" date in Your Copy** — album detail panel now shows the Discogs `date_added` value (formatted as e.g. "Jan 14, 2026") after the Folder row in the Your Copy section. Field was already synced and stored — display-only addition to `album-detail.tsx`.
+- **Following wantlist activity** — followed users' wantlist additions now cached and surfaced alongside collection activity. New `proxyFetchUserWantlistPage` Convex action fetches page 1 (50 items, sorted by date desc) per followed user; paired with collection fetch via `Promise.all` inside the existing 1s inter-user sync window. `following_feed` schema extended with optional `recent_wants` field. Pre-existing cache rows force-refreshed once via `needsWantsMigration` branch. Feed screen and Following screen Following Activity sections now have a **Collection | Wantlist tab switcher** (Collection default). "See all" from Feed deep-links to the correct tab via one-shot `followingActivityTabIntent` state. No heart button on wantlist activity rows.
+
+---
+
 ## [0.5.5] — 2025-04-09
 
 ### Changed
