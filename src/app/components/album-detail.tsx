@@ -1209,7 +1209,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         )}
 
         {!isEditMode && (
-          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
+          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : undefined }}>
             {/* ═══ Community (enriched, 3-stat row) ═══ */}
             {isLoadingRelease ? (
               <div className="px-4 pb-6">
@@ -1256,7 +1256,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       position: "sticky",
                       top: 0,
                       zIndex: 10,
-                      backgroundColor: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : "var(--c-surface)",
+                      backgroundColor: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : "var(--c-surface)",
                       borderBottom: "1px solid var(--c-border)",
                       paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                     }}
@@ -2098,7 +2098,7 @@ function WantItemDetailPanel({
           </div>
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : undefined }}>
           {/* ═══ Community (enriched, 3-stat row) ═══ */}
           {isLoadingRelease ? (
             <div className="px-4 pb-6">
@@ -2142,7 +2142,7 @@ function WantItemDetailPanel({
                     position: "sticky",
                     top: 0,
                     zIndex: 10,
-                    backgroundColor: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : "var(--c-surface)",
+                    backgroundColor: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : "var(--c-surface)",
                     borderBottom: "1px solid var(--c-border)",
                     paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                   }}
@@ -2737,7 +2737,7 @@ function ReleaseDetailPanel({
           </div>
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : undefined }}>
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : undefined }}>
           {/* ═══ Community (enriched, 3-stat row) ═══ */}
           {isLoadingRelease ? (
             <div className="px-4 pb-6">
@@ -2781,7 +2781,7 @@ function ReleaseDetailPanel({
                     position: "sticky",
                     top: 0,
                     zIndex: 10,
-                    backgroundColor: hideHeader ? (isDarkMode ? "#132B44" : "#FFFFFF") : "var(--c-surface)",
+                    backgroundColor: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : "var(--c-surface)",
                     borderBottom: "1px solid var(--c-border)",
                     paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                   }}

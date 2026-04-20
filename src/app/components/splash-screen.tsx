@@ -39,7 +39,7 @@ export function SplashScreen({
         inset: 0,
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: "#0C1A2E",
-        background: "radial-gradient(ellipse 120% 60% at 50% 0%, #132B44 0%, #0C1A2E 100%)",
+        background: "radial-gradient(ellipse 120% 60% at 50% 0%, #091E34 0%, #0C1A2E 100%)",
       }}
     >
       {/* Fullscreen WebGL scene background */}

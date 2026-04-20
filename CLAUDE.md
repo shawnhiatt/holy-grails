@@ -266,7 +266,7 @@ Background tokens are defined in `theme.ts` using Oklab relative color expressio
 |---|---|---|
 | `--c-bg` | `oklab(from #0C1A2E calc(l - 0.06) a b)` | Main app canvas — lowest elevation |
 | `--c-surface-alt` | `oklab(from #0F2238 calc(l - 0.04) a b)` | Inset/recessed surfaces, input bg |
-| `--c-surface` | `oklab(from #132B44 calc(l - 0.03) a b)` | Cards, panels, primary containers |
+| `--c-surface` | `#091E34` | Cards, panels, primary containers |
 | `--c-surface-hover` | `oklab(from #1A3350 calc(l - 0.03) a b)` | Hover state on surface elements |
 | `--c-chip-bg` | `oklab(from #1A3350 calc(l - 0.03) a b)` | Pill/chip backgrounds |
 | `--c-input-bg` | `oklab(from #0F2238 calc(l - 0.04) a b)` | Input field backgrounds |
@@ -309,7 +309,7 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | Token | Value |
 |---|---|
 | `--c-bg` | `#0C1A2E` |
-| `--c-surface` | `#132B44` |
+| `--c-surface` | `#091E34` |
 | `--c-surface-hover` | `#1A3350` |
 | `--c-surface-alt` | `#0F2238` |
 | `--c-text` | `#E2E8F0` |
@@ -401,7 +401,7 @@ Gradient fades to surface backgrounds must reference a CSS token — never a har
 background: "linear-gradient(to bottom, transparent, var(--c-surface))"
 
 // Wrong — breaks on theme change
-background: "linear-gradient(to bottom, transparent, #132B44)"
+background: "linear-gradient(to bottom, transparent, #091E34)"
 ```
 
 Image card overlays using `rgba(0,0,0,...)` for photo readability are intentional exceptions — do not change them.
@@ -469,7 +469,7 @@ import { Disc3 } from "lucide-react"
 ### CSS Variables on Detached Components
 Session picker and other components that render outside the main `<main>` element must apply CSS variables inline on their container — they don't inherit from the main cascade.
 
-**Detached-component surface color pattern:** The following components use `isDarkMode ? "#132B44" : "#FFFFFF"` for their background color rather than `var(--c-surface)`. This is intentional — these components render in a context where CSS custom properties from the root are not inherited (detached from the main DOM tree or rendered via portals):
+**Detached-component surface color pattern:** The following components use `isDarkMode ? "#091E34" : "#FFFFFF"` for their background color rather than `var(--c-surface)`. This is intentional — these components render in a context where CSS custom properties from the root are not inherited (detached from the main DOM tree or rendered via portals):
 
 - slide-out-panel.tsx
 - add-albums-drawer.tsx
@@ -479,7 +479,7 @@ Session picker and other components that render outside the main `<main>` elemen
 - purge-tracker.tsx
 - loading-screen.tsx
 
-`#132B44` (dark) and `#FFFFFF` (light) are the correct surface values for detached components. Do not change these to `var(--c-surface)` without first verifying CSS variable inheritance in that rendering context.
+`#091E34` (dark) and `#FFFFFF` (light) are the correct surface values for detached components. Do not change these to `var(--c-surface)` without first verifying CSS variable inheritance in that rendering context.
 
 ### App-Level CSS Custom Properties
 

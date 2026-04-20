@@ -73,7 +73,7 @@ The Discogs API supports everything this app needs. Integration code lives in `d
 | Token | CSS Variable | Value |
 |---|---|---|
 | Background | `--c-bg` | `#0C1A2E` |
-| Surface (cards) | `--c-surface` | `#132B44` |
+| Surface (cards) | `--c-surface` | `#091E34` |
 | Surface hover | `--c-surface-hover` | `#1A3350` |
 | Surface alt | `--c-surface-alt` | `#0F2238` |
 | Text primary | `--c-text` | `#E2E8F0` |

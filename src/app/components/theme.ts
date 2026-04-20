@@ -27,7 +27,7 @@ export const lightTokens: Record<string, string> = {
 
 export const darkTokens: Record<string, string> = {
   "--c-bg": "oklab(from #0C1A2E calc(l - 0.06) a b)",
-  "--c-surface": "oklab(from #132B44 calc(l - 0.03) a b)",
+  "--c-surface": "#091E34",
   "--c-surface-hover": "oklab(from #1A3350 calc(l - 0.03) a b)",
   "--c-surface-alt": "oklab(from #0F2238 calc(l - 0.04) a b)",
   "--c-text": "#E2E8F0",

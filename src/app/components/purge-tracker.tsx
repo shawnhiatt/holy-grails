@@ -207,14 +207,14 @@ export function PurgeCutDialog({
         style={{
           zIndex: 89,
           maxHeight: "75vh",
-          backgroundColor: isDark ? "#132B44" : "#FFFFFF",
+          backgroundColor: isDark ? "#091E34" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           "--c-sheet-shadow": isDark ? "0 -8px 32px rgba(0, 0, 0, 0.3)" : "0 -8px 32px rgba(12, 40, 74, 0.1)",
           "--c-text": isDark ? "#E2E8F0" : "#0C284A",
           "--c-text-secondary": isDark ? "#9EAFC2" : "#455B75",
           "--c-text-muted": isDark ? "#7D92A8" : "#6B7B8E",
           "--c-border-strong": isDark ? "#2D4A66" : "#74889C",
-          "--c-surface": isDark ? "#132B44" : "#FFFFFF",
+          "--c-surface": isDark ? "#091E34" : "#FFFFFF",
           "--c-chip-bg": isDark ? "#1A3350" : "#EFF1F3",
         } as React.CSSProperties}
       >

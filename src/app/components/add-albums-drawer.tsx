@@ -152,7 +152,7 @@ export function AddAlbumsDrawer({ sessionId, onClose }: AddAlbumsDrawerProps) {
             style={{
               width: 520,
               maxHeight: "min(720px, 85vh)",
-              backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
+              backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
               boxShadow: "var(--c-card-shadow)",
               borderRadius: 16,
               border: "1px solid var(--c-border)",
@@ -296,7 +296,7 @@ function DrawerContent({
               position: "sticky",
               top: 0,
               zIndex: 10,
-              backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
+              backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
             }}
           >
             {/* Search */}
@@ -508,7 +508,7 @@ function MobileDrawerSheet({
           bottom: 0,
           paddingBottom: "env(safe-area-inset-bottom, 16px)",
           maxHeight: "calc(100vh - 58px)",
-          backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
+          backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
         } as React.CSSProperties}

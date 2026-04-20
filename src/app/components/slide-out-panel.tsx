@@ -172,7 +172,7 @@ export function SlideOutPanel({
           bottom: "0px",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           maxHeight: "calc(100vh - 58px)",
-          backgroundColor: isDarkMode ? "#132B44" : "#FFFFFF",
+          backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
         } as React.CSSProperties}
