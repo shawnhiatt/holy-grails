@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Play } from "lucide-react";
 import type { Album } from "./discogs-api";
 import { DominantColorCard } from "./dominant-color-card";
-import { isScrollingRecently } from "../lib/scroll-state";
+import { useSafeTap } from "../lib/use-safe-tap";
 
 function formatAddedDate(iso: string): string {
   const d = new Date(iso);
@@ -177,7 +177,7 @@ export function DepthsAlbumCard({
       <DominantColorCard
         imageUrl={album.cover}
         className="cursor-pointer"
-        onClick={() => { if (isScrollingRecently()) return; onTap(album.id); }}
+        {...useSafeTap(() => onTap(album.id))}
         style={{ boxShadow: "var(--c-card-shadow)", touchAction: "manipulation" }}
       >
         {cardContent}
@@ -194,7 +194,7 @@ export function DepthsAlbumCard({
         boxShadow: "var(--c-card-shadow)",
         touchAction: "manipulation",
       }}
-      onClick={() => { if (isScrollingRecently()) return; onTap(album.id); }}
+      {...useSafeTap(() => onTap(album.id))}
     >
       {cardContent}
     </div>

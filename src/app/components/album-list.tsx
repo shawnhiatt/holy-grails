@@ -6,7 +6,7 @@ import { purgeIndicatorColor } from "./purge-colors";
 import { formatRelativeDate } from "./last-played-utils";
 import { DIVIDER_SORT_OPTS, getAlbumGroupLabel } from "./album-grid";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
-import { isScrollingRecently } from "../lib/scroll-state";
+import { useSafeTap } from "../lib/use-safe-tap";
 import { useHaptic } from "@/hooks/useHaptic";
 
 const hasYear = (year: number | null | undefined): year is number =>
@@ -33,7 +33,6 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
   const hasDividers = DIVIDER_SORT_OPTS.has(sortOption);
 
@@ -121,10 +120,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
             return (
               <button
                 key={album.id}
-                onClick={() => { if (isScrollingRecently()) return; triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); }}
-                onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
-                onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
-                onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { if (isScrollingRecently()) { touchState.current = null; return; } e.preventDefault(); triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } touchState.current = null; }}
+                {...useSafeTap(() => { triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
                 className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
                 style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
               >

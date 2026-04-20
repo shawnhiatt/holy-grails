@@ -18,7 +18,7 @@ import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { isScrollingRecently } from "../lib/scroll-state";
+import { useSafeTap } from "../lib/use-safe-tap";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -1011,7 +1011,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
           <div key={item.id} className="relative rounded-[10px] overflow-hidden group cursor-pointer"
-            onClick={() => { if (isScrollingRecently()) return; onOpenAlbum(item); }}
+            {...useSafeTap(() => onOpenAlbum(item))}
             style={{
               backgroundColor: "var(--c-surface)",
               border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
@@ -1050,7 +1050,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds,
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
           <div key={item.id} className="flex items-center gap-3 px-[16px] lg:px-[24px] py-2.5 cursor-pointer tappable"
-            onClick={() => { if (isScrollingRecently()) return; onOpenAlbum(item); }}
+            {...useSafeTap(() => onOpenAlbum(item))}
             style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid", borderLeft: badge ? "3px solid " + badge.color : "3px solid transparent", touchAction: "manipulation" }}>
             <img src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
             <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
@@ -1494,8 +1494,7 @@ function PopulatedFollowingView({
                 <div
                   className="relative flex-shrink-0 cursor-pointer"
                   style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
-                  onClick={() => {
-                    if (isScrollingRecently()) return;
+                  {...useSafeTap(() => {
                     triggerHaptic();
                     if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
                       const rid = Number(item.albumReleaseId);
@@ -1515,7 +1514,7 @@ function PopulatedFollowingView({
                       dateAdded: item.date || "",
                     });
                     setShowAlbumDetail(true);
-                  }}
+                  })}
                 >
                   <img
                     src={item.albumCover}

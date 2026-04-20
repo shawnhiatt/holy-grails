@@ -8,6 +8,7 @@ import type { WantItem } from "./discogs-api";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { useHaptic } from "@/hooks/useHaptic";
+import { useSafeTap } from "../lib/use-safe-tap";
 
 import { AlbumArtwork } from "./album-artwork-grid";
 
@@ -783,8 +784,8 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
               <div
                 key={want.id}
                 className="flex items-center gap-[12px] tappable transition-colors cursor-pointer"
-                style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)" }}
-                onClick={() => onSelect(want)}
+                style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
+                {...useSafeTap(() => onSelect(want))}
               >
                 <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
                   <img src={want.thumb || want.cover} alt={want.title} className="w-full h-full object-cover" />
@@ -850,11 +851,12 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
   return (
     <div
       className="relative w-full min-w-0 rounded-[10px] overflow-hidden group cursor-pointer"
-      onClick={() => onSelect(item)}
+      {...useSafeTap(() => onSelect(item))}
       style={{
         backgroundColor: "var(--c-surface)",
         border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
         boxShadow: "var(--c-card-shadow)",
+        touchAction: "manipulation",
       }}
     >
       <div className="relative aspect-square overflow-hidden">

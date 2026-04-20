@@ -110,7 +110,10 @@ export interface DominantColorCardProps {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler;
+  onTouchStart?: React.TouchEventHandler;
+  onTouchMove?: React.TouchEventHandler;
+  onTouchEnd?: React.TouchEventHandler;
   /** Fallback background color if extraction fails. Default: var(--c-surface) */
   fallbackColor?: string;
   /** Border radius. Default: 12px */
@@ -137,6 +140,9 @@ export function DominantColorCard({
   className = "",
   style,
   onClick,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
   fallbackColor = "var(--c-surface)",
   borderRadius = "12px",
 }: DominantColorCardProps) {
@@ -203,6 +209,9 @@ export function DominantColorCard({
         ...style,
       } as CSSProperties}
       onClick={onClick}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
       {children}
     </div>

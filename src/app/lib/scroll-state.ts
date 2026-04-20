@@ -16,6 +16,6 @@ export function getLastScrollTime(): number {
   return lastScrollTime;
 }
 
-export function isScrollingRecently(cooldownMs = 80): boolean {
+export function isScrollingRecently(cooldownMs = 250): boolean {
   return Date.now() - lastScrollTime < cooldownMs;
 }

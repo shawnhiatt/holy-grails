@@ -1,8 +1,8 @@
-import React, { useRef } from "react";
+import React from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
-import { isScrollingRecently } from "../lib/scroll-state";
+import { useSafeTap } from "../lib/use-safe-tap";
 import { useHaptic } from "@/hooks/useHaptic";
 
 /** Minimal shape every artwork grid item must satisfy */
@@ -39,7 +39,6 @@ interface AlbumArtworkProps<T extends ArtworkGridItem = Album> {
 export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtworkProps<T>) {
   const { setSelectedAlbumId, setShowAlbumDetail, hidePurgeIndicators, albums: allAlbums, isDarkMode, setScreen } = useApp();
   const triggerHaptic = useHaptic('medium');
-  const touchState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
 
   // Support both `items` and legacy `albums` prop
   const items = (props.items ?? props.albums ?? []) as T[];
@@ -93,11 +92,8 @@ export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtw
           key={item.id}
           role="button"
           tabIndex={0}
-          onClick={() => { if (isScrollingRecently()) return; handleClick(item); }}
+          {...useSafeTap(() => handleClick(item))}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(item); } }}
-          onTouchStart={(e) => { const t = e.touches[0]; touchState.current = { startX: t.clientX, startY: t.clientY, moved: false }; }}
-          onTouchMove={(e) => { if (!touchState.current) return; const t = e.touches[0]; if (Math.abs(t.clientY - touchState.current.startY) > 10) touchState.current.moved = true; }}
-          onTouchEnd={(e) => { if (touchState.current && !touchState.current.moved) { if (isScrollingRecently()) { touchState.current = null; return; } e.preventDefault(); handleClick(item); } touchState.current = null; }}
           className="relative overflow-hidden group focus:outline-none cursor-pointer"
           style={{
             aspectRatio: "1 / 1",
