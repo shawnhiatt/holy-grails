@@ -47,6 +47,7 @@ export interface FollowingFeedEntry {
   followed_username: string;
   lastSyncedAt: number;
   recent_albums: FeedAlbum[];
+  recent_wants?: FeedAlbum[];
 }
 
 interface AppState {
@@ -167,6 +168,9 @@ interface AppState {
   // Feed album detail panel (non-collection albums)
   selectedFeedAlbum: FeedAlbum | null;
   setSelectedFeedAlbum: (album: FeedAlbum | null) => void;
+  // One-shot deep-link intent for Following screen activity tab ("See all" from Feed)
+  followingActivityTabIntent: "collection" | "wantlist" | null;
+  setFollowingActivityTabIntent: (t: "collection" | "wantlist" | null) => void;
   // Add to collection
   addToCollection: (releaseId: number) => Promise<void>;
   // Wantlist crossover (wantlist items now in collection after sync)
@@ -301,6 +305,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
   const [selectedWantItem, setSelectedWantItem] = useState<WantItem | null>(null);
   const [selectedFeedAlbum, setSelectedFeedAlbum] = useState<FeedAlbum | null>(null);
+  const [followingActivityTabIntent, setFollowingActivityTabIntent] = useState<"collection" | "wantlist" | null>(null);
   const [collectionCrossoverQueue, setCollectionCrossoverQueue] = useState<WantItem[]>([]);
   const [followingFeed, setFollowingFeed] = useState<FollowingFeedEntry[]>([]);
   // Header callbacks — registered by screen components
@@ -380,6 +385,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
   const proxyFetchCollectionValue = useAction(api.discogs.proxyFetchCollectionValue);
   const proxyFetchUserCollectionPage = useAction(api.discogs.proxyFetchUserCollectionPage);
+  const proxyFetchUserWantlistPage = useAction(api.discogs.proxyFetchUserWantlistPage);
   const proxyRemoveFromCollection = useAction(api.discogs.proxyRemoveFromCollection);
   const proxyAddToWantlist = useAction(api.discogs.proxyAddToWantlist);
   const proxyRemoveFromWantlist = useAction(api.discogs.proxyRemoveFromWantlist);
@@ -859,6 +865,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         followed_username: entry.followed_username,
         lastSyncedAt: entry.lastSyncedAt,
         recent_albums: entry.recent_albums as FeedAlbum[],
+        recent_wants: (entry.recent_wants as FeedAlbum[] | undefined) ?? undefined,
       }))
     );
   }, [convexFollowingFeed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1367,13 +1374,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         following_username: user.username,
         avatar_url: user.avatar || undefined,
       });
-      // Fetch the new user's recent albums for the following feed cache
-      proxyFetchUserCollectionPage({ sessionToken, username: user.username, page: 1, perPage: 50 })
-        .then(async (recentAlbums) => {
+      // Fetch the new user's recent albums + wants for the following feed cache
+      Promise.all([
+        proxyFetchUserCollectionPage({ sessionToken, username: user.username, page: 1, perPage: 50 }),
+        proxyFetchUserWantlistPage({ sessionToken, username: user.username, page: 1, perPage: 50 }),
+      ])
+        .then(async ([recentAlbums, recentWants]) => {
           await upsertFollowingFeedMut({
             sessionToken,
             followed_username: user.username,
             recent_albums: recentAlbums,
+            recent_wants: recentWants,
           });
           setFollowingFeed((prev) => {
             const filtered = prev.filter(e => e.followed_username !== user.username);
@@ -1381,12 +1392,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               followed_username: user.username,
               lastSyncedAt: Date.now(),
               recent_albums: recentAlbums,
+              recent_wants: recentWants,
             }];
           });
         })
         .catch((e) => console.warn(`[FollowingFeed] Could not sync @${user.username}:`, e));
     }
-  }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, upsertFollowingFeedMut]);
+  }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage, upsertFollowingFeedMut]);
 
   const removeFollowedUser = useCallback((userId: string) => {
     setFollowedUsers((prev) => {
@@ -1583,6 +1595,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 followed_username: entry.followed_username,
                 lastSyncedAt: entry.lastSyncedAt,
                 recent_albums: entry.recent_albums as FeedAlbum[],
+                recent_wants: (entry.recent_wants as FeedAlbum[] | undefined) ?? undefined,
               });
             }
           }
@@ -1596,22 +1609,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               const lastSynced = cacheMap.get(followedUser);
               if (lastSynced && (now - lastSynced) < TWENTY_FOUR_HOURS) {
                 // Bypass cache if stored data lacks master_id (pre-schema-change migration)
+                // or is missing recent_wants (first-hydration for wantlist activity)
                 const cachedEntry = cachedFeed?.find(e => e.followed_username === followedUser);
-                const needsMigration = cachedEntry?.recent_albums &&
+                const needsMasterIdMigration = cachedEntry?.recent_albums &&
                   cachedEntry.recent_albums.length > 0 &&
                   !cachedEntry.recent_albums.some((a: any) => a.master_id);
-                if (!needsMigration) {
+                const needsWantsMigration = cachedEntry?.recent_wants === undefined;
+                if (!needsMasterIdMigration && !needsWantsMigration) {
                   continue; // Cache is fresh and complete — skip
                 }
               }
             }
 
             try {
-              const recentAlbums = await proxyFetchUserCollectionPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 });
+              const [recentAlbums, recentWants] = await Promise.all([
+                proxyFetchUserCollectionPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
+                proxyFetchUserWantlistPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
+              ]);
               await upsertFollowingFeedMut({
                 sessionToken: token,
                 followed_username: followedUser,
                 recent_albums: recentAlbums,
+                recent_wants: recentWants,
               });
 
               // Update or add to local feed state
@@ -1620,6 +1639,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 followed_username: followedUser,
                 lastSyncedAt: Date.now(),
                 recent_albums: recentAlbums,
+                recent_wants: recentWants,
               };
               if (existingIdx >= 0) {
                 feedEntries[existingIdx] = entry;
@@ -1658,7 +1678,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, updateCollectionValueMut, upsertFollowingFeedMut, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist, proxyFetchCollectionValue, proxyFetchUserCollectionPage]);
+  }, [updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, updateCollectionValueMut, upsertFollowingFeedMut, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist, proxyFetchCollectionValue, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);
@@ -2217,6 +2237,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Feed album detail panel
       selectedFeedAlbum,
       setSelectedFeedAlbum,
+      // Following activity tab deep-link intent
+      followingActivityTabIntent,
+      setFollowingActivityTabIntent,
       addToCollection,
       // Wantlist crossover
       collectionCrossoverQueue,
@@ -2274,7 +2297,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isInSession, toggleAlbumInSession, createSessionDirect,
       isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
       updateAlbum, removeFromCollection,
-      selectedWantItem, selectedFeedAlbum, addToCollection,
+      selectedWantItem, selectedFeedAlbum, followingActivityTabIntent, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
       followingFeed, followingAvatars, cachedSyncStats,

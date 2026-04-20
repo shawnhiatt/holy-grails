@@ -32,6 +32,21 @@ export const upsert = mutation({
         dateAdded: v.string(),
       })
     ),
+    recent_wants: v.optional(
+      v.array(
+        v.object({
+          release_id: v.number(),
+          master_id: v.optional(v.number()),
+          title: v.string(),
+          artist: v.string(),
+          year: v.number(),
+          thumb: v.optional(v.string()),
+          cover: v.string(),
+          label: v.string(),
+          dateAdded: v.string(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -47,6 +62,7 @@ export const upsert = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         recent_albums: args.recent_albums,
+        recent_wants: args.recent_wants,
         lastSyncedAt: Date.now(),
       });
       return existing._id;
@@ -56,6 +72,7 @@ export const upsert = mutation({
       follower_username: user.discogs_username,
       followed_username: args.followed_username,
       recent_albums: args.recent_albums,
+      recent_wants: args.recent_wants,
       lastSyncedAt: Date.now(),
     });
   },

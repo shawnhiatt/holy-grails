@@ -1009,6 +1009,59 @@ export const proxyFetchUserCollectionPage = action({
   },
 });
 
+// 13b. Fetch a single page of a user's wantlist (for following feed cache)
+export const proxyFetchUserWantlistPage = action({
+  args: {
+    sessionToken: v.string(),
+    username: v.string(),
+    page: v.optional(v.number()),
+    perPage: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const pg = args.page ?? 1;
+    const pp = args.perPage ?? 50;
+    const url = `${BASE}/users/${encodeURIComponent(args.username)}/wants?page=${pg}&per_page=${pp}&sort=added&sort_order=desc`;
+    try {
+      const res = await discogsFetch(
+        "GET",
+        url,
+        creds.access_token,
+        creds.token_secret
+      );
+      if (res.status === 403) return [];
+      if (!res.ok) {
+        throw new Error(
+          `Failed to fetch wantlist page for @${args.username} (${res.status})`
+        );
+      }
+      const data: WantPage = await res.json();
+      return data.wants.map((w) => {
+        const bi = w.basic_information;
+        return {
+          release_id: bi.id,
+          master_id: bi.master_id || undefined,
+          title: bi.title,
+          artist: bi.artists
+            .map((a) => formatArtistName(a.anv || a.name))
+            .join(", "),
+          year: bi.year || 0,
+          thumb: bi.thumb || "",
+          cover: bi.cover_image || bi.thumb || "",
+          label: bi.labels?.[0]?.name || "Unknown",
+          dateAdded: w.date_added || "",
+        };
+      });
+    } catch (e) {
+      console.warn(`[Discogs] proxyFetchUserWantlistPage failed for @${args.username}:`, e);
+      return [];
+    }
+  },
+});
+
 // 14. Fetch folders (with id, name, count)
 export const proxyFetchFolders = action({
   args: { sessionToken: v.string(), username: v.string() },

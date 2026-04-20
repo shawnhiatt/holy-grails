@@ -131,6 +131,21 @@ export default defineSchema({
         dateAdded: v.string(),
       })
     ),
+    recent_wants: v.optional(
+      v.array(
+        v.object({
+          release_id: v.number(),
+          master_id: v.optional(v.number()),
+          title: v.string(),
+          artist: v.string(),
+          year: v.number(),
+          thumb: v.optional(v.string()),
+          cover: v.string(),
+          label: v.string(),
+          dateAdded: v.string(),
+        })
+      )
+    ),
   })
     .index("by_follower", ["follower_username"])
     .index("by_follower_and_followed", ["follower_username", "followed_username"]),

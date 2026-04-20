@@ -1135,6 +1135,46 @@ function buildActivityFeedFromCache(
   return capped;
 }
 
+function buildWantActivityFeedFromCache(
+  feedEntries: FollowingFeedEntry[],
+  avatarMap: Map<string, string>,
+  userIdMap: Map<string, string>,
+): ActivityItem[] {
+  const items: ActivityItem[] = [];
+  for (const entry of feedEntries) {
+    const wants = entry.recent_wants;
+    if (!wants || wants.length === 0) continue;
+    const sorted = [...wants]
+      .sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""))
+      .slice(0, 30);
+    const avatar = avatarMap.get(entry.followed_username) || "";
+    const userId = userIdMap.get(entry.followed_username.toLowerCase()) || `f-${entry.followed_username}`;
+    sorted.forEach((album) => {
+      items.push({
+        id: `act-want-${entry.followed_username}-${album.release_id}`,
+        followedId: userId,
+        followedUsername: entry.followed_username,
+        followedAvatar: avatar,
+        albumTitle: album.title,
+        albumArtist: album.artist,
+        albumCover: album.cover,
+        albumReleaseId: album.release_id,
+        albumMasterId: album.master_id,
+        albumYear: album.year,
+        albumLabel: album.label,
+        date: album.dateAdded || "",
+        displayDate: "",
+      });
+    });
+  }
+  items.sort((a, b) => b.date.localeCompare(a.date));
+  const capped = items.slice(0, 300);
+  for (const item of capped) {
+    item.displayDate = item.date ? formatActivityDate(item.date, true) : "";
+  }
+  return capped;
+}
+
 /* ====== Populated Following View ====== */
 
 function PopulatedFollowingView({
@@ -1162,7 +1202,7 @@ function PopulatedFollowingView({
   followingAvatars: Map<string, string>;
   isSyncingFollowing: boolean;
 }) {
-  const { setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId } = useApp();
+  const { setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, followingActivityTabIntent, setFollowingActivityTabIntent } = useApp();
   const triggerHaptic = useHaptic('medium');
 
   // Sort followedUsers by most recent activity in followingFeed (avatar row only)
@@ -1183,8 +1223,21 @@ function PopulatedFollowingView({
 
   // Build a username → followedUser.id lookup for activity items
   const userIdMap = useMemo(() => new Map(followedUsers.map(f => [f.username.toLowerCase(), f.id])), [followedUsers]);
-  const activityFeed = useMemo(() => buildActivityFeedFromCache(followingFeed, followingAvatars, userIdMap), [followingFeed, followingAvatars, userIdMap]);
+  const collectionActivityFeed = useMemo(() => buildActivityFeedFromCache(followingFeed, followingAvatars, userIdMap), [followingFeed, followingAvatars, userIdMap]);
+  const wantlistActivityFeed = useMemo(() => buildWantActivityFeedFromCache(followingFeed, followingAvatars, userIdMap), [followingFeed, followingAvatars, userIdMap]);
+
+  const [activityTab, setActivityTab] = useState<"collection" | "wantlist">(() => followingActivityTabIntent ?? "collection");
+  // Consume the one-shot intent on mount
+  useEffect(() => {
+    if (followingActivityTabIntent !== null) {
+      setFollowingActivityTabIntent(null);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activityFeed = activityTab === "collection" ? collectionActivityFeed : wantlistActivityFeed;
   const [visibleCount, setVisibleCount] = useState(30);
+  // Reset visibleCount when switching tabs so the new list starts fresh at 30
+  useEffect(() => { setVisibleCount(30); }, [activityTab]);
   const visibleActivity = useMemo(() => activityFeed.slice(0, visibleCount), [activityFeed, visibleCount]);
   const hasMore = activityFeed.length > visibleCount;
 
@@ -1459,6 +1512,37 @@ function PopulatedFollowingView({
         </p>
       </div>
 
+      {/* ── Tab switcher ── */}
+      <div className="flex items-center gap-[8px] px-[16px] lg:px-[24px] pb-[12px]">
+        {(["collection", "wantlist"] as const).map((tab) => {
+          const active = activityTab === tab;
+          const label = tab === "collection" ? "Collection" : "Wantlist";
+          return (
+            <button
+              key={tab}
+              onClick={() => setActivityTab(tab)}
+              className="cursor-pointer tappable"
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                padding: "6px 12px",
+                borderRadius: "999px",
+                border: "none",
+                background: active
+                  ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
+                  : "var(--c-chip-bg)",
+                color: active
+                  ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                  : "var(--c-text-muted)",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── Activity feed ── */}
       {activityFeed.length === 0 ? (
         isSyncingFollowing ? (
@@ -1471,7 +1555,9 @@ function PopulatedFollowingView({
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center px-8 py-16">
             <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-              No recent activity from collectors you follow.
+              {activityTab === "wantlist"
+                ? "No recent wantlist activity from collectors you follow."
+                : "No recent activity from collectors you follow."}
             </p>
           </div>
         )
@@ -1574,7 +1660,7 @@ function PopulatedFollowingView({
                     } as React.CSSProperties}
                   >
                     <span style={{ fontWeight: 600 }}>{item.followedUsername}</span>
-                    {" added "}
+                    {activityTab === "wantlist" ? " wantlisted " : " added "}
                     <span style={{ fontWeight: 400 }}>{item.albumTitle}</span>
                   </p>
                   <p
@@ -1609,64 +1695,66 @@ function PopulatedFollowingView({
                   </p>
                 </div>
 
-                {/* Heart / collection icon indicator — unified three-state logic */}
-                {inCollection ? (
-                  <span
-                    className="flex-shrink-0 flex items-center gap-1.5"
-                    style={{ color: "#EBFD00", padding: "4px" }}
-                  >
-                    <GalleryVerticalEnd size={18} />
+                {/* Heart / collection icon indicator — collection tab only */}
+                {activityTab === "collection" && (
+                  inCollection ? (
                     <span
-                      className="hidden lg:inline"
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 500,
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                      }}
+                      className="flex-shrink-0 flex items-center gap-1.5"
+                      style={{ color: "#EBFD00", padding: "4px" }}
                     >
-                      In Collection
-                    </span>
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => handleHeartTap(item)}
-                    disabled={inFlightIds.has(item.albumReleaseId)}
-                    className="flex-shrink-0 cursor-pointer tappable"
-                    style={{ padding: "4px", background: "none", border: "none" }}
-                  >
-                    {inFlightIds.has(item.albumReleaseId) ? (
-                      <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <motion.div
-                          key={inWantList ? "filled" : "outline"}
-                          initial={{ scale: 0.7 }}
-                          animate={{ scale: 1 }}
-                          transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
-                        >
-                          <Heart
-                            size={18}
-                            fill={inWantList ? "#EBFD00" : "none"}
-                            color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
-                            strokeWidth={inWantList ? 0 : 1.5}
-                          />
-                        </motion.div>
-                        {inWantList && (
-                          <span
-                            className="hidden lg:inline"
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 500,
-                              fontFamily: "'DM Sans', system-ui, sans-serif",
-                              color: "#EBFD00",
-                            }}
-                          >
-                            In Wantlist
-                          </span>
-                        )}
+                      <GalleryVerticalEnd size={18} />
+                      <span
+                        className="hidden lg:inline"
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 500,
+                          fontFamily: "'DM Sans', system-ui, sans-serif",
+                        }}
+                      >
+                        In Collection
                       </span>
-                    )}
-                  </button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleHeartTap(item)}
+                      disabled={inFlightIds.has(item.albumReleaseId)}
+                      className="flex-shrink-0 cursor-pointer tappable"
+                      style={{ padding: "4px", background: "none", border: "none" }}
+                    >
+                      {inFlightIds.has(item.albumReleaseId) ? (
+                        <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <motion.div
+                            key={inWantList ? "filled" : "outline"}
+                            initial={{ scale: 0.7 }}
+                            animate={{ scale: 1 }}
+                            transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
+                          >
+                            <Heart
+                              size={18}
+                              fill={inWantList ? "#EBFD00" : "none"}
+                              color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
+                              strokeWidth={inWantList ? 0 : 1.5}
+                            />
+                          </motion.div>
+                          {inWantList && (
+                            <span
+                              className="hidden lg:inline"
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 500,
+                                fontFamily: "'DM Sans', system-ui, sans-serif",
+                                color: "#EBFD00",
+                              }}
+                            >
+                              In Wantlist
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </button>
+                  )
                 )}
               </div>
             );
