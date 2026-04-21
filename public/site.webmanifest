@@ -1,32 +1,21 @@
 {
-  "id": "/",
   "name": "Holy Grails",
-  "short_name": "Holy Grails",
-  "description": "Your vinyl collection, curated. Sync with Discogs and decide what stays.",
-  "start_url": "/",
-  "scope": "/",
+  "short_name": "Grails",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "maskable"
     },
     {
       "src": "/web-app-manifest-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/web-app-manifest-maskable-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#EBFD00",
+  "theme_color": "#0C284A",
   "background_color": "#0C284A",
-  "display": "standalone",
-  "orientation": "portrait"
+  "display": "standalone"
 }
