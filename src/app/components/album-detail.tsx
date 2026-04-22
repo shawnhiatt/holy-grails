@@ -1000,6 +1000,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                 width: "100%",
                                 boxSizing: "border-box",
                                 display: "block",
+                                appearance: "none",
+                                WebkitAppearance: "none",
                               }}
                             />
                           </div>
@@ -1022,6 +1024,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                 width: "100%",
                                 boxSizing: "border-box",
                                 display: "block",
+                                appearance: "none",
+                                WebkitAppearance: "none",
                               }}
                             />
                           </div>
