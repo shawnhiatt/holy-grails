@@ -979,8 +979,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       className="overflow-hidden"
                     >
                       <div className="mt-3 rounded-[10px] p-3 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
-                        <div className="flex gap-2">
-                          <div className="flex-1 flex flex-col gap-1" style={{ minWidth: 0 }}>
+                        <div className="flex gap-2" style={{ overflow: "hidden" }}>
+                          <div className="flex flex-col gap-1" style={{ width: "calc(50% - 4px)", minWidth: 0, overflow: "hidden" }}>
                             <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Date</label>
                             <input
                               type="date"
@@ -999,10 +999,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                 outline: "none",
                                 width: "100%",
                                 boxSizing: "border-box",
+                                display: "block",
                               }}
                             />
                           </div>
-                          <div className="flex-1 flex flex-col gap-1" style={{ minWidth: 0 }}>
+                          <div className="flex flex-col gap-1" style={{ width: "calc(50% - 4px)", minWidth: 0, overflow: "hidden" }}>
                             <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Time</label>
                             <input
                               type="time"
@@ -1020,6 +1021,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                 outline: "none",
                                 width: "100%",
                                 boxSizing: "border-box",
+                                display: "block",
                               }}
                             />
                           </div>
