@@ -10,7 +10,7 @@ import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButto
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, type WantItem, type FeedAlbum } from "./discogs-api";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { SwipeToDelete } from "./swipe-to-delete";
 import { api } from "../../../convex/_generated/api";
 import { conditionGradeColor as conditionColor } from "../../lib/condition-colors";
@@ -62,7 +62,7 @@ const releaseDataCache = new Map<number, ReleaseData>();
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
     selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
-    lastPlayed, playCounts, markPlayed, markPlayedAt, isDarkMode,
+    lastPlayed, playCounts, markPlayed, markPlayedAt, removePlay, isDarkMode,
     // Session picker
     isAlbumInAnySession, mostRecentSessionId,
     // Inline session list
@@ -93,7 +93,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     api.last_played.getHistoryByRelease,
     selectedAlbum && sessionToken ? { sessionToken, release_id: selectedAlbum.release_id } : "skip"
   );
-  const deletePlayMut = useMutation(api.last_played.deletePlay);
 
   // Inline session list state
   const [sessionListExpanded, setSessionListExpanded] = useState(false);
@@ -1285,11 +1284,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                     <SwipeToDelete
                                       key={entry._id}
                                       onDelete={() => {
-                                        if (!sessionToken) return;
-                                        deletePlayMut({ sessionToken, play_id: entry._id }).catch((err) => {
-                                          console.error("[AlbumDetail] Delete play failed:", err);
-                                          toast.error("Couldn't delete play.");
-                                        });
+                                        removePlay(entry._id, selectedAlbum.id, entry.played_at);
                                       }}
                                     >
                                       <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingLeft: "22px", paddingTop: "8px", paddingBottom: "8px", backgroundColor: "var(--c-surface)" }}>

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import { useQuery, useMutation, useAction } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import {
   type Album,
   type WantItem,
@@ -105,6 +106,7 @@ interface AppState {
   allPlayTimestamps: number[];
   markPlayed: (albumId: string) => void;
   markPlayedAt: (albumId: string, date: Date) => void;
+  removePlay: (playId: Id<"last_played">, albumId: string, playedAt: number) => void;
   neverPlayedFilter: boolean;
   setNeverPlayedFilter: (v: boolean) => void;
   rediscoverMode: boolean;
@@ -358,6 +360,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateSessionMut = useMutation(api.sessions.update);
   const removeSessionMut = useMutation(api.sessions.remove);
   const logPlayMut = useMutation(api.last_played.logPlay);
+  const deletePlayMut = useMutation(api.last_played.deletePlay);
   const clearLastPlayedMut = useMutation(api.last_played.clearAll);
   const upsertWantPriorityMut = useMutation(api.want_priorities.upsert);
   const clearWantPrioritiesMut = useMutation(api.want_priorities.clearAll);
@@ -1324,6 +1327,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionToken, logPlayMut]);
 
+  const removePlay = useCallback((playId: Id<"last_played">, albumId: string, playedAt: number) => {
+    setPlayCounts((prev) => {
+      const nextCount = (prev[albumId] || 0) - 1;
+      const next = { ...prev };
+      if (nextCount <= 0) delete next[albumId];
+      else next[albumId] = nextCount;
+      return next;
+    });
+    setAllPlayTimestamps((prev) => {
+      const idx = prev.indexOf(playedAt);
+      if (idx === -1) return prev;
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+    });
+    setLastPlayed((prev) => {
+      const currentLast = prev[albumId];
+      if (!currentLast) return prev;
+      const deletedIso = new Date(playedAt).toISOString();
+      if (currentLast !== deletedIso) return prev;
+      // The deleted play was the most recent — drop entry; next sync/hydration will restore accurately.
+      const next = { ...prev };
+      delete next[albumId];
+      return next;
+    });
+    if (sessionToken) {
+      deletePlayMut({ sessionToken, play_id: playId });
+    }
+  }, [sessionToken, deletePlayMut]);
+
   // ── Session operations ──
 
   const deleteSession = useCallback((sessionId: string) => {
@@ -2173,6 +2204,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       allPlayTimestamps,
       markPlayed,
       markPlayedAt,
+      removePlay,
       neverPlayedFilter,
       setNeverPlayedFilter,
       rediscoverMode,
@@ -2276,7 +2308,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       showFilterDrawer, showAlbumDetail,
       purgeFilter, wantFilter, wantSearchQuery,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
-      lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt,
+      lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,
       rediscoverMode,
       computedRediscoverAlbums,
