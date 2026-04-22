@@ -287,7 +287,7 @@ export function MobileHeader() {
         className="flex items-center justify-between lg:hidden px-[16px]"
         style={{ height: "58px", background: "transparent" }}
       >
-        <PillLogo className="w-[130px] h-auto" />
+        <PillLogo className="w-[140px] h-auto" />
         {navButtons}
       </div>
     );

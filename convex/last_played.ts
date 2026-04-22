@@ -65,6 +65,19 @@ export const logPlay = mutation({
   },
 });
 
+export const deletePlay = mutation({
+  args: { sessionToken: v.string(), play_id: v.id("last_played") },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const row = await ctx.db.get(args.play_id);
+    if (!row) return;
+    if (row.discogs_username !== user.discogs_username) {
+      throw new Error("Unauthorized");
+    }
+    await ctx.db.delete(args.play_id);
+  },
+});
+
 export const clearAll = mutation({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {

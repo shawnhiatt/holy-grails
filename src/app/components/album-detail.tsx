@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History } from "lucide-react";
+import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -10,7 +10,8 @@ import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButto
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, type WantItem, type FeedAlbum } from "./discogs-api";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { SwipeToDelete } from "./swipe-to-delete";
 import { api } from "../../../convex/_generated/api";
 import { conditionGradeColor as conditionColor } from "../../lib/condition-colors";
 
@@ -82,12 +83,17 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
   const [justPlayed, setJustPlayed] = useState(false);
   const [playHistoryExpanded, setPlayHistoryExpanded] = useState(false);
+  const [pastPlayPickerOpen, setPastPlayPickerOpen] = useState(false);
+  const [selectedPastDate, setSelectedPastDate] = useState("");
+  const [selectedPastTime, setSelectedPastTime] = useState("");
+  const [isLoggingPastPlay, setIsLoggingPastPlay] = useState(false);
 
   // Play history query — only fires when album is selected
   const playHistory = useQuery(
     api.last_played.getHistoryByRelease,
     selectedAlbum && sessionToken ? { sessionToken, release_id: selectedAlbum.release_id } : "skip"
   );
+  const deletePlayMut = useMutation(api.last_played.deletePlay);
 
   // Inline session list state
   const [sessionListExpanded, setSessionListExpanded] = useState(false);
@@ -141,6 +147,10 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setLightboxOpen(false);
     setLightboxIndex(0);
     setTabBarStuck(false);
+    setPastPlayPickerOpen(false);
+    setSelectedPastDate("");
+    setSelectedPastTime("");
+    setIsLoggingPastPlay(false);
   }, [selectedAlbum?.id]);
 
   // IntersectionObserver for tab bar sticky padding
@@ -395,23 +405,43 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   }, [releaseData?.credits]);
 
   const todayStr = new Date().toISOString().split("T")[0];
-  const albumIdRef = useRef(selectedAlbum?.id ?? "");
-  albumIdRef.current = selectedAlbum?.id ?? "";
-  const albumTitleRef = useRef(selectedAlbum?.title ?? "");
-  albumTitleRef.current = selectedAlbum?.title ?? "";
 
-  const datePickerRef = useCallback((node: HTMLInputElement | null) => {
-    if (!node) return;
-    const handler = () => {
-      const val = node.value;
-      if (!val) return;
-      const [y, m, d] = val.split("-").map(Number);
-      markPlayedAt(albumIdRef.current, new Date(y, m - 1, d, 12, 0, 0));
-      toast.info(`"${albumTitleRef.current}" played.`, { duration: 1500 });
-      node.value = todayStr;
+  const getNowValues = useCallback(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return {
+      date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+      time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
     };
-    node.addEventListener("change", handler);
-  }, [markPlayedAt, todayStr]);
+  }, []);
+
+  const openPastPlayPicker = useCallback(() => {
+    const { date, time } = getNowValues();
+    setSelectedPastDate(date);
+    setSelectedPastTime(time);
+    setPastPlayPickerOpen(true);
+  }, [getNowValues]);
+
+  const resetPastPlayPicker = useCallback(() => {
+    const { date, time } = getNowValues();
+    setSelectedPastDate(date);
+    setSelectedPastTime(time);
+  }, [getNowValues]);
+
+  const confirmPastPlay = useCallback(() => {
+    if (!selectedAlbum || !selectedPastDate || !selectedPastTime) return;
+    const [y, m, d] = selectedPastDate.split("-").map(Number);
+    const [hh, mm] = selectedPastTime.split(":").map(Number);
+    const when = new Date(y, m - 1, d, hh, mm, 0);
+    setIsLoggingPastPlay(true);
+    try {
+      markPlayedAt(selectedAlbum.id, when);
+      toast.info(`"${selectedAlbum.title}" played.`, { duration: 1500 });
+      setPastPlayPickerOpen(false);
+    } finally {
+      setIsLoggingPastPlay(false);
+    }
+  }, [selectedAlbum, selectedPastDate, selectedPastTime, markPlayedAt]);
 
   if (!selectedAlbum && selectedWantItem) {
     return (
@@ -931,18 +961,110 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   </AnimatePresence>
                 </button>
                 <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
-                  <span style={{ position: "relative", display: "inline-block", cursor: "pointer", touchAction: "manipulation" }}>
+                  <button
+                    type="button"
+                    onClick={() => (pastPlayPickerOpen ? setPastPlayPickerOpen(false) : openPastPlayPicker())}
+                    className="tappable"
+                    style={{ background: "transparent", border: "none", padding: 0, color: "inherit", font: "inherit", cursor: "pointer", touchAction: "manipulation" }}
+                  >
                     {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged. Tap to log a past play."}
-                    <input
-                      ref={datePickerRef}
-                      type="date"
-                      defaultValue={todayStr}
-                      max={todayStr}
-                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: "16px" }}
-                      tabIndex={-1}
-                    />
-                  </span>
+                  </button>
                 </p>
+                <AnimatePresence>
+                  {pastPlayPickerOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: DURATION_NORMAL }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 rounded-[10px] p-3 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+                        <div className="flex gap-2">
+                          <div className="flex-1 flex flex-col gap-1">
+                            <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Date</label>
+                            <input
+                              type="date"
+                              value={selectedPastDate}
+                              max={todayStr}
+                              onChange={(e) => setSelectedPastDate(e.target.value)}
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: 400,
+                                color: "var(--c-text)",
+                                backgroundColor: "var(--c-input-bg)",
+                                border: "1px solid var(--c-border)",
+                                borderRadius: "8px",
+                                padding: "8px 12px",
+                                fontFamily: "'DM Sans', system-ui, sans-serif",
+                                outline: "none",
+                                width: "100%",
+                              }}
+                            />
+                          </div>
+                          <div className="flex-1 flex flex-col gap-1">
+                            <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Time</label>
+                            <input
+                              type="time"
+                              value={selectedPastTime}
+                              onChange={(e) => setSelectedPastTime(e.target.value)}
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: 400,
+                                color: "var(--c-text)",
+                                backgroundColor: "var(--c-input-bg)",
+                                border: "1px solid var(--c-border)",
+                                borderRadius: "8px",
+                                padding: "8px 12px",
+                                fontFamily: "'DM Sans', system-ui, sans-serif",
+                                outline: "none",
+                                width: "100%",
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-1">
+                          <button
+                            type="button"
+                            onClick={resetPastPlayPicker}
+                            disabled={isLoggingPastPlay}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors"
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: 600,
+                              fontFamily: "'DM Sans', system-ui, sans-serif",
+                              color: "var(--c-text-secondary)",
+                              backgroundColor: "var(--c-chip-bg)",
+                              border: "1px solid var(--c-border)",
+                              opacity: isLoggingPastPlay ? 0.5 : 1,
+                            }}
+                            aria-label="Reset to now"
+                          >
+                            <RotateCcw size={15} />
+                            Reset
+                          </button>
+                          <button
+                            type="button"
+                            onClick={confirmPastPlay}
+                            disabled={isLoggingPastPlay || !selectedPastDate || !selectedPastTime}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors bg-[#EBFD00] hover:bg-[#d9e800]"
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: 600,
+                              fontFamily: "'DM Sans', system-ui, sans-serif",
+                              color: "#0C284A",
+                              opacity: isLoggingPastPlay ? 0.7 : 1,
+                            }}
+                            aria-label="Log play"
+                          >
+                            {isLoggingPastPlay ? <Disc3 size={15} className="disc-spinner" /> : <Check size={15} />}
+                            Log
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
@@ -1160,9 +1282,20 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                   </div>
                                 ) : playHistory.length === 0 ? null : (
                                   playHistory.map((entry) => (
-                                    <div key={entry._id} style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingLeft: "22px" }}>
-                                      {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                                    </div>
+                                    <SwipeToDelete
+                                      key={entry._id}
+                                      onDelete={() => {
+                                        if (!sessionToken) return;
+                                        deletePlayMut({ sessionToken, play_id: entry._id }).catch((err) => {
+                                          console.error("[AlbumDetail] Delete play failed:", err);
+                                          toast.error("Couldn't delete play.");
+                                        });
+                                      }}
+                                    >
+                                      <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingLeft: "22px", paddingTop: "8px", paddingBottom: "8px", backgroundColor: "var(--c-surface)" }}>
+                                        {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                      </div>
+                                    </SwipeToDelete>
                                   ))
                                 )}
                               </div>
