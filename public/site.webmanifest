@@ -1,6 +1,6 @@
 {
   "name": "Holy Grails",
-  "short_name": "Grails",
+  "short_name": "Holy Grails",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -15,7 +15,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#0C284A",
-  "background_color": "#0C284A",
+  "theme_color": "#0c284a",
+  "background_color": "#0c284a",
   "display": "standalone"
 }
