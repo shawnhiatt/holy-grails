@@ -325,6 +325,7 @@ function StatChip({ label, tag, count, isActive, onClick, isDark }: {
 function SwipeableAlbumRow({ album, onTag, onTap, isDark }: {
   album: Album; onTag: (id: string, tag: PurgeTag) => void; onTap: () => void; isDark: boolean;
 }) {
+  const triggerHaptic = useHaptic('light');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const keepZoneRef = useRef<HTMLDivElement>(null);
@@ -459,17 +460,17 @@ function SwipeableAlbumRow({ album, onTag, onTap, isDark }: {
             <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "keep" ? null : "keep"); }}
+            <button onClick={(e) => { triggerHaptic(); e.stopPropagation(); onTag(album.id, album.purgeTag === "keep" ? null : "keep"); }}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
               style={{ backgroundColor: album.purgeTag === "keep" ? purgeTagBg("keep", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "keep" ? keepClr : "var(--c-text-faint)" }}>
               <Check size={14} />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "maybe" ? null : "maybe"); }}
+            <button onClick={(e) => { triggerHaptic(); e.stopPropagation(); onTag(album.id, album.purgeTag === "maybe" ? null : "maybe"); }}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
               style={{ backgroundColor: album.purgeTag === "maybe" ? purgeTagBg("maybe", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "maybe" ? maybeClr : "var(--c-text-faint)" }}>
               <HelpCircle size={14} />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "cut" ? null : "cut"); }}
+            <button onClick={(e) => { triggerHaptic(); e.stopPropagation(); onTag(album.id, album.purgeTag === "cut" ? null : "cut"); }}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
               style={{ backgroundColor: album.purgeTag === "cut" ? purgeTagBg("cut", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "cut" ? cutClr : "var(--c-text-faint)" }}>
               <Minus size={14} />

@@ -270,7 +270,7 @@ export function CrateBrowser() {
 
         {/* Active filter chips (mobile) */}
         {hasActiveFilters && (
-          <div className="flex items-center gap-2 mt-[8px] overflow-x-auto">
+          <div className="flex items-center gap-2 mt-[8px] overflow-x-auto no-scrollbar">
             {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
             {sortOption !== "artist-az" && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption("artist-az")} />}
             {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}

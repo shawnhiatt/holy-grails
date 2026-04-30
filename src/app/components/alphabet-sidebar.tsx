@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { Album } from "./discogs-api";
+import { useHaptic } from "@/hooks/useHaptic";
 
 /* ─── Alphabet Index Sidebar (mobile only) ─── */
 
@@ -55,6 +56,8 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerHaptic = useHaptic('light');
+  const activeLetterRef = useRef<string | null>(null);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -88,33 +91,49 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
     const touch = e.touches[0];
     const entry = getEntryFromY(touch.clientY);
     if (entry) {
+      if (entry.letter !== activeLetterRef.current) {
+        triggerHaptic();
+        activeLetterRef.current = entry.letter;
+      }
       setActiveLetter(entry.letter);
       scrollToLetter(entry, true);
     }
-  }, [getEntryFromY, scrollToLetter]);
+  }, [getEntryFromY, scrollToLetter, triggerHaptic]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     const touch = e.touches[0];
     const entry = getEntryFromY(touch.clientY);
     if (entry) {
+      if (entry.letter !== activeLetterRef.current) {
+        triggerHaptic();
+        activeLetterRef.current = entry.letter;
+      }
       setActiveLetter(entry.letter);
       scrollToLetter(entry);
     }
-  }, [getEntryFromY, scrollToLetter]);
+  }, [getEntryFromY, scrollToLetter, triggerHaptic]);
 
   const handleTouchEnd = useCallback(() => {
     fadeTimer.current = setTimeout(() => {
       setActiveLetter(null);
+      activeLetterRef.current = null;
     }, 600);
   }, []);
 
   const handleLetterTap = useCallback((entry: LetterEntry) => {
+    if (entry.letter !== activeLetterRef.current) {
+      triggerHaptic();
+      activeLetterRef.current = entry.letter;
+    }
     setActiveLetter(entry.letter);
     scrollToLetter(entry, true);
     if (fadeTimer.current) clearTimeout(fadeTimer.current);
-    fadeTimer.current = setTimeout(() => setActiveLetter(null), 600);
-  }, [scrollToLetter]);
+    fadeTimer.current = setTimeout(() => {
+      setActiveLetter(null);
+      activeLetterRef.current = null;
+    }, 600);
+  }, [scrollToLetter, triggerHaptic]);
 
   return (
     <>

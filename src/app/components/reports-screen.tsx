@@ -701,6 +701,7 @@ function ListeningActivitySection({
   albums,
   lastPlayed,
   allPlayTimestamps,
+  playCounts,
   isDarkMode,
   markPlayed,
   onNeverPlayedTap,
@@ -709,6 +710,7 @@ function ListeningActivitySection({
   albums: Album[];
   lastPlayed: Record<string, string>;
   allPlayTimestamps: number[];
+  playCounts: Record<string, number>;
   isDarkMode: boolean;
   markPlayed: (id: string) => void;
   onNeverPlayedTap: () => void;
@@ -811,12 +813,22 @@ function ListeningActivitySection({
   // Daily rotation of never-played albums
   const neglected = useMemo(() => {
     const pool = albums.filter((a) => !lastPlayed[a.id]);
-    return seededShuffle(pool, getDailySeed()).slice(0, 4).map((album) => ({
+    return seededShuffle(pool, getDailySeed()).slice(0, 5).map((album) => ({
       album,
       neverPlayed: true,
       label: `Added ${formatDateShort(album.dateAdded)}, no plays recorded`,
     }));
   }, [albums, lastPlayed]);
+
+  // Top played — top 5 albums by play count (only if 5+ albums have plays)
+  const topPlayed = useMemo(() => {
+    const withPlays = albums
+      .filter((a) => (playCounts[a.id] ?? 0) >= 1)
+      .map((a) => ({ album: a, count: playCounts[a.id] }))
+      .sort((a, b) => b.count - a.count);
+    if (withPlays.length < 5) return [];
+    return withPlays.slice(0, 5);
+  }, [albums, playCounts]);
 
   // Recently played
   const recentlyPlayed = useMemo(() => {
@@ -925,6 +937,126 @@ function ListeningActivitySection({
         </button>
       </div>
 
+      {/* Streak row — only when at least one streak >= 1 */}
+      {(currentStreak >= 1 || longestStreak >= 1) && (
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div
+            className="rounded-[10px] py-3 px-3 text-center"
+            style={{
+              backgroundColor: "var(--c-surface-alt)",
+              border: "1px solid var(--c-border)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "28px",
+                fontWeight: 700,
+                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                color: "var(--c-text)",
+                lineHeight: 1.1,
+              }}
+            >
+              {currentStreak}
+            </span>
+            <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
+              current streak<br/> days
+            </p>
+          </div>
+          <div
+            className="rounded-[10px] py-3 px-3 text-center"
+            style={{
+              backgroundColor: "var(--c-surface-alt)",
+              border: "1px solid var(--c-border)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "28px",
+                fontWeight: 700,
+                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                color: "var(--c-text)",
+                lineHeight: 1.1,
+              }}
+            >
+              {longestStreak}
+            </span>
+            <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
+              longest streak<br/> days
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Top Played — only when 5+ albums have plays */}
+      {topPlayed.length >= 5 && (
+        <div className="mt-5">
+          <p
+            className="mb-3"
+            style={{
+              fontSize: "11px",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              color: "var(--c-text-muted)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+            }}
+          >
+            Top Played
+          </p>
+          <div className="flex flex-col gap-2">
+            {topPlayed.map((item, i) => {
+              const maxCount = topPlayed[0].count;
+              const widthPct = (item.count / maxCount) * 100;
+              const barGrade = ["NM", "NM", "VG+", "VG+", "VG"][i] ?? "VG";
+              const barColor = conditionGradeColor(barGrade, isDarkMode) ?? CHART_BLUE;
+              return (
+                <button
+                  key={item.album.id}
+                  onClick={() => onAlbumTap(item.album.id)}
+                  className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
+                  style={{
+                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                  }}
+                >
+                  <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+                    <img src={item.album.thumb || item.album.cover} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                    <p
+                      className="mb-1.5"
+                      style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
+                    >
+                      {item.album.artist} — {item.album.title}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="flex-1 rounded-full overflow-hidden"
+                        style={{ height: 4, backgroundColor: "var(--c-surface-alt)" }}
+                      >
+                        <div
+                          className="rounded-full"
+                          style={{
+                            width: `${widthPct}%`,
+                            height: "100%",
+                            backgroundColor: barColor,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className="shrink-0"
+                        style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                      >
+                        {item.count}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Recently Played */}
       {recentlyPlayed.length > 0 && (
         <div className="mt-4">
@@ -973,7 +1105,7 @@ function ListeningActivitySection({
         <p
           className="mb-3"
           style={{
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: 600,
             letterSpacing: "0.5px",
             textTransform: "uppercase",
@@ -1110,11 +1242,12 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
                 fontWeight: 700,
                 fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
                 color: "var(--c-text)",
-                lineHeight: 1.2,
+                lineHeight: 1.1,
               }}
             >
-              {stats.rated} of {stats.total}
+              {stats.rated}
             </span>
+            <span style={{ fontSize: "22px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: 1.1 }}>of {stats.total}</span>
             <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>evaluated</span>
           </div>
         </div>
@@ -1160,7 +1293,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 /* ═══════════════════ MAIN REPORTS SCREEN ═══════════════════ */
 
 export function ReportsScreen() {
-  const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
+  const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, playCounts, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
   const triggerHaptic = useHaptic('medium');
 
   return (
@@ -1206,6 +1339,7 @@ export function ReportsScreen() {
               albums={albums}
               lastPlayed={lastPlayed}
               allPlayTimestamps={allPlayTimestamps}
+              playCounts={playCounts}
               isDarkMode={isDarkMode}
               markPlayed={markPlayed}
               onNeverPlayedTap={() => { setNeverPlayedFilter(true); setScreen("crate"); }}
