@@ -13,7 +13,6 @@ import type { Album, FollowedUser, FeedAlbum, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, EASE_IN, DURATION_NORMAL, DURATION_FAST, DURATION_SLOW } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { DepthsAlbumCard } from "./depths-album-card";
-import { useHaptic } from "@/hooks/useHaptic";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { useAction } from "convex/react";
@@ -306,7 +305,6 @@ function FollowedUserProfile({
   const [showFilters, setShowFilters] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser } = useApp();
-  const triggerHaptic = useHaptic('medium');
 
   // Register header unfollow callback
   useEffect(() => {
@@ -315,7 +313,6 @@ function FollowedUserProfile({
   }, [setOnUnfollowUser]);
 
   const handleOpenAlbum = useCallback((item: Album | WantItem) => {
-    triggerHaptic();
     const rid = Number(item.release_id);
     const mid = 'master_id' in item ? item.master_id : undefined;
     if (isInCollection(rid, mid)) {
@@ -325,7 +322,7 @@ function FollowedUserProfile({
     }
     setSelectedFeedAlbum(toFeedAlbum(item));
     setShowAlbumDetail(true);
-  }, [triggerHaptic, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId]);
+  }, [setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId]);
 
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
   const userCutReleaseIds = useMemo(() => new Set(userAlbums.filter((a) => a.purgeTag === "cut").map((a) => a.release_id)), [userAlbums]);
@@ -1203,7 +1200,6 @@ function PopulatedFollowingView({
   isSyncingFollowing: boolean;
 }) {
   const { setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, followingActivityTabIntent, setFollowingActivityTabIntent } = useApp();
-  const triggerHaptic = useHaptic('medium');
 
   // Sort followedUsers by most recent activity in followingFeed (avatar row only)
   const sortedFollowedUsers = useMemo(() => {
@@ -1435,7 +1431,6 @@ function PopulatedFollowingView({
                   <DepthsAlbumCard
                     album={album}
                     onTap={() => {
-                      triggerHaptic();
                       const rid = Number(album.release_id);
                       const mid = album.master_id;
                       if (isInCollection(rid, mid)) {
@@ -1581,7 +1576,6 @@ function PopulatedFollowingView({
                   className="relative flex-shrink-0 cursor-pointer"
                   style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
                   {...useSafeTap(() => {
-                    triggerHaptic();
                     if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
                       const rid = Number(item.albumReleaseId);
                       const match = albums.find((a) => Number(a.release_id) === rid) ||

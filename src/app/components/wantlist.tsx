@@ -7,7 +7,6 @@ import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
-import { useHaptic } from "@/hooks/useHaptic";
 import { useSafeTap } from "../lib/use-safe-tap";
 
 import { AlbumArtwork } from "./album-artwork-grid";
@@ -164,7 +163,6 @@ function getWantGroupLabel(item: WantItem): string {
 
 export function Wantlist() {
   const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
-  const triggerHaptic = useHaptic('medium');
 
   const wantGridModes = useMemo(() => [
     { id: viewMode === "grid3" ? "grid3" as ViewMode : "grid" as ViewMode, icon: viewMode === "grid3" ? Grid3x3 : Grid2x2, label: viewMode === "grid3" ? "Compact Grid" : "Grid" },
@@ -180,10 +178,9 @@ export function Wantlist() {
   }, [viewMode, setViewMode]);
 
   const handleSelectWant = useCallback((item: WantItem) => {
-    triggerHaptic();
     setSelectedWantItem(item);
     setShowAlbumDetail(true);
-  }, [triggerHaptic, setSelectedWantItem, setShowAlbumDetail]);
+  }, [setSelectedWantItem, setShowAlbumDetail]);
 
   const filteredWants = useMemo(() => {
     let result = [...wants];

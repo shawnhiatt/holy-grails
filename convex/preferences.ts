@@ -27,6 +27,7 @@ export const upsert = mutation({
     view_mode: v.optional(v.string()),
     want_view_mode: v.optional(v.string()),
     default_screen: v.optional(v.string()),
+    default_collection_sort: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -49,6 +50,7 @@ export const upsert = mutation({
       if (args.view_mode !== undefined) updates.view_mode = args.view_mode;
       if (args.want_view_mode !== undefined) updates.want_view_mode = args.want_view_mode;
       if (args.default_screen !== undefined) updates.default_screen = args.default_screen;
+      if (args.default_collection_sort !== undefined) updates.default_collection_sort = args.default_collection_sort;
 
       await ctx.db.patch(existing._id, updates);
       return existing._id;

@@ -245,7 +245,6 @@ function AppContent() {
   const handleShake = useCallback(() => {
     if (albums.length === 0) return;
     const randomAlbum = albums[Math.floor(Math.random() * albums.length)];
-    if (navigator.vibrate) navigator.vibrate(40);
     setShakeEntrance(true);
     setSelectedAlbumId(randomAlbum.id);
     setShowAlbumDetail(true);

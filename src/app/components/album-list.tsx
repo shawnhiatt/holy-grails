@@ -7,7 +7,6 @@ import { formatRelativeDate } from "./last-played-utils";
 import { DIVIDER_SORT_OPTS, getAlbumGroupLabel } from "./album-grid";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { useSafeTap } from "../lib/use-safe-tap";
-import { useHaptic } from "@/hooks/useHaptic";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -27,7 +26,6 @@ interface AlbumListProps {
 
 export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps) {
   const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, sortOption, playCounts } = useApp();
-  const triggerHaptic = useHaptic('medium');
   const collectionEmpty = allAlbums.length === 0;
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
@@ -120,7 +118,7 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
             return (
               <button
                 key={album.id}
-                {...useSafeTap(() => { triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
+                {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
                 className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
                 style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
               >

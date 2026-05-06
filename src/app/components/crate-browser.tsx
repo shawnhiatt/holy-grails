@@ -76,6 +76,7 @@ export function CrateBrowser() {
     setRediscoverMode,
     rediscoverAlbums,
     isAuthenticated,
+    defaultCollectionSort,
   } = useApp();
 
   const [lightboxActive, setLightboxActive] = useState(false);
@@ -116,6 +117,7 @@ export function CrateBrowser() {
     "year-old": "Oldest",
     "added-new": "Recently Added",
     "added-old": "Oldest Added",
+    "label-az": "Label A\u2192Z",
     "last-played-oldest": "Last Played",
   };
 
@@ -137,7 +139,7 @@ export function CrateBrowser() {
   const fmtVal = (n: number) =>
     "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || rediscoverMode;
+  const hasActiveFilters = activeFolder !== "All" || sortOption !== defaultCollectionSort || neverPlayedFilter || rediscoverMode;
 
   // Shared filter chip component
   const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
@@ -224,7 +226,7 @@ export function CrateBrowser() {
         {hasActiveFilters && (
           <div className="flex items-center gap-[8px] shrink-0">
             {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
-            {sortOption !== "artist-az" && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption("artist-az")} />}
+            {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
           </div>
         )}
@@ -272,7 +274,7 @@ export function CrateBrowser() {
         {hasActiveFilters && (
           <div className="flex items-center gap-2 mt-[8px] overflow-x-auto no-scrollbar">
             {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
-            {sortOption !== "artist-az" && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption("artist-az")} />}
+            {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
           </div>
         )}

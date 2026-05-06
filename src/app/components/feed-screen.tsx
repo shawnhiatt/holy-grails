@@ -13,7 +13,6 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import { useHaptic } from "@/hooks/useHaptic";
 import type { FollowingFeedEntry } from "./app-context";
 import type { Screen } from "./app-context";
 import { getCachedCollectionValue } from "./discogs-api";
@@ -227,7 +226,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     playCounts,
     setFollowingActivityTabIntent,
   } = useApp();
-  const triggerHaptic = useHaptic('medium');
 
   // Per-item in-flight tracking for wantlist API calls
   const [inFlightIds, setInFlightIds] = useState<Set<number>>(() => new Set());
@@ -489,10 +487,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
   /* ─────────────── FROM THE DEPTHS — carousel / grid ─────────────── */
   const handleDepthsTap = useCallback((albumId: string) => {
-    triggerHaptic();
     setSelectedAlbumId(albumId);
     setShowAlbumDetail(true);
-  }, [triggerHaptic, setSelectedAlbumId, setShowAlbumDetail]);
+  }, [setSelectedAlbumId, setShowAlbumDetail]);
 
   const DepthsSection = depthsAlbums.length > 0 ? (
     <div>
@@ -648,11 +645,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div
         role="button"
         tabIndex={0}
-        {...useSafeTap(() => { triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
+        {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            triggerHaptic();
             setSelectedAlbumId(album.id);
             setShowAlbumDetail(true);
           }
@@ -843,11 +839,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               key={`hunt-${item.id}`}
               role="button"
               tabIndex={0}
-              {...useSafeTap(() => { triggerHaptic(); setSelectedWantItem(item); setShowAlbumDetail(true); })}
+              {...useSafeTap(() => { setSelectedWantItem(item); setShowAlbumDetail(true); })}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  triggerHaptic();
                   setSelectedWantItem(item);
                   setShowAlbumDetail(true);
                 }
@@ -943,11 +938,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             key={`hunt-d-${item.id}`}
             role="button"
             tabIndex={0}
-            {...useSafeTap(() => { triggerHaptic(); setSelectedWantItem(item); setShowAlbumDetail(true); })}
+            {...useSafeTap(() => { setSelectedWantItem(item); setShowAlbumDetail(true); })}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                triggerHaptic();
                 setSelectedWantItem(item);
                 setShowAlbumDetail(true);
               }
@@ -1051,7 +1045,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           className="relative flex-shrink-0 cursor-pointer"
           style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
           {...useSafeTap(() => {
-            triggerHaptic();
             if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
               const rid = Number(item.albumReleaseId);
               const match = albums.find((a) => Number(a.release_id) === rid) ||
@@ -1703,7 +1696,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 src={purgeEvalAlbum.cover}
                 alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                 className="w-full aspect-square rounded-[8px] object-cover cursor-pointer"
-                {...useSafeTap(() => { triggerHaptic(); setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
+                {...useSafeTap(() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
               />
               {/* Metadata */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingTop: "12px" }}>
@@ -1795,7 +1788,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     objectFit: "cover",
                     flexShrink: 0,
                   }}
-                  {...useSafeTap(() => { triggerHaptic(); setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
+                  {...useSafeTap(() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
                 />
                 {/* Metadata panel */}
                 <div
@@ -1879,7 +1872,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <DominantColorCard
         imageUrl={album.cover}
         className="cursor-pointer group"
-        {...useSafeTap(() => { triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
+        {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
         style={{ display: "flex", flexDirection: "column", touchAction: "manipulation" }}
       >
         {/* Cover art */}

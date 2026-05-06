@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { Album } from "./discogs-api";
-import { useHaptic } from "@/hooks/useHaptic";
 
 /* ─── Alphabet Index Sidebar (mobile only) ─── */
 
@@ -56,7 +55,6 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const triggerHaptic = useHaptic('light');
   const activeLetterRef = useRef<string | null>(null);
 
   // Clean up timer on unmount
@@ -92,13 +90,12 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
     const entry = getEntryFromY(touch.clientY);
     if (entry) {
       if (entry.letter !== activeLetterRef.current) {
-        triggerHaptic();
         activeLetterRef.current = entry.letter;
       }
       setActiveLetter(entry.letter);
       scrollToLetter(entry, true);
     }
-  }, [getEntryFromY, scrollToLetter, triggerHaptic]);
+  }, [getEntryFromY, scrollToLetter]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
@@ -106,13 +103,12 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
     const entry = getEntryFromY(touch.clientY);
     if (entry) {
       if (entry.letter !== activeLetterRef.current) {
-        triggerHaptic();
         activeLetterRef.current = entry.letter;
       }
       setActiveLetter(entry.letter);
       scrollToLetter(entry);
     }
-  }, [getEntryFromY, scrollToLetter, triggerHaptic]);
+  }, [getEntryFromY, scrollToLetter]);
 
   const handleTouchEnd = useCallback(() => {
     fadeTimer.current = setTimeout(() => {
@@ -123,7 +119,6 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
 
   const handleLetterTap = useCallback((entry: LetterEntry) => {
     if (entry.letter !== activeLetterRef.current) {
-      triggerHaptic();
       activeLetterRef.current = entry.letter;
     }
     setActiveLetter(entry.letter);
@@ -133,7 +128,7 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
       setActiveLetter(null);
       activeLetterRef.current = null;
     }, 600);
-  }, [scrollToLetter, triggerHaptic]);
+  }, [scrollToLetter]);
 
   return (
     <>

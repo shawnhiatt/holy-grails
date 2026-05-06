@@ -42,6 +42,7 @@ export type SortOption =
   | "year-old"
   | "added-new"
   | "added-old"
+  | "label-az"
   | "last-played-oldest";
 
 export interface FollowingFeedEntry {
@@ -123,6 +124,9 @@ interface AppState {
   // Default screen
   defaultScreen: Screen;
   setDefaultScreen: (s: Screen) => void;
+  // Default collection sort
+  defaultCollectionSort: SortOption;
+  setDefaultCollectionSort: (s: SortOption) => void;
   // Discogs sync
   folders: { id: number; name: string; count: number }[];
   createFolder: (name: string) => Promise<void>;
@@ -234,7 +238,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState("All");
-  const [sortOption, setSortOption] = useState<SortOption>("artist-az");
+  const [sortOption, setSortOption] = useState<SortOption>("added-new");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [showAlbumDetail, setShowAlbumDetail] = useState(false);
   const [purgeFilter, setPurgeFilter] = useState<PurgeTag | "unrated" | "all">("unrated");
@@ -292,6 +296,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hideGalleryMeta, setHideGalleryMetaRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
+  const [defaultCollectionSort, setDefaultCollectionSortRaw] = useState<SortOption>("added-new");
   const [folders, setFolders] = useState<{ id: number; name: string; count: number }[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSyncingFollowing, setIsSyncingFollowing] = useState(false);
@@ -754,6 +759,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setDefaultScreenRaw(ds);
         setScreenRaw(ds);
       }
+      if (convexPreferences.default_collection_sort) {
+        const dcs = convexPreferences.default_collection_sort as SortOption;
+        setDefaultCollectionSortRaw(dcs);
+        setSortOption(dcs);
+      }
     }
   }, [convexPreferences]);
 
@@ -934,6 +944,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionToken, upsertPreferencesMut]);
 
+  const setDefaultCollectionSort = useCallback((s: SortOption) => {
+    setDefaultCollectionSortRaw(s);
+    setSortOption(s);
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, default_collection_sort: s });
+    }
+  }, [sessionToken, upsertPreferencesMut]);
+
   const setViewMode = useCallback((v: ViewMode) => {
     setViewModeRaw(v);
     if (sessionToken) {
@@ -1003,6 +1021,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           (a, b) =>
             new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()
         );
+        break;
+      case "label-az":
+        result.sort((a, b) => a.label.localeCompare(b.label));
         break;
       case "last-played-oldest":
         result.sort((a, b) => {
@@ -1823,7 +1844,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCollectionCrossoverQueue([]);
     setSearchQuery("");
     setActiveFolder("All");
-    setSortOption("artist-az");
+    setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
     setWantSearchQuery("");
@@ -1899,7 +1920,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCollectionCrossoverQueue([]);
     setSearchQuery("");
     setActiveFolder("All");
-    setSortOption("artist-az");
+    setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
     setWantSearchQuery("");
@@ -2221,6 +2242,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Default screen
       defaultScreen,
       setDefaultScreen,
+      // Default collection sort
+      defaultCollectionSort,
+      setDefaultCollectionSort,
       // Discogs sync
       folders,
       createFolder,
@@ -2316,6 +2340,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hideGalleryMeta, setHideGalleryMeta,
       shakeToRandom, setShakeToRandom,
       defaultScreen, setDefaultScreen,
+      defaultCollectionSort, setDefaultCollectionSort,
       folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,
       discogsUsername, setDiscogsUsername,

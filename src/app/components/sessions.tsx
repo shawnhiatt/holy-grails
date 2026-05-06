@@ -7,7 +7,6 @@ import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { AddAlbumsDrawer } from "./add-albums-drawer";
 import { SwipeToDelete } from "./swipe-to-delete";
-import { useHaptic } from "@/hooks/useHaptic";
 
 export function Sessions() {
   const {
@@ -15,7 +14,6 @@ export function Sessions() {
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInSession, reorderSessionAlbums,
     setOnNewSession,
   } = useApp();
-  const triggerHaptic = useHaptic('medium');
 
   const [showNewSession, setShowNewSession] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
@@ -68,7 +66,7 @@ export function Sessions() {
           }}
           onRename={(name) => renameSession(activeSession.id, name)}
           onOpenDrawer={() => setShowAddDrawer(true)}
-          onAlbumTap={(albumId) => { triggerHaptic(); setSelectedAlbumId(albumId); setShowAlbumDetail(true); }}
+          onAlbumTap={(albumId) => { setSelectedAlbumId(albumId); setShowAlbumDetail(true); }}
           onRemoveAlbum={(albumId) => toggleAlbumInSession(albumId, activeSession.id)}
           onReorderAlbums={reorderSessionAlbums}
         />
@@ -189,7 +187,6 @@ function SessionDetail({
   const [editName, setEditName] = useState(session.name);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const triggerDragHaptic = useHaptic('medium');
 
   const sessionAlbums = session.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
 
@@ -308,7 +305,6 @@ function SessionDetail({
                 <Reorder.Item
                   key={album!.id}
                   value={album!.id}
-                  onDragStart={() => { triggerDragHaptic(); }}
                   className="flex items-center gap-2.5 py-1.5 rounded-[10px] group"
                   style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", padding: "8px 10px" }}
                 >

@@ -11,7 +11,6 @@ import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purg
 import { formatDateShort } from "./last-played-utils";
 import { toast } from "sonner";
 import { NoDiscogsCard } from "./no-discogs-card";
-import { useHaptic } from "@/hooks/useHaptic";
 
 /* ─── Daily rotation utilities ─── */
 function mulberry32(seed: number) {
@@ -1294,7 +1293,6 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 
 export function ReportsScreen() {
   const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, playCounts, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
-  const triggerHaptic = useHaptic('medium');
 
   return (
     <div className="flex flex-col h-full">
@@ -1343,7 +1341,7 @@ export function ReportsScreen() {
               isDarkMode={isDarkMode}
               markPlayed={markPlayed}
               onNeverPlayedTap={() => { setNeverPlayedFilter(true); setScreen("crate"); }}
-              onAlbumTap={(id) => { triggerHaptic(); setSelectedAlbumId(id); setShowAlbumDetail(true); }}
+              onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
             />
           </div>
 

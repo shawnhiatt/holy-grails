@@ -16,7 +16,6 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useApp, type Screen } from "./app-context";
-import { useHaptic } from "@/hooks/useHaptic";
 import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
 import logoDark from "../../imports/logo-holy-grails-dark.svg";
 import logoLight from "../../imports/logo-holy-grails-light.svg";
@@ -168,7 +167,6 @@ export function MobileHeader() {
     onNewSession, onAddFollowedUser,
     followedUserProfile, onBackFromProfile, onUnfollowUser,
   } = useApp();
-  const triggerHapticLight = useHaptic('light');
 
   const activeBg = "rgba(172,222,242,0.12)";
   const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
@@ -179,7 +177,7 @@ export function MobileHeader() {
   const navButtons = (
     <div className="flex items-center flex-shrink-0">
       <button
-        onClick={() => { triggerHapticLight(); setScreen("following"); }}
+        onClick={() => { setScreen("following"); }}
         className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
         title="Following"
       >
@@ -195,7 +193,7 @@ export function MobileHeader() {
         </div>
       </button>
       <button
-        onClick={() => { triggerHapticLight(); setScreen("settings"); }}
+        onClick={() => { setScreen("settings"); }}
         className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
         title="Settings"
       >
@@ -231,7 +229,7 @@ export function MobileHeader() {
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <button
-            onClick={() => { triggerHapticLight(); onBackFromProfile?.(); }}
+            onClick={() => { onBackFromProfile?.(); }}
             className="w-9 h-9 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer flex-shrink-0"
             style={{ color: "var(--c-text)" }}
           >
@@ -269,7 +267,7 @@ export function MobileHeader() {
           </h1>
         </div>
         <button
-          onClick={() => { triggerHapticLight(); onUnfollowUser?.(); }}
+          onClick={() => { onUnfollowUser?.(); }}
           className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer flex-shrink-0"
           style={{ color: "var(--c-text-muted)" }}
           title="Unfollow"
@@ -301,7 +299,7 @@ export function MobileHeader() {
   if (screen === "sessions") {
     actionButton = (
       <button
-        onClick={() => { triggerHapticLight(); onNewSession?.(); }}
+        onClick={() => { onNewSession?.(); }}
         className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable cursor-pointer flex-shrink-0"
       >
         <Plus size={18} />
@@ -310,7 +308,7 @@ export function MobileHeader() {
   } else if (screen === "following") {
     actionButton = (
       <button
-        onClick={() => { triggerHapticLight(); onAddFollowedUser?.(); }}
+        onClick={() => { onAddFollowedUser?.(); }}
         className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable cursor-pointer flex-shrink-0"
       >
         <UserPlus size={16} />
@@ -349,7 +347,6 @@ export function MobileHeader() {
 
 export function BottomTabBar() {
   const { screen, setScreen } = useApp();
-  const triggerHaptic = useHaptic('light');
 
   return (
     <>
@@ -376,7 +373,6 @@ export function BottomTabBar() {
           <button
             key={item.id}
             onClick={() => {
-              triggerHaptic();
               if (isActive && (item.id === "crate" || item.id === "wants")) {
                 window.dispatchEvent(new CustomEvent("hg:focus-filter"));
               }

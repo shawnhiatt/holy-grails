@@ -6,7 +6,7 @@ import { SlideOutPanel } from "./slide-out-panel";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import type { Screen } from "./app-context";
+import type { Screen, SortOption } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 
 const DEFAULT_SCREEN_OPTIONS: { value: Screen; label: string }[] = [
@@ -15,6 +15,16 @@ const DEFAULT_SCREEN_OPTIONS: { value: Screen; label: string }[] = [
   { value: "wants", label: "Wantlist" },
   { value: "sessions", label: "Sessions" },
   { value: "reports", label: "Insights" },
+];
+
+const DEFAULT_COLLECTION_SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "added-new", label: "Recently Added" },
+  { value: "artist-az", label: "Artist A–Z" },
+  { value: "artist-za", label: "Artist Z–A" },
+  { value: "title-az", label: "Title A–Z" },
+  { value: "year-new", label: "Year (Newest First)" },
+  { value: "year-old", label: "Year (Oldest First)" },
+  { value: "label-az", label: "Label A–Z" },
 ];
 
 export function SettingsScreen() {
@@ -45,6 +55,8 @@ export function SettingsScreen() {
     setShakeToRandom,
     defaultScreen,
     setDefaultScreen,
+    defaultCollectionSort,
+    setDefaultCollectionSort,
     executePurgeCut,
     purgeProgress,
     sessions,
@@ -66,6 +78,7 @@ export function SettingsScreen() {
   // Purge Cut dialog (execution lives in context via executePurgeCut)
   const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
   const [showDefaultScreenPicker, setShowDefaultScreenPicker] = useState(false);
+  const [showDefaultSortPicker, setShowDefaultSortPicker] = useState(false);
 
   // Profile edit state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -649,6 +662,21 @@ export function SettingsScreen() {
                 <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
               </button>
             </div>
+             <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Default collection sort</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>The default sort order for your collection</p>
+              </div>
+              <button
+                onClick={() => setShowDefaultSortPicker(true)}
+                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
+              >
+                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {DEFAULT_COLLECTION_SORT_OPTIONS.find((o) => o.value === defaultCollectionSort)?.label ?? "Recently Added"}
+                </span>
+                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
+              </button>
+            </div>
           </div>
         </section>
 
@@ -775,8 +803,9 @@ export function SettingsScreen() {
             sheetZIndex={85}
           >
             <div className="px-4 py-2">
-              {DEFAULT_SCREEN_OPTIONS.map((option) => {
+              {DEFAULT_SCREEN_OPTIONS.map((option, idx) => {
                 const isSelected = defaultScreen === option.value;
+                const isLast = idx === DEFAULT_SCREEN_OPTIONS.length - 1;
                 return (
                   <button
                     key={option.value}
@@ -787,7 +816,55 @@ export function SettingsScreen() {
                     }}
                     className="w-full flex items-center justify-between py-3 cursor-pointer"
                     style={{
-                      borderBottom: option.value !== "reports" ? "1px solid var(--c-border)" : undefined,
+                      borderBottom: !isLast ? "1px solid var(--c-border)" : undefined,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: isSelected ? 600 : 400,
+                        color: isSelected
+                          ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                          : "var(--c-text)",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                      }}
+                    >
+                      {option.label}
+                    </span>
+                    {isSelected && (
+                      <Check size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </SlideOutPanel>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDefaultSortPicker && (
+          <SlideOutPanel
+            title="Default collection sort"
+            onClose={() => setShowDefaultSortPicker(false)}
+            backdropZIndex={80}
+            sheetZIndex={85}
+          >
+            <div className="px-4 py-2">
+              {DEFAULT_COLLECTION_SORT_OPTIONS.map((option, idx) => {
+                const isSelected = defaultCollectionSort === option.value;
+                const isLast = idx === DEFAULT_COLLECTION_SORT_OPTIONS.length - 1;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setDefaultCollectionSort(option.value);
+                      setShowDefaultSortPicker(false);
+                      toast.success(`Default sort set to ${option.label}.`);
+                    }}
+                    className="w-full flex items-center justify-between py-3 cursor-pointer"
+                    style={{
+                      borderBottom: !isLast ? "1px solid var(--c-border)" : undefined,
                     }}
                   >
                     <span

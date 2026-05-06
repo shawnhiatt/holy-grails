@@ -112,6 +112,7 @@ export default defineSchema({
     view_mode: v.optional(v.string()),
     want_view_mode: v.optional(v.string()),
     default_screen: v.optional(v.string()),
+    default_collection_sort: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
 
   following_feed: defineTable({

@@ -5,7 +5,6 @@ import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { useSafeTap } from "../lib/use-safe-tap";
-import { useHaptic } from "@/hooks/useHaptic";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -55,7 +54,6 @@ interface AlbumGridProps {
 
 export function AlbumGrid({ albums }: AlbumGridProps) {
   const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, rediscoverMode, setScreen, sortOption, playCounts, viewMode } = useApp();
-  const triggerHaptic = useHaptic('medium');
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter || rediscoverMode;
   const collectionEmpty = allAlbums.length === 0;
 
@@ -166,8 +164,8 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
               <div
                 role="button"
                 tabIndex={0}
-                {...useSafeTap(() => { triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); triggerHaptic(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } }}
+                {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } }}
                 className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
                 style={{
                   backgroundColor: "var(--c-surface)",
