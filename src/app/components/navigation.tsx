@@ -10,8 +10,6 @@ import {
   Users,
   BarChart3,
   Newspaper,
-  Plus,
-  UserPlus,
   UserMinus,
   ArrowLeft,
 } from "lucide-react";
@@ -164,7 +162,6 @@ const SCREEN_TITLES: Partial<Record<Screen, string>> = {
 export function MobileHeader() {
   const {
     screen, setScreen, isDarkMode, userAvatar,
-    onNewSession, onAddFollowedUser,
     followedUserProfile, onBackFromProfile, onUnfollowUser,
   } = useApp();
 
@@ -294,28 +291,6 @@ export function MobileHeader() {
   // Variants B/C/D — Title screens
   const title = SCREEN_TITLES[screen];
 
-  // Screen-specific action button
-  let actionButton: React.ReactNode = null;
-  if (screen === "sessions") {
-    actionButton = (
-      <button
-        onClick={() => { onNewSession?.(); }}
-        className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable cursor-pointer flex-shrink-0"
-      >
-        <Plus size={18} />
-      </button>
-    );
-  } else if (screen === "following") {
-    actionButton = (
-      <button
-        onClick={() => { onAddFollowedUser?.(); }}
-        className="w-8 h-8 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable cursor-pointer flex-shrink-0"
-      >
-        <UserPlus size={16} />
-      </button>
-    );
-  }
-
   return (
     <div
       className="flex items-center lg:hidden px-[16px]"
@@ -338,7 +313,6 @@ export function MobileHeader() {
         {title}
       </h1>
       <div className="flex items-center gap-1 flex-shrink-0">
-        {actionButton}
         {navButtons}
       </div>
     </div>

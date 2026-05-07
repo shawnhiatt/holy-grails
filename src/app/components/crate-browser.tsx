@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X, Compass } from "lucide-react";
+import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X } from "lucide-react";
 import { useApp, type ViewMode } from "./app-context";
 import { CrateFlip } from "./crate-flip";
 import { AlbumList } from "./album-list";
@@ -72,9 +72,8 @@ export function CrateBrowser() {
     isDarkMode,
     neverPlayedFilter,
     setNeverPlayedFilter,
-    rediscoverMode,
-    setRediscoverMode,
-    rediscoverAlbums,
+    playsRecordedFilter,
+    setPlaysRecordedFilter,
     isAuthenticated,
     defaultCollectionSort,
   } = useApp();
@@ -139,7 +138,7 @@ export function CrateBrowser() {
   const fmtVal = (n: number) =>
     "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== defaultCollectionSort || neverPlayedFilter || rediscoverMode;
+  const hasActiveFilters = activeFolder !== "All" || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter;
 
   // Shared filter chip component
   const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
@@ -228,6 +227,7 @@ export function CrateBrowser() {
             {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
             {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
+            {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
           </div>
         )}
         {/* View toggle */}
@@ -276,6 +276,7 @@ export function CrateBrowser() {
             {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
             {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
+            {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
           </div>
         )}
       </div>
@@ -286,77 +287,6 @@ export function CrateBrowser() {
           heading="No albums found."
           subtext="Connect your Discogs collection to start browsing your crate."
         />
-      ) : rediscoverMode ? (
-        <div className="flex flex-col h-full flex-1 overflow-hidden">
-          {/* Rediscover header */}
-          <div className="flex items-center justify-between px-[16px] lg:px-[24px] py-3 flex-shrink-0">
-            <div className="flex items-center gap-2.5">
-              <Compass size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
-              <p style={{
-                fontSize: "15px",
-                fontWeight: 600,
-                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                color: isDarkMode ? "#ACDEF2" : "#00527A",
-              }}>
-                Rediscover
-              </p>
-              <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                {rediscoverAlbums.length} albums waiting
-              </span>
-            </div>
-            <button
-              onClick={() => setRediscoverMode(false)}
-              className="px-3 py-1.5 rounded-full transition-colors"
-              style={{
-                fontSize: "12px",
-                fontWeight: 500,
-                backgroundColor: isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)",
-                color: isDarkMode ? "#ACDEF2" : "#00527A",
-              }}
-            >
-              Exit
-            </button>
-          </div>
-          <p className="px-[16px] lg:px-[24px] -mt-1 mb-2" style={{
-            fontSize: "12px",
-            fontWeight: 400,
-            fontStyle: "italic",
-            color: "var(--c-text-muted)",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-          }}>
-            Records waiting for their moment.
-          </p>
-          {rediscoverAlbums.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center px-8">
-              <div className="text-center">
-                <p style={{
-                  fontSize: "18px",
-                  fontWeight: 600,
-                  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                  color: "var(--c-text)",
-                  lineHeight: 1.4,
-                }}>
-                  Your whole collection is getting love. Rare and impressive.
-                </p>
-                <p className="mt-2" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}></p>
-              </div>
-            </div>
-          ) : viewMode === "crate" ? (
-            <CrateFlip
-              key="rediscover"
-              albums={rediscoverAlbums}
-              lightboxActive={lightboxActive}
-              onLightboxActivate={handleLightboxActivate}
-              onLightboxDeactivate={handleLightboxDeactivate}
-            />
-          ) : viewMode === "list" ? (
-            <AlbumList key="rediscover-list" albums={rediscoverAlbums} />
-          ) : viewMode === "grid" ? (
-            <AlbumGrid key="rediscover-grid" albums={rediscoverAlbums} />
-          ) : (
-            <AlbumArtwork key="rediscover-artwork" albums={rediscoverAlbums} />
-          )}
-        </div>
       ) : (
         <>
           {viewMode === "crate" && (

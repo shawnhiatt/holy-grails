@@ -110,9 +110,8 @@ interface AppState {
   removePlay: (playId: Id<"last_played">, albumId: string, playedAt: number) => void;
   neverPlayedFilter: boolean;
   setNeverPlayedFilter: (v: boolean) => void;
-  rediscoverMode: boolean;
-  setRediscoverMode: (v: boolean) => void;
-  rediscoverAlbums: Album[];
+  playsRecordedFilter: boolean;
+  setPlaysRecordedFilter: (v: boolean) => void;
   // Display preferences
   hidePurgeIndicators: boolean;
   setHidePurgeIndicators: (v: boolean) => void;
@@ -291,7 +290,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
   const [allPlayTimestamps, setAllPlayTimestamps] = useState<number[]>([]);
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
-  const [rediscoverMode, setRediscoverMode] = useState(false);
+  const [playsRecordedFilter, setPlaysRecordedFilter] = useState(false);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [hideGalleryMeta, setHideGalleryMetaRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
@@ -984,6 +983,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       result = result.filter((a) => !lastPlayed[a.id]);
     }
 
+    if (playsRecordedFilter) {
+      result = result.filter((a) => !!lastPlayed[a.id]);
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -1035,32 +1038,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return result;
-  }, [albums, activeFolder, searchQuery, sortOption, neverPlayedFilter, lastPlayed]);
-
-  const computedRediscoverAlbums = useMemo(() => {
-    const now = Date.now();
-    const sixMonths = 180 * 86400000;
-    const threeMonths = 90 * 86400000;
-
-    return albums.filter((a) => {
-      const lp = lastPlayed[a.id];
-      if (!lp) return true;
-      const lpTime = new Date(lp).getTime();
-      if (now - lpTime > sixMonths) return true;
-      const addedTime = new Date(a.dateAdded).getTime();
-      if (!lp && now - addedTime > threeMonths) return true;
-      return false;
-    }).sort((a, b) => {
-      const aLp = lastPlayed[a.id];
-      const bLp = lastPlayed[b.id];
-      if (!aLp && bLp) return -1;
-      if (aLp && !bLp) return 1;
-      if (!aLp && !bLp) {
-        return new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime();
-      }
-      return new Date(aLp!).getTime() - new Date(bLp!).getTime();
-    });
-  }, [albums, lastPlayed]);
+  }, [albums, activeFolder, searchQuery, sortOption, neverPlayedFilter, playsRecordedFilter, lastPlayed]);
 
   // ── Data mutations (local state + Convex fire-and-forget) ──
 
@@ -2228,9 +2206,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removePlay,
       neverPlayedFilter,
       setNeverPlayedFilter,
-      rediscoverMode,
-      setRediscoverMode,
-      rediscoverAlbums: computedRediscoverAlbums,
+      playsRecordedFilter,
+      setPlaysRecordedFilter,
       // Display preferences
       hidePurgeIndicators,
       setHidePurgeIndicators,
@@ -2334,8 +2311,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
       lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,
-      rediscoverMode,
-      computedRediscoverAlbums,
+      playsRecordedFilter,
       hidePurgeIndicators, setHidePurgeIndicators,
       hideGalleryMeta, setHideGalleryMeta,
       shakeToRandom, setShakeToRandom,

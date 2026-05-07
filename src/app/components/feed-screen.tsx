@@ -1867,9 +1867,29 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   /** Standard card for recommended album — uses dominant color extraction */
   const RecommendedCard = recommendedAlbum ? (() => {
     const album = recommendedAlbum;
+    const addedDateText = (() => {
+      if (!album.dateAdded) return null;
+      const d = new Date(album.dateAdded);
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `Added ${months[d.getMonth()]} ${d.getFullYear()}`;
+    })();
 
     return (
-      <DominantColorCard
+      <>
+        <p
+          style={{
+            fontSize: "13px",
+            fontWeight: 400,
+            color: "var(--c-text-secondary)",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            marginTop: "2px",
+            marginBottom: "8px",
+            lineHeight: 1.4,
+          }}
+        >
+          How about you give this a spin?
+        </p>
+        <DominantColorCard
         imageUrl={album.cover}
         className="cursor-pointer group"
         {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
@@ -1931,18 +1951,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         <div className="px-3 pt-[10px] pb-3" style={{ minWidth: 0, overflow: "hidden" }}>
           <p
             style={{
-              fontSize: "13px",
-              fontWeight: 500,
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              color: "var(--dc-text-secondary, var(--c-text-secondary))",
-              lineHeight: 1.35,
-              marginBottom: "6px",
-            }}
-          >
-            How about you give this a spin?
-          </p>
-          <p
-            style={{
               fontSize: "18px",
               fontWeight: 700,
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
@@ -1976,8 +1984,23 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           >
             {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
           </p>
+          {addedDateText && (
+            <p
+              className="mt-[2px]"
+              style={{
+                fontSize: "13px",
+                fontWeight: 400,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                color: "var(--dc-text-muted, var(--c-text-muted))",
+                lineHeight: 1.35,
+              }}
+            >
+              {addedDateText}
+            </p>
+          )}
         </div>
       </DominantColorCard>
+      </>
     );
   })() : null;
 

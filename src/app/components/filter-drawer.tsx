@@ -18,15 +18,15 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 export function FilterDrawer() {
-  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, rediscoverMode, setRediscoverMode } = useApp();
+  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter } = useApp();
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || rediscoverMode;
+  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter;
 
   const handleReset = () => {
     setActiveFolder("All");
     setSortOption("artist-az");
     setNeverPlayedFilter(false);
-    setRediscoverMode(false);
+    setPlaysRecordedFilter(false);
   };
 
   return (
@@ -37,8 +37,8 @@ export function FilterDrawer() {
         hasActiveFilters ? (
           <button
             onClick={handleReset}
-            className="transition-colors" style={{ color: "var(--c-link)" }}
-            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif" }}
+            className="transition-colors"
+            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-link)" }}
           >
             Reset
           </button>
@@ -98,14 +98,14 @@ export function FilterDrawer() {
               Play Not Recorded
             </button>
             <button
-              onClick={() => setRediscoverMode(!rediscoverMode)}
+              onClick={() => setPlaysRecordedFilter(!playsRecordedFilter)}
               className="px-3 py-1.5 rounded-full transition-all"
-              style={!rediscoverMode
+              style={!playsRecordedFilter
                 ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
                 : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
               }
             >
-              Rediscover
+              Plays Recorded
             </button>
           </div>
         </div>

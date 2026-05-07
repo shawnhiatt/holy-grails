@@ -174,6 +174,24 @@ export function FollowingScreen() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* FAB — add followed user */}
+      <button
+        onClick={() => { setShowAddForm(true); setAddError(""); }}
+        className="lg:hidden fixed z-[40] flex items-center justify-center tappable"
+        style={{
+          bottom: "calc(var(--nav-clearance, 84px) + 16px)",
+          right: "20px",
+          width: "44px",
+          height: "44px",
+          borderRadius: "50%",
+          backgroundColor: "#EBFD00",
+          color: "#0C284A",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+        }}
+      >
+        <UserPlus size={22} />
+      </button>
+
       {/* Add User Form */}
       <AnimatePresence>
         {showAddForm && (
