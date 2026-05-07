@@ -470,6 +470,8 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
 /* ─────────────────── SECTION: Artists ─────────────────── */
 
 function ArtistsSection({ albums }: { albums: Album[] }) {
+  const [showAll, setShowAll] = useState(false);
+
   const data = useMemo(() => {
     const exclude = new Set(["various", "various artists", "unknown artist", "unknown"]);
     const map = new Map<string, number>();
@@ -481,11 +483,13 @@ function ArtistsSection({ albums }: { albums: Album[] }) {
     return [...map.entries()]
       .filter(([, count]) => count >= 2)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
+      .slice(0, 20)
       .map(([artist, count]) => ({ artist, count }));
   }, [albums]);
 
   if (data.length < 3) return null;
+
+  const visible = showAll ? data : data.slice(0, 10);
 
   return (
     <div
@@ -498,13 +502,13 @@ function ArtistsSection({ albums }: { albums: Album[] }) {
     >
       <p style={sectionHeaderStyle}>Top Artists</p>
       <div className="flex flex-col mt-4">
-        {data.map((d, i) => {
+        {visible.map((d, i) => {
           const rankColor = i === 0 ? "#EBFD00" : i < 3 ? "var(--c-text-muted)" : "var(--c-text-faint)";
           return (
             <div
               key={d.artist}
               className="flex items-center py-2.5"
-              style={i < data.length - 1 ? { borderBottom: "1px solid var(--c-border)" } : undefined}
+              style={i < visible.length - 1 ? { borderBottom: "1px solid var(--c-border)" } : undefined}
             >
               <span
                 className="shrink-0"
@@ -544,6 +548,15 @@ function ArtistsSection({ albums }: { albums: Album[] }) {
           );
         })}
       </div>
+      {data.length > 10 && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-3 tappable transition-colors"
+          style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-link)" }}
+        >
+          {showAll ? "Show less" : "Show more"}
+        </button>
+      )}
       <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
         Artists with 2+ records
       </p>
@@ -958,7 +971,7 @@ function ListeningActivitySection({
               {currentStreak}
             </span>
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-              current streak<br/> days
+              current streak days
             </p>
           </div>
           <div
@@ -980,7 +993,7 @@ function ListeningActivitySection({
               {longestStreak}
             </span>
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-              longest streak<br/> days
+              longest streak days
             </p>
           </div>
         </div>
@@ -989,69 +1002,38 @@ function ListeningActivitySection({
       {/* Top Played — only when 5+ albums have plays */}
       {topPlayed.length >= 5 && (
         <div className="mt-5">
-          <p
-            className="mb-3"
-            style={{
-              fontSize: "11px",
-              fontWeight: 600,
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-              color: "var(--c-text-muted)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-            }}
-          >
-            Top Played
-          </p>
+          <p style={sectionHeaderStyle} className="mb-3">Top Played</p>
           <div className="flex flex-col gap-2">
-            {topPlayed.map((item, i) => {
-              const maxCount = topPlayed[0].count;
-              const widthPct = (item.count / maxCount) * 100;
-              const barGrade = ["NM", "NM", "VG+", "VG+", "VG"][i] ?? "VG";
-              const barColor = conditionGradeColor(barGrade, isDarkMode) ?? CHART_BLUE;
-              return (
-                <button
-                  key={item.album.id}
-                  onClick={() => onAlbumTap(item.album.id)}
-                  className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
-                  style={{
-                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
-                  }}
-                >
-                  <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                    <img src={item.album.thumb || item.album.cover} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                    <p
-                      className="mb-1.5"
-                      style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
-                    >
-                      {item.album.artist} — {item.album.title}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="flex-1 rounded-full overflow-hidden"
-                        style={{ height: 4, backgroundColor: "var(--c-surface-alt)" }}
-                      >
-                        <div
-                          className="rounded-full"
-                          style={{
-                            width: `${widthPct}%`,
-                            height: "100%",
-                            backgroundColor: barColor,
-                          }}
-                        />
-                      </div>
-                      <span
-                        className="shrink-0"
-                        style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif" }}
-                      >
-                        {item.count}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            {topPlayed.map((item) => (
+              <button
+                key={item.album.id}
+                onClick={() => onAlbumTap(item.album.id)}
+                className="flex items-center gap-3 rounded-[10px] p-2.5 transition-colors text-left"
+                style={{
+                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(12,40,74,0.04)",
+                }}
+              >
+                <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden flex-shrink-0">
+                  <img src={item.album.cover || item.album.thumb} alt="" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                  <p
+                    style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
+                  >
+                    {item.album.artist}
+                  </p>
+                  <p
+                    className="mt-0.5"
+                    style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
+                  >
+                    {item.album.title}
+                  </p>
+                  <p className="mt-1" style={{ fontSize: "13px", fontWeight: 600, color: "#3E9842", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                    {item.count} {item.count === 1 ? "play" : "plays"}
+                  </p>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       )}

@@ -1903,37 +1903,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             draggable={false}
           />
-          {/* Music button — bottom right of artwork */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ position: "absolute", bottom: "10px", right: "10px", zIndex: 2 }}
-          >
-            <button
-              onClick={() => openSessionPicker(album.id)}
-              className="tappable"
-              aria-label="Add to session"
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "rgba(0, 0, 0, 0.4)",
-                backdropFilter: "blur(4px)",
-                WebkitBackdropFilter: "blur(4px)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                flexShrink: 0,
-                border: "none",
-              }}
-            >
-              <Music
-                size={16}
-                color={isAlbumInAnySession(album.id) ? "#EBFD00" : "#FFFFFF"}
-                {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
-              />
-            </button>
-          </div>
           {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
             <div
               className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
@@ -1948,7 +1917,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         </div>
 
         {/* Metadata — uses dominant color CSS vars */}
-        <div className="px-3 pt-[10px] pb-3" style={{ minWidth: 0, overflow: "hidden" }}>
+        <div className="px-3 pt-[10px] pb-3 flex items-end gap-2" style={{ minWidth: 0 }}>
+          <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
           <p
             style={{
               fontSize: "18px",
@@ -1998,6 +1968,31 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               {addedDateText}
             </p>
           )}
+          </div>
+          <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+            <button
+              onClick={() => openSessionPicker(album.id)}
+              className="tappable"
+              aria-label="Add to session"
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                background: "rgba(0,0,0,0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                border: "none",
+              }}
+            >
+              <Music
+                size={16}
+                color={isAlbumInAnySession(album.id) ? "#EBFD00" : "var(--dc-text, var(--c-text))"}
+                {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
+              />
+            </button>
+          </div>
         </div>
       </DominantColorCard>
       </>

@@ -84,10 +84,10 @@ export function Sessions() {
       {/* FAB — new session */}
       <button
         onClick={() => setShowNewSession(true)}
-        className="lg:hidden fixed z-[40] flex items-center justify-center tappable"
+        className="lg:hidden fixed z-[105] flex items-center justify-center tappable"
         style={{
-          bottom: "calc(var(--nav-clearance, 84px) + 16px)",
-          right: "20px",
+          bottom: "calc(54px + env(safe-area-inset-bottom, 0px) + 12px)",
+          right: "12px",
           width: "44px",
           height: "44px",
           borderRadius: "50%",
