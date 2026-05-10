@@ -49,7 +49,7 @@ export function ShareActivityPrompt() {
             margin: 0,
           }}
         >
-          Your spins, your call
+           Do you want to share your activity?
         </h1>
 
         <p

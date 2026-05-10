@@ -4,6 +4,39 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## [0.5.7] — 2025-05-10
+
+### Added
+- **Holy Grails social layer** — followed Discogs users who also use Holy
+  Grails and have opted in now surface listening data on the Following screen
+- `shareActivity` consent field on the `users` table — opt-in, default
+  `undefined` (unset), stored in Convex
+- Full-screen opt-in prompt shown to any authenticated user with
+  `shareActivity === undefined`, new or existing — not dismissable without
+  making a choice
+- `users.getHolyGrailsUsers` — authenticated query returning which followed
+  usernames are registered HG users with `shareActivity: true`
+- `lastPlayed.getPublicActivitySummary` — authenticated query returning
+  total play count and 10 most recent plays for an opted-in user, or `null`
+  for both not-found and not-opted-in cases (indistinguishable by design)
+- HG badge (disc icon) on followed user avatars in the Following list view
+  for opted-in users
+- "Recently Played" section in the followed user detail panel — total play
+  count stat + recent plays list joined against in-memory collection data.
+  Hidden entirely when the user is not on HG, has not opted in, or has zero
+  plays logged
+
+### Removed
+- `clearAllAdmin` from `convex/last_played.ts` — unguarded deletion function
+  marked temporary, removed before play data sharing shipped
+
+### Changed
+- `users.upsert` now returns `is_new: boolean` in addition to `session_token`
+- `users.getMe` and `users.getLatestUser` projections now include
+  `shareActivity`
+
+---
+
 ## 0.5.6
 
 ### Fixed

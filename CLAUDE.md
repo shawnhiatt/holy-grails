@@ -436,6 +436,38 @@ Only animate `transform` and `opacity`. Never animate `width`, `height`, `top`, 
 
 ---
 
+## Cross-User Data Pattern
+
+Holy Grails surfaces one user's data to another in one place: the
+Following screen HG activity section. Any future feature that does the
+same must follow this pattern without exception.
+
+**The shareActivity gate:**
+Any Convex query that returns one user's data to a different authenticated
+viewer must:
+1. Authenticate the viewer via `authenticateUser()` first — unauthenticated
+   callers get an error, not an empty result
+2. Look up the target user and check `shareActivity === true`
+3. Return `null` for both "user not found" and "shareActivity not true" —
+   the caller must not be able to distinguish between the two cases
+4. Never expose OAuth tokens, session tokens, or any field not explicitly
+   listed in the return type
+
+**Existing implementations:**
+- `users.getHolyGrailsUsers` — takes `usernames[]`, returns the subset
+  with `shareActivity === true`
+- `lastPlayed.getPublicActivitySummary` — returns play data for a target
+  user, or `null` if not found or not opted in
+
+**Opt-in prompt:**
+`ShareActivityPrompt` renders full-screen for any authenticated user with
+`shareActivity === undefined` — this covers both new users and existing
+users who predate the field. It is not dismissable. `showSharePrompt` is
+derived reactively in `app-context.tsx` and clears automatically once
+`setShareActivity` resolves in Convex.
+
+---
+
 ## Cross-Cutting Patterns
 
 ### Touch Handling on Interactive Cards
