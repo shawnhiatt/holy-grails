@@ -23,6 +23,7 @@ import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 import { InstallNudge } from "./components/install-nudge";
 import { OfflineBanner } from "./components/offline-banner";
+import { ShareActivityPrompt } from "./components/share-activity-prompt";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
 /* nav-clearance: scroll containers consume --nav-clearance for bottom padding */
@@ -60,6 +61,7 @@ function AppContent() {
     connectDiscogsRequested, clearConnectDiscogsRequest,
     sessionPickerAlbumId,
     isAuthenticated, isAuthLoading, isSyncing, isSyncingFollowing, syncProgress, loginWithOAuth,
+    showSharePrompt,
     shakeToRandom, setShakeToRandom,
   } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
@@ -316,6 +318,8 @@ function AppContent() {
     avatarUrl: string;
     accessToken: string;
     tokenSecret: string;
+    sessionToken: string;
+    is_new: boolean;
   }) => {
     // OAuth complete — wire into app-context, trigger initial sync
     setIsAuthCallback(false);
@@ -365,6 +369,10 @@ function AppContent() {
         onLoginWithDiscogs={handleLoginWithDiscogs}
       />
     );
+  }
+
+  if (isAuthenticated && showSharePrompt) {
+    return <ShareActivityPrompt />;
   }
 
   return (

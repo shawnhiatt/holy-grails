@@ -10,6 +10,7 @@ interface AuthCallbackProps {
     accessToken: string;
     tokenSecret: string;
     sessionToken: string;
+    is_new: boolean;
   }) => void;
   onError: (error: string) => void;
   onStatusChange?: (message: string) => void;
@@ -78,7 +79,7 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
 
         // Step 3: Store in Convex
         onStatusChange?.("Saving credentials");
-        const { session_token } = await upsertUser({
+        const { session_token, is_new } = await upsertUser({
           discogs_username: identity.username,
           discogs_avatar_url: identity.avatar_url || undefined,
           access_token: tokens.access_token,
@@ -99,6 +100,7 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
           accessToken: tokens.access_token,
           tokenSecret: tokens.token_secret,
           sessionToken: session_token,
+          is_new,
         });
       } catch (err: any) {
         if (cancelled) return;

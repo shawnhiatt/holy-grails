@@ -12,6 +12,7 @@ export default defineSchema({
     last_synced_at: v.optional(v.number()),
     collection_value: v.optional(v.string()),
     collection_value_synced_at: v.optional(v.number()),
+    shareActivity: v.optional(v.boolean()),
   })
     .index("by_username", ["discogs_username"])
     .index("by_session_token", ["session_token"]),

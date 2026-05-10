@@ -15,7 +15,8 @@ import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
-import { useAction } from "convex/react";
+import { formatRelativeDate } from "./last-played-utils";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useSafeTap } from "../lib/use-safe-tap";
 
@@ -40,6 +41,21 @@ export function FollowingScreen() {
   const selectedUser = useMemo(
     () => followedUsers.find((f) => f.id === selectedUserId) || null,
     [followedUsers, selectedUserId]
+  );
+
+  const followedUsernames = useMemo(
+    () => followedUsers.map((f) => f.username),
+    [followedUsers]
+  );
+  const hgUsers = useQuery(
+    api.users.getHolyGrailsUsers,
+    sessionToken && followedUsernames.length > 0
+      ? { sessionToken, usernames: followedUsernames }
+      : "skip"
+  );
+  const hgUserSet = useMemo(
+    () => new Set(hgUsers?.map((u) => u.discogs_username) ?? []),
+    [hgUsers]
   );
 
   // Register header add-user callback
@@ -168,6 +184,7 @@ export function FollowingScreen() {
         }}
         userAlbums={albums}
         userWants={wants}
+        hgUserSet={hgUserSet}
       />
     );
   }
@@ -279,6 +296,7 @@ export function FollowingScreen() {
               followingFeed={followingFeed}
               followingAvatars={followingAvatars}
               isSyncingFollowing={isSyncingFollowing}
+              hgUserSet={hgUserSet}
             />
           </motion.div>
         )}
@@ -295,12 +313,14 @@ function FollowedUserProfile({
   onRemove,
   userAlbums,
   userWants,
+  hgUserSet,
 }: {
   user: FollowedUser;
   onBack: () => void;
   onRemove: () => void;
   userAlbums: Album[];
   userWants: WantItem[];
+  hgUserSet: Set<string>;
 }) {
   const [tab, setTab] = useState<FollowingTab>("collection");
   const [filter, setFilter] = useState<FollowingFilter>("all");
@@ -322,7 +342,35 @@ function FollowedUserProfile({
 
   const [showFilters, setShowFilters] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser } = useApp();
+  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser, sessionToken } = useApp();
+
+  const isHgUser = hgUserSet.has(user.username);
+  const activitySummary = useQuery(
+    api.lastPlayed.getPublicActivitySummary,
+    sessionToken && isHgUser
+      ? { sessionToken, targetUsername: user.username }
+      : "skip"
+  );
+
+  const recentlyPlayed = useMemo(() => {
+    if (!activitySummary || activitySummary.totalPlays === 0) return [];
+    const byReleaseId = new Map<number, Album>();
+    for (const a of user.collection) {
+      byReleaseId.set(Number(a.release_id), a);
+    }
+    return activitySummary.recentPlays
+      .map((p) => {
+        const album = byReleaseId.get(Number(p.release_id));
+        if (!album) return null;
+        return { album, played_at: p.played_at };
+      })
+      .filter((x): x is { album: Album; played_at: number } => x !== null);
+  }, [activitySummary, user.collection]);
+
+  const showRecentlyPlayed =
+    activitySummary !== undefined &&
+    activitySummary !== null &&
+    activitySummary.totalPlays > 0;
 
   // Register header unfollow callback
   useEffect(() => {
@@ -587,6 +635,56 @@ function FollowedUserProfile({
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto overlay-scroll">
+        {showRecentlyPlayed && (
+          <div className="px-[16px] lg:px-[24px] pt-3 pb-4" style={{ borderBottom: "1px solid var(--c-border)" }}>
+            <p
+              className="mb-1"
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                color: "var(--c-text-faint)",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+              }}
+            >
+              Recently Played
+            </p>
+            <p
+              className="mb-3"
+              style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif" }}
+            >
+              {activitySummary!.totalPlays} {activitySummary!.totalPlays === 1 ? "play" : "plays"} logged
+            </p>
+            {recentlyPlayed.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {recentlyPlayed.map(({ album, played_at }) => (
+                  <button
+                    key={`${album.release_id}-${played_at}`}
+                    onClick={() => handleOpenAlbum(album)}
+                    className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left cursor-pointer"
+                    style={{
+                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                      touchAction: "manipulation",
+                    }}
+                  >
+                    <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
+                      <img src={album.thumb || album.cover} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                      <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                        {album.artist} &mdash; {album.title}
+                      </p>
+                      <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                        Played {formatRelativeDate(new Date(played_at).toISOString())}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {user.hydrated === false ? (
           <div className="flex flex-col items-center justify-center px-8 py-16">
             <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
@@ -1204,6 +1302,7 @@ function PopulatedFollowingView({
   followingFeed,
   followingAvatars,
   isSyncingFollowing,
+  hgUserSet,
 }: {
   followedUsers: FollowedUser[];
   onSelectUser: (id: string) => void;
@@ -1216,6 +1315,7 @@ function PopulatedFollowingView({
   followingFeed: FollowingFeedEntry[];
   followingAvatars: Map<string, string>;
   isSyncingFollowing: boolean;
+  hgUserSet: Set<string>;
 }) {
   const { setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, followingActivityTabIntent, setFollowingActivityTabIntent } = useApp();
 
@@ -1365,26 +1465,44 @@ function PopulatedFollowingView({
               className="flex flex-col items-center gap-[5px] shrink-0 cursor-pointer group"
               style={{ width: "92px" }}
             >
-              {followedUser.avatar ? (
-                <img
-                  src={followedUser.avatar}
-                  alt={followedUser.username}
-                  className="w-[80px] h-[80px] rounded-full object-cover transition-transform group-hover:scale-105"
-                  style={{ border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}` }}
-                />
-              ) : (
-                <div
-                  className="w-[80px] h-[80px] rounded-full flex items-center justify-center transition-transform group-hover:scale-105"
-                  style={{
-                    backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
-                    border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}`,
-                  }}
-                >
-                  <span style={{ fontSize: "28px", fontWeight: 600, color: isDarkMode ? "#ACDEF2" : "#0C284A", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                    {getInitial(followedUser.username)}
-                  </span>
-                </div>
-              )}
+              <div className="relative transition-transform group-hover:scale-105" style={{ width: "80px", height: "80px" }}>
+                {followedUser.avatar ? (
+                  <img
+                    src={followedUser.avatar}
+                    alt={followedUser.username}
+                    className="w-[80px] h-[80px] rounded-full object-cover"
+                    style={{ border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}` }}
+                  />
+                ) : (
+                  <div
+                    className="w-[80px] h-[80px] rounded-full flex items-center justify-center"
+                    style={{
+                      backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
+                      border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}`,
+                    }}
+                  >
+                    <span style={{ fontSize: "28px", fontWeight: 600, color: isDarkMode ? "#ACDEF2" : "#0C284A", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                      {getInitial(followedUser.username)}
+                    </span>
+                  </div>
+                )}
+                {hgUserSet.has(followedUser.username) && (
+                  <div
+                    className="absolute flex items-center justify-center"
+                    style={{
+                      width: "22px",
+                      height: "22px",
+                      borderRadius: "50%",
+                      bottom: "0px",
+                      right: "0px",
+                      backgroundColor: "#EBFD00",
+                      border: `2px solid ${isDarkMode ? "#0C1A2E" : "#F9F9FA"}`,
+                    }}
+                  >
+                    <Disc3 size={12} color="#0C284A" strokeWidth={2.25} />
+                  </div>
+                )}
+              </div>
               <span
                 className="w-full text-center"
                 style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}

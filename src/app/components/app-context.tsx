@@ -182,10 +182,15 @@ interface AppState {
   collectionCrossoverQueue: WantItem[];
   dismissCrossover: (releaseId: number) => void;
   // OAuth / session management
-  loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string; sessionToken: string }) => Promise<void>;
+  loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string; sessionToken: string; is_new: boolean }) => Promise<void>;
   signOut: () => void;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
+  isNewUser: boolean;
+  // Share Activity opt-in
+  shareActivity: boolean | undefined;
+  showSharePrompt: boolean;
+  setShareActivity: (v: boolean) => Promise<void>;
   // Following feed cache (startup-synced)
   followingFeed: FollowingFeedEntry[];
   followingAvatars: Map<string, string>;
@@ -273,6 +278,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isAuthenticated = !!discogsUsername && !!sessionToken;
+
+  // Tracks whether the most recent OAuth login was for a brand new user
+  // (vs returning user). Set by loginWithOAuth from the upsert response.
+  const [isNewUser, setIsNewUser] = useState(false);
 
 
   // ── Theme state ──
@@ -375,6 +384,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsertPreferencesMut = useMutation(api.preferences.upsert);
   const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
+  const setShareActivityMut = useMutation(api.users.setShareActivity);
   const deleteAllUserDataMut = useMutation(api.users.deleteAllUserData);
   const replaceCollectionMut = useMutation(api.collection.replaceAll);
   const updateInstanceMut = useMutation(api.collection.updateInstance);
@@ -1780,18 +1790,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     accessToken: string;
     tokenSecret: string;
     sessionToken: string;
+    is_new: boolean;
   }) => {
     // Set session token and username
     setSessionToken(user.sessionToken);
     setDiscogsUsername(user.username);
     setUserAvatar(user.avatarUrl || "");
+    setIsNewUser(user.is_new);
 
     // Mark initial sync as done (we're about to trigger it explicitly)
     initialSyncDoneRef.current = true;
 
     // Trigger initial Discogs sync via server-side proxy
     await performSync(user.username, user.sessionToken);
-  }, [setDiscogsUsername, performSync]);
+  }, [setDiscogsUsername, performSync, setSessionToken]);
+
+  // ── Share Activity opt-in ──
+  // shareActivity reads from whichever user record query has resolved.
+  // showSharePrompt is derived — clears reactively once setShareActivity
+  // patches the user record and Convex updates.
+  const shareActivity = convexUser?.shareActivity ?? convexLatestUser?.shareActivity;
+  const convexUserHasLoaded = !!discogsUsername && convexUser !== undefined;
+  const showSharePrompt =
+    !!discogsUsername &&
+    !!sessionToken &&
+    convexUserHasLoaded &&
+    shareActivity === undefined;
+
+  const setShareActivity = useCallback(async (value: boolean) => {
+    if (!sessionToken) return;
+    await setShareActivityMut({ sessionToken, shareActivity: value });
+  }, [sessionToken, setShareActivityMut]);
 
   // ── Sign out ──
 
@@ -1804,6 +1833,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Clear local auth state
     setSessionToken(null);
     setDiscogsUsername("");
+    setIsNewUser(false);
 
     // Clear sessionStorage (transient OAuth bridge only)
     try {
@@ -2282,6 +2312,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       isAuthenticated,
       isAuthLoading,
+      isNewUser,
+      // Share Activity opt-in
+      shareActivity,
+      showSharePrompt,
+      setShareActivity,
       followingFeed,
       followingAvatars,
       cachedSyncStats,
@@ -2332,7 +2367,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateAlbum, removeFromCollection,
       selectedWantItem, selectedFeedAlbum, followingActivityTabIntent, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
-      loginWithOAuth, signOut, isAuthenticated, isAuthLoading,
+      loginWithOAuth, signOut, isAuthenticated, isAuthLoading, isNewUser,
+      shareActivity, showSharePrompt, setShareActivity,
       followingFeed, followingAvatars, cachedSyncStats,
       onNewSession, onAddFollowedUser, followedUserProfile, onBackFromProfile, onUnfollowUser,
     ]

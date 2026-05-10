@@ -29,6 +29,7 @@ export const getLatestUser = query({
       last_synced_at: user.last_synced_at,
       collection_value: user.collection_value,
       collection_value_synced_at: user.collection_value_synced_at,
+      shareActivity: user.shareActivity,
     };
   },
 });
@@ -49,6 +50,7 @@ export const getMe = query({
       last_synced_at: user.last_synced_at,
       collection_value: user.collection_value,
       collection_value_synced_at: user.collection_value_synced_at,
+      shareActivity: user.shareActivity,
     };
   },
 });
@@ -76,6 +78,8 @@ export const upsert = mutation({
       )
       .first();
 
+    const is_new = !existing;
+
     // Reuse existing session token if the user already has one (idempotent
     // across double-fired OAuth callbacks in React StrictMode / HMR).
     // Only generate a fresh token for genuinely new users.
@@ -88,7 +92,7 @@ export const upsert = mutation({
         discogs_avatar_url: args.discogs_avatar_url,
         session_token: sessionToken,
       });
-      return { _id: existing._id, session_token: sessionToken };
+      return { _id: existing._id, session_token: sessionToken, is_new };
     }
 
     const id = await ctx.db.insert("users", {
@@ -99,7 +103,15 @@ export const upsert = mutation({
       session_token: sessionToken,
       created_at: Date.now(),
     });
-    return { _id: id, session_token: sessionToken };
+    return { _id: id, session_token: sessionToken, is_new };
+  },
+});
+
+export const setShareActivity = mutation({
+  args: { sessionToken: v.string(), shareActivity: v.boolean() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    await ctx.db.patch(user._id, { shareActivity: args.shareActivity });
   },
 });
 
@@ -138,6 +150,36 @@ export const clearSession = mutation({
       .first();
     if (!user) return; // already signed out or token invalid — nothing to do
     await ctx.db.delete(user._id);
+  },
+});
+
+/**
+ * Authenticated query: given a list of Discogs usernames (the viewer's
+ * followed users), return the subset registered as Holy Grails users with
+ * shareActivity === true.
+ */
+export const getHolyGrailsUsers = query({
+  args: {
+    sessionToken: v.string(),
+    usernames: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await authenticateUser(ctx, args.sessionToken);
+    if (args.usernames.length === 0) return [];
+    const results: { discogs_username: string; discogs_avatar_url: string | undefined }[] = [];
+    for (const username of args.usernames) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_username", (q) => q.eq("discogs_username", username))
+        .first();
+      if (user && user.shareActivity === true) {
+        results.push({
+          discogs_username: user.discogs_username,
+          discogs_avatar_url: user.discogs_avatar_url,
+        });
+      }
+    }
+    return results;
   },
 });
 
