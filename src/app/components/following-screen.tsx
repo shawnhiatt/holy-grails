@@ -346,7 +346,7 @@ function FollowedUserProfile({
 
   const isHgUser = hgUserSet.has(user.username);
   const activitySummary = useQuery(
-    api.lastPlayed.getPublicActivitySummary,
+    api.last_played.getPublicActivitySummary,
     sessionToken && isHgUser
       ? { sessionToken, targetUsername: user.username }
       : "skip"
