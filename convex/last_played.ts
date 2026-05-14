@@ -62,35 +62,39 @@ export const getPublicActivitySummary = query({
     targetUsername: v.string(),
   },
   handler: async (ctx, args) => {
-    if (!args.sessionToken) return null;
-    const viewer = await ctx.db
-      .query("users")
-      .withIndex("by_session_token", (q) =>
-        q.eq("session_token", args.sessionToken)
-      )
-      .first();
-    if (!viewer) return null;
-    const target = await ctx.db
-      .query("users")
-      .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.targetUsername)
-      )
-      .first();
-    if (!target || target.shareActivity !== true) return null;
-    const records = await ctx.db
-      .query("last_played")
-      .withIndex("by_username", (q) =>
-        q.eq("discogs_username", args.targetUsername)
-      )
-      .collect();
-    const sorted = [...records].sort((a, b) => b.played_at - a.played_at);
-    return {
-      totalPlays: sorted.length,
-      recentPlays: sorted.slice(0, 10).map((r) => ({
-        release_id: r.release_id,
-        played_at: r.played_at,
-      })),
-    };
+    try {
+      if (!args.sessionToken) return null;
+      const viewer = await ctx.db
+        .query("users")
+        .withIndex("by_session_token", (q) =>
+          q.eq("session_token", args.sessionToken)
+        )
+        .first();
+      if (!viewer) return null;
+      const target = await ctx.db
+        .query("users")
+        .withIndex("by_username", (q) =>
+          q.eq("discogs_username", args.targetUsername)
+        )
+        .first();
+      if (!target || target.shareActivity !== true) return null;
+      const records = await ctx.db
+        .query("last_played")
+        .withIndex("by_username", (q) =>
+          q.eq("discogs_username", args.targetUsername)
+        )
+        .collect();
+      const sorted = [...records].sort((a, b) => b.played_at - a.played_at);
+      return {
+        totalPlays: sorted.length,
+        recentPlays: sorted.slice(0, 10).map((r) => ({
+          release_id: r.release_id,
+          played_at: r.played_at,
+        })),
+      };
+    } catch {
+      return null;
+    }
   },
 });
 
