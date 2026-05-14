@@ -54,7 +54,6 @@ const welcomeGreetings: Record<string, string[]> = {
   morning: [
     "Mornin', [username].",
     "Top o' the mornin' to ya, [username].",
-    "ZZZzzzzz...",
   ],
   afternoon: [
     "Howdy, [username].",
@@ -70,6 +69,7 @@ const welcomeGreetings: Record<string, string[]> = {
     "Still up, [username]?",
     "One. more. record.",
     "Nighty night, [username].",
+    "ZZZzzzzz...",
   ],
 };
 
