@@ -51,8 +51,10 @@ export const getHistoryByRelease = query({
 
 /**
  * Authenticated query: returns play activity for a target user, gated on
- * shareActivity === true. Returns null for both "not found" and "not opted in"
- * so callers cannot infer registration status from the response shape.
+ * shareActivity === true. Returns null for invalid viewer token, "not found",
+ * and "not opted in" — all three cases are indistinguishable to callers.
+ * Returns null (not throws) to prevent React error-boundary crashes when the
+ * session token is briefly stale on startup.
  */
 export const getPublicActivitySummary = query({
   args: {
@@ -60,7 +62,14 @@ export const getPublicActivitySummary = query({
     targetUsername: v.string(),
   },
   handler: async (ctx, args) => {
-    await authenticateUser(ctx, args.sessionToken);
+    if (!args.sessionToken) return null;
+    const viewer = await ctx.db
+      .query("users")
+      .withIndex("by_session_token", (q) =>
+        q.eq("session_token", args.sessionToken)
+      )
+      .first();
+    if (!viewer) return null;
     const target = await ctx.db
       .query("users")
       .withIndex("by_username", (q) =>
@@ -74,7 +83,7 @@ export const getPublicActivitySummary = query({
         q.eq("discogs_username", args.targetUsername)
       )
       .collect();
-    const sorted = records.sort((a, b) => b.played_at - a.played_at);
+    const sorted = [...records].sort((a, b) => b.played_at - a.played_at);
     return {
       totalPlays: sorted.length,
       recentPlays: sorted.slice(0, 10).map((r) => ({
