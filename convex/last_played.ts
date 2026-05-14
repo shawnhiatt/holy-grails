@@ -85,12 +85,21 @@ export const getPublicActivitySummary = query({
         )
         .collect();
       const sorted = [...records].sort((a, b) => b.played_at - a.played_at);
+      const playCounts = new Map<number, number>();
+      for (const r of records) {
+        playCounts.set(r.release_id, (playCounts.get(r.release_id) ?? 0) + 1);
+      }
+      const topPlayed = [...playCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([release_id, playCount]) => ({ release_id, playCount }));
       return {
         totalPlays: sorted.length,
         recentPlays: sorted.slice(0, 10).map((r) => ({
           release_id: r.release_id,
           played_at: r.played_at,
         })),
+        topPlayed,
       };
     } catch {
       return null;

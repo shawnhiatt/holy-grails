@@ -367,6 +367,21 @@ function FollowedUserProfile({
       .filter((x): x is { album: Album; played_at: number } => x !== null);
   }, [activitySummary, user.collection]);
 
+  const topPlayed = useMemo(() => {
+    if (!activitySummary?.topPlayed?.length) return [];
+    const byReleaseId = new Map<number, Album>();
+    for (const a of user.collection) {
+      byReleaseId.set(Number(a.release_id), a);
+    }
+    return activitySummary.topPlayed
+      .map((p) => {
+        const album = byReleaseId.get(Number(p.release_id));
+        if (!album) return null;
+        return { album, playCount: p.playCount };
+      })
+      .filter((x): x is { album: Album; playCount: number } => x !== null);
+  }, [activitySummary, user.collection]);
+
   const showRecentlyPlayed =
     activitySummary !== undefined &&
     activitySummary !== null &&
@@ -637,6 +652,48 @@ function FollowedUserProfile({
       <div className="flex-1 overflow-y-auto overlay-scroll">
         {showRecentlyPlayed && (
           <div className="px-[16px] lg:px-[24px] pt-3 pb-4" style={{ borderBottom: "1px solid var(--c-border)" }}>
+            {topPlayed.length > 0 && (
+              <>
+                <p
+                  className="mb-3"
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    letterSpacing: "0.5px",
+                    textTransform: "uppercase",
+                    color: "var(--c-text-faint)",
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                  }}
+                >
+                  Top Played
+                </p>
+                <div className="flex flex-col gap-2 mb-4">
+                  {topPlayed.map(({ album, playCount }) => (
+                    <button
+                      key={album.release_id}
+                      onClick={() => handleOpenAlbum(album)}
+                      className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left cursor-pointer"
+                      style={{
+                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                        touchAction: "manipulation",
+                      }}
+                    >
+                      <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
+                        <img src={album.thumb || album.cover} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                        <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                          {album.artist} &mdash; {album.title}
+                        </p>
+                        <p style={{ fontSize: "12px", fontWeight: 500, color: "#009A32" }}>
+                          {playCount} {playCount === 1 ? "play" : "plays"}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <p
               className="mb-1"
               style={{
