@@ -495,19 +495,22 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div>
       {/* Section header */}
       <div className="px-[16px] lg:px-0 mb-[10px]">
-        <h2 style={sectionTitleStyle}>From the Depths</h2>
-        <p
+        <h2
           style={{
-            fontSize: "13px",
+            background: "linear-gradient(to right, #F276EC, #EBFD00, #48FF91, #00CFFF)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            fontFamily: "'Rock Salt', cursive",
+            fontSize: "28px",
+            lineHeight: 1.1,
             fontWeight: 400,
-            color: "var(--c-text-secondary)",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-            marginTop: "2px",
-            lineHeight: 1.4,
+            margin: 0,
+            marginBottom: "4px",
           }}
         >
-          Remember these gems from your collection?
-        </p>
+          Shuffle
+        </h2>
       </div>
 
       {/* Mobile: 2x2 grid */}
@@ -560,19 +563,33 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div>
       {/* Section header */}
       <div className="px-[16px] lg:px-0 mb-[10px]">
-        <h2 style={sectionTitleStyle}>{decadesSpotlight.header}</h2>
-        <p
+        <h3
           style={{
-            fontSize: "13px",
-            fontWeight: 400,
-            color: "var(--c-text-secondary)",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-            marginTop: "2px",
-            lineHeight: 1.4,
+            fontSize: "11px",
+            fontWeight: 700,
+            letterSpacing: "1.5px",
+            color: "var(--c-accent-cyan)",
+            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            textTransform: "uppercase",
+            margin: 0,
+            marginBottom: "4px",
           }}
         >
-          Highlighting a decade from your collection.
-        </p>
+          Decade Highlight
+        </h3>
+        <h2
+          style={{
+            fontSize: "28px",
+            fontWeight: 400,
+            lineHeight: 1.4,
+            color: "white",
+            fontFamily: "'Rock Salt', cursive",
+            margin: 0,
+            marginBottom: "4px",
+          }}
+        >
+          {decadesSpotlight.header}
+        </h2>
       </div>
 
       {/* Mobile: horizontal swipeable carousel */}
@@ -784,20 +801,34 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div>
       {/* Section header */}
       <div className="flex items-center justify-between px-[16px] lg:px-0 mb-[12px]">
-        <div>
-          <h2 style={sectionTitleStyle}>On the Hunt</h2>
-          <p
+        <div className="flex-1">
+          <h3
             style={{
-              fontSize: "13px",
-              fontWeight: 400,
-              color: "var(--c-text-secondary)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              marginTop: "2px",
-              lineHeight: 1.4,
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "1.5px",
+              color: "var(--c-accent-pink)",
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              textTransform: "uppercase",
+              margin: 0,
+              marginBottom: "4px",
             }}
           >
-            Select albums from your Wantlist.
-          </p>
+            Wantlist Spotlight
+          </h3>
+          <h2
+            style={{
+              fontSize: "28px",
+              fontWeight: 400,
+              lineHeight: 1.1,
+              color: "white",
+              fontFamily: "'Rock Salt', cursive",
+              margin: 0,
+              marginBottom: "4px",
+            }}
+          >
+            On the Hunt
+          </h2>
         </div>
         <button
           onClick={() => setScreen("wants")}
@@ -1231,7 +1262,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div className="rounded-[12px] overflow-hidden h-full" style={cardStyle}>
       {/* Section header inside card */}
       <div className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px]">
-        <h2 style={sectionTitleStyle}>Following Activity</h2>
+        <h2 style={{
+          fontSize: "32px",
+          fontWeight: 400,
+          lineHeight: 1.2,
+          color: "var(--c-text)",
+          fontFamily: "'Manufacturing Consent', system-ui, sans-serif",
+          margin: 0,
+        }}>Following Activity</h2>
         {hasFollowing && (
           <button
             onClick={() => {
@@ -1353,7 +1391,17 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div>
       {/* Section header */}
       <div className="flex items-center justify-between mb-[12px]">
-        <h2 style={sectionTitleStyle}>Recently Added</h2>
+        <h2
+          style={{
+            fontSize: "32px",
+            fontWeight: 400,
+            color: "white",
+            fontFamily: "'Manufacturing Consent', system-ui, sans-serif",
+            margin: 0,
+          }}
+        >
+          Recently Added
+        </h2>
         <button
           onClick={() => setScreen("crate")}
           className="cursor-pointer"
@@ -1407,7 +1455,17 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     <div className="rounded-[12px] overflow-hidden h-full" style={cardStyle}>
       {/* Section header inside card */}
       <div className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px]">
-        <h2 style={sectionTitleStyle}>Insights</h2>
+        <h2
+          style={{
+            fontSize: "32px",
+            fontWeight: 400,
+            color: "white",
+            fontFamily: "'Manufacturing Consent', serif",
+            margin: 0,
+          }}
+        >
+          Insights
+        </h2>
         <button
           onClick={() => setScreen("reports")}
           className="cursor-pointer"
@@ -1561,7 +1619,17 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div className="px-[16px] pt-[16px]">
         {/* Header row */}
         <div className="flex items-center justify-between">
-          <h2 style={sectionTitleStyle}>Purge Tracker</h2>
+          <h2
+            style={{
+              fontSize: "32px",
+              fontWeight: 400,
+              color: "white",
+              fontFamily: "'Manufacturing Consent', serif",
+              margin: 0,
+            }}
+          >
+            Purge Tracker
+          </h2>
           <button
             onClick={() => setScreen("purge")}
             className="cursor-pointer"

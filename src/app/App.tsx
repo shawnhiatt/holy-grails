@@ -293,12 +293,12 @@ function AppContent() {
 
   // Sync html background with JS dark mode so overscroll/transparent areas don't show stale light color
   useEffect(() => {
-    document.documentElement.style.backgroundColor = isDarkMode ? "#040E1C" : "#F9F9FA";
+    document.documentElement.style.backgroundColor = isDarkMode ? "#030C1C" : "#F9F9FA";
   }, [isDarkMode]);
 
   /** Radial gradient background — light cyan glow from top center */
   const gradientBg = isDarkMode
-    ? "radial-gradient(ellipse 120% 60% at 50% 0%, #0D2137 0%, #040E1C 100%)"
+    ? "radial-gradient(ellipse 120% 60% at 50% 0%, #091C33 0%, #030C1C 100%)"
     : "radial-gradient(200% 100% at 50% 0%, #FFF 21.36%, #ACDEF2 100%)";
 
   const handleLoginWithDiscogs = useCallback(async () => {
@@ -380,9 +380,9 @@ function AppContent() {
       className="h-screen w-screen flex flex-col overflow-hidden"
       style={{
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-        backgroundColor: isDarkMode ? "#0C1A2E" : "#ACDEF2",
+        backgroundColor: isDarkMode ? "#081A31" : "#ACDEF2",
         background: gradientBg,
-        "--app-bg": isDarkMode ? "#0C1A2E" : "#ACDEF2",
+        "--app-bg": isDarkMode ? "#081A31" : "#ACDEF2",
       } as React.CSSProperties}
     >
       <DesktopTopNav />

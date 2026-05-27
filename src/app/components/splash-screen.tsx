@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { Disc3, AlertTriangle } from "lucide-react";
-import { PillLogo } from "./navigation";
 import { UnicornScene } from "./unicorn-scene";
+import logoSplash from "../../imports/logo-holy-grails-splash.svg";
 
 interface SplashScreenProps {
   isDarkMode: boolean;
@@ -62,8 +62,8 @@ export function SplashScreen({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col items-center w-full"
           >
-            {/* Pill logo — same as app header */}
-            <PillLogo className="w-full max-w-[400px] h-auto" forceDark />
+            {/* Splash logo with crown accent */}
+            <img src={logoSplash} alt="Holy Grails" className="w-full max-w-[400px] h-auto" draggable={false} />
 
             {/* Tagline */}
             <p

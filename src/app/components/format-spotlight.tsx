@@ -107,19 +107,33 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
     <div>
       {/* Section header */}
       <div className="px-[16px] lg:px-0 mb-[10px]">
-        <h2 style={sectionTitleStyle}>{spotlight.header}</h2>
-        <p
+        <h3
           style={{
-            fontSize: "13px",
-            fontWeight: 400,
-            color: "var(--c-text-secondary)",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-            marginTop: "2px",
-            lineHeight: 1.4,
+            fontSize: "11px",
+            fontWeight: 700,
+            letterSpacing: "1.5px",
+            color: "#EBFD00",
+            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            textTransform: "uppercase",
+            margin: 0,
+            marginBottom: "4px",
           }}
         >
-          Highlighting a format from your collection.
-        </p>
+          Format Spotlight
+        </h3>
+        <h2
+          style={{
+            fontSize: "28px",
+            fontWeight: 400,
+            lineHeight: 1.4,
+            color: "white",
+            fontFamily: "'Rock Salt', cursive",
+            margin: 0,
+            marginBottom: "4px",
+          }}
+        >
+          {spotlight.header}
+        </h2>
       </div>
 
       {/* Mobile: horizontal swipeable carousel */}
