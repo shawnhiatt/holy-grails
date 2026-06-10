@@ -680,7 +680,7 @@ function FollowedUserProfile({
                       }}
                     >
                       <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                        <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
+                        <img loading="lazy" decoding="async" src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                         <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
@@ -727,7 +727,7 @@ function FollowedUserProfile({
                     }}
                   >
                     <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                      <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                       <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
@@ -1190,7 +1190,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
               touchAction: "manipulation",
             }}>
             <div className="relative aspect-square overflow-hidden">
-              <img src={item.cover} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
+              <img loading="lazy" decoding="async" src={item.cover} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
               {badge && (
                 <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: badge.color, fontSize: "10px", fontWeight: 600, color: "#fff", zIndex: 1 }}>
                   {badge.label}
@@ -1223,7 +1223,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds,
           <div key={item.id} className="flex items-center gap-3 px-[16px] lg:px-[24px] py-2.5 cursor-pointer tappable"
             {...useSafeTap(() => onOpenAlbum(item))}
             style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid", borderLeft: badge ? "3px solid " + badge.color : "3px solid transparent", touchAction: "manipulation" }}>
-            <img src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
+            <img loading="lazy" decoding="async" src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
             <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
               <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist}{hasYear(item.year) ? ` \u00B7 ${item.year}` : ""}</p>
@@ -1525,7 +1525,7 @@ function PopulatedFollowingView({
             >
               <div className="relative transition-transform group-hover:scale-105" style={{ width: "80px", height: "80px" }}>
                 {followedUser.avatar ? (
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={followedUser.avatar}
                     alt={followedUser.username}
                     className="w-[80px] h-[80px] rounded-full object-cover"
@@ -1649,7 +1649,7 @@ function PopulatedFollowingView({
                           }}
                         >
                           {avatar ? (
-                            <img
+                            <img loading="lazy" decoding="async"
                               src={avatar}
                               alt={username}
                               className="w-full h-full object-cover"
@@ -1790,7 +1790,7 @@ function PopulatedFollowingView({
                     setShowAlbumDetail(true);
                   })}
                 >
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={item.albumCover}
                     alt={item.albumTitle}
                     className="w-full h-full rounded-[8px] object-cover"
@@ -1809,7 +1809,7 @@ function PopulatedFollowingView({
                     }}
                   >
                     {item.followedAvatar ? (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={item.followedAvatar}
                         alt={item.followedUsername}
                         className="w-full h-full object-cover"

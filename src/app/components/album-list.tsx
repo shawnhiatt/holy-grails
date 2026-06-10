@@ -37,7 +37,7 @@ const ListRow = memo(function ListRow({ album, isDarkMode, showDot, lastPlayedIs
       style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
     >
       <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
-        <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
+        <img loading="lazy" decoding="async" src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
       </div>
       <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
         <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>

@@ -78,7 +78,7 @@ export function DepthsAlbumCard({
           flexShrink: 0,
           position: "relative",
         }}>
-          <img
+          <img loading="lazy" decoding="async"
             src={album.cover}
             alt={`${album.title} by ${album.artist}`}
             className="w-full h-full object-cover object-center block"

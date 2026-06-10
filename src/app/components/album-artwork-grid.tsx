@@ -98,7 +98,7 @@ export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtw
             touchAction: "manipulation",
           }}
         >
-          <img
+          <img loading="lazy" decoding="async"
             src={item.thumb || item.cover}
             alt={`${item.artist} - ${item.title}`}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"

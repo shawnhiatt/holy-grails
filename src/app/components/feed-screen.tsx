@@ -67,7 +67,7 @@ const RecentAlbumCard = memo(function RecentAlbumCard({ album, width, isDarkMode
     >
       {/* Cover art */}
       <div className="relative aspect-square overflow-hidden">
-        <img
+        <img loading="lazy" decoding="async"
           src={album.cover}
           alt={`${album.artist} - ${album.title}`}
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -903,7 +903,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             >
               {/* Cover art */}
               <div className="relative aspect-square overflow-hidden">
-                <img
+                <img loading="lazy" decoding="async"
                   src={item.cover || item.thumb}
                   alt={`${item.artist} - ${item.title}`}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -1000,7 +1000,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           >
             {/* Cover art */}
             <div className="relative aspect-square overflow-hidden">
-              <img
+              <img loading="lazy" decoding="async"
                 src={item.cover || item.thumb}
                 alt={`${item.artist} - ${item.title}`}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -1109,7 +1109,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             setShowAlbumDetail(true);
           })}
         >
-          <img
+          <img loading="lazy" decoding="async"
             src={item.albumThumb || item.albumCover}
             alt={item.albumTitle}
             className="w-full h-full rounded-[8px] object-cover"
@@ -1128,7 +1128,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             }}
           >
             {item.followedAvatar ? (
-              <img
+              <img loading="lazy" decoding="async"
                 src={item.followedAvatar}
                 alt={item.followedUsername}
                 className="w-full h-full object-cover"
@@ -1773,7 +1773,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               }}
             >
               {/* Artwork full width */}
-              <img
+              <img loading="lazy" decoding="async"
                 src={purgeEvalAlbum.cover}
                 alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                 className="w-full aspect-square rounded-[8px] object-cover cursor-pointer"
@@ -1858,7 +1858,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 }}
               >
                 {/* Album cover — 60% width */}
-                <img
+                <img loading="lazy" decoding="async"
                   src={purgeEvalAlbum.cover}
                   alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                   className="cursor-pointer"

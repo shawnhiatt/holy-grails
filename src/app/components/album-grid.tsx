@@ -74,7 +74,7 @@ const GridCard = memo(function GridCard({ album, isDarkMode, purgeColor, playCou
     >
       {/* Cover art */}
       <div className="relative aspect-square overflow-hidden">
-        <img
+        <img loading="lazy" decoding="async"
           src={album.cover}
           alt={`${album.artist} - ${album.title}`}
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
