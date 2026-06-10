@@ -915,7 +915,7 @@ No other localStorage usage is permitted anywhere in the codebase.
 
 **Folder sync architecture (per-folder fetching)**
 
-`proxyFetchCollection` fetches collection releases per-folder rather than from the aggregate folder 0 ("All") endpoint. This is required because the Discogs API does not return `folder_id` on release objects from the folder 0 endpoint. The flow: fetch the folder list via `/collection/folders`, then for each folder (skipping folder 0), fetch `/collection/folders/{id}/releases` and inject `folder_id` from the folder being fetched onto each release before mapping. Folder 1 ("Uncategorized") is included — it is a real folder releases can live in. Rate limiting uses the existing `sleep(250)` between requests.
+`proxyFetchCollection` fetches collection releases per-folder rather than from the aggregate folder 0 ("All") endpoint. This is required because the Discogs API does not return `folder_id` on release objects from the folder 0 endpoint. The flow: fetch the folder list via `/collection/folders`, then for each folder (skipping folder 0), fetch `/collection/folders/{id}/releases` and inject `folder_id` from the folder being fetched onto each release before mapping. Folder 1 ("Uncategorized") is included — it is a real folder releases can live in. Rate limiting uses `sleep(1100)` between paginated requests (~54 req/min, under the 60 req/min authenticated limit), and `discogsFetch` retries 429 responses up to 2 times, honoring the `Retry-After` header.
 
 **skipPrivateFields**
 

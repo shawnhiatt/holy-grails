@@ -76,6 +76,11 @@ function buildOAuthHeader(
   );
 }
 
+// Retry budget for 429 rate-limit responses. The OAuth header is rebuilt on
+// every attempt — signatures embed a timestamp and nonce, so a reused header
+// would be rejected.
+const RATE_LIMIT_MAX_RETRIES = 2;
+
 async function discogsFetch(
   method: string,
   url: string,
@@ -83,12 +88,24 @@ async function discogsFetch(
   tokenSecret: string,
   body?: string
 ): Promise<Response> {
-  const headers: Record<string, string> = {
-    Authorization: buildOAuthHeader(method, url, accessToken, tokenSecret),
-    "User-Agent": USER_AGENT,
-  };
-  if (body) headers["Content-Type"] = "application/json";
-  return fetch(url, { method, headers, body });
+  for (let attempt = 0; ; attempt++) {
+    const headers: Record<string, string> = {
+      Authorization: buildOAuthHeader(method, url, accessToken, tokenSecret),
+      "User-Agent": USER_AGENT,
+    };
+    if (body) headers["Content-Type"] = "application/json";
+    const res = await fetch(url, { method, headers, body });
+    if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter, 60) * 1000
+        : 5000 * (attempt + 1);
+    console.warn(
+      `[Discogs] 429 rate limited — retrying in ${waitMs}ms (attempt ${attempt + 1}/${RATE_LIMIT_MAX_RETRIES})`
+    );
+    await sleep(waitMs);
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -501,7 +518,7 @@ export const proxyFetchCollection = action({
       let totalPages = 1;
 
       while (page <= totalPages) {
-        if (!isFirstRequest) await sleep(250);
+        if (!isFirstRequest) await sleep(1100);
         isFirstRequest = false;
         const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${folderId}/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`;
         const res = await discogsFetch(
@@ -569,7 +586,7 @@ export const proxyFetchWantlist = action({
     let totalPages = 1;
 
     while (page <= totalPages) {
-      if (page > 1) await sleep(250);
+      if (page > 1) await sleep(1100);
       const url = `${BASE}/users/${encodeURIComponent(args.username)}/wants?per_page=100&page=${page}`;
       const res = await discogsFetch(
         "GET",
