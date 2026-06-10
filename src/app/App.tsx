@@ -101,11 +101,11 @@ function AppContent() {
         const result = await (DeviceMotionEvent as any).requestPermission();
         if (result !== 'granted') {
           setShakeToRandom(false);
-          toast("Shake permission was reset by iOS. Re-enable in Settings to reactivate.", { duration: 5000 });
+          toast("Shake permission reset. Re-enable in Settings.", { duration: 5000 });
         }
       } catch {
         setShakeToRandom(false);
-        toast("Shake permission was reset by iOS. Re-enable in Settings to reactivate.", { duration: 5000 });
+        toast("Shake permission reset. Re-enable in Settings.", { duration: 5000 });
       }
     })();
   }, [shakeToRandom, setShakeToRandom]);

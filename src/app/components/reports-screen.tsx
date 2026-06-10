@@ -901,7 +901,7 @@ function ListeningActivitySection({
         >
           {lastListenedInfo.lastDaysAgo === 0 || lastListenedInfo.lastDaysAgo === 1 ? (
             <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--c-text-muted)", margin: "auto", display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-              {lastListenedInfo.lastDaysAgo === 0 ? "Last played earlier today!" : "Last played yesterday"}
+              {lastListenedInfo.lastDaysAgo === 0 ? "Last played earlier today" : "Last played yesterday"}
             </p>
           ) : (
             <>

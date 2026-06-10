@@ -596,7 +596,7 @@ export const proxyFetchWantlist = action({
       );
       if (!res.ok)
         throw new Error(
-          `Failed to fetch want list page ${page} (${res.status})`
+          `Failed to fetch wantlist page ${page} (${res.status})`
         );
       const data: WantPage = await res.json();
       totalPages = data.pagination.pages;
