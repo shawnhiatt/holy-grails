@@ -528,7 +528,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           <div className="flex items-center gap-1">
             {editButton}
             {!isEditMode && (
-              <button onClick={() => { setShowAlbumDetail(false); setSelectedAlbumId(null); setSelectedWantItem(null); setSelectedFeedAlbum(null); }} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }}><X size={18} /></button>
+              <button onClick={() => { setShowAlbumDetail(false); setSelectedAlbumId(null); setSelectedWantItem(null); setSelectedFeedAlbum(null); }} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }} aria-label="Close"><X size={18} /></button>
             )}
           </div>
         </div>

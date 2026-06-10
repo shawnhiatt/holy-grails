@@ -195,6 +195,7 @@ export function FollowingScreen() {
       <button
         onClick={() => { setShowAddForm(true); setAddError(""); }}
         className="lg:hidden fixed z-[105] flex items-center justify-center tappable"
+        aria-label="Add user"
         style={{
           bottom: "calc(54px + env(safe-area-inset-bottom, 0px) + 12px)",
           right: "12px",
@@ -679,7 +680,7 @@ function FollowedUserProfile({
                       }}
                     >
                       <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                        <img src={album.thumb || album.cover} alt="" className="w-full h-full object-cover" />
+                        <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                         <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
@@ -726,7 +727,7 @@ function FollowedUserProfile({
                     }}
                   >
                     <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                      <img src={album.thumb || album.cover} alt="" className="w-full h-full object-cover" />
+                      <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                       <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>

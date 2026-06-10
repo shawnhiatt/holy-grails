@@ -1014,7 +1014,7 @@ function ListeningActivitySection({
                 }}
               >
                 <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden flex-shrink-0">
-                  <img src={item.album.cover || item.album.thumb} alt="" className="w-full h-full object-cover" />
+                  <img src={item.album.cover || item.album.thumb} alt={item.album.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p
@@ -1065,7 +1065,7 @@ function ListeningActivitySection({
                 }}
               >
                 <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                  <img src={a.thumb || a.cover} alt="" className="w-full h-full object-cover" />
+                  <img src={a.thumb || a.cover} alt={a.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
@@ -1107,7 +1107,7 @@ function ListeningActivitySection({
               }}
             >
               <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                <img src={item.album.thumb || item.album.cover} alt="" className="w-full h-full object-cover" />
+                <img src={item.album.thumb || item.album.cover} alt={item.album.title} className="w-full h-full object-cover" />
               </div>
               <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                 <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>

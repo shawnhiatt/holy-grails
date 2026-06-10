@@ -85,6 +85,7 @@ export function Sessions() {
       <button
         onClick={() => setShowNewSession(true)}
         className="lg:hidden fixed z-[105] flex items-center justify-center tappable"
+        aria-label="New session"
         style={{
           bottom: "calc(54px + env(safe-area-inset-bottom, 0px) + 12px)",
           right: "12px",
