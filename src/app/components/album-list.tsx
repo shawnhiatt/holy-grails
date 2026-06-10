@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { memo, useCallback, useRef, useMemo } from "react";
 import { Play } from "lucide-react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
@@ -16,6 +16,85 @@ type ListRenderItem =
   | { kind: "album"; album: Album };
 
 // Intentionally separate from wantlist list item — actions diverge in Phase 6
+
+/* ─── List Row (memoized — skips re-render when the album row is unchanged) ─── */
+
+interface ListRowProps {
+  album: Album;
+  isDarkMode: boolean;
+  showDot: boolean;
+  /** ISO timestamp of last play, or undefined when never played */
+  lastPlayedIso?: string;
+  playCount: number;
+  onOpen: (id: string) => void;
+}
+
+const ListRow = memo(function ListRow({ album, isDarkMode, showDot, lastPlayedIso, playCount, onOpen }: ListRowProps) {
+  return (
+    <button
+      {...useSafeTap(() => onOpen(album.id))}
+      className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
+      style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
+    >
+      <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
+        <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
+      </div>
+      <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+        <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
+        <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}{hasYear(album.year) ? ` · ${album.year}` : ""}</p>
+      </div>
+      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          {showDot && album.purgeTag && (
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0 absolute top-1.5 right-1.5"
+              style={{
+                backgroundColor: purgeIndicatorColor(album.purgeTag, isDarkMode),
+                opacity: 0.5,
+              }}
+            />
+          )}
+          <span
+            className="px-2 py-0.5 rounded-full hidden md:block"
+            style={{
+              fontSize: "11px",
+              fontWeight: 500,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)",
+              color: isDarkMode ? "#ACDEF2" : "#00527A",
+            }}
+          >
+            {album.folder}
+          </span>
+        </div>
+        {lastPlayedIso && (
+          <span
+            className="hidden sm:block"
+            style={{
+              fontSize: "10px",
+              fontWeight: 400,
+              color: "var(--c-text-faint)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+            }}
+          >
+            {formatRelativeDate(lastPlayedIso)}
+          </span>
+        )}
+        {playCount >= 1 && (
+          <div
+            className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+            style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+          >
+            <Play size={9} fill="white" color="white" />
+            <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              {playCount}
+            </span>
+          </div>
+        )}
+      </div>
+    </button>
+  );
+});
 
 /* ─── Album List ─── */
 
@@ -57,6 +136,11 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
   if (anchorRefs.current.length !== albums.length) {
     anchorRefs.current = new Array(albums.length).fill(null);
   }
+
+  const openAlbum = useCallback((id: string) => {
+    setSelectedAlbumId(id);
+    setShowAlbumDetail(true);
+  }, [setSelectedAlbumId, setShowAlbumDetail]);
 
   if (albums.length === 0) {
     return (
@@ -114,71 +198,16 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
               );
             }
             const { album } = item;
-            const lp = lastPlayed[album.id];
             return (
-              <button
+              <ListRow
                 key={album.id}
-                {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
-                className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
-                style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
-              >
-                <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
-                  <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</p>
-                  <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}{hasYear(album.year) ? ` · ${album.year}` : ""}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    {showPurgeIndicator && !hidePurgeIndicators && album.purgeTag && (
-                      <div
-                        className="w-2 h-2 rounded-full flex-shrink-0 absolute top-1.5 right-1.5"
-                        style={{
-                          backgroundColor: purgeIndicatorColor(album.purgeTag, isDarkMode),
-                          opacity: 0.5,
-                        }}
-                      />
-                    )}
-                    <span
-                      className="px-2 py-0.5 rounded-full hidden md:block"
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 500,
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                        backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)",
-                        color: isDarkMode ? "#ACDEF2" : "#00527A",
-                      }}
-                    >
-                      {album.folder}
-                    </span>
-                  </div>
-                  {lp && (
-                    <span
-                      className="hidden sm:block"
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: 400,
-                        color: "var(--c-text-faint)",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                      }}
-                    >
-                      {formatRelativeDate(lp)}
-                    </span>
-                  )}
-                  {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
-                    <div
-                      className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
-                      style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
-                    >
-                      <Play size={9} fill="white" color="white" />
-                      <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                        {playCounts[String(album.release_id)]}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </button>
+                album={album}
+                isDarkMode={isDarkMode}
+                showDot={showPurgeIndicator && !hidePurgeIndicators}
+                lastPlayedIso={lastPlayed[album.id]}
+                playCount={playCounts[String(album.release_id)] ?? 0}
+                onOpen={openAlbum}
+              />
             );
           })}
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Check, Minus, HelpCircle, Disc3, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
@@ -25,19 +25,36 @@ export function PurgeTracker() {
     scrollRef.current?.scrollTo(0, 0);
   }, [purgeFilter]);
 
-  const keepCount = albums.filter((a) => a.purgeTag === "keep").length;
-  const cutCount = albums.filter((a) => a.purgeTag === "cut").length;
-  const maybeCount = albums.filter((a) => a.purgeTag === "maybe").length;
-  const unratedCount = albums.filter((a) => a.purgeTag === null).length;
-  const totalCount = albums.length;
-  const ratedCount = totalCount - unratedCount;
-  const progress = totalCount > 0 ? (ratedCount / totalCount) * 100 : 0;
+  const { keepCount, cutCount, maybeCount, unratedCount, totalCount, ratedCount, progress } = useMemo(() => {
+    let keep = 0, cut = 0, maybe = 0, unrated = 0;
+    for (const a of albums) {
+      if (a.purgeTag === "keep") keep++;
+      else if (a.purgeTag === "cut") cut++;
+      else if (a.purgeTag === "maybe") maybe++;
+      else unrated++;
+    }
+    const total = albums.length;
+    const rated = total - unrated;
+    return {
+      keepCount: keep,
+      cutCount: cut,
+      maybeCount: maybe,
+      unratedCount: unrated,
+      totalCount: total,
+      ratedCount: rated,
+      progress: total > 0 ? (rated / total) * 100 : 0,
+    };
+  }, [albums]);
 
-  const filteredAlbums = albums.filter((a) => {
+  const filteredAlbums = useMemo(() => albums.filter((a) => {
     if (purgeFilter === "all") return true;
     if (purgeFilter === "unrated") return a.purgeTag === null;
     return a.purgeTag === purgeFilter;
-  });
+  }), [albums, purgeFilter]);
+
+  // Albums staged for deletion — passed to the Purge Cut confirmation dialog.
+  // (Was previously referenced without being defined, crashing the dialog.)
+  const cutAlbums = useMemo(() => albums.filter((a) => a.purgeTag === "cut"), [albums]);
 
   const handlePurgeTag = useCallback((albumId: string, tag: PurgeTag) => {
     setPurgeTag(albumId, tag);

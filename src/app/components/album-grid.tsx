@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { memo, useCallback, useRef, useMemo } from "react";
 import { Play } from "lucide-react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
@@ -45,6 +45,155 @@ export function getAlbumGroupLabel(album: Album, sortOption: string): string {
 type GridRenderItem =
   | { kind: "divider"; label: string; firstAlbumIndex: number; isFirst: boolean }
   | { kind: "album"; album: Album; albumIndex: number };
+
+/* ─── Grid Card (memoized — skips re-render when the album row is unchanged) ─── */
+
+interface GridCardProps {
+  album: Album;
+  isDarkMode: boolean;
+  /** Resolved purge indicator color, or undefined when hidden/untagged */
+  purgeColor?: string;
+  playCount: number;
+  onOpen: (id: string) => void;
+}
+
+const GridCard = memo(function GridCard({ album, isDarkMode, purgeColor, playCount, onOpen }: GridCardProps) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      {...useSafeTap(() => onOpen(album.id))}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(album.id); } }}
+      className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D1D8DF"}`,
+        boxShadow: "var(--c-card-shadow)",
+        touchAction: "manipulation",
+      }}
+    >
+      {/* Cover art */}
+      <div className="relative aspect-square overflow-hidden">
+        <img
+          src={album.cover}
+          alt={`${album.artist} - ${album.title}`}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          draggable={false}
+        />
+        {purgeColor && (
+          <div
+            className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
+            style={{ backgroundColor: purgeColor }}
+          />
+        )}
+        {playCount >= 1 && (
+          <div
+            className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+            style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
+          >
+            <Play size={9} fill="white" color="white" />
+            <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              {playCount}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Metadata */}
+      <div className="px-2.5 pt-2 pb-2.5 relative min-w-0 overflow-hidden">
+        <p
+          style={{
+            fontSize: "13px",
+            fontWeight: 600,
+            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            color: "var(--c-text)",
+            lineHeight: "1.25",
+            display: "block",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            WebkitTextOverflow: "ellipsis",
+            maxWidth: "100%",
+          } as React.CSSProperties}
+        >
+          {album.title}
+        </p>
+        <p
+          className="mt-[1px]"
+          style={{
+            fontSize: "12px",
+            fontWeight: 400,
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            color: "var(--c-text-secondary)",
+            lineHeight: "1.3",
+            display: "block",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            WebkitTextOverflow: "ellipsis",
+            maxWidth: "100%",
+          } as React.CSSProperties}
+        >
+          {album.artist}
+        </p>
+        <span
+          className="block mt-[4px]"
+          style={{
+            fontSize: "11px",
+            fontWeight: 400,
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            color: "var(--c-text-muted)",
+            visibility: hasYear(album.year) ? "visible" : "hidden",
+          }}
+        >
+          {album.year}
+        </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            width: "100%",
+            overflow: "hidden",
+            minWidth: 0,
+            gap: "6px",
+            marginTop: "4px",
+          }}
+        >
+          <span
+            className="rounded-full"
+            style={{
+              display: "inline-flex",
+              maxWidth: "100%",
+              overflow: "hidden",
+              flexShrink: 1,
+              minWidth: 0,
+              padding: "1px 6px",
+              fontSize: "10px",
+              fontWeight: 500,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)",
+              color: isDarkMode ? "#ACDEF2" : "#00527A",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                WebkitTextOverflow: "ellipsis",
+                maxWidth: "100%",
+                width: "100%",
+              } as React.CSSProperties}
+            >
+              {album.folder}
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 /* ─── Album Grid ─── */
 
@@ -93,6 +242,11 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
     });
     return items;
   }, [albums, sortOption, hasDividers]);
+
+  const openAlbum = useCallback((id: string) => {
+    setSelectedAlbumId(id);
+    setShowAlbumDetail(true);
+  }, [setSelectedAlbumId, setShowAlbumDetail]);
 
   if (albums.length === 0) {
     return (
@@ -161,139 +315,13 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
               className="relative min-w-0"
               ref={!hasDividers && anchorIndices.has(albumIndex) ? (el) => { anchorRefs.current[albumIndex] = el; } : undefined}
             >
-              <div
-                role="button"
-                tabIndex={0}
-                {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedAlbumId(album.id); setShowAlbumDetail(true); } }}
-                className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
-                style={{
-                  backgroundColor: "var(--c-surface)",
-                  border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D1D8DF"}`,
-                  boxShadow: "var(--c-card-shadow)",
-                  touchAction: "manipulation",
-                }}
-              >
-                {/* Cover art */}
-                <div className="relative aspect-square overflow-hidden">
-                  <img
-                    src={album.cover}
-                    alt={`${album.artist} - ${album.title}`}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    draggable={false}
-                  />
-                  {!hidePurgeIndicators && album.purgeTag && (
-                    <div
-                      className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
-                      style={{ backgroundColor: purgeColors[album.purgeTag] || "transparent" }}
-                    />
-                  )}
-                  {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
-                    <div
-                      className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
-                      style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
-                    >
-                      <Play size={9} fill="white" color="white" />
-                      <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                        {playCounts[String(album.release_id)]}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Metadata */}
-                <div className="px-2.5 pt-2 pb-2.5 relative min-w-0 overflow-hidden">
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                      color: "var(--c-text)",
-                      lineHeight: "1.25",
-                      display: "block",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      WebkitTextOverflow: "ellipsis",
-                      maxWidth: "100%",
-                    } as React.CSSProperties}
-                  >
-                    {album.title}
-                  </p>
-                  <p
-                    className="mt-[1px]"
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 400,
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                      color: "var(--c-text-secondary)",
-                      lineHeight: "1.3",
-                      display: "block",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      WebkitTextOverflow: "ellipsis",
-                      maxWidth: "100%",
-                    } as React.CSSProperties}
-                  >
-                    {album.artist}
-                  </p>
-                  <span
-                    className="block mt-[4px]"
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 400,
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                      color: "var(--c-text-muted)",
-                      visibility: hasYear(album.year) ? "visible" : "hidden",
-                    }}
-                  >
-                    {album.year}
-                  </span>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      width: "100%",
-                      overflow: "hidden",
-                      minWidth: 0,
-                      gap: "6px",
-                      marginTop: "4px",
-                    }}
-                  >
-                    <span
-                      className="rounded-full"
-                      style={{
-                        display: "inline-flex",
-                        maxWidth: "100%",
-                        overflow: "hidden",
-                        flexShrink: 1,
-                        minWidth: 0,
-                        padding: "1px 6px",
-                        fontSize: "10px",
-                        fontWeight: 500,
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                        backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)",
-                        color: isDarkMode ? "#ACDEF2" : "#00527A",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "block",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          WebkitTextOverflow: "ellipsis",
-                          maxWidth: "100%",
-                          width: "100%",
-                        } as React.CSSProperties}
-                      >
-                        {album.folder}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <GridCard
+                album={album}
+                isDarkMode={isDarkMode}
+                purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeColors[album.purgeTag] : undefined}
+                playCount={playCounts[String(album.release_id)] ?? 0}
+                onOpen={openAlbum}
+              />
             </div>
             );
           })}
