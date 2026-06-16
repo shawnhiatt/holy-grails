@@ -503,10 +503,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             backgroundClip: "text",
             fontFamily: "'Rock Salt', cursive",
             fontSize: "28px",
-            lineHeight: 1.1,
+            lineHeight: 1.5,
             fontWeight: 400,
             margin: 0,
-            marginBottom: "4px",
+            paddingTop: "0.15em",
+            marginBottom: "2px",
           }}
         >
           Shuffle
