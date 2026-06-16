@@ -694,7 +694,7 @@ Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 - `paddingBottom: env(safe-area-inset-bottom, 0px)` applied internally
 - **Theme-aware surface** (reads `isDarkMode`):
   - Dark: background `linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)` (derived from `--c-surface-alt` → `--c-bg`), top border `rgba(172,222,242,0.08)`, active `#EBFD00`, inactive `#D1D8DF`
-  - Light: background `linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)`, top border `#D2D8DE`, active `#0C284A` (navy, matching desktop nav — yellow does not read on a light bar), inactive `rgba(12,40,74,0.45)`
+  - Light: background `linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)`, top border `#D2D8DE`, active `#0C284A` (navy, matching desktop nav — yellow does not read on a light bar), inactive `rgba(12,40,74,0.65)`
 - The PWA standalone `.bottom-tab-bar` override has been removed — flush bar requires no override
 
 5 items:

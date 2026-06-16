@@ -337,7 +337,7 @@ export function BottomTabBar() {
   // Light mode uses navy active (matching the desktop top nav) since yellow
   // does not read on a light bar. Dark mode keeps the signature brand yellow.
   const activeColor = isDarkMode ? "#EBFD00" : "#0C284A";
-  const inactiveColor = isDarkMode ? "#D1D8DF" : "rgba(12,40,74,0.45)";
+  const inactiveColor = isDarkMode ? "#D1D8DF" : "rgba(12,40,74,0.65)";
 
   return (
     <>
