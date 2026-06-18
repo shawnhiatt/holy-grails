@@ -140,6 +140,8 @@ interface AppState {
   isSyncingFollowing: boolean;
   syncProgress: string;
   lastSynced: string;
+  lastSyncedAt: number | null;
+  refreshFromDiscogs: () => Promise<void>;
   syncFromDiscogs: () => Promise<{ albums: number; folders: number; wants: number }>;
   syncStats: { albums: number; folders: number; wants: number } | null;
   // User profile
@@ -1806,12 +1808,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // never recorded counts — run a real sync in the background. Guards against
   // overlapping runs (boot probe vs sync-on-focus).
   const bgSyncInFlightRef = useRef(false);
-  const maybeBackgroundSync = useCallback(async (username: string, token: string) => {
-    if (bgSyncInFlightRef.current) return;
+  const maybeBackgroundSync = useCallback(async (
+    username: string,
+    token: string,
+  ): Promise<"changed" | "unchanged" | "skipped"> => {
+    if (bgSyncInFlightRef.current) return "skipped";
     bgSyncInFlightRef.current = true;
     try {
       const signals = await proxyFetchSyncSignals({ sessionToken: token, username });
-      if (!signals) return; // probe failed (offline / rate limit) — leave cache, retry next load
+      if (!signals) return "skipped"; // probe failed (offline / rate limit) — leave cache, retry
 
       const prevColl = convexUserRef.current?.last_collection_count
         ?? convexLatestUserRef.current?.last_collection_count ?? null;
@@ -1823,15 +1828,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         signals.num_collection !== prevColl ||
         signals.num_wantlist !== prevWant;
 
-      if (!changed) return; // nothing changed — instant boot, no sync needed
+      if (!changed) return "unchanged"; // nothing changed — no sync needed
 
       await performSync(username, token, { background: true, signals, notify: true });
+      return "changed";
     } catch (e) {
       console.warn("[Sync] Background change-check failed:", e);
+      return "skipped";
     } finally {
       bgSyncInFlightRef.current = false;
     }
   }, [proxyFetchSyncSignals, performSync]);
+
+  // Public manual refresh — the cheap probe path, used by pull-to-refresh and
+  // the "last synced" tap. Gives explicit feedback even when nothing changed
+  // (the silent auto paths don't). A real change is announced by performSync's
+  // own completion toast, so we only add the "Up to date." case here.
+  const refreshFromDiscogs = useCallback(async () => {
+    if (!discogsUsername || !sessionToken) return;
+    const result = await maybeBackgroundSync(discogsUsername, sessionToken);
+    if (result === "unchanged") toast("Up to date.");
+  }, [discogsUsername, sessionToken, maybeBackgroundSync]);
 
   // Sync-on-focus. When the PWA regains visibility (reopened after being
   // backgrounded), run the cheap change probe — not a full sync. Throttled so
@@ -2403,6 +2420,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSyncingFollowing,
       syncProgress,
       lastSynced,
+      lastSyncedAt: convexUser?.last_synced_at ?? convexLatestUser?.last_synced_at ?? null,
+      refreshFromDiscogs,
       syncFromDiscogs,
       syncStats,
       // User profile
@@ -2494,6 +2513,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessionToken,
       discogsUsername, setDiscogsUsername,
       isSyncing, isBackgroundSyncing, isSyncingFollowing, syncProgress, lastSynced,
+      convexUser, convexLatestUser, refreshFromDiscogs,
       syncFromDiscogs, syncStats,
       userAvatar, userProfile, updateProfileFn,
       clearPlayHistory, clearFollowedUsers, clearWantlistPriorities,

@@ -8,6 +8,7 @@ import { AlbumArtwork } from "./album-artwork-grid";
 
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { SyncStatusLine } from "./sync-status-line";
 
 const VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
   { id: "grid", icon: Grid2x2, label: "Grid" },
@@ -241,6 +242,9 @@ export function CrateBrowser() {
           <SlidersHorizontal size={18} />
         </button>
       </div>
+      <div className="hidden lg:flex px-[24px] pb-[10px]">
+        <SyncStatusLine />
+      </div>
 
       {/* ===== MOBILE search/filter/view controls (gray content area) ===== */}
       <div className="lg:hidden flex-shrink-0 px-[16px] pt-[2px] pb-[8px]" style={{ borderTop: "none" }}>
@@ -279,6 +283,7 @@ export function CrateBrowser() {
             {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
           </div>
         )}
+        <SyncStatusLine className="mt-[8px]" />
       </div>
 
       {/* Content */}

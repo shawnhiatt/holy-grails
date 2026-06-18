@@ -7,6 +7,7 @@ import { formatRelativeDate } from "./last-played-utils";
 import { DIVIDER_SORT_OPTS, getAlbumGroupLabel } from "./album-grid";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { useSafeTap } from "../lib/use-safe-tap";
+import { usePullToRefresh } from "./pull-to-refresh";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -104,12 +105,13 @@ interface AlbumListProps {
 }
 
 export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, sortOption, playCounts } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, sortOption, playCounts, refreshFromDiscogs } = useApp();
   const collectionEmpty = allAlbums.length === 0;
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const ptr = usePullToRefresh(scrollRef, refreshFromDiscogs);
 
   const hasDividers = DIVIDER_SORT_OPTS.has(sortOption);
 
@@ -171,8 +173,9 @@ export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps)
       <div
         ref={scrollRef}
         className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px]`}
-        style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
+        style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))", position: "relative" }}
       >
+        {ptr.indicator}
         <div className="flex flex-col">
           {renderItems.map((item) => {
             if (item.kind === "divider") {
