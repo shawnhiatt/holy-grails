@@ -174,6 +174,9 @@ export const applyDiff = mutation({
 
     const existingByRelease = new Map(existing.map((row) => [row.releaseId, row]));
     const incomingIds = new Set<number>();
+    let added = 0;
+    let removed = 0;
+    let updated = 0;
 
     for (const album of args.albums) {
       incomingIds.add(album.releaseId);
@@ -183,16 +186,21 @@ export const applyDiff = mutation({
           discogsUsername: user.discogs_username,
           ...album,
         });
+        added++;
       } else if (albumSignature(row as unknown as AlbumInput) !== albumSignature(album)) {
         await ctx.db.patch(row._id, album);
+        updated++;
       }
     }
 
     for (const row of existing) {
       if (!incomingIds.has(row.releaseId)) {
         await ctx.db.delete(row._id);
+        removed++;
       }
     }
+
+    return { added, removed, updated };
   },
 });
 

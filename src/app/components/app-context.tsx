@@ -1485,9 +1485,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     opts: {
       background?: boolean;
       signals?: { num_collection: number; num_wantlist: number } | null;
+      // When true, emit a toast summarizing what a background sync brought in.
+      // Used by the auto background path (boot probe, sync-on-focus) — the
+      // manual Sync Now and first-ever sync surface their own feedback.
+      notify?: boolean;
     } = {}
   ): Promise<{ albums: number; folders: number; wants: number }> => {
-    const { background = false, signals: probedSignals } = opts;
+    const { background = false, signals: probedSignals, notify = false } = opts;
     // Background syncs flip a separate flag so the loading-screen phase machine
     // (which watches isSyncing) never takes over the screen — the user keeps
     // browsing cached data while the cache freshens underneath them.
@@ -1556,10 +1560,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Write collection to Convex cache — incremental diff (insert/patch/delete)
-      // so the cache never flashes empty mid-background-sync.
+      // so the cache never flashes empty mid-background-sync. The returned
+      // counts drive the background-sync completion toast.
       setSyncProgress("Caching collection");
+      let collDiff = { added: 0, removed: 0, updated: 0 };
       try {
-        await applyCollectionDiffMut({
+        collDiff = await applyCollectionDiffMut({
           sessionToken: token,
           albums: newAlbums.map((a) => ({
             releaseId: a.release_id,
@@ -1588,8 +1594,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Write wantlist to Convex cache — incremental diff (insert/patch/delete)
+      let wantDiff = { added: 0, removed: 0, updated: 0 };
       try {
-        await applyWantlistDiffMut({
+        wantDiff = await applyWantlistDiffMut({
           sessionToken: token,
           items: newWants.map((w) => ({
             release_id: w.release_id,
@@ -1647,6 +1654,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Following feed is no longer synced here — it syncs lazily in the
       // background when the user opens the Feed or Following screen (see
       // syncFollowingFeed), so it never blocks the collection sync.
+
+      // Completion feedback for background syncs the user isn't watching.
+      // Only adds/removes are worth a toast — in-place patches stay silent.
+      if (notify) {
+        let msg: string | null = null;
+        if (collDiff.added > 0 && collDiff.removed === 0) {
+          msg = `${collDiff.added} ${collDiff.added === 1 ? "record" : "records"} added.`;
+        } else if (collDiff.removed > 0 && collDiff.added === 0) {
+          msg = `${collDiff.removed} ${collDiff.removed === 1 ? "record" : "records"} removed.`;
+        } else if (collDiff.added > 0 || collDiff.removed > 0) {
+          msg = "Collection updated.";
+        } else if (wantDiff.added > 0 || wantDiff.removed > 0) {
+          msg = "Wantlist updated.";
+        }
+        if (msg) toast(msg);
+      }
 
       setSyncProgress("");
 
@@ -1777,8 +1800,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // One cheap request: compare the current Discogs collection/wantlist counts
   // against the counts stored at the last sync. If they match, skip the sync
   // entirely (the common "nothing changed" case). If they differ — or we've
-  // never recorded counts — run a real sync in the background.
+  // never recorded counts — run a real sync in the background. Guards against
+  // overlapping runs (boot probe vs sync-on-focus).
+  const bgSyncInFlightRef = useRef(false);
   const maybeBackgroundSync = useCallback(async (username: string, token: string) => {
+    if (bgSyncInFlightRef.current) return;
+    bgSyncInFlightRef.current = true;
     try {
       const signals = await proxyFetchSyncSignals({ sessionToken: token, username });
       if (!signals) return; // probe failed (offline / rate limit) — leave cache, retry next load
@@ -1795,11 +1822,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (!changed) return; // nothing changed — instant boot, no sync needed
 
-      await performSync(username, token, { background: true, signals });
+      await performSync(username, token, { background: true, signals, notify: true });
     } catch (e) {
       console.warn("[Sync] Background change-check failed:", e);
+    } finally {
+      bgSyncInFlightRef.current = false;
     }
   }, [proxyFetchSyncSignals, performSync]);
+
+  // Sync-on-focus. When the PWA regains visibility (reopened after being
+  // backgrounded), run the cheap change probe — not a full sync. Throttled so
+  // rapid tab switches don't re-probe; the boot probe covers the first window.
+  const FOCUS_PROBE_THROTTLE = 5 * 60 * 1000;
+  const lastFocusProbeAtRef = useRef(Date.now());
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!initialSyncDoneRef.current) return; // boot handles the first probe
+      if (!discogsUsername || !sessionToken) return;
+      const now = Date.now();
+      if (now - lastFocusProbeAtRef.current < FOCUS_PROBE_THROTTLE) return;
+      lastFocusProbeAtRef.current = now;
+      maybeBackgroundSync(discogsUsername, sessionToken);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [discogsUsername, sessionToken, maybeBackgroundSync]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);

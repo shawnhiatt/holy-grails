@@ -112,6 +112,9 @@ export const applyDiff = mutation({
 
     const existingByRelease = new Map(existing.map((row) => [row.release_id, row]));
     const incomingIds = new Set<number>();
+    let added = 0;
+    let removed = 0;
+    let updated = 0;
 
     for (const item of args.items) {
       incomingIds.add(item.release_id);
@@ -121,16 +124,21 @@ export const applyDiff = mutation({
           discogs_username: user.discogs_username,
           ...item,
         });
+        added++;
       } else if (wantSignature(row as unknown as WantInput) !== wantSignature(item)) {
         await ctx.db.patch(row._id, item);
+        updated++;
       }
     }
 
     for (const row of existing) {
       if (!incomingIds.has(row.release_id)) {
         await ctx.db.delete(row._id);
+        removed++;
       }
     }
+
+    return { added, removed, updated };
   },
 });
 
