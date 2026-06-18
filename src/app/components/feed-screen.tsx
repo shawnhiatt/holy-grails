@@ -653,10 +653,17 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             backgroundClip: "text",
             fontFamily: "'Rock Salt', cursive",
             fontSize: "28px",
-            lineHeight: 1.1,
+            lineHeight: 1.5,
             fontWeight: 400,
             margin: 0,
-            marginBottom: "4px",
+            // Rock Salt glyphs overrun the text box; background-clip:text only
+            // paints inside it, so extend the box (top + left) to cover them.
+            // The negative left margin offsets the left padding to keep the
+            // title visually aligned with the card grid below.
+            paddingTop: "0.15em",
+            paddingLeft: "0.25em",
+            marginBottom: "2px",
+            marginLeft: "-0.25em",
           }}
         >
           Shuffle

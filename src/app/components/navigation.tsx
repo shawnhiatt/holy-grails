@@ -325,7 +325,24 @@ export function MobileHeader() {
 }
 
 export function BottomTabBar() {
-  const { screen, setScreen } = useApp();
+  const { screen, setScreen, isDarkMode } = useApp();
+
+  // Theme-aware bar surface. Dark gradient is derived from the dark app bg
+  // tokens (--c-surface-alt #0F2238 → --c-bg #0C1A2E) so the bar sits with the
+  // darkened backgrounds; light is a near-white surface bar.
+  const barBackground = isDarkMode
+    ? "linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)"
+    : "linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)";
+  const barBorderTop = isDarkMode
+    ? "1px solid rgba(172,222,242,0.08)"
+    : "1px solid #D2D8DE";
+  const barShadow = isDarkMode
+    ? "0 -2px 16px rgba(0,0,0,0.35)"
+    : "0 -2px 16px rgba(12,40,74,0.08)";
+  // Light mode uses navy active (matching the desktop top nav) since yellow
+  // does not read on a light bar. Dark mode keeps the signature brand yellow.
+  const activeColor = isDarkMode ? "#EBFD00" : "#0C284A";
+  const inactiveColor = isDarkMode ? "#D1D8DF" : "rgba(12,40,74,0.65)";
 
   return (
     <>
@@ -341,8 +358,9 @@ export function BottomTabBar() {
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         paddingLeft: "8px",
         paddingRight: "8px",
-        background: "linear-gradient(to bottom, rgb(14,57,90), rgb(8,30,56))",
-        boxShadow: "0 4px 24px rgba(1,41,77,0.25), 0 1px 0 rgba(172,222,242,0.08) inset",
+        background: barBackground,
+        borderTop: barBorderTop,
+        boxShadow: barShadow,
       }}
     >
       {MOBILE_NAV_ITEMS.map((item) => {
@@ -365,7 +383,7 @@ export function BottomTabBar() {
             <Icon
               size={22}
               strokeWidth={isActive ? 1.83 : 1.26}
-              color={isActive ? "#EBFD00" : "#D1D8DF"}
+              color={isActive ? activeColor : inactiveColor}
             />
             <span
               style={{
@@ -373,7 +391,7 @@ export function BottomTabBar() {
                 lineHeight: "11px",
                 fontWeight: isActive ? 600 : 400,
                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                color: isActive ? "#EBFD00" : "#D1D8DF",
+                color: isActive ? activeColor : inactiveColor,
               }}
             >
               {item.label}

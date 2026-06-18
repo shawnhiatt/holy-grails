@@ -339,12 +339,14 @@ These never change with theme and are always hardcoded where used.
 
 | Value | Usage |
 |---|---|
-| `#EBFD00` | Active nav, CTA buttons, logo accent, sync/action buttons |
-| `#01294D` | Nav background |
-| `#214564` | Nav border |
-| `#D1D8DF` | Inactive nav icon + label |
+| `#EBFD00` | CTA buttons, logo accent, sync/action buttons, dark-mode active nav |
+| `#01294D` | Nav background (desktop top nav) |
+| `#214564` | Nav border (desktop top nav) |
+| `#D1D8DF` | Dark-mode inactive nav icon + label |
 | `#d9e800` | CTA button hover state |
-| `#0C284A` | Text on yellow CTA buttons |
+| `#0C284A` | Text on yellow CTA buttons, light-mode active nav |
+
+**Exception — the mobile bottom nav is theme-aware** (see Navigation Structure → Mobile). It does not use the fixed nav background/border above. Its surface, active, and inactive colors switch with `isDarkMode`.
 
 ##### Yellow CTA Buttons
 ```tsx
@@ -693,7 +695,9 @@ Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 - `left: 0`, `right: 0`, `bottom: 0`, `border-radius: 0`
 - Height: `calc(54px + env(safe-area-inset-bottom, 0px))`
 - `paddingBottom: env(safe-area-inset-bottom, 0px)` applied internally
-- Background: `linear-gradient(to bottom, rgb(18,60,92), rgb(12,32,56))`
+- **Theme-aware surface** (reads `isDarkMode`):
+  - Dark: background `linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)` (derived from `--c-surface-alt` → `--c-bg`), top border `rgba(172,222,242,0.08)`, active `#EBFD00`, inactive `#D1D8DF`
+  - Light: background `linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)`, top border `#D2D8DE`, active `#0C284A` (navy, matching desktop nav — yellow does not read on a light bar), inactive `rgba(12,40,74,0.65)`
 - The PWA standalone `.bottom-tab-bar` override has been removed — flush bar requires no override
 
 5 items:
