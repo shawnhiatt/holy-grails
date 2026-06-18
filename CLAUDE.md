@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.5.5
+# CLAUDE.md — Holy Grails v0.5.6
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -97,6 +97,8 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 
 **convex/discogs.ts** — `"use node"` directive. Contains 19 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`, `proxyAddToCollection`. All take `sessionToken` as the first argument.
 
+**Self-operation username derivation:** Actions that operate on the authenticated user's own data (collection value, instance updates, folder moves/management, collection add/remove, wantlist add/remove, profile update) build their Discogs URLs from `creds.username` returned by `getUserCredentials` — the client-supplied `username` argument is accepted for backward compatibility but ignored. Only the cross-user read actions (`proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`) honor the `username` argument, since they are also used to fetch followed users' data.
+
 `proxyAddToCollection` — action #19. POSTs to `/users/{username}/collection/folders/{folder_id}/releases/{release_id}`. Defaults to folder 1 (Uncategorized). Returns `instance_id`. Caller inserts album into local state and Convex collection cache — no full re-sync.
 
 **convex/discogsHelpers.ts** — Contains `getUserCredentials` (internalQuery). Separated from `convex/discogs.ts` because Convex does not allow queries in `"use node"` runtime files. If adding new internal queries needed by Discogs actions, they must live here, not in `discogs.ts`.
@@ -184,7 +186,7 @@ src/
       slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork. Blurs the active element on mount (`document.activeElement?.blur()`) to dismiss the iOS software keyboard whenever a panel opens over an active text input. App-wide — no individual tap handlers need to handle this.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in sessions.tsx. Use this for any future list item deletion on mobile.
       theme.ts
-      unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD). Project ID: `AsNXonIuH0GaiKmG36KD`. Falls back to `#01294D` if WebGL is unavailable.
+      unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD, v2.1.4). Scene loaded from local `/splash-screen.json` (scene ID `w7mlqmYVwPpRyrBLkt7m`). Falls back to `#01294D` if WebGL is unavailable.
       use-shake.ts  # Shake-to-Random gesture hook. Detects lateral shake via DeviceMotion API (threshold: 25 m/s²), fires callback. Requires iOS DeviceMotionEvent.requestPermission() flow — toggle lives in Settings → Gestures. Preference persisted to Convex (`shake_to_random`). `App.tsx` performs a silent boot-time permission check: if `shakeToRandom` is `true` on load and `DeviceMotionEvent.requestPermission()` does not return `'granted'`, the preference is reset to `false` in Convex and a toast is shown. The check runs once per session via a `hasDonePermissionCheckRef` guard.
     hooks/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
@@ -413,6 +415,7 @@ Image card overlays using `rgba(0,0,0,...)` for photo readability are intentiona
 ### Typography
 
 - **Display / Headings**: `Bricolage Grotesque` (weights 300–700)
+- **Decorative display accents**: `Rock Salt` (Shuffle heading, Format Spotlight) and `Manufacturing Consent` (Insights heading on the feed) — loaded in `fonts.css`, used only for these named feed moments. Do not use them anywhere else.
 - **Body / UI labels**: `DM Sans` (weights 300–700)
 - Both loaded via Google Fonts in `src/styles/fonts.css`
 - Never use system fonts for headings — Bricolage Grotesque is part of the brand
@@ -769,8 +772,9 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Offline banner | `z-[115]` | offline-banner.tsx |
 | Album detail mobile backdrop | `z-[110]` | album-detail.tsx |
 | Desktop side panel | `z-[110]` | App.tsx |
+| New session / Add user FABs (mobile) | `z-[105]` | sessions.tsx, following-screen.tsx |
 | Swiper lightbox overlay | `z-[100]` | crate-flip.tsx |
-| Swiper active card | `z-101` | crate-flip.tsx |
+| Swiper active card | `zIndex: 101` | crate-flip.tsx |
 | Scroll fade overlay | `z-100` | App.tsx |
 | Delete confirmation modals | `z-[90]` | sessions.tsx |
 | Purge tracker sheet | `z-[89]` | purge-tracker.tsx |
@@ -782,6 +786,7 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Filter drawer panel | `z-[70]` | filter-drawer.tsx |
 | Filter drawer backdrop | `z-[60]` | filter-drawer.tsx |
 | Desktop session picker | `z-50` | session-picker-sheet.tsx |
+| Mobile feed header (transparent-over-hero) | `zIndex: 50` | App.tsx |
 | Alphabet index sidebar | `z-40` | album-grid.tsx, album-list.tsx |
 | Wantlist card close button | `z-[2]` | wantlist.tsx |
 | Wantlist card hover overlay | `z-[1]` | wantlist.tsx |
@@ -919,7 +924,7 @@ No other localStorage usage is permitted anywhere in the codebase.
 
 **Folder sync architecture (per-folder fetching)**
 
-`proxyFetchCollection` fetches collection releases per-folder rather than from the aggregate folder 0 ("All") endpoint. This is required because the Discogs API does not return `folder_id` on release objects from the folder 0 endpoint. The flow: fetch the folder list via `/collection/folders`, then for each folder (skipping folder 0), fetch `/collection/folders/{id}/releases` and inject `folder_id` from the folder being fetched onto each release before mapping. Folder 1 ("Uncategorized") is included — it is a real folder releases can live in. Rate limiting uses the existing `sleep(250)` between requests.
+`proxyFetchCollection` fetches collection releases per-folder rather than from the aggregate folder 0 ("All") endpoint. This is required because the Discogs API does not return `folder_id` on release objects from the folder 0 endpoint. The flow: fetch the folder list via `/collection/folders`, then for each folder (skipping folder 0), fetch `/collection/folders/{id}/releases` and inject `folder_id` from the folder being fetched onto each release before mapping. Folder 1 ("Uncategorized") is included — it is a real folder releases can live in. Rate limiting uses `sleep(1100)` between paginated requests (~54 req/min, under the 60 req/min authenticated limit), and `discogsFetch` retries 429 responses up to 2 times, honoring the `Retry-After` header.
 
 **skipPrivateFields**
 

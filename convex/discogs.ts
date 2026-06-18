@@ -76,6 +76,11 @@ function buildOAuthHeader(
   );
 }
 
+// Retry budget for 429 rate-limit responses. The OAuth header is rebuilt on
+// every attempt — signatures embed a timestamp and nonce, so a reused header
+// would be rejected.
+const RATE_LIMIT_MAX_RETRIES = 2;
+
 async function discogsFetch(
   method: string,
   url: string,
@@ -83,12 +88,24 @@ async function discogsFetch(
   tokenSecret: string,
   body?: string
 ): Promise<Response> {
-  const headers: Record<string, string> = {
-    Authorization: buildOAuthHeader(method, url, accessToken, tokenSecret),
-    "User-Agent": USER_AGENT,
-  };
-  if (body) headers["Content-Type"] = "application/json";
-  return fetch(url, { method, headers, body });
+  for (let attempt = 0; ; attempt++) {
+    const headers: Record<string, string> = {
+      Authorization: buildOAuthHeader(method, url, accessToken, tokenSecret),
+      "User-Agent": USER_AGENT,
+    };
+    if (body) headers["Content-Type"] = "application/json";
+    const res = await fetch(url, { method, headers, body });
+    if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter, 60) * 1000
+        : 5000 * (attempt + 1);
+    console.warn(
+      `[Discogs] 429 rate limited — retrying in ${waitMs}ms (attempt ${attempt + 1}/${RATE_LIMIT_MAX_RETRIES})`
+    );
+    await sleep(waitMs);
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -501,7 +518,7 @@ export const proxyFetchCollection = action({
       let totalPages = 1;
 
       while (page <= totalPages) {
-        if (!isFirstRequest) await sleep(250);
+        if (!isFirstRequest) await sleep(1100);
         isFirstRequest = false;
         const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${folderId}/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`;
         const res = await discogsFetch(
@@ -569,7 +586,7 @@ export const proxyFetchWantlist = action({
     let totalPages = 1;
 
     while (page <= totalPages) {
-      if (page > 1) await sleep(250);
+      if (page > 1) await sleep(1100);
       const url = `${BASE}/users/${encodeURIComponent(args.username)}/wants?per_page=100&page=${page}`;
       const res = await discogsFetch(
         "GET",
@@ -579,7 +596,7 @@ export const proxyFetchWantlist = action({
       );
       if (!res.ok)
         throw new Error(
-          `Failed to fetch want list page ${page} (${res.status})`
+          `Failed to fetch wantlist page ${page} (${res.status})`
         );
       const data: WantPage = await res.json();
       totalPages = data.pagination.pages;
@@ -617,7 +634,7 @@ export const proxyFetchCollectionValue = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/value`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/value`;
     const res = await discogsFetch(
       "GET",
       url,
@@ -675,7 +692,7 @@ export const proxyUpdateCollectionInstance = action({
       { sessionToken: args.sessionToken }
     );
     const fieldDefs = await fetchCustomFieldsInternal(
-      args.username,
+      creds.username,
       creds.access_token,
       creds.token_secret
     );
@@ -714,7 +731,7 @@ export const proxyUpdateCollectionInstance = action({
     }
 
     for (const update of updates) {
-      const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.folderId}/releases/${args.releaseId}/instances/${args.instanceId}/fields/${update.fieldId}`;
+      const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.folderId}/releases/${args.releaseId}/instances/${args.instanceId}/fields/${update.fieldId}`;
       const res = await discogsFetch(
         "POST",
         url,
@@ -749,7 +766,7 @@ export const proxyMoveToFolder = action({
     );
 
     // Single call: POST to the existing instance URL with new folder_id in body
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.oldFolderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.oldFolderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
     const res = await discogsFetch(
       "POST",
       url,
@@ -782,7 +799,7 @@ export const proxyRemoveFromCollection = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.folderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.folderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
     const res = await discogsFetch(
       "DELETE",
       url,
@@ -811,7 +828,7 @@ export const proxyAddToWantlist = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/wants/${args.releaseId}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/wants/${args.releaseId}`;
     const res = await discogsFetch(
       "PUT",
       url,
@@ -858,7 +875,7 @@ export const proxyRemoveFromWantlist = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/wants/${args.releaseId}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/wants/${args.releaseId}`;
     const res = await discogsFetch(
       "DELETE",
       url,
@@ -1070,7 +1087,7 @@ export const proxyFetchFolders = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders`;
     const res = await discogsFetch(
       "GET",
       url,
@@ -1098,7 +1115,7 @@ export const proxyCreateFolder = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders`;
     const res = await discogsFetch(
       "POST",
       url,
@@ -1134,7 +1151,7 @@ export const proxyRenameFolder = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.folderId}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.folderId}`;
     const res = await discogsFetch(
       "POST",
       url,
@@ -1169,7 +1186,7 @@ export const proxyDeleteFolder = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${args.folderId}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.folderId}`;
     const res = await discogsFetch(
       "DELETE",
       url,
@@ -1199,7 +1216,7 @@ export const proxyUpdateProfile = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}`;
     const payload: Record<string, string> = {};
     if (args.profile !== undefined) payload.profile = args.profile;
     if (args.location !== undefined) payload.location = args.location;
@@ -1238,7 +1255,7 @@ export const proxyAddToCollection = action({
       { sessionToken: args.sessionToken }
     );
     const folderId = args.folderId ?? 1; // default to Uncategorized
-    const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${folderId}/releases/${args.releaseId}`;
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${folderId}/releases/${args.releaseId}`;
     const res = await discogsFetch(
       "POST",
       url,

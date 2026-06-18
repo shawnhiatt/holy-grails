@@ -87,6 +87,7 @@ function ThemeSwitch({
         ...(isHeader ? { border: `1px solid ${isDark ? "rgba(226,232,240,0.2)" : "transparent"}` } : {}),
       }}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
       <Sun
         size={12}
@@ -177,6 +178,7 @@ export function MobileHeader() {
         onClick={() => { setScreen("following"); }}
         className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
         title="Following"
+        aria-label="Following"
       >
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -193,6 +195,7 @@ export function MobileHeader() {
         onClick={() => { setScreen("settings"); }}
         className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
         title="Settings"
+        aria-label="Settings"
       >
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -229,6 +232,7 @@ export function MobileHeader() {
             onClick={() => { onBackFromProfile?.(); }}
             className="w-9 h-9 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer flex-shrink-0"
             style={{ color: "var(--c-text)" }}
+            aria-label="Back"
           >
             <ArrowLeft size={20} />
           </button>
@@ -268,6 +272,7 @@ export function MobileHeader() {
           className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors cursor-pointer flex-shrink-0"
           style={{ color: "var(--c-text-muted)" }}
           title="Unfollow"
+          aria-label="Unfollow"
         >
           <UserMinus size={16} />
         </button>

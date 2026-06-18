@@ -900,6 +900,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowFilterDrawer(false);
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
+    setSelectedFeedAlbum(null);
     setSessionPickerAlbumId(null);
   }, []);
 
@@ -1849,6 +1850,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFolders([]);
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
+    setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
     setSearchQuery("");
     setActiveFolder("All");
@@ -1861,7 +1863,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSyncProgress("");
     setLastPlayed({});
     setNeverPlayedFilter(false);
-    setRediscoverMode(false);
     setShowAlbumDetail(false);
     setShowFilterDrawer(false);
     setUserAvatar("");
@@ -1925,6 +1926,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFolders([]);
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
+    setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
     setSearchQuery("");
     setActiveFolder("All");
@@ -1939,7 +1941,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSyncProgress("");
     setLastPlayed({});
     setNeverPlayedFilter(false);
-    setRediscoverMode(false);
     setShowAlbumDetail(false);
     setShowFilterDrawer(false);
     setUserAvatar("");

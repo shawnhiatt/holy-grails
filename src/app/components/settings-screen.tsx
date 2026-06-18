@@ -264,7 +264,7 @@ export function SettingsScreen() {
             {/* Avatar + username + member since */}
             <div className="flex items-center gap-3">
               {userAvatar ? (
-                <img src={userAvatar} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+                <img src={userAvatar} alt="Your avatar" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
               ) : (
                 <div className="w-12 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--c-chip-bg)" }} />
               )}

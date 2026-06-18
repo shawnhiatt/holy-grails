@@ -85,6 +85,7 @@ export function Sessions() {
       <button
         onClick={() => setShowNewSession(true)}
         className="lg:hidden fixed z-[105] flex items-center justify-center tappable"
+        aria-label="New session"
         style={{
           bottom: "calc(54px + env(safe-area-inset-bottom, 0px) + 12px)",
           right: "12px",
@@ -155,7 +156,7 @@ export function Sessions() {
                       <div className="relative w-12 h-12 flex-shrink-0">
                         {sessionAlbums.length > 0 ? (
                           sessionAlbums.slice(0, 3).map((album, i) => (
-                            <img key={album!.id} src={album!.thumb || album!.cover} alt="" className="absolute w-10 h-10 rounded-[6px] object-cover"
+                            <img loading="lazy" decoding="async" key={album!.id} src={album!.thumb || album!.cover} alt="" className="absolute w-10 h-10 rounded-[6px] object-cover"
                               style={{ top: i * 2, left: i * 2, zIndex: 3 - i, border: "2px solid var(--c-surface)" }} />
                           ))
                         ) : (
@@ -332,7 +333,7 @@ function SessionDetail({
                     onClick={() => onAlbumTap(album!.id)}
                     className="flex items-center gap-2.5 flex-1 min-w-0 text-left tappable"
                   >
-                    <img src={album!.thumb || album!.cover} alt={album!.title} className="w-9 h-9 rounded-[6px] object-cover flex-shrink-0" />
+                    <img loading="lazy" decoding="async" src={album!.thumb || album!.cover} alt={album!.title} className="w-9 h-9 rounded-[6px] object-cover flex-shrink-0" />
                     <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                       <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album!.title}</p>
                       <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album!.artist}</p>

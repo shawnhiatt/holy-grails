@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, Component } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { Toaster, toast } from "sonner";
 import { AppProvider, useApp } from "./components/app-context";
 import { BottomTabBar, DesktopTopNav, MobileHeader } from "./components/navigation";
@@ -101,11 +101,11 @@ function AppContent() {
         const result = await (DeviceMotionEvent as any).requestPermission();
         if (result !== 'granted') {
           setShakeToRandom(false);
-          toast("Shake permission was reset by iOS. Re-enable in Settings to reactivate.", { duration: 5000 });
+          toast("Shake permission reset. Re-enable in Settings.", { duration: 5000 });
         }
       } catch {
         setShakeToRandom(false);
-        toast("Shake permission was reset by iOS. Re-enable in Settings to reactivate.", { duration: 5000 });
+        toast("Shake permission reset. Re-enable in Settings.", { duration: 5000 });
       }
     })();
   }, [shakeToRandom, setShakeToRandom]);
@@ -494,7 +494,12 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AppProvider>
-        <AppContent />
+        {/* reducedMotion="user" — Framer Motion honors the OS prefers-reduced-motion
+            setting (transform/layout animations disabled, opacity preserved).
+            CSS animations are already covered by the media query in theme.css. */}
+        <MotionConfig reducedMotion="user">
+          <AppContent />
+        </MotionConfig>
       </AppProvider>
     </ErrorBoundary>
   );

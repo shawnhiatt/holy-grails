@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
   Heart,
   Scissors,
@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { useApp } from "./app-context";
 import type { FollowingFeedEntry } from "./app-context";
 import type { Screen } from "./app-context";
-import { getCachedCollectionValue } from "./discogs-api";
+import { getCachedCollectionValue, type Album } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { purgeIndicatorColor, purgeTagColor, purgeButtonBg, purgeButtonText, purgeToast } from "./purge-colors";
 import { useSafeTap } from "../lib/use-safe-tap";
@@ -29,6 +29,156 @@ import { DominantColorCard } from "./dominant-color-card";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
+
+/* ─── Recent Album Card (memoized — used by Recently Added; module scope so
+   the component identity is stable across FeedScreen renders) ─── */
+
+interface RecentAlbumCardProps {
+  album: Album;
+  width?: string;
+  isDarkMode: boolean;
+  /** Resolved purge indicator color, or undefined when hidden/untagged */
+  purgeColor?: string;
+  playCount: number;
+  onOpen: (id: string) => void;
+}
+
+const RecentAlbumCard = memo(function RecentAlbumCard({ album, width, isDarkMode, purgeColor, playCount, onOpen }: RecentAlbumCardProps) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      {...useSafeTap(() => onOpen(album.id))}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(album.id);
+        }
+      }}
+      className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
+      style={{
+        width: width || undefined,
+        flexShrink: width ? 0 : undefined,
+        backgroundColor: "var(--c-surface)",
+        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+        boxShadow: "var(--c-card-shadow)",
+        touchAction: "manipulation",
+      }}
+    >
+      {/* Cover art */}
+      <div className="relative aspect-square overflow-hidden">
+        <img loading="lazy" decoding="async"
+          src={album.cover}
+          alt={`${album.artist} - ${album.title}`}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          draggable={false}
+        />
+        {purgeColor && (
+          <div
+            className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
+            style={{ backgroundColor: purgeColor }}
+          />
+        )}
+        {playCount >= 1 && (
+          <div
+            className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
+            style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
+          >
+            <Play size={9} fill="white" color="white" />
+            <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              {playCount}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Metadata */}
+      <div className="px-2 pt-[6px] pb-2" style={{ minWidth: 0, overflow: "hidden" }}>
+        <p
+          style={{
+            fontSize: "13px",
+            fontWeight: 600,
+            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            color: "var(--c-text)",
+            lineHeight: "1.25",
+            display: "block",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            WebkitTextOverflow: "ellipsis",
+            maxWidth: "100%",
+          } as React.CSSProperties}
+        >
+          {album.title}
+        </p>
+        <p
+          className="mt-[1px]"
+          style={{
+            fontSize: "12px",
+            fontWeight: 400,
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            color: "var(--c-text-secondary)",
+            lineHeight: "1.3",
+            display: "block",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            WebkitTextOverflow: "ellipsis",
+            maxWidth: "100%",
+          } as React.CSSProperties}
+        >
+          {album.artist}
+        </p>
+        <div className="flex items-center gap-1.5 mt-[3px]" style={{ minWidth: 0, overflow: "hidden" }}>
+          {hasYear(album.year) && (
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 400,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              color: "var(--c-text-muted)",
+              flexShrink: 0,
+            }}
+          >
+            {album.year}
+          </span>
+          )}
+          <span
+            className="rounded-full"
+            style={{
+              display: "inline-flex",
+              overflow: "hidden",
+              flexShrink: 1,
+              minWidth: 0,
+              padding: "1px 6px",
+              fontSize: "10px",
+              fontWeight: 500,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              backgroundColor: isDarkMode
+                ? "rgba(172,222,242,0.2)"
+                : "rgba(172,222,242,0.5)",
+              color: isDarkMode ? "#ACDEF2" : "#00527A",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                WebkitTextOverflow: "ellipsis",
+                maxWidth: "100%",
+                width: "100%",
+              } as React.CSSProperties}
+            >
+              {album.folder}
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -662,145 +812,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </div>
   ) : null;
 
-  /* ─────────────── SHARED ALBUM CARD (used by Recently Added + This Week) ─────────────── */
-  const RecentAlbumCard = ({ album, width }: { album: typeof albums[0]; width?: string }) => {
-    const purgeColor = album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined;
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setSelectedAlbumId(album.id);
-            setShowAlbumDetail(true);
-          }
-        }}
-        className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
-        style={{
-          width: width || undefined,
-          flexShrink: width ? 0 : undefined,
-          backgroundColor: "var(--c-surface)",
-          border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
-          boxShadow: "var(--c-card-shadow)",
-          touchAction: "manipulation",
-        }}
-      >
-        {/* Cover art */}
-        <div className="relative aspect-square overflow-hidden">
-          <img
-            src={album.cover}
-            alt={`${album.artist} - ${album.title}`}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            draggable={false}
-          />
-          {!hidePurgeIndicators && album.purgeTag && purgeColor && (
-            <div
-              className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full shadow-sm"
-              style={{ backgroundColor: purgeColor }}
-            />
-          )}
-          {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
-            <div
-              className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
-              style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
-            >
-              <Play size={9} fill="white" color="white" />
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                {playCounts[String(album.release_id)]}
-              </span>
-            </div>
-          )}
-        </div>
+  /* RecentAlbumCard moved to module scope (memoized) — see top of file */
 
-        {/* Metadata */}
-        <div className="px-2 pt-[6px] pb-2" style={{ minWidth: 0, overflow: "hidden" }}>
-          <p
-            style={{
-              fontSize: "13px",
-              fontWeight: 600,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: "var(--c-text)",
-              lineHeight: "1.25",
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.title}
-          </p>
-          <p
-            className="mt-[1px]"
-            style={{
-              fontSize: "12px",
-              fontWeight: 400,
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              color: "var(--c-text-secondary)",
-              lineHeight: "1.3",
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.artist}
-          </p>
-          <div className="flex items-center gap-1.5 mt-[3px]" style={{ minWidth: 0, overflow: "hidden" }}>
-            {hasYear(album.year) && (
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 400,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                color: "var(--c-text-muted)",
-                flexShrink: 0,
-              }}
-            >
-              {album.year}
-            </span>
-            )}
-            <span
-              className="rounded-full"
-              style={{
-                display: "inline-flex",
-                overflow: "hidden",
-                flexShrink: 1,
-                minWidth: 0,
-                padding: "1px 6px",
-                fontSize: "10px",
-                fontWeight: 500,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                backgroundColor: isDarkMode
-                  ? "rgba(172,222,242,0.2)"
-                  : "rgba(172,222,242,0.5)",
-                color: isDarkMode ? "#ACDEF2" : "#00527A",
-              }}
-            >
-              <span
-                style={{
-                  display: "block",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  WebkitTextOverflow: "ellipsis",
-                  maxWidth: "100%",
-                  width: "100%",
-                } as React.CSSProperties}
-              >
-                {album.folder}
-              </span>
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   /* ─────────────── THIS WEEK IN YOUR COLLECTION ─────────────── */
   /* ─────────────── ON THE HUNT — wantlist section ─────────────── */
@@ -897,7 +910,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             >
               {/* Cover art */}
               <div className="relative aspect-square overflow-hidden">
-                <img
+                <img loading="lazy" decoding="async"
                   src={item.cover || item.thumb}
                   alt={`${item.artist} - ${item.title}`}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -994,7 +1007,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           >
             {/* Cover art */}
             <div className="relative aspect-square overflow-hidden">
-              <img
+              <img loading="lazy" decoding="async"
                 src={item.cover || item.thumb}
                 alt={`${item.artist} - ${item.title}`}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
@@ -1103,7 +1116,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             setShowAlbumDetail(true);
           })}
         >
-          <img
+          <img loading="lazy" decoding="async"
             src={item.albumThumb || item.albumCover}
             alt={item.albumTitle}
             className="w-full h-full rounded-[8px] object-cover"
@@ -1122,7 +1135,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             }}
           >
             {item.followedAvatar ? (
-              <img
+              <img loading="lazy" decoding="async"
                 src={item.followedAvatar}
                 alt={item.followedUsername}
                 className="w-full h-full object-cover"
@@ -1429,7 +1442,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       {/* Desktop: 6-column static grid */}
       <div className="hidden lg:grid grid-cols-6 gap-3">
         {recentlyAdded.slice(0, 6).map((album) => (
-          <RecentAlbumCard key={album.id} album={album} />
+          <RecentAlbumCard key={album.id} album={album} isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleDepthsTap} />
         ))}
       </div>
 
@@ -1450,7 +1463,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{ paddingRight: "16px" }}
         >
           {recentlyAdded.map((album) => (
-            <RecentAlbumCard key={album.id} album={album} width="145px" />
+            <RecentAlbumCard key={album.id} album={album} width="145px" isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleDepthsTap} />
           ))}
         </div>
       </div>
@@ -1767,7 +1780,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               }}
             >
               {/* Artwork full width */}
-              <img
+              <img loading="lazy" decoding="async"
                 src={purgeEvalAlbum.cover}
                 alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                 className="w-full aspect-square rounded-[8px] object-cover cursor-pointer"
@@ -1852,7 +1865,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 }}
               >
                 {/* Album cover — 60% width */}
-                <img
+                <img loading="lazy" decoding="async"
                   src={purgeEvalAlbum.cover}
                   alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                   className="cursor-pointer"

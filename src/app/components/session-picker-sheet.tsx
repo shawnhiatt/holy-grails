@@ -261,6 +261,7 @@ function PickerContent({
         <button
           onClick={closeSessionPicker}
           className="flex-shrink-0 tappable rounded-full flex items-center justify-center"
+          aria-label="Close"
           style={{
             width: 28,
             height: 28,

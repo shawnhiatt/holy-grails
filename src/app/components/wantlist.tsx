@@ -793,7 +793,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 {...useSafeTap(() => onSelect(want))}
               >
                 <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
-                  <img src={want.thumb || want.cover} alt={want.title} className="w-full h-full object-cover" />
+                  <img loading="lazy" decoding="async" src={want.thumb || want.cover} alt={want.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{want.title}</p>
@@ -865,7 +865,7 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
       }}
     >
       <div className="relative aspect-square overflow-hidden">
-        <img src={item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
+        <img loading="lazy" decoding="async" src={item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
 
         <button
           onClick={() => togglePriority(item.id)}

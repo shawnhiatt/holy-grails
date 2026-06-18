@@ -150,7 +150,7 @@ export function InstallNudge() {
               >
                 {isIOS
                   ? "Tap the Share button below, then choose \u2018Add to Home Screen\u2019."
-                  : "Add Holy Grails to your home screen for the best experience."}
+                  : "Add Holy Grails to your home screen for quick access."}
               </p>
             </div>
 
