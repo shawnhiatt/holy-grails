@@ -30,6 +30,8 @@ export const getLatestUser = query({
       collection_value: user.collection_value,
       collection_value_synced_at: user.collection_value_synced_at,
       shareActivity: user.shareActivity,
+      last_collection_count: user.last_collection_count,
+      last_wantlist_count: user.last_wantlist_count,
     };
   },
 });
@@ -51,6 +53,8 @@ export const getMe = query({
       collection_value: user.collection_value,
       collection_value_synced_at: user.collection_value_synced_at,
       shareActivity: user.shareActivity,
+      last_collection_count: user.last_collection_count,
+      last_wantlist_count: user.last_wantlist_count,
     };
   },
 });
@@ -116,10 +120,23 @@ export const setShareActivity = mutation({
 });
 
 export const updateLastSynced = mutation({
-  args: { sessionToken: v.string() },
+  args: {
+    sessionToken: v.string(),
+    // Raw Discogs counts observed during this sync, persisted so the next
+    // cold load's probe can detect whether anything changed.
+    collectionCount: v.optional(v.number()),
+    wantlistCount: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
-    await ctx.db.patch(user._id, { last_synced_at: Date.now() });
+    const patch: {
+      last_synced_at: number;
+      last_collection_count?: number;
+      last_wantlist_count?: number;
+    } = { last_synced_at: Date.now() };
+    if (args.collectionCount !== undefined) patch.last_collection_count = args.collectionCount;
+    if (args.wantlistCount !== undefined) patch.last_wantlist_count = args.wantlistCount;
+    await ctx.db.patch(user._id, patch);
   },
 });
 

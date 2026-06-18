@@ -72,6 +72,130 @@ export const replaceAll = mutation({
   },
 });
 
+const albumFields = {
+  releaseId: v.number(),
+  masterId: v.optional(v.number()),
+  instanceId: v.number(),
+  folderId: v.optional(v.number()),
+  artist: v.string(),
+  title: v.string(),
+  year: v.number(),
+  thumb: v.optional(v.string()),
+  cover: v.string(),
+  folder: v.string(),
+  label: v.string(),
+  catalogNumber: v.string(),
+  format: v.string(),
+  mediaCondition: v.string(),
+  sleeveCondition: v.string(),
+  pricePaid: v.string(),
+  notes: v.string(),
+  customFields: v.optional(
+    v.array(v.object({
+      name: v.string(),
+      value: v.string(),
+      fieldId: v.optional(v.number()),
+      type: v.optional(v.string()),
+      options: v.optional(v.array(v.string())),
+    }))
+  ),
+  dateAdded: v.string(),
+};
+
+// Fields compared to decide whether an existing row needs patching during a
+// diff sync. Identity/display fields are included; releaseId is the key.
+type AlbumInput = {
+  releaseId: number;
+  masterId?: number;
+  instanceId: number;
+  folderId?: number;
+  artist: string;
+  title: string;
+  year: number;
+  thumb?: string;
+  cover: string;
+  folder: string;
+  label: string;
+  catalogNumber: string;
+  format: string;
+  mediaCondition: string;
+  sleeveCondition: string;
+  pricePaid: string;
+  notes: string;
+  customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
+  dateAdded: string;
+};
+
+function albumSignature(a: AlbumInput | Record<string, unknown>): string {
+  return JSON.stringify([
+    (a as AlbumInput).masterId ?? null,
+    (a as AlbumInput).instanceId,
+    (a as AlbumInput).folderId ?? null,
+    (a as AlbumInput).artist,
+    (a as AlbumInput).title,
+    (a as AlbumInput).year,
+    (a as AlbumInput).thumb ?? null,
+    (a as AlbumInput).cover,
+    (a as AlbumInput).folder,
+    (a as AlbumInput).label,
+    (a as AlbumInput).catalogNumber,
+    (a as AlbumInput).format,
+    (a as AlbumInput).mediaCondition,
+    (a as AlbumInput).sleeveCondition,
+    (a as AlbumInput).pricePaid,
+    (a as AlbumInput).notes,
+    (a as AlbumInput).customFields ?? null,
+    (a as AlbumInput).dateAdded,
+  ]);
+}
+
+/**
+ * Incremental sync write: reconcile the cached collection against a freshly
+ * fetched one without deleting everything first.
+ *   - insert releases that are new
+ *   - patch releases whose fields changed
+ *   - delete releases no longer present
+ * Avoids the empty-state flash and write churn of replaceAll, and lets a
+ * background sync update the cache invisibly under the user.
+ */
+export const applyDiff = mutation({
+  args: {
+    sessionToken: v.string(),
+    albums: v.array(v.object(albumFields)),
+  },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const existing = await ctx.db
+      .query("collection")
+      .withIndex("by_username", (q) =>
+        q.eq("discogsUsername", user.discogs_username)
+      )
+      .collect();
+
+    const existingByRelease = new Map(existing.map((row) => [row.releaseId, row]));
+    const incomingIds = new Set<number>();
+
+    for (const album of args.albums) {
+      incomingIds.add(album.releaseId);
+      const row = existingByRelease.get(album.releaseId);
+      if (!row) {
+        await ctx.db.insert("collection", {
+          discogsUsername: user.discogs_username,
+          ...album,
+        });
+      } else if (albumSignature(row as unknown as AlbumInput) !== albumSignature(album)) {
+        await ctx.db.patch(row._id, album);
+      }
+    }
+
+    for (const row of existing) {
+      if (!incomingIds.has(row.releaseId)) {
+        await ctx.db.delete(row._id);
+      }
+    }
+  },
+});
+
 /**
  * Patch a single album document by releaseId.
  * Used after editing instance fields (condition, notes, folder) in the album detail panel.

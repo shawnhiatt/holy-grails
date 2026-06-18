@@ -164,16 +164,27 @@ export function MobileHeader() {
   const {
     screen, setScreen, isDarkMode, userAvatar,
     followedUserProfile, onBackFromProfile, onUnfollowUser,
+    isBackgroundSyncing, isSyncingFollowing,
   } = useApp();
 
   const activeBg = "rgba(172,222,242,0.12)";
   const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
 
   const isProfileView = screen === "following" && followedUserProfile !== null;
+  const showSyncChip = isBackgroundSyncing || isSyncingFollowing;
 
   // Shared right-side nav buttons (Following + Settings)
   const navButtons = (
     <div className="flex items-center flex-shrink-0">
+      {showSyncChip && (
+        <div
+          className="flex items-center justify-center w-11 h-11"
+          title="Syncing"
+          aria-label="Syncing"
+        >
+          <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
+        </div>
+      )}
       <button
         onClick={() => { setScreen("following"); }}
         className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
@@ -406,7 +417,8 @@ export function BottomTabBar() {
 
 /** Desktop top navigation bar — replaces sidebar on lg+ viewports */
 export function DesktopTopNav() {
-  const { screen, setScreen, isDarkMode, toggleDarkMode, userAvatar } = useApp();
+  const { screen, setScreen, isDarkMode, toggleDarkMode, userAvatar, isBackgroundSyncing, isSyncingFollowing } = useApp();
+  const showSyncChip = isBackgroundSyncing || isSyncingFollowing;
 
   const logoFill = isDarkMode ? "#E2E8F0" : "#0C284A";
   const activeColor = isDarkMode ? "#E2E8F0" : "#0C284A";
@@ -482,6 +494,25 @@ export function DesktopTopNav() {
 
       {/* Right nav group + theme toggle */}
       <nav className="flex-1 flex items-center justify-end gap-[2px]">
+        {showSyncChip && (
+          <div
+            className="flex items-center gap-[6px] px-[10px] py-[6px] rounded-[8px] mr-[4px]"
+            title="Syncing"
+            style={{ color: inactiveColor }}
+          >
+            <Disc3 size={15} className="disc-spinner" />
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 400,
+                lineHeight: "13px",
+                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              }}
+            >
+              Syncing
+            </span>
+          </div>
+        )}
         {DESKTOP_RIGHT_NAV.map(renderNavItem)}
         <div className="ml-[8px]">
           <ThemeSwitch isDark={isDarkMode} onToggle={toggleDarkMode} variant="header" />

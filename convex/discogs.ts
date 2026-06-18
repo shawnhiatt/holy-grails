@@ -473,6 +473,42 @@ export const proxyFetchUserProfile = action({
   },
 });
 
+// 2b. Lightweight change-detection probe.
+// Returns the raw Discogs instance counts for the authenticated user's own
+// collection and wantlist from a single profile request. The client compares
+// these against the counts stored at the last sync to decide whether a real
+// sync is needed — turning the common "nothing changed" case into one cheap
+// request instead of a full paginated fetch. Self-operation: counts always come
+// from the authenticated user, so the client-supplied username is ignored.
+export const proxyFetchSyncSignals = action({
+  args: { sessionToken: v.string(), username: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<{ num_collection: number; num_wantlist: number } | null> => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/users/${encodeURIComponent(creds.username)}`;
+    try {
+      const res = await discogsFetch(
+        "GET",
+        url,
+        creds.access_token,
+        creds.token_secret
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        num_collection: (data.num_collection as number) ?? 0,
+        num_wantlist: (data.num_wantlist as number) ?? 0,
+      };
+    } catch (err) {
+      // Network failure or rate limit — treat as "unknown", caller will sync.
+      console.warn("[Discogs] Sync signals probe failed:", err);
+      return null;
+    }
+  },
+});
+
 // 3. Fetch full collection (paginated, with folders + custom fields)
 export const proxyFetchCollection = action({
   args: {
