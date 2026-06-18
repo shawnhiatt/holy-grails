@@ -914,7 +914,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     followingFeedLazyDoneRef.current = true;
     syncFollowingFeed(sessionToken);
-  }, [screen, sessionToken, convexFollowing, convexFollowingFeed, syncFollowingFeed]);
+    // syncFollowingFeed is a stable useCallback defined later in the component;
+    // referencing it here (effect body) is safe, but it must NOT go in the dep
+    // array — that's evaluated during render, before its const initializes (TDZ).
+  }, [screen, sessionToken, convexFollowing, convexFollowingFeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Screen navigation ──
 
