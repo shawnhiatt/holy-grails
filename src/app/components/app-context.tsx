@@ -136,6 +136,7 @@ interface AppState {
   discogsUsername: string;
   setDiscogsUsername: (u: string) => void;
   isSyncing: boolean;
+  isBackgroundSyncing: boolean;
   isSyncingFollowing: boolean;
   syncProgress: string;
   lastSynced: string;
@@ -307,6 +308,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [defaultCollectionSort, setDefaultCollectionSortRaw] = useState<SortOption>("added-new");
   const [folders, setFolders] = useState<{ id: number; name: string; count: number }[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  // Background sync runs without taking over the screen — the app stays
+  // interactive on cached data and a subtle chip surfaces progress.
+  const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
   const [isSyncingFollowing, setIsSyncingFollowing] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
   const [syncFailed, setSyncFailed] = useState(false);
@@ -386,10 +390,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearSessionMut = useMutation(api.users.clearSession);
   const setShareActivityMut = useMutation(api.users.setShareActivity);
   const deleteAllUserDataMut = useMutation(api.users.deleteAllUserData);
-  const replaceCollectionMut = useMutation(api.collection.replaceAll);
   const updateInstanceMut = useMutation(api.collection.updateInstance);
   const updateCollectionValueMut = useMutation(api.users.updateCollectionValue);
   const replaceWantlistMut = useMutation(api.wantlist.replaceAll);
+  const applyCollectionDiffMut = useMutation(api.collection.applyDiff);
+  const applyWantlistDiffMut = useMutation(api.wantlist.applyDiff);
   const addWantlistItemMut = useMutation(api.wantlist.addItem);
   const removeWantlistItemMut = useMutation(api.wantlist.removeItem);
   const upsertFollowingFeedMut = useMutation(api.following_feed.upsert);
@@ -401,6 +406,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
   const proxyFetchCollectionValue = useAction(api.discogs.proxyFetchCollectionValue);
+  const proxyFetchSyncSignals = useAction(api.discogs.proxyFetchSyncSignals);
   const proxyFetchUserCollectionPage = useAction(api.discogs.proxyFetchUserCollectionPage);
   const proxyFetchUserWantlistPage = useAction(api.discogs.proxyFetchUserWantlistPage);
   const proxyRemoveFromCollection = useAction(api.discogs.proxyRemoveFromCollection);
@@ -428,6 +434,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   wantlistRef.current = convexWantlist;
   const followingFeedRef = useRef(convexFollowingFeed);
   followingFeedRef.current = convexFollowingFeed;
+  // Latest user records — read by the background sync probe to compare the
+  // current Discogs counts against the counts stored at the last sync.
+  const convexUserRef = useRef(convexUser);
+  convexUserRef.current = convexUser;
+  const convexLatestUserRef = useRef(convexLatestUser);
+  convexLatestUserRef.current = convexLatestUser;
 
   // Avatar lookup for followed users (username → avatar_url)
   const followingAvatars = useMemo(() => {
@@ -498,25 +510,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexUser]);
 
-  // Auto-sync on initial load for returning users (OAuth or personal token).
-  // If the collection was synced within the last 24 hours, load from
-  // the Convex cache instead of hitting Discogs.
+  // Cache-first boot. On cold load we hydrate the app from the Convex cache
+  // immediately and unconditionally — the 24h timestamp no longer gates app
+  // access. A lightweight background probe (maybeBackgroundSync) then checks
+  // whether anything actually changed on Discogs and syncs only if so, so a
+  // returning user never sits through a sync that has nothing to load.
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
   useEffect(() => {
     if (initialSyncDoneRef.current) return;
     if (!discogsUsername) return;
     if (!sessionToken) return; // wait for session token
+    if (convexCollection === undefined) return; // wait for the cache query to resolve
 
-    const lastSync = convexUser?.last_synced_at ?? convexLatestUser?.last_synced_at ?? null;
-    const isFresh = lastSync != null && Date.now() - lastSync < TWENTY_FOUR_HOURS;
+    initialSyncDoneRef.current = true;
 
-    if (isFresh) {
-      // Cache is fresh — wait for convexCollection to arrive, then hydrate
-      if (convexCollection === undefined) return; // still loading
-
-      initialSyncDoneRef.current = true;
-
+    if (convexCollection.length > 0) {
+      // ── Instant boot: hydrate from cache regardless of age ──
       if (convexCollection.length > 0) {
         // Hydrate albums from Convex cache
         const cachedAlbums: Album[] = convexCollection.map((row) => ({
@@ -680,18 +690,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
           setUserProfile(p);
         }).catch(() => {});
-      } else {
-        // Cache is empty despite being "fresh" — fall back to full sync
-        initialSyncDoneRef.current = true;
-        performSync(discogsUsername, sessionToken).catch((err) => {
-          console.error("[Auto-sync] Failed:", err);
-          setSyncFailed(true);
-          toast.error("Sync failed. Try again in Settings.");
-        });
       }
+
+      // Cache is on screen instantly — now probe Discogs in the background and
+      // perform a real sync only if the collection or wantlist counts changed.
+      maybeBackgroundSync(discogsUsername, sessionToken);
     } else {
-      // Cache is stale or missing — full sync from Discogs
-      initialSyncDoneRef.current = true;
+      // No cached collection — genuine first sync (foreground loading screen).
       performSync(discogsUsername, sessionToken).catch((err) => {
         console.error("[Auto-sync] Failed:", err);
         setSyncFailed(true);
@@ -891,6 +896,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }))
     );
   }, [convexFollowingFeed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lazily sync the following feed in the background the first time the user
+  // opens the Feed or Following screen. Keeps followed users off the boot path
+  // entirely — the feed shows cached data instantly and freshens underneath.
+  // Per-user 24h TTL inside syncFollowingFeed skips users already fresh.
+  const followingFeedLazyDoneRef = useRef(false);
+  useEffect(() => {
+    if (followingFeedLazyDoneRef.current) return;
+    if (screen !== "feed" && screen !== "following") return;
+    if (!sessionToken) return;
+    if (convexFollowing === undefined) return; // wait for following list
+    if (convexFollowingFeed === undefined) return; // wait for cache to hydrate the refs
+    if (convexFollowing.length === 0) {
+      followingFeedLazyDoneRef.current = true;
+      return;
+    }
+    followingFeedLazyDoneRef.current = true;
+    syncFollowingFeed(sessionToken);
+  }, [screen, sessionToken, convexFollowing, convexFollowingFeed, syncFollowingFeed]);
 
   // ── Screen navigation ──
 
@@ -1458,9 +1482,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const performSync = useCallback(async (
     username: string,
     token: string,
-    forceRefresh = false
+    opts: {
+      background?: boolean;
+      signals?: { num_collection: number; num_wantlist: number } | null;
+      // When true, emit a toast summarizing what a background sync brought in.
+      // Used by the auto background path (boot probe, sync-on-focus) — the
+      // manual Sync Now and first-ever sync surface their own feedback.
+      notify?: boolean;
+    } = {}
   ): Promise<{ albums: number; folders: number; wants: number }> => {
-    setIsSyncing(true);
+    const { background = false, signals: probedSignals, notify = false } = opts;
+    // Background syncs flip a separate flag so the loading-screen phase machine
+    // (which watches isSyncing) never takes over the screen — the user keeps
+    // browsing cached data while the cache freshens underneath them.
+    const setSyncFlag = background ? setIsBackgroundSyncing : setIsSyncing;
+    setSyncFlag(true);
     setSyncProgress("Syncing");
     try {
       // Fetch user profile (avatar + enriched data)
@@ -1523,10 +1559,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         hydratedRef.current.lastPlayed = true;
       }
 
-      // Write collection to Convex cache
+      // Write collection to Convex cache — incremental diff (insert/patch/delete)
+      // so the cache never flashes empty mid-background-sync. The returned
+      // counts drive the background-sync completion toast.
       setSyncProgress("Caching collection");
+      let collDiff = { added: 0, removed: 0, updated: 0 };
       try {
-        await replaceCollectionMut({
+        collDiff = await applyCollectionDiffMut({
           sessionToken: token,
           albums: newAlbums.map((a) => ({
             releaseId: a.release_id,
@@ -1554,9 +1593,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn("[Convex] Collection cache write failed:", e);
       }
 
-      // Write wantlist to Convex cache
+      // Write wantlist to Convex cache — incremental diff (insert/patch/delete)
+      let wantDiff = { added: 0, removed: 0, updated: 0 };
       try {
-        await replaceWantlistMut({
+        wantDiff = await applyWantlistDiffMut({
           sessionToken: token,
           items: newWants.map((w) => ({
             release_id: w.release_id,
@@ -1599,110 +1639,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn("[Discogs] Collection value fetch failed:", e);
       }
 
-      // Update lastSynced in Convex
-      updateLastSyncedMut({ sessionToken: token });
+      // Update lastSynced in Convex, persisting the raw Discogs counts so the
+      // next cold load's probe can detect whether anything changed. Reuse the
+      // counts from the probe that triggered this sync; otherwise fetch them.
+      const syncSignals =
+        probedSignals ??
+        (await proxyFetchSyncSignals({ sessionToken: token, username }).catch(() => null));
+      updateLastSyncedMut({
+        sessionToken: token,
+        collectionCount: syncSignals?.num_collection,
+        wantlistCount: syncSignals?.num_wantlist,
+      });
 
-      // ── Following feed sync ──
-      // Sync recent albums from followed users for the feed cache.
-      // Up to 25 users, most recently followed first. Skips users
-      // whose cache is less than 24 hours old.
-      setIsSyncingFollowing(true);
-      setSyncProgress("Syncing users you follow");
-      try {
-        const followingList = followingRef.current;
-        const cachedFeed = followingFeedRef.current;
-        if (followingList && followingList.length > 0) {
-          // Sort by followed_at descending, cap at 25
-          const sorted = [...followingList]
-            .sort((a, b) => b.followed_at - a.followed_at)
-            .slice(0, 25);
+      // Following feed is no longer synced here — it syncs lazily in the
+      // background when the user opens the Feed or Following screen (see
+      // syncFollowingFeed), so it never blocks the collection sync.
 
-          // Build lookup of existing cache entries
-          const cacheMap = new Map<string, number>();
-          if (cachedFeed) {
-            for (const entry of cachedFeed) {
-              cacheMap.set(entry.followed_username, entry.lastSyncedAt);
-            }
-          }
-
-          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-          const now = Date.now();
-          const feedEntries: FollowingFeedEntry[] = [];
-
-          // Pre-populate from cache for users we won't re-fetch
-          if (cachedFeed) {
-            for (const entry of cachedFeed) {
-              feedEntries.push({
-                followed_username: entry.followed_username,
-                lastSyncedAt: entry.lastSyncedAt,
-                recent_albums: entry.recent_albums as FeedAlbum[],
-                recent_wants: (entry.recent_wants as FeedAlbum[] | undefined) ?? undefined,
-              });
-            }
-          }
-
-          for (let i = 0; i < sorted.length; i++) {
-            const record = sorted[i];
-            const followedUser = record.following_username;
-            setSyncProgress(`Syncing users you follow (${i + 1} of ${sorted.length})`);
-
-            if (!forceRefresh) {
-              const lastSynced = cacheMap.get(followedUser);
-              if (lastSynced && (now - lastSynced) < TWENTY_FOUR_HOURS) {
-                // Bypass cache if stored data lacks master_id (pre-schema-change migration)
-                // or is missing recent_wants (first-hydration for wantlist activity)
-                const cachedEntry = cachedFeed?.find(e => e.followed_username === followedUser);
-                const needsMasterIdMigration = cachedEntry?.recent_albums &&
-                  cachedEntry.recent_albums.length > 0 &&
-                  !cachedEntry.recent_albums.some((a: any) => a.master_id);
-                const needsWantsMigration = cachedEntry?.recent_wants === undefined;
-                if (!needsMasterIdMigration && !needsWantsMigration) {
-                  continue; // Cache is fresh and complete — skip
-                }
-              }
-            }
-
-            try {
-              const [recentAlbums, recentWants] = await Promise.all([
-                proxyFetchUserCollectionPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
-                proxyFetchUserWantlistPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
-              ]);
-              await upsertFollowingFeedMut({
-                sessionToken: token,
-                followed_username: followedUser,
-                recent_albums: recentAlbums,
-                recent_wants: recentWants,
-              });
-
-              // Update or add to local feed state
-              const existingIdx = feedEntries.findIndex(e => e.followed_username === followedUser);
-              const entry: FollowingFeedEntry = {
-                followed_username: followedUser,
-                lastSyncedAt: Date.now(),
-                recent_albums: recentAlbums,
-                recent_wants: recentWants,
-              };
-              if (existingIdx >= 0) {
-                feedEntries[existingIdx] = entry;
-              } else {
-                feedEntries.push(entry);
-              }
-            } catch (e) {
-              console.warn(`[FollowingFeed] Could not sync @${followedUser}:`, e);
-            }
-
-            // 1-second delay between Discogs fetches to respect rate limits
-            if (i < sorted.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-
-          setFollowingFeed(feedEntries);
+      // Completion feedback for background syncs the user isn't watching.
+      // Only adds/removes are worth a toast — in-place patches stay silent.
+      if (notify) {
+        let msg: string | null = null;
+        if (collDiff.added > 0 && collDiff.removed === 0) {
+          msg = `${collDiff.added} ${collDiff.added === 1 ? "record" : "records"} added.`;
+        } else if (collDiff.removed > 0 && collDiff.added === 0) {
+          msg = `${collDiff.removed} ${collDiff.removed === 1 ? "record" : "records"} removed.`;
+        } else if (collDiff.added > 0 || collDiff.removed > 0) {
+          msg = "Collection updated.";
+        } else if (wantDiff.added > 0 || wantDiff.removed > 0) {
+          msg = "Wantlist updated.";
         }
-      } catch (e) {
-        console.warn("[FollowingFeed] Sync failed:", e);
-      } finally {
-        setIsSyncingFollowing(false);
+        if (msg) toast(msg);
       }
 
       setSyncProgress("");
@@ -1717,9 +1683,171 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSyncFailed(true);
       throw err;
     } finally {
-      setIsSyncing(false);
+      setSyncFlag(false);
     }
-  }, [updateLastSyncedMut, replaceCollectionMut, replaceWantlistMut, updateCollectionValueMut, upsertFollowingFeedMut, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist, proxyFetchCollectionValue, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage]);
+  }, [updateLastSyncedMut, applyCollectionDiffMut, applyWantlistDiffMut, updateCollectionValueMut, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist, proxyFetchCollectionValue, proxyFetchSyncSignals]);
+
+  // ── Following feed sync (lazy + background) ──
+  // Syncs the recent-activity feed for up to 25 followed users. Pulled out of
+  // performSync so it never blocks the collection sync or the boot flow — it
+  // runs in the background when the user opens the Feed or Following screen,
+  // surfaced via isSyncingFollowing (the subtle chip), never the full screen.
+  // Per-user 24h TTL skips users already fresh in the cache. forceRefresh
+  // (manual Sync Now) bypasses the TTL.
+  const followingFeedSyncInFlightRef = useRef(false);
+  const syncFollowingFeed = useCallback(async (token: string, forceRefresh = false) => {
+    if (followingFeedSyncInFlightRef.current) return;
+    const followingList = followingRef.current;
+    if (!followingList || followingList.length === 0) return;
+
+    followingFeedSyncInFlightRef.current = true;
+    setIsSyncingFollowing(true);
+    try {
+      const cachedFeed = followingFeedRef.current;
+      // Sort by followed_at descending, cap at 25
+      const sorted = [...followingList]
+        .sort((a, b) => b.followed_at - a.followed_at)
+        .slice(0, 25);
+
+      // Build lookup of existing cache entries
+      const cacheMap = new Map<string, number>();
+      if (cachedFeed) {
+        for (const entry of cachedFeed) {
+          cacheMap.set(entry.followed_username, entry.lastSyncedAt);
+        }
+      }
+
+      const now = Date.now();
+      const feedEntries: FollowingFeedEntry[] = [];
+
+      // Pre-populate from cache for users we won't re-fetch
+      if (cachedFeed) {
+        for (const entry of cachedFeed) {
+          feedEntries.push({
+            followed_username: entry.followed_username,
+            lastSyncedAt: entry.lastSyncedAt,
+            recent_albums: entry.recent_albums as FeedAlbum[],
+            recent_wants: (entry.recent_wants as FeedAlbum[] | undefined) ?? undefined,
+          });
+        }
+      }
+
+      for (let i = 0; i < sorted.length; i++) {
+        const followedUser = sorted[i].following_username;
+
+        if (!forceRefresh) {
+          const lastSynced = cacheMap.get(followedUser);
+          if (lastSynced && (now - lastSynced) < TWENTY_FOUR_HOURS) {
+            // Bypass cache if stored data lacks master_id (pre-schema-change migration)
+            // or is missing recent_wants (first-hydration for wantlist activity)
+            const cachedEntry = cachedFeed?.find(e => e.followed_username === followedUser);
+            const needsMasterIdMigration = cachedEntry?.recent_albums &&
+              cachedEntry.recent_albums.length > 0 &&
+              !cachedEntry.recent_albums.some((a: any) => a.master_id);
+            const needsWantsMigration = cachedEntry?.recent_wants === undefined;
+            if (!needsMasterIdMigration && !needsWantsMigration) {
+              continue; // Cache is fresh and complete — skip
+            }
+          }
+        }
+
+        try {
+          const [recentAlbums, recentWants] = await Promise.all([
+            proxyFetchUserCollectionPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
+            proxyFetchUserWantlistPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
+          ]);
+          await upsertFollowingFeedMut({
+            sessionToken: token,
+            followed_username: followedUser,
+            recent_albums: recentAlbums,
+            recent_wants: recentWants,
+          });
+
+          const existingIdx = feedEntries.findIndex(e => e.followed_username === followedUser);
+          const entry: FollowingFeedEntry = {
+            followed_username: followedUser,
+            lastSyncedAt: Date.now(),
+            recent_albums: recentAlbums,
+            recent_wants: recentWants,
+          };
+          if (existingIdx >= 0) {
+            feedEntries[existingIdx] = entry;
+          } else {
+            feedEntries.push(entry);
+          }
+          // Publish progress incrementally so the feed fills in as users resolve
+          setFollowingFeed([...feedEntries]);
+        } catch (e) {
+          console.warn(`[FollowingFeed] Could not sync @${followedUser}:`, e);
+        }
+
+        // 1-second delay between Discogs fetches to respect rate limits
+        if (i < sorted.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      setFollowingFeed(feedEntries);
+    } catch (e) {
+      console.warn("[FollowingFeed] Sync failed:", e);
+    } finally {
+      setIsSyncingFollowing(false);
+      followingFeedSyncInFlightRef.current = false;
+    }
+  }, [TWENTY_FOUR_HOURS, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage, upsertFollowingFeedMut]);
+
+  // ── Background change-detection probe ──
+  // One cheap request: compare the current Discogs collection/wantlist counts
+  // against the counts stored at the last sync. If they match, skip the sync
+  // entirely (the common "nothing changed" case). If they differ — or we've
+  // never recorded counts — run a real sync in the background. Guards against
+  // overlapping runs (boot probe vs sync-on-focus).
+  const bgSyncInFlightRef = useRef(false);
+  const maybeBackgroundSync = useCallback(async (username: string, token: string) => {
+    if (bgSyncInFlightRef.current) return;
+    bgSyncInFlightRef.current = true;
+    try {
+      const signals = await proxyFetchSyncSignals({ sessionToken: token, username });
+      if (!signals) return; // probe failed (offline / rate limit) — leave cache, retry next load
+
+      const prevColl = convexUserRef.current?.last_collection_count
+        ?? convexLatestUserRef.current?.last_collection_count ?? null;
+      const prevWant = convexUserRef.current?.last_wantlist_count
+        ?? convexLatestUserRef.current?.last_wantlist_count ?? null;
+
+      const changed =
+        prevColl == null || prevWant == null ||
+        signals.num_collection !== prevColl ||
+        signals.num_wantlist !== prevWant;
+
+      if (!changed) return; // nothing changed — instant boot, no sync needed
+
+      await performSync(username, token, { background: true, signals, notify: true });
+    } catch (e) {
+      console.warn("[Sync] Background change-check failed:", e);
+    } finally {
+      bgSyncInFlightRef.current = false;
+    }
+  }, [proxyFetchSyncSignals, performSync]);
+
+  // Sync-on-focus. When the PWA regains visibility (reopened after being
+  // backgrounded), run the cheap change probe — not a full sync. Throttled so
+  // rapid tab switches don't re-probe; the boot probe covers the first window.
+  const FOCUS_PROBE_THROTTLE = 5 * 60 * 1000;
+  const lastFocusProbeAtRef = useRef(Date.now());
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!initialSyncDoneRef.current) return; // boot handles the first probe
+      if (!discogsUsername || !sessionToken) return;
+      const now = Date.now();
+      if (now - lastFocusProbeAtRef.current < FOCUS_PROBE_THROTTLE) return;
+      lastFocusProbeAtRef.current = now;
+      maybeBackgroundSync(discogsUsername, sessionToken);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [discogsUsername, sessionToken, maybeBackgroundSync]);
 
   const syncFromDiscogs = useCallback(async (): Promise<{ albums: number; folders: number; wants: number }> => {
     setSyncFailed(false);
@@ -1733,8 +1861,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDiscogsUsername(username);
     }
 
-    return performSync(username, sessionToken, true);
-  }, [discogsUsername, sessionToken, setDiscogsUsername, performSync, proxyFetchIdentity]);
+    // Manual Sync Now runs in the background (chip, not full screen) and is a
+    // full sync — the escape hatch that catches in-place Discogs edits the
+    // count probe can't see. Refresh the following feed too, forced.
+    const stats = await performSync(username, sessionToken, { background: true });
+    syncFollowingFeed(sessionToken, true);
+    return stats;
+  }, [discogsUsername, sessionToken, setDiscogsUsername, performSync, syncFollowingFeed, proxyFetchIdentity]);
 
   // executePurgeCut must be defined after syncFromDiscogs — it references
   // syncFromDiscogs in its dependency array, and accessing a const before its
@@ -2263,6 +2396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       discogsUsername,
       setDiscogsUsername,
       isSyncing,
+      isBackgroundSyncing,
       isSyncingFollowing,
       syncProgress,
       lastSynced,
@@ -2356,7 +2490,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,
       discogsUsername, setDiscogsUsername,
-      isSyncing, isSyncingFollowing, syncProgress, lastSynced,
+      isSyncing, isBackgroundSyncing, isSyncingFollowing, syncProgress, lastSynced,
       syncFromDiscogs, syncStats,
       userAvatar, userProfile, updateProfileFn,
       clearPlayHistory, clearFollowedUsers, clearWantlistPriorities,

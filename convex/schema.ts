@@ -13,6 +13,12 @@ export default defineSchema({
     collection_value: v.optional(v.string()),
     collection_value_synced_at: v.optional(v.number()),
     shareActivity: v.optional(v.boolean()),
+    // Raw Discogs instance counts observed at the last sync. Used by the
+    // lightweight change-detection probe to decide whether a real sync is
+    // needed. Raw (pre-vinyl-filter, pre-dedup) so they compare directly to
+    // the num_collection / num_wantlist returned by the profile endpoint.
+    last_collection_count: v.optional(v.number()),
+    last_wantlist_count: v.optional(v.number()),
   })
     .index("by_username", ["discogs_username"])
     .index("by_session_token", ["session_token"]),

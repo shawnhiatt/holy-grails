@@ -31,6 +31,7 @@ export function SettingsScreen() {
   const {
     discogsUsername,
     isSyncing,
+    isBackgroundSyncing,
     syncProgress,
     lastSynced,
     syncFromDiscogs,
@@ -462,11 +463,11 @@ export function SettingsScreen() {
               }
             </p>
 
-            <button onClick={handleSync} disabled={isSyncing}
+            <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
               style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(12,40,74,0.25)" }}>
-              <Disc3 size={16} className={isSyncing ? "disc-spinner" : ""} />
-              {isSyncing ? (syncProgress || "Syncing...") : "Sync Now"}
+              <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
+              {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
             </button>
             {syncError && (
               <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
