@@ -421,6 +421,8 @@ function FollowedUserProfile({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         items = items.filter((w) => w.artist.toLowerCase().includes(q) || w.title.toLowerCase().includes(q));
+        // While searching, order results by artist A→Z
+        items.sort((a, b) => a.artist.localeCompare(b.artist));
       }
       return items;
     }
@@ -441,6 +443,8 @@ function FollowedUserProfile({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       items = items.filter((a) => a.artist.toLowerCase().includes(q) || a.title.toLowerCase().includes(q));
+      // While searching, order results by artist A→Z
+      items.sort((a, b) => a.artist.localeCompare(b.artist));
     }
     return items;
   }, [tab, filter, user, searchQuery, userReleaseIds, userCutReleaseIds, userWantReleaseIds, userAlbums]);
@@ -684,7 +688,10 @@ function FollowedUserProfile({
                       </div>
                       <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                         <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                          {album.artist} &mdash; {album.title}
+                          {album.title}
+                        </p>
+                        <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                          {album.artist}
                         </p>
                         <p style={{ fontSize: "12px", fontWeight: 500, color: "#009A32" }}>
                           {playCount} {playCount === 1 ? "play" : "plays"}
@@ -731,7 +738,10 @@ function FollowedUserProfile({
                     </div>
                     <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                       <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                        {album.artist} &mdash; {album.title}
+                        {album.title}
+                      </p>
+                      <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                        {album.artist}
                       </p>
                       <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
                         Played {formatRelativeDate(new Date(played_at).toISOString())}

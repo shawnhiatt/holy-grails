@@ -202,7 +202,7 @@ interface AlbumGridProps {
 }
 
 export function AlbumGrid({ albums }: AlbumGridProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, setScreen, sortOption, playCounts, viewMode } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, setScreen, effectiveSortOption: sortOption, playCounts, viewMode } = useApp();
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter;
   const collectionEmpty = allAlbums.length === 0;
 
