@@ -74,6 +74,8 @@ interface AppState {
   setActiveFolder: (f: string) => void;
   sortOption: SortOption;
   setSortOption: (s: SortOption) => void;
+  /** Sort actually applied to the grid — forced to artist A→Z while a search is active, otherwise mirrors sortOption */
+  effectiveSortOption: SortOption;
   filteredAlbums: Album[];
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
   deletePurgeTag: (releaseId: number) => void;
@@ -1012,6 +1014,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [albums, selectedAlbumId]
   );
 
+  // While searching, results are always grouped/sorted by artist A→Z — the
+  // chosen sortOption (and its Date Added grouping) resumes once search clears.
+  const effectiveSortOption: SortOption = searchQuery.trim() ? "artist-az" : sortOption;
+
   const filteredAlbums = useMemo(() => {
     let result = [...albums];
 
@@ -1037,7 +1043,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
-    switch (sortOption) {
+    switch (effectiveSortOption) {
       case "artist-az":
         result.sort((a, b) => a.artist.localeCompare(b.artist));
         break;
@@ -1078,7 +1084,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     return result;
-  }, [albums, activeFolder, searchQuery, sortOption, neverPlayedFilter, playsRecordedFilter, lastPlayed]);
+  }, [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, lastPlayed]);
 
   // ── Data mutations (local state + Convex fire-and-forget) ──
 
@@ -2354,6 +2360,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setActiveFolder,
       sortOption,
       setSortOption,
+      effectiveSortOption,
       filteredAlbums,
       setPurgeTag,
       deletePurgeTag,
@@ -2493,7 +2500,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, followedUsers,
       addFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
-      searchQuery, activeFolder, sortOption, filteredAlbums,
+      searchQuery, activeFolder, sortOption, effectiveSortOption, filteredAlbums,
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
       toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,

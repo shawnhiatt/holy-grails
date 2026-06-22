@@ -104,7 +104,7 @@ interface AlbumListProps {
 }
 
 export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, sortOption, playCounts } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, effectiveSortOption: sortOption, playCounts } = useApp();
   const collectionEmpty = allAlbums.length === 0;
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);

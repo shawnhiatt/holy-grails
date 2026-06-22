@@ -293,12 +293,12 @@ type BreakdownTab = "folder" | "decade" | "format";
 
 function CollectionBreakdownSection({ albums }: { albums: Album[] }) {
   const { isDarkMode } = useApp();
-  const [tab, setTab] = useState<BreakdownTab>("folder");
+  const [tab, setTab] = useState<BreakdownTab>("decade");
 
   const tabs: { id: BreakdownTab; label: string }[] = [
-    { id: "folder", label: "By Folder" },
     { id: "decade", label: "By Decade" },
     { id: "format", label: "By Format" },
+    { id: "folder", label: "By Folder" },
   ];
 
   return (

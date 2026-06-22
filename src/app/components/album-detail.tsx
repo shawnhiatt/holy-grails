@@ -920,54 +920,64 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             {/* ═══ Mark as Played button ═══ */}
             {!isEditMode && (
               <div className="px-4 pt-4 pb-4">
-                <button
-                  onClick={handlePlayedToday}
-                  className="w-full flex items-center justify-center gap-2.5 py-3 rounded-[10px] tappable transition-all relative overflow-hidden"
-                  style={{
-                    backgroundColor: (playedToday || justPlayed)
-                      ? (isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)")
-                      : (isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)"),
-                    border: `1px solid ${(playedToday || justPlayed) ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#74889C") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
-                    color: isDarkMode ? "#ACDEF2" : "#00527A",
-                  }}
-                >
-                  <AnimatePresence mode="wait">
-                    {justPlayed ? (
-                      <motion.div
-                        key="check"
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: [1.12, 1], opacity: 1 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        transition={{ duration: DURATION_SLOW, ease: EASE_IN_OUT }}
-                        className="flex items-center gap-2"
-                      >
-                        <Check size={18} />
-                        <span style={{ fontSize: "14px", fontWeight: 600 }}>Played!</span>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="play"
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.9, opacity: 0 }}
-                        transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
-                        className="flex items-center gap-2"
-                      >
-                        <Play size={16} />
-                        <span style={{ fontSize: "14px", fontWeight: 600 }}>Mark as Played</span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </button>
-                <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePlayedToday}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[10px] tappable transition-all relative overflow-hidden"
+                    style={{
+                      backgroundColor: (playedToday || justPlayed)
+                        ? (isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)")
+                        : (isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)"),
+                      border: `1px solid ${(playedToday || justPlayed) ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#74889C") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
+                      color: isDarkMode ? "#ACDEF2" : "#00527A",
+                    }}
+                  >
+                    <AnimatePresence mode="wait">
+                      {justPlayed ? (
+                        <motion.div
+                          key="check"
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: [1.12, 1], opacity: 1 }}
+                          exit={{ scale: 0.8, opacity: 0 }}
+                          transition={{ duration: DURATION_SLOW, ease: EASE_IN_OUT }}
+                          className="flex items-center gap-2"
+                        >
+                          <Check size={18} />
+                          <span style={{ fontSize: "14px", fontWeight: 600 }}>Played!</span>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="play"
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.9, opacity: 0 }}
+                          transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+                          className="flex items-center gap-2"
+                        >
+                          <Play size={16} />
+                          <span style={{ fontSize: "14px", fontWeight: 600 }}>Mark as Played</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </button>
                   <button
                     type="button"
                     onClick={() => (pastPlayPickerOpen ? setPastPlayPickerOpen(false) : openPastPlayPicker())}
-                    className="tappable"
-                    style={{ background: "transparent", border: "none", padding: 0, color: "inherit", font: "inherit", cursor: "pointer", touchAction: "manipulation" }}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[10px] tappable transition-all"
+                    style={{
+                      backgroundColor: pastPlayPickerOpen
+                        ? (isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)")
+                        : (isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)"),
+                      border: `1px solid ${pastPlayPickerOpen ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#74889C") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
+                      color: isDarkMode ? "#ACDEF2" : "#00527A",
+                    }}
                   >
-                    {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged. Tap to log a past play."}
+                    <History size={16} />
+                    <span style={{ fontSize: "14px", fontWeight: 600 }}>Log Past Play</span>
                   </button>
+                </div>
+                <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
+                  {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged"}
                 </p>
                 <AnimatePresence>
                   {pastPlayPickerOpen && (
