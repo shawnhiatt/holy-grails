@@ -1840,8 +1840,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [proxyFetchSyncSignals, performSync]);
 
-  // Public manual refresh — the cheap probe path, used by pull-to-refresh and
-  // the "last synced" tap. Gives explicit feedback even when nothing changed
+  // Public manual refresh — the cheap probe path, used by the "last synced"
+  // tap affordance. Gives explicit feedback even when nothing changed
   // (the silent auto paths don't). A real change is announced by performSync's
   // own completion toast, so we only add the "Up to date." case here.
   const refreshFromDiscogs = useCallback(async () => {

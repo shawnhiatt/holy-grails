@@ -5,7 +5,6 @@ import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { useSafeTap } from "../lib/use-safe-tap";
-import { usePullToRefresh } from "./pull-to-refresh";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -203,7 +202,7 @@ interface AlbumGridProps {
 }
 
 export function AlbumGrid({ albums }: AlbumGridProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, setScreen, sortOption, playCounts, viewMode, refreshFromDiscogs } = useApp();
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, setScreen, sortOption, playCounts, viewMode } = useApp();
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter;
   const collectionEmpty = allAlbums.length === 0;
 
@@ -211,7 +210,6 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const ptr = usePullToRefresh(scrollRef, refreshFromDiscogs);
 
   // Keep refs array in sync with album count
   if (anchorRefs.current.length !== albums.length) {
@@ -284,8 +282,7 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
 
   return (
     <>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" style={{ position: "relative" }}>
-        {ptr.indicator}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
         <div className={`grid ${viewMode === "grid3" ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
           {renderItems.map((item) => {
             if (item.kind === "divider") {

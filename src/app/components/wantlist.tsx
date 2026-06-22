@@ -8,7 +8,6 @@ import type { WantItem } from "./discogs-api";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { useSafeTap } from "../lib/use-safe-tap";
-import { usePullToRefresh } from "./pull-to-refresh";
 import { SyncStatusLine } from "./sync-status-line";
 
 import { AlbumArtwork } from "./album-artwork-grid";
@@ -649,13 +648,12 @@ function WantCrateView({ wants, togglePriority, onSelect }: { wants: WantItem[];
 }
 
 function WantGridView({ wants, togglePriority, onSelect, compact }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void; compact?: boolean }) {
-  const { isDarkMode, refreshFromDiscogs } = useApp();
+  const { isDarkMode } = useApp();
 
   const alphabetEntries = useWantAlphabetIndex(wants);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const ptr = usePullToRefresh(scrollRef, refreshFromDiscogs);
 
   // Keep refs array in sync with item count
   if (anchorRefs.current.length !== wants.length) {
@@ -682,8 +680,7 @@ function WantGridView({ wants, togglePriority, onSelect, compact }: { wants: Wan
 
   return (
     <>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" style={{ position: "relative" }}>
-        {ptr.indicator}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
         <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
           {wantRenderItems.map((item) => {
             if (item.kind === "divider") {
@@ -731,13 +728,12 @@ function WantGridView({ wants, togglePriority, onSelect, compact }: { wants: Wan
 
 // Intentionally separate from album list item — actions diverge in Phase 6
 function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; togglePriority: (id: string) => void; onSelect: (item: WantItem) => void }) {
-  const { isDarkMode, refreshFromDiscogs } = useApp();
+  const { isDarkMode } = useApp();
 
   const alphabetEntries = useWantAlphabetIndex(wants);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const ptr = usePullToRefresh(scrollRef, refreshFromDiscogs);
 
   // Keep refs array in sync with item count
   if (anchorRefs.current.length !== wants.length) {
@@ -767,9 +763,8 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
       <div
         ref={scrollRef}
         className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px]`}
-        style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))", position: "relative" }}
+        style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
       >
-        {ptr.indicator}
         <div className="flex flex-col">
           {wantRenderItems.map((item) => {
             if (item.kind === "divider") {
