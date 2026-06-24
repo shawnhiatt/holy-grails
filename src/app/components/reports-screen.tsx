@@ -3,6 +3,9 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
+import { ChevronRight, Disc3, Square, Calendar } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { DURATION_NORMAL } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";
 import type { Album } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
@@ -1018,15 +1021,15 @@ function ListeningActivitySection({
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p
-                    style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
-                  >
-                    {item.album.artist}
-                  </p>
-                  <p
-                    className="mt-0.5"
                     style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
                   >
                     {item.album.title}
+                  </p>
+                  <p
+                    className="mt-0.5"
+                    style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
+                  >
+                    {item.album.artist}
                   </p>
                   <p className="mt-1" style={{ fontSize: "13px", fontWeight: 600, color: "#3E9842", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                     {item.count} {item.count === 1 ? "play" : "plays"}
@@ -1069,7 +1072,10 @@ function ListeningActivitySection({
                 </div>
                 <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                    {a.artist} — {a.title}
+                    {a.title}
+                  </p>
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                    {a.artist}
                   </p>
                   <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
                     Played {formatDateShort(lastPlayed[a.id])}
@@ -1111,7 +1117,10 @@ function ListeningActivitySection({
               </div>
               <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
                 <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {item.album.artist} — {item.album.title}
+                  {item.album.title}
+                </p>
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                  {item.album.artist}
                 </p>
                 <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
                   {item.label}
@@ -1273,6 +1282,112 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 
 /* ═══════════════════ MAIN REPORTS SCREEN ═══════════════════ */
 
+/* ─────────────────── Collection Maintenance ─────────────────── */
+
+function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[]; onAlbumTap: (id: string) => void }) {
+  const { isDarkMode } = useApp();
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const categories = useMemo(() => {
+    const unset = (v?: string) => !v || !v.trim();
+    const list = [
+      { id: "media", label: "Media Condition", Icon: Disc3, items: albums.filter((a) => unset(a.mediaCondition)) },
+      { id: "sleeve", label: "Sleeve Condition", Icon: Square, items: albums.filter((a) => unset(a.sleeveCondition)) },
+      { id: "year", label: "Release Year", Icon: Calendar, items: albums.filter((a) => !a.year) },
+    ];
+    return list.filter((c) => c.items.length > 0);
+  }, [albums]);
+
+  if (categories.length === 0) return null;
+
+  const active = categories.find((c) => c.id === activeId) ?? null;
+  const accent = isDarkMode ? "#ACDEF2" : "#00527A";
+  const tileBg = isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)";
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Collection Maintenance</p>
+      <p className="mt-1 mb-3" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+        Fill the gaps in your records.
+      </p>
+
+      <div className="flex gap-2.5 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+        {categories.map(({ id, label, Icon, items }) => {
+          const isActive = id === activeId;
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveId(isActive ? null : id)}
+              className="flex-shrink-0 flex items-center gap-3 rounded-[10px] p-3 transition-colors text-left"
+              style={{
+                width: "240px",
+                backgroundColor: isActive ? tileBg : (isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(12,40,74,0.04)"),
+                border: `1px solid ${isActive ? accent : "transparent"}`,
+                touchAction: "manipulation",
+              }}
+            >
+              <div className="flex items-center justify-center rounded-[10px] flex-shrink-0" style={{ width: 40, height: 40, backgroundColor: tileBg, color: accent }}>
+                <Icon size={20} />
+              </div>
+              <div className="flex-1" style={{ minWidth: 0 }}>
+                <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{label}</p>
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  Not set for {items.length} {items.length === 1 ? "album" : "albums"}
+                </p>
+              </div>
+              <ChevronRight size={18} style={{ color: "var(--c-text-faint)", flexShrink: 0, transform: isActive ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+            </button>
+          );
+        })}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {active && (
+          <motion.div
+            key={active.id}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: DURATION_NORMAL }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 flex flex-col gap-2">
+              {active.items.slice(0, 50).map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => onAlbumTap(a.id)}
+                  className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
+                  style={{ backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)", touchAction: "manipulation" }}
+                >
+                  <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+                    <img loading="lazy" decoding="async" src={a.thumb || a.cover} alt={a.title} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                    <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{a.title}</p>
+                    <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{a.artist}</p>
+                  </div>
+                </button>
+              ))}
+              {active.items.length > 50 && (
+                <p className="text-center mt-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+                  +{active.items.length - 50} more
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function ReportsScreen() {
   const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, playCounts, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
 
@@ -1340,6 +1455,14 @@ export function ReportsScreen() {
           {/* Condition — full width on mobile, half on desktop */}
           <div className="lg:col-span-2">
             <ConditionSection albums={albums} />
+          </div>
+
+          {/* Collection Maintenance — surfaces albums missing grading/data */}
+          <div className="lg:col-span-2">
+            <CollectionMaintenanceSection
+              albums={albums}
+              onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
+            />
           </div>
 
           {/* Artists */}

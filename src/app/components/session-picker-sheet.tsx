@@ -255,7 +255,8 @@ function PickerContent({
               marginTop: "2px",
             } as React.CSSProperties}
           >
-            <span style={{ fontWeight: 600 }}>{album.title}</span> — {album.artist}
+            <span style={{ fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.title}</span>
+            <span style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}</span>
           </p>
         </div>
         <button

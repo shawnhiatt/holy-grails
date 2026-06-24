@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw } from "lucide-react";
+import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw, Music } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -17,6 +17,39 @@ import { conditionGradeColor as conditionColor } from "../../lib/condition-color
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
+
+/* ─── Listen On (Spotify / Apple Music search links) ─── */
+function ListenOnButtons({ artist, title }: { artist: string; title: string }) {
+  const term = `${(artist || "").replace(/\s*\(\d+\)$/, "").trim()} ${title || ""}`.trim();
+  if (!term) return null;
+  const open = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
+  const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(term)}`;
+  const appleUrl = `https://music.apple.com/search?term=${encodeURIComponent(term)}`;
+  return (
+    <div className="px-4 pb-4">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => open(spotifyUrl)}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] tappable transition-colors"
+          style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text)" }}
+        >
+          <Music size={16} style={{ color: "#1DB954" }} />
+          <span style={{ fontSize: "14px", fontWeight: 600 }}>Spotify</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => open(appleUrl)}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] tappable transition-colors"
+          style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text)" }}
+        >
+          <Music size={16} style={{ color: "#FA243C" }} />
+          <span style={{ fontSize: "14px", fontWeight: 600 }}>Apple Music</span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /* Bottom sheet safe area standard:
    - Outer container bottom: 0, paddingBottom: env(safe-area-inset-bottom, 16px)
@@ -1084,6 +1117,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 </AnimatePresence>
               </div>
             )}
+
+            {/* ═══ Listen On ═══ */}
+            {!isEditMode && <ListenOnButtons artist={selectedAlbum.artist} title={selectedAlbum.title} />}
 
             {/* ═══ Your Copy ═══ */}
             <div className="px-4 pb-4">
@@ -2239,6 +2275,9 @@ function WantItemDetailPanel({
           />
         </div>
 
+        {/* ═══ Listen On ═══ */}
+        <ListenOnButtons artist={item.artist} title={item.title} />
+
         {/* Detail rows */}
         <div className="px-4 pb-4">
           <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
@@ -2877,6 +2916,9 @@ function ReleaseDetailPanel({
             </button>
           )}
         </div>
+
+        {/* ═══ Listen On ═══ */}
+        <ListenOnButtons artist={album.artist} title={album.title} />
 
         {/* ═══ Detail rows ═══ */}
         <div className="px-4 pb-4">

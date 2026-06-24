@@ -64,6 +64,7 @@ interface AppState {
   sessions: Session[];
   followedUsers: FollowedUser[];
   addFollowedUser: (user: FollowedUser) => void;
+  refreshFollowedUser: (username: string) => Promise<void>;
   removeFollowedUser: (userId: string) => void;
   selectedAlbumId: string | null;
   setSelectedAlbumId: (id: string | null) => void;
@@ -1476,6 +1477,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage, upsertFollowingFeedMut]);
 
+  // Manually re-fetch a single followed user's collection + wantlist. Used to
+  // recover from a silent hydration failure (collection came back empty while
+  // the user was still marked hydrated — see Following hydration loop).
+  const refreshFollowedUser = useCallback(async (username: string) => {
+    if (!sessionToken) throw new Error("Not authenticated");
+    const result = await proxyFetchCollection({ sessionToken, username, skipPrivateFields: true });
+    let userWants: WantItem[] = [];
+    try {
+      userWants = await proxyFetchWantlist({ sessionToken, username });
+    } catch { /* wantlist may be unavailable — keep existing */ }
+    setFollowedUsers((prev) => {
+      const idx = prev.findIndex((f) => f.username.toLowerCase() === username.toLowerCase());
+      if (idx < 0) return prev;
+      const updated = [...prev];
+      updated[idx] = {
+        ...updated[idx],
+        collection: result.albums,
+        folders: result.folders,
+        wants: userWants.length > 0 ? userWants : updated[idx].wants,
+        hydrated: true,
+        isPrivate: false,
+      };
+      return updated;
+    });
+  }, [sessionToken, proxyFetchCollection, proxyFetchWantlist]);
+
   const removeFollowedUser = useCallback((userId: string) => {
     setFollowedUsers((prev) => {
       const user = prev.find(f => f.id === userId);
@@ -2350,6 +2377,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessions,
       followedUsers,
       addFollowedUser,
+      refreshFollowedUser,
       removeFollowedUser,
       selectedAlbumId,
       setSelectedAlbumId,
@@ -2498,7 +2526,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, followedUsers,
-      addFollowedUser, removeFollowedUser,
+      addFollowedUser, refreshFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
       searchQuery, activeFolder, sortOption, effectiveSortOption, filteredAlbums,
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
