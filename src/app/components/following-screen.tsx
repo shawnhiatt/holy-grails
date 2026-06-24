@@ -3,7 +3,7 @@ import type React from "react";
 import {
   UserPlus, ArrowLeft, Search, UserMinus, Lock,
   Disc3, Users, Grid2x2, Grid3x3, List, SlidersHorizontal,
-  Heart, X, GalleryVerticalEnd,
+  Heart, X, GalleryVerticalEnd, RotateCcw,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from "motion/react";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
 
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
-type FollowingTab = "collection" | "wants";
+type FollowingTab = "collection" | "wants" | "insights";
 
 export function FollowingScreen() {
   const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setSelectedFeedAlbum, setShowAlbumDetail, setOnAddFollowedUser, setFollowedUserProfile, setOnBackFromProfile, setOnUnfollowUser } = useApp();
@@ -343,7 +343,8 @@ function FollowedUserProfile({
 
   const [showFilters, setShowFilters] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser, sessionToken } = useApp();
+  const [reloading, setReloading] = useState(false);
+  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser, sessionToken, refreshFollowedUser } = useApp();
 
   const isHgUser = hgUserSet.has(user.username);
   const activitySummary = useQuery(
@@ -387,6 +388,23 @@ function FollowedUserProfile({
     activitySummary !== undefined &&
     activitySummary !== null &&
     activitySummary.totalPlays > 0;
+
+  // The Insights segment only exists when there's play activity to show — if it
+  // disappears while selected, fall back to Collection.
+  useEffect(() => {
+    if (tab === "insights" && !showRecentlyPlayed) setTab("collection");
+  }, [tab, showRecentlyPlayed]);
+
+  const handleReload = useCallback(async () => {
+    setReloading(true);
+    try {
+      await refreshFollowedUser(user.username);
+    } catch {
+      toast.error("Couldn't reload. Try again.");
+    } finally {
+      setReloading(false);
+    }
+  }, [refreshFollowedUser, user.username]);
 
   // Register header unfollow callback
   useEffect(() => {
@@ -545,10 +563,26 @@ function FollowedUserProfile({
           >
             Wantlist ({user.hydrated === false ? "…" : user.wants.length})
           </button>
+          {showRecentlyPlayed && (
+            <button
+              onClick={() => { setTab("insights"); setFilter("all"); }}
+              className="flex-1 py-2 text-center transition-colors cursor-pointer"
+              style={{
+                fontSize: "14px", fontWeight: tab === "insights" ? 600 : 400,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                backgroundColor: tab === "insights" ? "#ACDEF2" : "var(--c-surface)",
+                color: tab === "insights" ? "#0C284A" : "var(--c-text-muted)",
+                borderLeft: "1px solid var(--c-border-strong)",
+              }}
+            >
+              Insights
+            </button>
+          )}
         </div>
       </div>
 
       {/* Search / Filter / View controls — on gray content background */}
+      {tab !== "insights" && (
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[12px] pb-[8px]">
         {/* Desktop: single row — search + filters + view toggle */}
         <div className="hidden lg:flex items-center gap-[12px]">
@@ -652,11 +686,12 @@ function FollowedUserProfile({
           )}
         </div>
       </div>
+      )}
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto overlay-scroll">
-        {showRecentlyPlayed && (
-          <div className="px-[16px] lg:px-[24px] pt-3 pb-4" style={{ borderBottom: "1px solid var(--c-border)" }}>
+        {tab === "insights" && showRecentlyPlayed && (
+          <div className="px-[16px] lg:px-[24px] pt-3 pb-4">
             {topPlayed.length > 0 && (
               <>
                 <p
@@ -753,7 +788,7 @@ function FollowedUserProfile({
             )}
           </div>
         )}
-        {user.hydrated === false ? (
+        {tab !== "insights" && (user.hydrated === false ? (
           <div className="flex flex-col items-center justify-center px-8 py-16">
             <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
             <p className="mt-3" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
@@ -771,6 +806,18 @@ function FollowedUserProfile({
             <p className="mt-1 text-center" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-faint)" }}>
               {filter !== "all" ? "Try a different filter." : "Try a different search."}
             </p>
+            {!searchQuery.trim() && filter === "all" &&
+              ((tab === "collection" && user.collection.length === 0) || (tab === "wants" && user.wants.length === 0)) && (
+              <button
+                onClick={handleReload}
+                disabled={reloading}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full transition-colors cursor-pointer"
+                style={{ fontSize: "13px", fontWeight: 600, backgroundColor: isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.4)", color: isDarkMode ? "#ACDEF2" : "#00527A", opacity: reloading ? 0.6 : 1 }}
+              >
+                {reloading ? <Disc3 size={15} className="disc-spinner" /> : <RotateCcw size={15} />}
+                {reloading ? "Reloading" : "Reload"}
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -799,7 +846,7 @@ function FollowedUserProfile({
               <FollowedUserGridView items={displayItems} viewMode={viewMode} filter={filter} userCutIds={userCutReleaseIds} userWantIds={userWantReleaseIds} userIds={userReleaseIds} onOpenAlbum={handleOpenAlbum} />
             )}
           </>
-        )}
+        ))}
       </div>
 
       {/* Remove confirmation dialog */}
