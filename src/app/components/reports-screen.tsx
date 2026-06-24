@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
-import { ChevronRight, Disc3, Square, Calendar } from "lucide-react";
+import { ChevronRight, Disc3, Square } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { DURATION_NORMAL } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";
@@ -1293,7 +1293,6 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
     const list = [
       { id: "media", label: "Media Condition", Icon: Disc3, items: albums.filter((a) => unset(a.mediaCondition)) },
       { id: "sleeve", label: "Sleeve Condition", Icon: Square, items: albums.filter((a) => unset(a.sleeveCondition)) },
-      { id: "year", label: "Release Year", Icon: Calendar, items: albums.filter((a) => !a.year) },
     ];
     return list.filter((c) => c.items.length > 0);
   }, [albums]);
@@ -1313,10 +1312,7 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
         boxShadow: "var(--c-card-shadow)",
       }}
     >
-      <p style={sectionHeaderStyle}>Collection Maintenance</p>
-      <p className="mt-1 mb-3" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-        Fill the gaps in your records.
-      </p>
+      <p style={sectionHeaderStyle} className="mb-3">Missing Details</p>
 
       <div className="flex gap-2.5 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
         {categories.map(({ id, label, Icon, items }) => {
@@ -1457,7 +1453,7 @@ export function ReportsScreen() {
             <ConditionSection albums={albums} />
           </div>
 
-          {/* Collection Maintenance — surfaces albums missing grading/data */}
+          {/* Missing Details — surfaces albums missing grading/data */}
           <div className="lg:col-span-2">
             <CollectionMaintenanceSection
               albums={albums}

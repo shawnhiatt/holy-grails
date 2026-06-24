@@ -1118,9 +1118,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               </div>
             )}
 
-            {/* ═══ Listen On ═══ */}
-            {!isEditMode && <ListenOnButtons artist={selectedAlbum.artist} title={selectedAlbum.title} />}
-
             {/* ═══ Your Copy ═══ */}
             <div className="px-4 pb-4">
               <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
@@ -1358,7 +1355,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               </div>
             </div>
 
-            {/* User personal notes — now displayed inside Your Copy card */}
+            {/* ═══ Listen On ═══ */}
+            {!isEditMode && <ListenOnButtons artist={selectedAlbum.artist} title={selectedAlbum.title} />}
           </div>
         )}
 
