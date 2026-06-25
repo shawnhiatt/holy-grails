@@ -226,13 +226,6 @@ export const deleteAllUserData = mutation({
       .collect();
     for (const row of stacks) await ctx.db.delete(row._id);
 
-    // Stacks — legacy table cleanup (remove once `sessions` is dropped from schema)
-    const legacyStacks = await ctx.db
-      .query("sessions")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of legacyStacks) await ctx.db.delete(row._id);
-
     // Last played
     const lastPlayed = await ctx.db
       .query("last_played")

@@ -18,7 +18,6 @@ import type * as last_played from "../last_played.js";
 import type * as oauth from "../oauth.js";
 import type * as preferences from "../preferences.js";
 import type * as purge_tags from "../purge_tags.js";
-import type * as sessions from "../sessions.js";
 import type * as stacks from "../stacks.js";
 import type * as users from "../users.js";
 import type * as want_priorities from "../want_priorities.js";
@@ -41,7 +40,6 @@ declare const fullApi: ApiFromModules<{
   oauth: typeof oauth;
   preferences: typeof preferences;
   purge_tags: typeof purge_tags;
-  sessions: typeof sessions;
   stacks: typeof stacks;
   users: typeof users;
   want_priorities: typeof want_priorities;
