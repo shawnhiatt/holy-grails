@@ -32,7 +32,7 @@ async gap. This made it brittle and prone to regressions when handlers were refa
 
 **Where it was wired up:**
 - Bottom tab bar (mobile nav): light haptic on each tab press
-- Mobile header buttons (back, unfollow, new session, add followed user, following, settings): light haptic
+- Mobile header buttons (back, unfollow, new stack, add followed user, following, settings): light haptic
 - Alphabet sidebar: light haptic fired on each letter change during scroll
 - Album grid / artwork grid / list cards: medium haptic on card tap
 - Crate flip (swiper view): medium haptic on card tap
@@ -40,7 +40,7 @@ async gap. This made it brittle and prone to regressions when handlers were refa
 - Following screen: medium haptic on user list card tap and feed item taps
 - Wantlist: medium haptic on want item tap
 - Reports / Insights screen: medium haptic on album tap
-- Sessions screen: medium haptic on album tap, medium haptic on drag-to-reorder start
+- Stacks screen: medium haptic on album tap, medium haptic on drag-to-reorder start
 - Purge tracker: medium haptic on album row tap; light haptic on Keep / Maybe / Cut buttons
 - Shake-to-Random gesture (App.tsx): inline `navigator.vibrate(40)` confirmation when a
   random album was selected via device shake

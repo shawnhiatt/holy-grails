@@ -2,9 +2,9 @@
 
 ## Product Summary
 
-A responsive web app for managing a personal vinyl record collection synced with Discogs. The app is called **Holy Grails** and features four view modes for browsing albums (Grid, Artwork, List, and a stacked-card Swiper/Crate Flip), purge tracking, listening session building, want list management, a Following system for browsing other Discogs users' collections, and a Reports & Insights dashboard. It supports light and dark themes with a transparent nav header/top bar that lets the background gradient show through.
+A responsive web app for managing a personal vinyl record collection synced with Discogs. The app is called **Holy Grails** and features four view modes for browsing albums (Grid, Artwork, List, and a stacked-card Swiper/Crate Flip), purge tracking, listening stack building, want list management, a Following system for browsing other Discogs users' collections, and a Reports & Insights dashboard. It supports light and dark themes with a transparent nav header/top bar that lets the background gradient show through.
 
-All app-specific data (purge tags, sessions, want list priorities, followed users, last-played timestamps) persists independently of Discogs syncs. When the collection changes upstream, local data stays intact.
+All app-specific data (purge tags, stacks, want list priorities, followed users, last-played timestamps) persists independently of Discogs syncs. When the collection changes upstream, local data stays intact.
 
 **Users**: Primarily the owner, but designed so anyone with a Discogs account can connect their own collection. Settings accept a personal access token or CSV import — no hardcoded accounts.
 
@@ -91,7 +91,7 @@ The Discogs API supports everything this app needs. Integration code lives in `d
 | Color | Value | Usage |
 |---|---|---|
 | Blue | `#ACDEF2` | Active view toggle bg, active filter chips (translucent), various UI elements |
-| Yellow | `#EBFD00` | CTA buttons, active nav, Sync Now button, New Session button. Hover: `#d9e800` |
+| Yellow | `#EBFD00` | CTA buttons, active nav, Sync Now button, New Stack button. Hover: `#d9e800` |
 | Pink | `#FF98DA` | Cut purge indicator (dark mode), chart accent, no-play-recorded stat |
 | Green | `#009A32` | Collection value display, chart accents |
 | Green (keep) | `#3E9842` | Keep purge tag |
@@ -104,7 +104,7 @@ The Discogs API supports everything this app needs. Integration code lives in `d
 
 ### Yellow CTA Buttons
 - Background: `#EBFD00`, text: `#0C284A`, hover: `#d9e800`
-- Used in: Want List (Priority pill), Sessions (New/Save), Following (Connect), Settings (Sync Now)
+- Used in: Want List (Priority pill), Stacks (New/Save), Following (Connect), Settings (Sync Now)
 - The Wantlist "All" filter pill uses blue chip style (matching Collection screen), only "Priority" uses yellow
 
 ### Condition Grade Color Spectrum
@@ -131,7 +131,7 @@ style={{
   maxWidth: "100%",
 }}
 ```
-Used in: album-list.tsx, album-grid.tsx (folder pill text), crate-flip.tsx, wantlist.tsx (list rows), sessions.tsx (session detail album rows), add-albums-drawer.tsx, session-picker-sheet.tsx. Tailwind `line-clamp-1` / `line-clamp-2` is still used where multi-line clamping is appropriate (e.g., grid card title/artist, session names).
+Used in: album-list.tsx, album-grid.tsx (folder pill text), crate-flip.tsx, wantlist.tsx (list rows), stacks.tsx (stack detail album rows), add-albums-drawer.tsx, stack-picker-sheet.tsx. Tailwind `line-clamp-1` / `line-clamp-2` is still used where multi-line clamping is appropriate (e.g., grid card title/artist, stack names).
 
 ### Disc3 Spinner
 All sync/loading spinners tied to collection sync and API calls use the `Disc3` icon from lucide-react with the `disc-spinner` CSS class, which spins at 1.8s per revolution (33 1/3 RPM), `linear` easing. Defined in `/src/styles/fonts.css`:
@@ -158,7 +158,7 @@ Shared animation constants live in `motion-tokens.ts` and are used across all co
 The `useShake` hook (`use-shake.ts`) opens a random album in Album Detail when the user shakes their mobile device. Desktop-only disabled. Threshold: 12, timeout: 1000ms.
 
 ### Shared Empty State — NoDiscogsCard
-The `NoDiscogsCard` component (`no-discogs-card.tsx`) provides a consistent "no Discogs connected" empty state card with heading, subtext, and yellow "Connect Discogs" CTA button. Used in screens where data requires a Discogs connection (wantlist, sessions, etc.). Tapping the button triggers `requestConnectDiscogs` which re-shows the Connect Discogs prompt.
+The `NoDiscogsCard` component (`no-discogs-card.tsx`) provides a consistent "no Discogs connected" empty state card with heading, subtext, and yellow "Connect Discogs" CTA button. Used in screens where data requires a Discogs connection (wantlist, stacks, etc.). Tapping the button triggers `requestConnectDiscogs` which re-shows the Connect Discogs prompt.
 
 ### Alphabetical Index Sidebar (Mobile Only)
 An iOS-style alphabetical index sidebar appears on mobile (`lg:hidden`) for scrub-to-scroll navigation. Present in:
@@ -240,19 +240,19 @@ Tapping an album card (in any view) opens the **Album Detail** (bottom sheet on 
 - Link out to Discogs release page
 - **"Mark as Played"** button with pulse animation when just tapped. Shows last-played date.
 - **"What It's Worth"** section — uses `MarketValueSection` component from `market-value.tsx`. Rendered as an `AccordionSection` with Coins icon in header. Contains marketplace statistics with condition grade comparison table using the color spectrum (see Color Palette). Fetches market data lazily on expand.
-- **"Add to Session"** button — visible when a session draft is active, hidden otherwise.
-- **"Save for Later"** accordion (shared `AccordionSection` component, Bookmark icon in header). Label dynamically changes: "Save for Later" when album is in no sessions, "Saved" when `isAlbumInAnySession` is true.
+- **"Add to Stack"** button — visible when a stack draft is active, hidden otherwise.
+- **"Save for Later"** accordion (shared `AccordionSection` component, Bookmark icon in header). Label dynamically changes: "Save for Later" when album is in no stacks, "Saved" when `isAlbumInAnyStack` is true.
 - **"Rate for Purge"** section — Keep / Cut / Maybe buttons. Always visible (not in accordion).
 
 **Accordion sections** use the shared `AccordionSection` component (`accordion-section.tsx`): `rounded-[10px]` container with `border-strong` border, `surface-alt` background, label + optional icon + optional trailing content + animated chevron header, and `AnimatePresence`-driven expand/collapse with divider.
 
-**Save for Later accordion**: Contains an inline session checklist identical to the Session Picker (see 4c). Bookmark icon in header is filled with accent color (`#ACDEF2` dark / `#00527A` light) when album is in any session, outline with `var(--c-text-secondary)` when not. Auto-checks Saved for Later when expanding if album is in no sessions.
+**Save for Later accordion**: Contains an inline stack checklist identical to the Stack Picker (see 4c). Bookmark icon in header is filled with accent color (`#ACDEF2` dark / `#00527A` light) when album is in any stack, outline with `var(--c-text-secondary)` when not. Auto-checks Saved for Later when expanding if album is in no stacks.
 
 **Condition grades**: Detail rows for media and sleeve condition are color-coded using the condition grade color spectrum (P/F=pink, G/G+=pink-blue, VG=blue, VG+=blue-green, NM/M=green). Both `album-detail.tsx` and `market-value.tsx` have their own `conditionColor` / `conditionGradeColor` functions mapping grade abbreviations to the spectrum.
 
 **Purge badge**: If album has a purge tag, a small colored indicator pill appears near the title.
 
-**Scroll fade overlay**: The app-wide gradient overlay (in `App.tsx`) that fades content above the floating bottom nav is conditionally hidden (`{!showAlbumDetail && !sessionPickerAlbumId && ...}`) when the album detail sheet or session picker is open, preventing it from obscuring the sheet's interactive elements.
+**Scroll fade overlay**: The app-wide gradient overlay (in `App.tsx`) that fades content above the floating bottom nav is conditionally hidden (`{!showAlbumDetail && !stackPickerAlbumId && ...}`) when the album detail sheet or stack picker is open, preventing it from obscuring the sheet's interactive elements.
 
 ### 3. Purge Tracker — `purge-tracker.tsx`
 
@@ -268,66 +268,66 @@ Dedicated screen for focused evaluation work.
 
 **Market value integration**: Per-album market data fetched on demand.
 
-### 4. Listening Sessions — `sessions.tsx`
+### 4. Listening Stacks — `stacks.tsx`
 
 Uses an internal list/detail view pattern — no draft mode, no floating bar.
 
-**Session list view**: Cards showing session name (`line-clamp-2` truncation), album count (with Disc3 icon), date created (with Calendar icon). Tap navigates to session detail. Stacked album cover thumbnails as visual preview. Sessions sorted by most recently modified. Yellow "+" button in title bar opens inline name input card.
+**Stack list view**: Cards showing stack name (`line-clamp-2` truncation), album count (with Disc3 icon), date created (with Calendar icon). Tap navigates to stack detail. Stacked album cover thumbnails as visual preview. Stacks sorted by most recently modified. Yellow "+" button in title bar opens inline name input card.
 
-**Session creation**: Tap "+" -> inline card with text input (`maxLength={100}`) and Cancel/Create buttons. On Create, immediately navigates to the new session's detail view.
+**Stack creation**: Tap "+" -> inline card with text input (`maxLength={100}`) and Cancel/Create buttons. On Create, immediately navigates to the new stack's detail view.
 
-**Session detail** (internal view, not overlay):
-- **Header**: Back button (ChevronLeft with circular `border-strong` outline) on left. Editable session title — tap title to rename (inline input with yellow underline, `maxLength={100}`, `line-clamp-2` display). Pencil icon appears on hover.
+**Stack detail** (internal view, not overlay):
+- **Header**: Back button (ChevronLeft with circular `border-strong` outline) on left. Editable stack title — tap title to rename (inline input with yellow underline, `maxLength={100}`, `line-clamp-2` display). Pencil icon appears on hover.
 - **Subtitle**: Album count + creation date, `pl-10` to align past back button.
-- **Album list with drag-to-reorder**: Uses Motion's `Reorder.Group` and `Reorder.Item` components for drag-to-reorder. Numbered positions with grip handles (GripVertical icon, `cursor: grab`). Each row shows position number, grip handle, album thumbnail (36x36px, `rounded-[6px]`) + title/artist with inline truncation styles (tappable to open album detail), and a Trash2 delete button (pink `#FF33B6`). Reordering calls `reorderSessionAlbums(sessionId, newOrder)` from app context to persist the new album ID order.
-- **Inline action buttons** (below album list): Full-width yellow "Add Albums" CTA + muted gray "Delete Session" text button.
-- **Empty state**: Headphones icon + "Nothing here yet." / "Add albums to get started." + yellow "Add Albums" button + muted gray "Delete Session" button.
-- **Delete confirmation**: Modal with AlertTriangle icon, "Delete this session?" heading, Cancel/Delete buttons. Delete uses pink (`#FF33B6`) styling.
+- **Album list with drag-to-reorder**: Uses Motion's `Reorder.Group` and `Reorder.Item` components for drag-to-reorder. Numbered positions with grip handles (GripVertical icon, `cursor: grab`). Each row shows position number, grip handle, album thumbnail (36x36px, `rounded-[6px]`) + title/artist with inline truncation styles (tappable to open album detail), and a Trash2 delete button (pink `#FF33B6`). Reordering calls `reorderStackAlbums(stackId, newOrder)` from app context to persist the new album ID order.
+- **Inline action buttons** (below album list): Full-width yellow "Add Albums" CTA + muted gray "Delete Stack" text button.
+- **Empty state**: Headphones icon + "Nothing here yet." / "Add albums to get started." + yellow "Add Albums" button + muted gray "Delete Stack" button.
+- **Delete confirmation**: Modal with AlertTriangle icon, "Delete this stack?" heading, Cancel/Delete buttons. Delete uses pink (`#FF33B6`) styling.
 
-**Add Albums drawer** (`add-albums-drawer.tsx`): Bottom sheet (mobile) / centered modal (desktop, 520px wide, max 720px/85vh tall) for adding albums to a session. Header shows dynamic text: "Add to '{session name}'" (zero new) or "X albums added to '{session name}'" with curly quotation marks and `line-clamp-2` truncation. Close (X) and Confirm (Check) buttons. Changes are batched locally and only committed on confirm.
+**Add Albums drawer** (`add-albums-drawer.tsx`): Bottom sheet (mobile) / centered modal (desktop, 520px wide, max 720px/85vh tall) for adding albums to a stack. Header shows dynamic text: "Add to '{stack name}'" (zero new) or "X albums added to '{stack name}'" with curly quotation marks and `line-clamp-2` truncation. Close (X) and Confirm (Check) buttons. Changes are batched locally and only committed on confirm.
 
 **Add Albums drawer sections** (vertically scrollable):
 1. **Recently Added**: Top 20 albums by `dateAdded`, displayed as horizontal scroll thumbnail cards (`ThumbnailCard`, 88x88px artwork with title/artist text below, top-aligned with `alignItems: "flex-start"`). Checked albums show a dark overlay with yellow checkmark.
 2. **Keeps**: Albums tagged "keep" in purge, same horizontal scroll thumbnail format.
 3. **Browse Everything**: Full album list with sticky search bar + folder filter chips. Rows show 44x44px thumbnail, title/artist with inline truncation, and checkbox. Sorted artist A->Z. Active folder chips use blue style.
 
-**Empty state** (no sessions): Headphones icon + "Create your first Session" / "Save albums into Sessions for different listening occasions, moods, or themes."
+**Empty state** (no stacks): Headphones icon + "Create your first Stack" / "Save albums into Stacks for different listening occasions, moods, or themes."
 
 ### 4b. Saved for Later
 
-Not a separate data structure — "Saved for Later" is a regular session auto-created by the app when needed.
+Not a separate data structure — "Saved for Later" is a regular stack auto-created by the app when needed.
 
-**Auto-creation**: When a user taps a bookmark icon and no sessions exist yet, `openSessionPicker` in `app-context.tsx` automatically creates a session named "Saved for Later" with the tapped album pre-added, and sets `firstSessionJustCreated` to true. This is the only special behavior — once created, it's a normal session that can be renamed, deleted, or reordered like any other.
+**Auto-creation**: When a user taps a bookmark icon and no stacks exist yet, `openStackPicker` in `app-context.tsx` automatically creates a stack named "Saved for Later" with the tapped album pre-added, and sets `firstStackJustCreated` to true. This is the only special behavior — once created, it's a normal stack that can be renamed, deleted, or reordered like any other.
 
-**Sessions screen**: Appears as a regular session card (no pinned position, no special styling). Sorted by `lastModified` like all other sessions.
+**Stacks screen**: Appears as a regular stack card (no pinned position, no special styling). Sorted by `lastModified` like all other stacks.
 
-**Data**: Stored as a regular session in the `sessions` array. No separate `savedForLater` state.
+**Data**: Stored as a regular stack in the `stacks` array. No separate `savedForLater` state.
 
-### 4c. Session Picker — `session-picker-sheet.tsx`
+### 4c. Stack Picker — `stack-picker-sheet.tsx`
 
-A multi-session save UI triggered from bookmark icons on album cards.
+A multi-stack save UI triggered from bookmark icons on album cards.
 
-**Trigger**: All card views (Grid, Artwork, List, Swiper, Feed) call `openSessionPicker(albumId)` from their bookmark icon tap handlers. The `album-detail.tsx` inline Save for Later accordion uses the same checklist pattern inline instead.
+**Trigger**: All card views (Grid, Artwork, List, Swiper, Feed) call `openStackPicker(albumId)` from their bookmark icon tap handlers. The `album-detail.tsx` inline Save for Later accordion uses the same checklist pattern inline instead.
 
-**Mobile (< lg)**: Bottom sheet with session checklist. Same visual pattern as album detail bottom sheet (rounded top corners, grab handle, drag-to-dismiss).
+**Mobile (< lg)**: Bottom sheet with stack checklist. Same visual pattern as album detail bottom sheet (rounded top corners, grab handle, drag-to-dismiss).
 
 **Desktop (>= lg)**: Centered popover with same checklist content. Wrapped in a `position: fixed; inset: 0` flex-centered container.
 
 **Content**:
-- **Header**: "Add to Session" title (18px Bricolage Grotesque weight 600). Subtitle shows **bold album title** + em dash + artist name in a single line with inline truncation styles (13px, `var(--c-text-muted)`). Close button (X, 28px circle with `var(--c-chip-bg)` background).
-- **Session rows**: Each row shows session name, album count, and checkbox. All sessions treated equally (no pinned "Saved for Later" row). Sessions sorted by `lastModified` descending.
-- **New Session**: Inline row with "+" icon -> text input (`maxLength={100}`) + confirm button for creating a session and immediately adding the album.
-- **Auto-check**: When opening, if the album is not in any session, it is automatically added to the most recently active session (`mostRecentSessionId`). If the picker was just opened via auto-creation (first bookmark ever, `firstSessionJustCreated`), the newly created session is pre-checked.
+- **Header**: "Add to Stack" title (18px Bricolage Grotesque weight 600). Subtitle shows **bold album title** + em dash + artist name in a single line with inline truncation styles (13px, `var(--c-text-muted)`). Close button (X, 28px circle with `var(--c-chip-bg)` background).
+- **Stack rows**: Each row shows stack name, album count, and checkbox. All stacks treated equally (no pinned "Saved for Later" row). Stacks sorted by `lastModified` descending.
+- **New Stack**: Inline row with "+" icon -> text input (`maxLength={100}`) + confirm button for creating a stack and immediately adding the album.
+- **Auto-check**: When opening, if the album is not in any stack, it is automatically added to the most recently active stack (`mostRecentStackId`). If the picker was just opened via auto-creation (first bookmark ever, `firstStackJustCreated`), the newly created stack is pre-checked.
 
-**Uncheck behavior**: When a session is **checked** (album added), `lastModified` is updated and the session moves to the top of the sorted list. When a session is **unchecked** (album removed), `lastModified` is **not** updated — the session stays in its current position in the list. This prevents the list from re-sorting on removal, which was disorienting.
+**Uncheck behavior**: When a stack is **checked** (album added), `lastModified` is updated and the stack moves to the top of the sorted list. When a stack is **unchecked** (album removed), `lastModified` is **not** updated — the stack stays in its current position in the list. This prevents the list from re-sorting on removal, which was disorienting.
 
 **Checkbox styling**: `#EBFD00` background with `#0C284A` checkmark when checked. Empty circle with `var(--c-border-strong)` when unchecked.
 
-**Bookmark icon state on cards**: Filled with accent color (`#ACDEF2` dark / `#00527A` light) when `isAlbumInAnySession(albumId)` returns true. Outline with muted color when not in any session.
+**Bookmark icon state on cards**: Filled with accent color (`#ACDEF2` dark / `#00527A` light) when `isAlbumInAnyStack(albumId)` returns true. Outline with muted color when not in any stack.
 
 **CSS variables**: Applied inline on the sheet/popover container because these components render outside the `<main>` element's CSS variable cascade.
 
-**Context members** (`app-context.tsx`): `sessionPickerAlbumId`, `openSessionPicker`, `closeSessionPicker`, `isInSession`, `toggleAlbumInSession`, `createSessionDirect`, `isAlbumInAnySession`, `mostRecentSessionId`, `firstSessionJustCreated`, `reorderSessionAlbums`.
+**Context members** (`app-context.tsx`): `stackPickerAlbumId`, `openStackPicker`, `closeStackPicker`, `isInStack`, `toggleAlbumInStack`, `createStackDirect`, `isAlbumInAnyStack`, `mostRecentStackId`, `firstStackJustCreated`, `reorderStackAlbums`.
 
 ### 5. Wantlist — `wantlist.tsx`
 
@@ -428,7 +428,7 @@ Dashboard with collection analytics. Accessible from:
 
 **Data Management**:
 - "Clear Purge Data" with confirmation modal
-- "Clear Sessions" with confirmation modal
+- "Clear Stacks" with confirmation modal
 - "Clear All Local Data" with confirmation modal (destructive pink)
 - Confirmation dialogs use AlertTriangle icon and two-button layout
 
@@ -472,7 +472,7 @@ The app shows a splash/onboarding sequence when no data is loaded and no Discogs
 | 1 | Feed | Newspaper | `feed` |
 | 2 | Collection | Library | `crate` |
 | 3 | Wants | Heart | `wants` |
-| 4 | Sessions | Headphones | `sessions` |
+| 4 | Stacks | Headphones | `stacks` |
 | 5 | Insights | BarChart3 | `reports` |
 
 Active: `#EBFD00` icon + text, `bg-[rgba(255, 255, 255, 0)]` background. Inactive: `#D1D8DF`.
@@ -487,7 +487,7 @@ Split into three zones:
 
 | Zone | Items |
 |---|---|
-| Left group | Feed, Collection, Wants, Sessions |
+| Left group | Feed, Collection, Wants, Stacks |
 | Center | Pill logo (tappable -> Feed, 42px height) |
 | Right group | Purge, Insights, Following, Settings + Theme toggle |
 
@@ -527,11 +527,11 @@ Active text color: `#E2E8F0` (dark) / `#0C284A` (light). Inactive: `rgba(226,232
 | Swiper/Crate Flip lightbox overlay | `z-[100]` | `crate-flip.tsx`, `wantlist.tsx` |
 | Swiper/Crate Flip active card | `z-101` | `crate-flip.tsx`, `wantlist.tsx` |
 | Scroll fade overlay | `z-100` | `App.tsx` |
-| Delete confirmation modals | `z-[90]` | `sessions.tsx` |
-| Session picker mobile sheet | `z-[85]` | `session-picker-sheet.tsx` |
-| Session picker mobile backdrop | `z-[80]` | `session-picker-sheet.tsx` |
+| Delete confirmation modals | `z-[90]` | `stacks.tsx` |
+| Stack picker mobile sheet | `z-[85]` | `stack-picker-sheet.tsx` |
+| Stack picker mobile backdrop | `z-[80]` | `stack-picker-sheet.tsx` |
 | Add Albums drawer | `z-[80]` | `add-albums-drawer.tsx` |
-| Desktop session picker popover | `z-50` | `session-picker-sheet.tsx` |
+| Desktop stack picker popover | `z-50` | `stack-picker-sheet.tsx` |
 | Alphabet index sidebar | `z-40` | `album-grid.tsx`, `album-list.tsx`, `wantlist.tsx` |
 
 ---
@@ -541,7 +541,7 @@ Active text color: `#E2E8F0` (dark) / `#0C284A` (light). Inactive: `rgba(226,232
 | File | Purpose |
 |---|---|
 | `App.tsx` | Root layout, screen routing, splash flow, side panel, scroll fade overlay |
-| `app-context.tsx` | Global state provider (albums, sessions, purge, sync, session picker) |
+| `app-context.tsx` | Global state provider (albums, stacks, purge, sync, stack picker) |
 | `navigation.tsx` | Mobile header, bottom tab bar, desktop top nav, `PillLogo` component (from `src/imports/logo-holy-grails.svg`) |
 | `crate-browser.tsx` | Collection screen with view mode toggle, search, filters, `ViewModeToggle` component |
 | `album-grid.tsx` | Grid view with alphabetical index sidebar |
@@ -553,9 +553,9 @@ Active text color: `#E2E8F0` (dark) / `#0C284A` (light). Inactive: `rgba(226,232
 | `filter-drawer.tsx` | Filter bottom sheet / modal with folders, quick filters, sort |
 | `purge-tracker.tsx` | Purge evaluation screen with swipe-to-tag |
 | `purge-colors.ts` | Purge tag color utilities |
-| `sessions.tsx` | Session list + detail with drag-to-reorder |
+| `stacks.tsx` | Stack list + detail with drag-to-reorder |
 | `add-albums-drawer.tsx` | Add Albums bottom sheet / modal with sections |
-| `session-picker-sheet.tsx` | Bookmark session picker bottom sheet / popover |
+| `stack-picker-sheet.tsx` | Bookmark stack picker bottom sheet / popover |
 | `wantlist.tsx` | Wantlist screen with four views, marketplace hover, alphabetical index |
 | `following-screen.tsx` | Following screen with user profiles and smart filters |
 | `feed-screen.tsx` | Feed home screen with collection summary and nudges |
