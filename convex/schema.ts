@@ -32,6 +32,18 @@ export default defineSchema({
     .index("by_username", ["discogs_username"])
     .index("by_release", ["discogs_username", "release_id"]),
 
+  stacks: defineTable({
+    discogs_username: v.string(),
+    stack_id: v.string(),
+    name: v.string(),
+    album_ids: v.array(v.number()),
+    created_at: v.number(),
+    last_modified: v.number(),
+  }).index("by_username", ["discogs_username"]),
+
+  // Legacy table — retained only so the one-time migration in stacks.ts can
+  // copy rows into `stacks`. Remove after the migration has run on both dev
+  // and prod (see stacks.migrateFromSessions).
   sessions: defineTable({
     discogs_username: v.string(),
     session_id: v.string(),

@@ -3,7 +3,7 @@
  *
  * All authenticated Discogs HTTP calls are now routed through server-side
  * Convex actions in `convex/discogs.ts`. This module retains only:
- *   - Domain types (Album, WantItem, Session, etc.)
+ *   - Domain types (Album, WantItem, Stack, etc.)
  *   - Condition grade constants
  *   - Pure utility functions (normalizeCondition, buildFieldMap)
  *   - In-memory caches (market data, collection value)
@@ -52,7 +52,7 @@ export interface WantItem {
   priority: boolean;
 }
 
-export interface Session {
+export interface Stack {
   id: string;
   name: string;
   albumIds: string[];

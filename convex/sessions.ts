@@ -2,6 +2,14 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
 
+/**
+ * TRANSITION SHIM — legacy Sessions API, retained only so clients running the
+ * pre-rename build keep working during the Sessions -> Stacks rollout. The
+ * current client uses `stacks.ts`. Remove this file (and the legacy `sessions`
+ * table) once every client is on the new build and stacks.migrateFromSessions
+ * has run on dev and prod.
+ */
+
 export const getByUsername = query({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {

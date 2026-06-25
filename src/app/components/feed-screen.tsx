@@ -360,8 +360,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setNeverPlayedFilter,
     isDarkMode,
     isAuthenticated,
-    openSessionPicker,
-    isAlbumInAnySession,
+    openStackPicker,
+    isAlbumInAnyStack,
     hidePurgeIndicators,
     addToWantList,
     removeFromWantList,
@@ -2059,9 +2059,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           </div>
           <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
             <button
-              onClick={() => openSessionPicker(album.id)}
+              onClick={() => openStackPicker(album.id)}
               className="tappable"
-              aria-label="Add to session"
+              aria-label="Add to stack"
               style={{
                 width: "36px",
                 height: "36px",
@@ -2076,8 +2076,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             >
               <Music
                 size={16}
-                color={isAlbumInAnySession(album.id) ? "#EBFD00" : "var(--dc-text, var(--c-text))"}
-                {...(isAlbumInAnySession(album.id) ? { fill: "currentColor" } : {})}
+                color={isAlbumInAnyStack(album.id) ? "#EBFD00" : "var(--dc-text, var(--c-text))"}
+                {...(isAlbumInAnyStack(album.id) ? { fill: "currentColor" } : {})}
               />
             </button>
           </div>

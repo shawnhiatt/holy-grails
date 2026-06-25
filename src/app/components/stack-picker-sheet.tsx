@@ -11,28 +11,28 @@ import { getContentTokens } from "./theme";
    - Ensures no gap on notched iOS devices in PWA mode */
 
 /**
- * SessionPickerSheet — shared component for adding/removing an album to/from sessions.
+ * StackPickerSheet — shared component for adding/removing an album to/from stacks.
  * Mobile: bottom sheet that slides up, draggable to dismiss.
  * Desktop (lg+): anchored popover, 280px wide, dismisses on click outside or Escape.
  */
-export function SessionPickerSheet() {
+export function StackPickerSheet() {
   const {
-    sessionPickerAlbumId,
-    closeSessionPicker,
+    stackPickerAlbumId,
+    closeStackPicker,
     albums,
-    sessions,
-    isInSession,
-    toggleAlbumInSession,
-    createSessionDirect,
+    stacks,
+    isInStack,
+    toggleAlbumInStack,
+    createStackDirect,
     isDarkMode,
-    mostRecentSessionId,
-    firstSessionJustCreated,
+    mostRecentStackId,
+    firstStackJustCreated,
   } = useApp();
 
   const [isDesktop, setIsDesktop] = useState(false);
-  const [showNewSession, setShowNewSession] = useState(false);
-  const [newSessionName, setNewSessionName] = useState("");
-  const newSessionInputRef = useRef<HTMLInputElement>(null);
+  const [showNewStack, setShowNewStack] = useState(false);
+  const [newStackName, setNewStackName] = useState("");
+  const newStackInputRef = useRef<HTMLInputElement>(null);
   const hasAutoCheckedRef = useRef<string | null>(null);
 
   // Track desktop breakpoint
@@ -44,56 +44,56 @@ export function SessionPickerSheet() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  // Default behavior: if album is in no sessions when picker opens,
-  // auto-add it to the most recently active session
+  // Default behavior: if album is in no stacks when picker opens,
+  // auto-add it to the most recently active stack
   useEffect(() => {
-    if (!sessionPickerAlbumId) {
+    if (!stackPickerAlbumId) {
       hasAutoCheckedRef.current = null;
       return;
     }
     // Only auto-check once per picker open
-    if (hasAutoCheckedRef.current === sessionPickerAlbumId) return;
-    hasAutoCheckedRef.current = sessionPickerAlbumId;
+    if (hasAutoCheckedRef.current === stackPickerAlbumId) return;
+    hasAutoCheckedRef.current = stackPickerAlbumId;
 
-    const inAnySession = sessions.some((s) => s.albumIds.includes(sessionPickerAlbumId));
+    const inAnyStack = stacks.some((s) => s.albumIds.includes(stackPickerAlbumId));
 
-    if (!inAnySession && mostRecentSessionId) {
-      toggleAlbumInSession(sessionPickerAlbumId, mostRecentSessionId);
+    if (!inAnyStack && mostRecentStackId) {
+      toggleAlbumInStack(stackPickerAlbumId, mostRecentStackId);
     }
-  }, [sessionPickerAlbumId]); // intentionally minimal deps — runs once per open
+  }, [stackPickerAlbumId]); // intentionally minimal deps — runs once per open
 
-  // Reset new-session input when picker closes
+  // Reset new-stack input when picker closes
   useEffect(() => {
-    if (!sessionPickerAlbumId) {
-      setShowNewSession(false);
-      setNewSessionName("");
+    if (!stackPickerAlbumId) {
+      setShowNewStack(false);
+      setNewStackName("");
     }
-  }, [sessionPickerAlbumId]);
+  }, [stackPickerAlbumId]);
 
-  // Auto-focus new session input
+  // Auto-focus new stack input
   useEffect(() => {
-    if (showNewSession && newSessionInputRef.current) {
-      newSessionInputRef.current.focus();
+    if (showNewStack && newStackInputRef.current) {
+      newStackInputRef.current.focus();
     }
-  }, [showNewSession]);
+  }, [showNewStack]);
 
   // Desktop: dismiss on Escape
   useEffect(() => {
-    if (!sessionPickerAlbumId || !isDesktop) return;
+    if (!stackPickerAlbumId || !isDesktop) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeSessionPicker();
+      if (e.key === "Escape") closeStackPicker();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [sessionPickerAlbumId, isDesktop, closeSessionPicker]);
+  }, [stackPickerAlbumId, isDesktop, closeStackPicker]);
 
   // Desktop: dismiss on click outside
   const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!sessionPickerAlbumId || !isDesktop) return;
+    if (!stackPickerAlbumId || !isDesktop) return;
     const onClick = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        closeSessionPicker();
+        closeStackPicker();
       }
     };
     // Delay listener to avoid catching the triggering click
@@ -104,48 +104,48 @@ export function SessionPickerSheet() {
       clearTimeout(timer);
       document.removeEventListener("mousedown", onClick);
     };
-  }, [sessionPickerAlbumId, isDesktop, closeSessionPicker]);
+  }, [stackPickerAlbumId, isDesktop, closeStackPicker]);
 
-  const album = albums.find((a) => a.id === sessionPickerAlbumId) || null;
+  const album = albums.find((a) => a.id === stackPickerAlbumId) || null;
 
-  const handleCreateSession = useCallback(() => {
-    const trimmed = newSessionName.trim();
-    if (!trimmed || !sessionPickerAlbumId) return;
-    createSessionDirect(trimmed, [sessionPickerAlbumId]);
-    setNewSessionName("");
-    setShowNewSession(false);
-  }, [newSessionName, sessionPickerAlbumId, createSessionDirect]);
+  const handleCreateStack = useCallback(() => {
+    const trimmed = newStackName.trim();
+    if (!trimmed || !stackPickerAlbumId) return;
+    createStackDirect(trimmed, [stackPickerAlbumId]);
+    setNewStackName("");
+    setShowNewStack(false);
+  }, [newStackName, stackPickerAlbumId, createStackDirect]);
 
-  if (!sessionPickerAlbumId || !album) return null;
+  if (!stackPickerAlbumId || !album) return null;
 
-  // Sort sessions by lastModified descending (most recent first)
-  const sortedSessions = [...sessions].sort(
+  // Sort stacks by lastModified descending (most recent first)
+  const sortedStacks = [...stacks].sort(
     (a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
   );
 
   const pickerContent = (
     <PickerContent
       album={album}
-      albumId={sessionPickerAlbumId}
-      sessions={sortedSessions}
-      isInSession={isInSession}
-      toggleAlbumInSession={toggleAlbumInSession}
-      closeSessionPicker={closeSessionPicker}
+      albumId={stackPickerAlbumId}
+      stacks={sortedStacks}
+      isInStack={isInStack}
+      toggleAlbumInStack={toggleAlbumInStack}
+      closeStackPicker={closeStackPicker}
       isDarkMode={isDarkMode}
-      showNewSession={showNewSession}
-      setShowNewSession={setShowNewSession}
-      newSessionName={newSessionName}
-      setNewSessionName={setNewSessionName}
-      newSessionInputRef={newSessionInputRef}
-      handleCreateSession={handleCreateSession}
-      firstSessionJustCreated={firstSessionJustCreated}
+      showNewStack={showNewStack}
+      setShowNewStack={setShowNewStack}
+      newStackName={newStackName}
+      setNewStackName={setNewStackName}
+      newStackInputRef={newStackInputRef}
+      handleCreateStack={handleCreateStack}
+      firstStackJustCreated={firstStackJustCreated}
     />
   );
 
   if (isDesktop) {
     return (
       <AnimatePresence>
-        {sessionPickerAlbumId && (
+        {stackPickerAlbumId && (
           /* Centering wrapper — pointer-events-none so clicks pass through to dismiss handler */
           <div
             style={{
@@ -184,7 +184,7 @@ export function SessionPickerSheet() {
   }
 
   // Mobile: bottom sheet
-  return <MobileSheet onClose={closeSessionPicker} isDarkMode={isDarkMode}>{pickerContent}</MobileSheet>;
+  return <MobileSheet onClose={closeStackPicker} isDarkMode={isDarkMode}>{pickerContent}</MobileSheet>;
 }
 
 /* ═══════════════════════════════════════════
@@ -193,33 +193,33 @@ export function SessionPickerSheet() {
 function PickerContent({
   album,
   albumId,
-  sessions,
-  isInSession,
-  toggleAlbumInSession,
-  closeSessionPicker,
+  stacks,
+  isInStack,
+  toggleAlbumInStack,
+  closeStackPicker,
   isDarkMode,
-  showNewSession,
-  setShowNewSession,
-  newSessionName,
-  setNewSessionName,
-  newSessionInputRef,
-  handleCreateSession,
-  firstSessionJustCreated,
+  showNewStack,
+  setShowNewStack,
+  newStackName,
+  setNewStackName,
+  newStackInputRef,
+  handleCreateStack,
+  firstStackJustCreated,
 }: {
   album: { title: string; artist: string };
   albumId: string;
-  sessions: { id: string; name: string; albumIds: string[]; lastModified: string }[];
-  isInSession: (albumId: string, sessionId: string) => boolean;
-  toggleAlbumInSession: (albumId: string, sessionId: string) => void;
-  closeSessionPicker: () => void;
+  stacks: { id: string; name: string; albumIds: string[]; lastModified: string }[];
+  isInStack: (albumId: string, stackId: string) => boolean;
+  toggleAlbumInStack: (albumId: string, stackId: string) => void;
+  closeStackPicker: () => void;
   isDarkMode: boolean;
-  showNewSession: boolean;
-  setShowNewSession: (v: boolean) => void;
-  newSessionName: string;
-  setNewSessionName: (v: string) => void;
-  newSessionInputRef: React.RefObject<HTMLInputElement | null>;
-  handleCreateSession: () => void;
-  firstSessionJustCreated: boolean;
+  showNewStack: boolean;
+  setShowNewStack: (v: boolean) => void;
+  newStackName: string;
+  setNewStackName: (v: string) => void;
+  newStackInputRef: React.RefObject<HTMLInputElement | null>;
+  handleCreateStack: () => void;
+  firstStackJustCreated: boolean;
 }) {
   return (
     <div>
@@ -236,7 +236,7 @@ function PickerContent({
               margin: 0,
             }}
           >
-            Add to Session
+            Add to Stack
           </h3>
           <p
             className="mt-0.5"
@@ -260,7 +260,7 @@ function PickerContent({
           </p>
         </div>
         <button
-          onClick={closeSessionPicker}
+          onClick={closeStackPicker}
           className="flex-shrink-0 tappable rounded-full flex items-center justify-center"
           aria-label="Close"
           style={{
@@ -275,31 +275,31 @@ function PickerContent({
       </div>
 
       {/* First-time hint — removed */}
-      {firstSessionJustCreated && (
+      {firstStackJustCreated && (
         null
       )}
 
-      {/* Session list */}
+      {/* Stack list */}
       <div className="mt-3 max-h-[320px] overflow-y-auto">
-        {/* All sessions sorted by recency */}
-        {sessions.map((session) => {
-          const inSession = isInSession(albumId, session.id);
+        {/* All stacks sorted by recency */}
+        {stacks.map((stack) => {
+          const inStack = isInStack(albumId, stack.id);
           return (
-            <SessionRow
-              key={session.id}
-              label={session.name}
-              count={session.albumIds.length}
-              checked={inSession}
-              onToggle={() => toggleAlbumInSession(albumId, session.id)}
+            <StackRow
+              key={stack.id}
+              label={stack.name}
+              count={stack.albumIds.length}
+              checked={inStack}
+              onToggle={() => toggleAlbumInStack(albumId, stack.id)}
               isDarkMode={isDarkMode}
             />
           );
         })}
 
-        {/* New Session row */}
-        {!showNewSession ? (
+        {/* New Stack row */}
+        {!showNewStack ? (
           <button
-            onClick={() => setShowNewSession(true)}
+            onClick={() => setShowNewStack(true)}
             className="w-full flex items-center gap-2.5 py-2.5 px-1 tappable rounded-lg transition-colors"
             style={{ color: "var(--c-text-secondary)" }}
           >
@@ -309,23 +309,23 @@ function PickerContent({
             >
               <Plus size={15} />
             </div>
-            <span style={{ fontSize: "14px", fontWeight: 500 }}>Add to New Session</span>
+            <span style={{ fontSize: "14px", fontWeight: 500 }}>Add to New Stack</span>
           </button>
         ) : (
           <div className="flex items-center gap-2.5 py-2 px-1" style={{ overflow: "visible" }}>
             <input
-              ref={newSessionInputRef}
+              ref={newStackInputRef}
               type="text"
-              value={newSessionName}
-              onChange={(e) => setNewSessionName(e.target.value)}
+              value={newStackName}
+              onChange={(e) => setNewStackName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreateSession();
+                if (e.key === "Enter") handleCreateStack();
                 if (e.key === "Escape") {
-                  setShowNewSession(false);
-                  setNewSessionName("");
+                  setShowNewStack(false);
+                  setNewStackName("");
                 }
               }}
-              placeholder="Session name..."
+              placeholder="Stack name..."
               maxLength={100}
               className="flex-1 min-w-0 rounded-lg px-3 py-2 outline-none"
               style={{
@@ -338,15 +338,15 @@ function PickerContent({
               }}
             />
             <button
-              onClick={handleCreateSession}
-              disabled={!newSessionName.trim()}
+              onClick={handleCreateStack}
+              disabled={!newStackName.trim()}
               className="flex-shrink-0 rounded-lg flex items-center justify-center tappable transition-colors"
               style={{
                 width: 44,
                 height: 44,
                 minWidth: 44,
-                backgroundColor: newSessionName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
-                color: newSessionName.trim() ? "#0C284A" : "var(--c-text-faint)",
+                backgroundColor: newStackName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
+                color: newStackName.trim() ? "#0C284A" : "var(--c-text-faint)",
               }}
             >
               <Check size={18} />
@@ -359,9 +359,9 @@ function PickerContent({
 }
 
 /* ═══════════════════════════════════════════
-   Session Row
+   Stack Row
    ═══════════════════════════════════════════ */
-function SessionRow({
+function StackRow({
   label,
   count,
   checked,

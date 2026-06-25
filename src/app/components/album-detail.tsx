@@ -96,11 +96,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const {
     selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
     lastPlayed, playCounts, markPlayed, markPlayedAt, removePlay, isDarkMode,
-    // Session picker
-    isAlbumInAnySession, mostRecentSessionId,
-    // Inline session list
-    sessions,
-    isInSession, toggleAlbumInSession, createSessionDirect,
+    // Stack picker
+    isAlbumInAnyStack, mostRecentStackId,
+    // Inline stack list
+    stacks,
+    isInStack, toggleAlbumInStack, createStackDirect,
     // Edit
     albums, isSyncing, discogsUsername, updateAlbum, removeFromCollection,
     folders,
@@ -127,11 +127,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     selectedAlbum && sessionToken ? { sessionToken, release_id: selectedAlbum.release_id } : "skip"
   );
 
-  // Inline session list state
-  const [sessionListExpanded, setSessionListExpanded] = useState(false);
-  const [showNewSession, setShowNewSession] = useState(false);
-  const [newSessionName, setNewSessionName] = useState("");
-  const newSessionInputRef = useRef<HTMLInputElement>(null);
+  // Inline stack list state
+  const [stackListExpanded, setStackListExpanded] = useState(false);
+  const [showNewStack, setShowNewStack] = useState(false);
+  const [newStackName, setNewStackName] = useState("");
+  const newStackInputRef = useRef<HTMLInputElement>(null);
   const autoCheckedRef = useRef<string | null>(null);
 
   // Edit mode state
@@ -167,9 +167,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   useEffect(() => {
     setJustPlayed(false);
     setPlayHistoryExpanded(false);
-    setSessionListExpanded(false);
-    setShowNewSession(false);
-    setNewSessionName("");
+    setStackListExpanded(false);
+    setShowNewStack(false);
+    setNewStackName("");
     autoCheckedRef.current = null;
     setIsEditMode(false);
     setIsSaving(false);
@@ -369,32 +369,32 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     editFields, folderOptions, updateAlbum, proxyUpdateInstance, proxyMoveToFolder,
   ]);
 
-  // Auto-check most recent session when expanding if album is in no sessions
+  // Auto-check most recent stack when expanding if album is in no stacks
   useEffect(() => {
-    if (!sessionListExpanded || !selectedAlbum) return;
+    if (!stackListExpanded || !selectedAlbum) return;
     if (autoCheckedRef.current === selectedAlbum.id) return;
     autoCheckedRef.current = selectedAlbum.id;
 
-    const inAnySession = sessions.some((s) => s.albumIds.includes(selectedAlbum.id));
-    if (!inAnySession && mostRecentSessionId) {
-      toggleAlbumInSession(selectedAlbum.id, mostRecentSessionId);
+    const inAnyStack = stacks.some((s) => s.albumIds.includes(selectedAlbum.id));
+    if (!inAnyStack && mostRecentStackId) {
+      toggleAlbumInStack(selectedAlbum.id, mostRecentStackId);
     }
-  }, [sessionListExpanded, selectedAlbum?.id]); // minimal deps — runs once per expand
+  }, [stackListExpanded, selectedAlbum?.id]); // minimal deps — runs once per expand
 
-  // Auto-focus new session input
+  // Auto-focus new stack input
   useEffect(() => {
-    if (showNewSession && newSessionInputRef.current) {
-      newSessionInputRef.current.focus();
+    if (showNewStack && newStackInputRef.current) {
+      newStackInputRef.current.focus();
     }
-  }, [showNewSession]);
+  }, [showNewStack]);
 
-  const handleCreateSession = useCallback(() => {
-    const trimmed = newSessionName.trim();
+  const handleCreateStack = useCallback(() => {
+    const trimmed = newStackName.trim();
     if (!trimmed || !selectedAlbum) return;
-    createSessionDirect(trimmed, [selectedAlbum.id]);
-    setNewSessionName("");
-    setShowNewSession(false);
-  }, [newSessionName, selectedAlbum, createSessionDirect]);
+    createStackDirect(trimmed, [selectedAlbum.id]);
+    setNewStackName("");
+    setShowNewStack(false);
+  }, [newStackName, selectedAlbum, createStackDirect]);
 
   const alreadyOnWantlist = selectedAlbum ? isInWants(selectedAlbum.release_id) : false;
 
@@ -524,7 +524,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setTimeout(() => setJustPlayed(false), 1200);
   };
 
-  const inAnySession = isAlbumInAnySession(selectedAlbum.id);
+  const inAnyStack = isAlbumInAnyStack(selectedAlbum.id);
 
   // Edit button — shown in header (desktop) or title row (mobile)
   const editButton = !isSyncing && !isEditMode && (
@@ -1181,55 +1181,55 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 ))}
                 {selectedAlbum.notes && <DetailRow label="Notes" value={selectedAlbum.notes} />}
 
-                {/* ═══ Add to a Session (inside Your Copy) ═══ */}
+                {/* ═══ Add to a Stack (inside Your Copy) ═══ */}
                 {!isEditMode && (
                   <>
                     <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
                       <p className="mb-2" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        {inAnySession ? "Saved" : "Add to a Session"}
+                        {inAnyStack ? "Saved" : "Add to a Stack"}
                       </p>
                       <div style={{ border: "1px solid var(--c-border-strong)", borderRadius: "10px", padding: "4px 8px", maxHeight: "240px", overflowY: "auto" }}>
-                        {[...sessions]
+                        {[...stacks]
                           .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
-                          .map((session) => {
-                            const inSession = isInSession(selectedAlbum.id, session.id);
+                          .map((stack) => {
+                            const inStack = isInStack(selectedAlbum.id, stack.id);
                             return (
-                              <InlineSessionRow
-                                key={session.id}
-                                label={session.name}
-                                count={session.albumIds.length}
-                                checked={inSession}
-                                onToggle={() => toggleAlbumInSession(selectedAlbum.id, session.id)}
+                              <InlineStackRow
+                                key={stack.id}
+                                label={stack.name}
+                                count={stack.albumIds.length}
+                                checked={inStack}
+                                onToggle={() => toggleAlbumInStack(selectedAlbum.id, stack.id)}
                                 isDarkMode={isDarkMode}
                               />
                             );
                           })}
-                        {!showNewSession ? (
+                        {!showNewStack ? (
                           <button
-                            onClick={() => setShowNewSession(true)}
+                            onClick={() => setShowNewStack(true)}
                             className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors"
                             style={{ color: "var(--c-text-secondary)" }}
                           >
                             <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
                               <Plus size={14} />
                             </div>
-                            <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
+                            <span style={{ fontSize: "13px", fontWeight: 500 }}>New Stack</span>
                           </button>
                         ) : (
                           <div className="flex items-center gap-2 py-2 px-1">
                             <input
-                              ref={newSessionInputRef}
+                              ref={newStackInputRef}
                               type="text"
-                              value={newSessionName}
-                              onChange={(e) => setNewSessionName(e.target.value)}
+                              value={newStackName}
+                              onChange={(e) => setNewStackName(e.target.value)}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter") handleCreateSession();
+                                if (e.key === "Enter") handleCreateStack();
                                 if (e.key === "Escape") {
-                                  setShowNewSession(false);
-                                  setNewSessionName("");
+                                  setShowNewStack(false);
+                                  setNewStackName("");
                                 }
                               }}
-                              placeholder="Session name..."
+                              placeholder="Stack name..."
                               maxLength={100}
                               className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
                               style={{
@@ -1242,12 +1242,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                               }}
                             />
                             <button
-                              onClick={handleCreateSession}
-                              disabled={!newSessionName.trim()}
+                              onClick={handleCreateStack}
+                              disabled={!newStackName.trim()}
                               className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center tappable transition-colors"
                               style={{
-                                backgroundColor: newSessionName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
-                                color: newSessionName.trim() ? "#0C284A" : "var(--c-text-faint)",
+                                backgroundColor: newStackName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
+                                color: newStackName.trim() ? "#0C284A" : "var(--c-text-faint)",
                               }}
                             >
                               <Check size={14} />
@@ -1834,7 +1834,7 @@ function DestructiveButton({
   );
 }
 
-function InlineSessionRow({
+function InlineStackRow({
   label,
   count,
   checked,

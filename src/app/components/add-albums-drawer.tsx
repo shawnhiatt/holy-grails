@@ -12,23 +12,23 @@ import { getContentTokens } from "./theme";
    - Ensures no gap on notched iOS devices in PWA mode */
 
 interface AddAlbumsDrawerProps {
-  sessionId: string;
+  stackId: string;
   onClose: () => void;
 }
 
-export function AddAlbumsDrawer({ sessionId, onClose }: AddAlbumsDrawerProps) {
-  const { albums, sessions, toggleAlbumInSession, isDarkMode, folders } = useApp();
+export function AddAlbumsDrawer({ stackId, onClose }: AddAlbumsDrawerProps) {
+  const { albums, stacks, toggleAlbumInStack, isDarkMode, folders } = useApp();
   const [isDesktop, setIsDesktop] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState("All");
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const session = sessions.find((s) => s.id === sessionId);
-  const sessionName = session?.name ?? "";
+  const stack = stacks.find((s) => s.id === stackId);
+  const stackName = stack?.name ?? "";
 
   // Pending local selection state — changes only committed on confirm
-  const initialAlbumIdsRef = useRef(new Set(session?.albumIds ?? []));
-  const [checkedIds, setCheckedIds] = useState(() => new Set(session?.albumIds ?? []));
+  const initialAlbumIdsRef = useRef(new Set(stack?.albumIds ?? []));
+  const [checkedIds, setCheckedIds] = useState(() => new Set(stack?.albumIds ?? []));
 
   const newlyAddedCount = useMemo(() => {
     let count = 0;
@@ -55,17 +55,17 @@ export function AddAlbumsDrawer({ sessionId, onClose }: AddAlbumsDrawerProps) {
     // Add newly checked albums
     for (const id of checkedIds) {
       if (!initialAlbumIdsRef.current.has(id)) {
-        toggleAlbumInSession(id, sessionId);
+        toggleAlbumInStack(id, stackId);
       }
     }
     // Remove albums that were unchecked
     for (const id of initialAlbumIdsRef.current) {
       if (!checkedIds.has(id)) {
-        toggleAlbumInSession(id, sessionId);
+        toggleAlbumInStack(id, stackId);
       }
     }
     onClose();
-  }, [checkedIds, toggleAlbumInSession, sessionId, onClose]);
+  }, [checkedIds, toggleAlbumInStack, stackId, onClose]);
 
   const handleDiscard = useCallback(() => {
     onClose();
@@ -115,7 +115,7 @@ export function AddAlbumsDrawer({ sessionId, onClose }: AddAlbumsDrawerProps) {
       recentlyAdded={recentlyAdded}
       keeps={keeps}
       browseAlbums={browseAlbums}
-      sessionName={sessionName}
+      stackName={stackName}
       newlyAddedCount={newlyAddedCount}
       searchQuery={searchQuery}
       setSearchQuery={setSearchQuery}
@@ -174,14 +174,14 @@ export function AddAlbumsDrawer({ sessionId, onClose }: AddAlbumsDrawerProps) {
    Drawer Content
    ═══════════════════════════════════════════ */
 function DrawerContent({
-  recentlyAdded, keeps, browseAlbums, sessionName, newlyAddedCount,
+  recentlyAdded, keeps, browseAlbums, stackName, newlyAddedCount,
   searchQuery, setSearchQuery, activeFolder, setActiveFolder, folders,
   toggleAlbum, isAdded, isDarkMode, onConfirm, onDiscard, searchRef,
 }: {
   recentlyAdded: Album[];
   keeps: Album[];
   browseAlbums: Album[];
-  sessionName: string;
+  stackName: string;
   newlyAddedCount: number;
   searchQuery: string;
   setSearchQuery: (v: string) => void;
@@ -197,10 +197,10 @@ function DrawerContent({
 }) {
   const title =
     newlyAddedCount === 0
-      ? `Add to ${sessionName}`
+      ? `Add to ${stackName}`
       : newlyAddedCount === 1
-        ? `1 album added to ${sessionName}`
-        : `${newlyAddedCount} albums added to ${sessionName}`;
+        ? `1 album added to ${stackName}`
+        : `${newlyAddedCount} albums added to ${stackName}`;
 
   return (
     <>
@@ -219,10 +219,10 @@ function DrawerContent({
             }}
           >
             {newlyAddedCount === 0
-              ? <>Add to &ldquo;{sessionName}&rdquo;</>
+              ? <>Add to &ldquo;{stackName}&rdquo;</>
               : newlyAddedCount === 1
-                ? <>1 album added to &ldquo;{sessionName}&rdquo;</>
-                : <>{newlyAddedCount} albums added to &ldquo;{sessionName}&rdquo;</>}
+                ? <>1 album added to &ldquo;{stackName}&rdquo;</>
+                : <>{newlyAddedCount} albums added to &ldquo;{stackName}&rdquo;</>}
           </h3>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

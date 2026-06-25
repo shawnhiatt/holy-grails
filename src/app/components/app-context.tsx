@@ -6,7 +6,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import {
   type Album,
   type WantItem,
-  type Session,
+  type Stack,
   type PurgeTag,
   type FollowedUser,
   type FeedAlbum,
@@ -32,7 +32,7 @@ function getOrCreateContext(): React.Context<AppState | null> {
   return g[APP_CONTEXT_KEY];
 }
 
-export type Screen = "crate" | "purge" | "sessions" | "wants" | "following" | "settings" | "reports" | "feed";
+export type Screen = "crate" | "purge" | "stacks" | "wants" | "following" | "settings" | "reports" | "feed";
 export type ViewMode = "crate" | "list" | "grid" | "artwork" | "grid3";
 export type SortOption =
   | "artist-az"
@@ -61,7 +61,7 @@ interface AppState {
   setWantViewMode: (v: ViewMode) => void;
   albums: Album[];
   wants: WantItem[];
-  sessions: Session[];
+  stacks: Stack[];
   followedUsers: FollowedUser[];
   addFollowedUser: (user: FollowedUser) => void;
   refreshFollowedUser: (username: string) => Promise<void>;
@@ -87,9 +87,9 @@ interface AppState {
   removeFromWantList: (releaseId: string | number) => Promise<void>;
   isInWants: (releaseId: string | number, masterId?: number) => boolean;
   isInCollection: (releaseId: string | number, masterId?: number) => boolean;
-  deleteSession: (sessionId: string) => void;
-  renameSession: (sessionId: string, name: string) => void;
-  reorderSessionAlbums: (sessionId: string, albumIds: string[]) => void;
+  deleteStack: (stackId: string) => void;
+  renameStack: (stackId: string, name: string) => void;
+  reorderStackAlbums: (stackId: string, albumIds: string[]) => void;
   showFilterDrawer: boolean;
   setShowFilterDrawer: (v: boolean) => void;
   showAlbumDetail: boolean;
@@ -160,16 +160,16 @@ interface AppState {
   connectDiscogsRequested: boolean;
   requestConnectDiscogs: () => void;
   clearConnectDiscogsRequest: () => void;
-  // Session Picker
-  sessionPickerAlbumId: string | null;
-  openSessionPicker: (albumId: string) => void;
-  closeSessionPicker: () => void;
-  isInSession: (albumId: string, sessionId: string) => boolean;
-  toggleAlbumInSession: (albumId: string, sessionId: string) => void;
-  createSessionDirect: (name: string, initialAlbumIds?: string[]) => string;
-  isAlbumInAnySession: (albumId: string) => boolean;
-  mostRecentSessionId: string | null;
-  firstSessionJustCreated: boolean;
+  // Stack Picker
+  stackPickerAlbumId: string | null;
+  openStackPicker: (albumId: string) => void;
+  closeStackPicker: () => void;
+  isInStack: (albumId: string, stackId: string) => boolean;
+  toggleAlbumInStack: (albumId: string, stackId: string) => void;
+  createStackDirect: (name: string, initialAlbumIds?: string[]) => string;
+  isAlbumInAnyStack: (albumId: string) => boolean;
+  mostRecentStackId: string | null;
+  firstStackJustCreated: boolean;
   // Album instance editing
   updateAlbum: (albumId: string, fields: Partial<Album>) => void;
   removeFromCollection: (albumId: string) => Promise<void>;
@@ -203,8 +203,8 @@ interface AppState {
   // Cycling stats derived from Convex cache (available before albums state populates)
   cachedSyncStats: string[];
   // Header callbacks — registered by screen components, called by MobileHeader
-  onNewSession: (() => void) | null;
-  setOnNewSession: (fn: (() => void) | null) => void;
+  onNewStack: (() => void) | null;
+  setOnNewStack: (fn: (() => void) | null) => void;
   onAddFollowedUser: (() => void) | null;
   setOnAddFollowedUser: (fn: (() => void) | null) => void;
   followedUserProfile: { username: string; avatarUrl?: string } | null;
@@ -299,7 +299,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Data state ──
   const [albums, setAlbums] = useState<Album[]>([]);
   const [wants, setWants] = useState<WantItem[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [stacks, setStacks] = useState<Stack[]>([]);
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
   const [lastPlayed, setLastPlayed] = useState<Record<string, string>>({});
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
@@ -325,15 +325,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [userAvatar, setUserAvatar] = useState("");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [connectDiscogsRequested, setConnectDiscogsRequested] = useState(false);
-  const [sessionPickerAlbumId, setSessionPickerAlbumId] = useState<string | null>(null);
-  const [firstSessionJustCreated, setFirstSessionJustCreated] = useState(false);
+  const [stackPickerAlbumId, setStackPickerAlbumId] = useState<string | null>(null);
+  const [firstStackJustCreated, setFirstStackJustCreated] = useState(false);
   const [selectedWantItem, setSelectedWantItem] = useState<WantItem | null>(null);
   const [selectedFeedAlbum, setSelectedFeedAlbum] = useState<FeedAlbum | null>(null);
   const [followingActivityTabIntent, setFollowingActivityTabIntent] = useState<"collection" | "wantlist" | null>(null);
   const [collectionCrossoverQueue, setCollectionCrossoverQueue] = useState<WantItem[]>([]);
   const [followingFeed, setFollowingFeed] = useState<FollowingFeedEntry[]>([]);
   // Header callbacks — registered by screen components
-  const [onNewSession, setOnNewSession] = useState<(() => void) | null>(null);
+  const [onNewStack, setOnNewStack] = useState<(() => void) | null>(null);
   const [onAddFollowedUser, setOnAddFollowedUser] = useState<(() => void) | null>(null);
   const [followedUserProfile, setFollowedUserProfile] = useState<{ username: string; avatarUrl?: string } | null>(null);
   const [onBackFromProfile, setOnBackFromProfile] = useState<(() => void) | null>(null);
@@ -356,7 +356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const convexUser = useQuery(api.users.getMe, authedArgs);
   const convexPurgeTags = useQuery(api.purge_tags.getByUsername, authedArgs);
-  const convexSessions = useQuery(api.sessions.getByUsername, authedArgs);
+  const convexStacks = useQuery(api.stacks.getByUsername, authedArgs);
   const convexLastPlayed = useQuery(api.last_played.getByUsername, authedArgs);
   const convexWantPriorities = useQuery(api.want_priorities.getByUsername, authedArgs);
   const convexFollowing = useQuery(api.following.getByUsername, authedArgs);
@@ -378,9 +378,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
   const removePurgeTagMut = useMutation(api.purge_tags.remove);
-  const createSessionMut = useMutation(api.sessions.create);
-  const updateSessionMut = useMutation(api.sessions.update);
-  const removeSessionMut = useMutation(api.sessions.remove);
+  const createStackMut = useMutation(api.stacks.create);
+  const updateStackMut = useMutation(api.stacks.update);
+  const removeStackMut = useMutation(api.stacks.remove);
   const logPlayMut = useMutation(api.last_played.logPlay);
   const deletePlayMut = useMutation(api.last_played.deletePlay);
   const clearLastPlayedMut = useMutation(api.last_played.clearAll);
@@ -461,7 +461,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Track one-time hydration from Convex → local state
   const hydratedRef = useRef({
     purgeTags: false,
-    sessions: false,
+    stacks: false,
     lastPlayed: false,
     wantPriorities: false,
     preferences: false,
@@ -722,13 +722,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexPurgeTags, albums.length]);
 
-  // Hydrate sessions from Convex (one-time)
+  // Hydrate stacks from Convex (one-time)
   useEffect(() => {
-    if (!hydratedRef.current.sessions && convexSessions !== undefined) {
-      hydratedRef.current.sessions = true;
-      if (convexSessions.length > 0) {
-        setSessions(convexSessions.map(s => ({
-          id: s.session_id,
+    if (!hydratedRef.current.stacks && convexStacks !== undefined) {
+      hydratedRef.current.stacks = true;
+      if (convexStacks.length > 0) {
+        setStacks(convexStacks.map(s => ({
+          id: s.stack_id,
           name: s.name,
           albumIds: s.album_ids.map(String),
           createdAt: new Date(s.created_at).toISOString().split("T")[0],
@@ -736,7 +736,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })));
       }
     }
-  }, [convexSessions]);
+  }, [convexStacks]);
 
   // Hydrate last played from Convex (one-time)
   useEffect(() => {
@@ -933,7 +933,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedAlbumId(null);
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
-    setSessionPickerAlbumId(null);
+    setStackPickerAlbumId(null);
   }, []);
 
   // ── Theme toggle ──
@@ -1401,45 +1401,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionToken, deletePlayMut]);
 
-  // ── Session operations ──
+  // ── Stack operations ──
 
-  const deleteSession = useCallback((sessionId: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+  const deleteStack = useCallback((stackId: string) => {
+    setStacks((prev) => prev.filter((s) => s.id !== stackId));
     if (sessionToken) {
-      removeSessionMut({ sessionToken, session_id: sessionId });
+      removeStackMut({ sessionToken, stack_id: stackId });
     }
-  }, [sessionToken, removeSessionMut]);
+  }, [sessionToken, removeStackMut]);
 
-  const renameSession = useCallback((sessionId: string, name: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, name } : s))
+  const renameStack = useCallback((stackId: string, name: string) => {
+    setStacks((prev) =>
+      prev.map((s) => (s.id === stackId ? { ...s, name } : s))
     );
     if (sessionToken) {
-      updateSessionMut({ sessionToken, session_id: sessionId, name }).catch(console.error);
+      updateStackMut({ sessionToken, stack_id: stackId, name }).catch(console.error);
     }
-  }, [sessionToken, updateSessionMut]);
+  }, [sessionToken, updateStackMut]);
 
-  const reorderSessionAlbums = useCallback((sessionId: string, albumIds: string[]) => {
-    setSessions((prev) => {
-      const sessionIndex = prev.findIndex((s) => s.id === sessionId);
-      if (sessionIndex === -1) return prev;
+  const reorderStackAlbums = useCallback((stackId: string, albumIds: string[]) => {
+    setStacks((prev) => {
+      const stackIndex = prev.findIndex((s) => s.id === stackId);
+      if (stackIndex === -1) return prev;
 
-      const session = prev[sessionIndex];
+      const stack = prev[stackIndex];
       const now = new Date().toISOString();
       return [
-        ...prev.slice(0, sessionIndex),
-        { ...session, albumIds, lastModified: now },
-        ...prev.slice(sessionIndex + 1),
+        ...prev.slice(0, stackIndex),
+        { ...stack, albumIds, lastModified: now },
+        ...prev.slice(stackIndex + 1),
       ];
     });
     if (sessionToken) {
-      updateSessionMut({
+      updateStackMut({
         sessionToken,
-        session_id: sessionId,
+        stack_id: stackId,
         album_ids: albumIds.map(Number),
       }).catch(console.error);
     }
-  }, [sessionToken, updateSessionMut]);
+  }, [sessionToken, updateStackMut]);
 
   // ── Following ──
 
@@ -2012,7 +2012,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Sign out ──
 
   const signOut = useCallback(() => {
-    // Clear auth session from Convex (keep purge tags, sessions, etc.)
+    // Clear auth session from Convex (keep purge tags, stacks, etc.)
     if (sessionToken) {
       clearSessionMut({ sessionToken });
     }
@@ -2030,7 +2030,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Reset data state
     setAlbums([]);
     setWants([]);
-    setSessions([]);
+    setStacks([]);
     setFollowedUsers([]);
     setFollowingFeed([]);
     setFolders([]);
@@ -2053,8 +2053,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowFilterDrawer(false);
     setUserAvatar("");
     setUserProfile(null);
-    setSessionPickerAlbumId(null);
-    setFirstSessionJustCreated(false);
+    setStackPickerAlbumId(null);
+    setFirstStackJustCreated(false);
     setSyncFailed(false);
     setScreenRaw("feed"); // Navigate away from any authenticated-only screen
     setColorModeRaw("dark"); // Reset to dark so splash screen has no white flash
@@ -2068,7 +2068,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Reset hydration flags
     hydratedRef.current = {
       purgeTags: false,
-      sessions: false,
+      stacks: false,
       lastPlayed: false,
       wantPriorities: false,
       preferences: false,
@@ -2106,7 +2106,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Then reset all client state
     setAlbums([]);
     setWants([]);
-    setSessions([]);
+    setStacks([]);
     setFollowedUsers([]);
     setFollowingFeed([]);
     setFolders([]);
@@ -2131,8 +2131,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowFilterDrawer(false);
     setUserAvatar("");
     setUserProfile(null);
-    setSessionPickerAlbumId(null);
-    setFirstSessionJustCreated(false);
+    setStackPickerAlbumId(null);
+    setFirstStackJustCreated(false);
     setSyncFailed(false);
     clearCollectionValue();
     try {
@@ -2144,7 +2144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     hydratedRef.current = {
       purgeTags: false,
-      sessions: false,
+      stacks: false,
       lastPlayed: false,
       wantPriorities: false,
       preferences: false,
@@ -2163,121 +2163,121 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setConnectDiscogsRequested(false);
   }, []);
 
-  // ── Session Picker ──
+  // ── Stack Picker ──
 
-  const openSessionPicker = useCallback((albumId: string) => {
-    // Auto-create "Saved for Later" session if no sessions exist
-    setSessions((prev) => {
+  const openStackPicker = useCallback((albumId: string) => {
+    // Auto-create "Saved for Later" stack if no stacks exist
+    setStacks((prev) => {
       if (prev.length === 0) {
         const now = new Date().toISOString();
-        const sessionId = "s" + Date.now();
-        const newSession: Session = {
-          id: sessionId,
+        const stackId = "s" + Date.now();
+        const newStack: Stack = {
+          id: stackId,
           name: "Saved for Later",
           albumIds: [albumId],
           createdAt: now.split("T")[0],
           lastModified: now,
         };
-        setFirstSessionJustCreated(true);
+        setFirstStackJustCreated(true);
         // Persist to Convex
         if (sessionToken) {
-          createSessionMut({
+          createStackMut({
             sessionToken,
-            session_id: sessionId,
+            stack_id: stackId,
             name: "Saved for Later",
             album_ids: [Number(albumId)],
           });
         }
-        return [newSession];
+        return [newStack];
       }
       return prev;
     });
-    setSessionPickerAlbumId(albumId);
-  }, [sessionToken, createSessionMut]);
+    setStackPickerAlbumId(albumId);
+  }, [sessionToken, createStackMut]);
 
-  const closeSessionPicker = useCallback(() => {
-    setSessionPickerAlbumId(null);
-    setFirstSessionJustCreated(false);
+  const closeStackPicker = useCallback(() => {
+    setStackPickerAlbumId(null);
+    setFirstStackJustCreated(false);
   }, []);
 
-  const isInSession = useCallback((albumId: string, sessionId: string) => {
-    const session = sessions.find((s) => s.id === sessionId);
-    return session ? session.albumIds.includes(albumId) : false;
-  }, [sessions]);
+  const isInStack = useCallback((albumId: string, stackId: string) => {
+    const stack = stacks.find((s) => s.id === stackId);
+    return stack ? stack.albumIds.includes(albumId) : false;
+  }, [stacks]);
 
-  const toggleAlbumInSession = useCallback((albumId: string, sessionId: string) => {
-    setSessions((prev) => {
-      const sessionIndex = prev.findIndex((s) => s.id === sessionId);
-      if (sessionIndex === -1) return prev;
+  const toggleAlbumInStack = useCallback((albumId: string, stackId: string) => {
+    setStacks((prev) => {
+      const stackIndex = prev.findIndex((s) => s.id === stackId);
+      if (stackIndex === -1) return prev;
 
-      const session = prev[sessionIndex];
+      const stack = prev[stackIndex];
       const now = new Date().toISOString();
-      const albumIndex = session.albumIds.indexOf(albumId);
+      const albumIndex = stack.albumIds.indexOf(albumId);
       let newAlbumIds: string[];
       if (albumIndex === -1) {
-        newAlbumIds = [...session.albumIds, albumId];
+        newAlbumIds = [...stack.albumIds, albumId];
       } else {
-        newAlbumIds = session.albumIds.filter((id) => id !== albumId);
+        newAlbumIds = stack.albumIds.filter((id) => id !== albumId);
       }
 
       // Persist to Convex
       if (sessionToken) {
-        updateSessionMut({
+        updateStackMut({
           sessionToken,
-          session_id: sessionId,
+          stack_id: stackId,
           album_ids: newAlbumIds.map(Number),
         });
       }
 
       if (albumIndex === -1) {
         return [
-          ...prev.slice(0, sessionIndex),
-          { ...session, albumIds: newAlbumIds, lastModified: now },
-          ...prev.slice(sessionIndex + 1),
+          ...prev.slice(0, stackIndex),
+          { ...stack, albumIds: newAlbumIds, lastModified: now },
+          ...prev.slice(stackIndex + 1),
         ];
       } else {
         return [
-          ...prev.slice(0, sessionIndex),
-          { ...session, albumIds: newAlbumIds },
-          ...prev.slice(sessionIndex + 1),
+          ...prev.slice(0, stackIndex),
+          { ...stack, albumIds: newAlbumIds },
+          ...prev.slice(stackIndex + 1),
         ];
       }
     });
-  }, [sessionToken, updateSessionMut]);
+  }, [sessionToken, updateStackMut]);
 
-  const createSessionDirect = useCallback((name: string, initialAlbumIds?: string[]) => {
+  const createStackDirect = useCallback((name: string, initialAlbumIds?: string[]) => {
     const now = new Date().toISOString();
-    const sessionId = "s" + Date.now();
-    const newSession: Session = {
-      id: sessionId,
+    const stackId = "s" + Date.now();
+    const newStack: Stack = {
+      id: stackId,
       name,
       albumIds: initialAlbumIds || [],
       createdAt: now.split("T")[0],
       lastModified: now,
     };
-    setSessions((prev) => [newSession, ...prev]);
+    setStacks((prev) => [newStack, ...prev]);
     // Persist to Convex
     if (sessionToken) {
-      createSessionMut({
+      createStackMut({
         sessionToken,
-        session_id: sessionId,
+        stack_id: stackId,
         name,
         album_ids: (initialAlbumIds || []).map(Number),
       });
     }
-    return sessionId;
-  }, [sessionToken, createSessionMut]);
+    return stackId;
+  }, [sessionToken, createStackMut]);
 
-  const isAlbumInAnySession = useCallback((albumId: string) => {
-    return sessions.some((s) => s.albumIds.includes(albumId));
-  }, [sessions]);
+  const isAlbumInAnyStack = useCallback((albumId: string) => {
+    return stacks.some((s) => s.albumIds.includes(albumId));
+  }, [stacks]);
 
-  const mostRecentSessionId = useMemo(() => {
-    if (sessions.length === 0) return null;
-    return [...sessions].sort((a, b) =>
+  const mostRecentStackId = useMemo(() => {
+    if (stacks.length === 0) return null;
+    return [...stacks].sort((a, b) =>
       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
     )[0].id;
-  }, [sessions]);
+  }, [stacks]);
 
   // ── Cached sync stats (derived from Convex queries, available before albums populates) ──
 
@@ -2374,7 +2374,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setWantViewMode,
       albums,
       wants,
-      sessions,
+      stacks,
       followedUsers,
       addFollowedUser,
       refreshFollowedUser,
@@ -2399,9 +2399,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removeFromWantList,
       isInWants,
       isInCollection,
-      deleteSession,
-      renameSession,
-      reorderSessionAlbums,
+      deleteStack,
+      renameStack,
+      reorderStackAlbums,
       showFilterDrawer,
       setShowFilterDrawer,
       showAlbumDetail,
@@ -2473,16 +2473,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       connectDiscogsRequested,
       requestConnectDiscogs,
       clearConnectDiscogsRequest,
-      // Session Picker
-      sessionPickerAlbumId,
-      openSessionPicker,
-      closeSessionPicker,
-      isInSession,
-      toggleAlbumInSession,
-      createSessionDirect,
-      isAlbumInAnySession,
-      mostRecentSessionId,
-      firstSessionJustCreated,
+      // Stack Picker
+      stackPickerAlbumId,
+      openStackPicker,
+      closeStackPicker,
+      isInStack,
+      toggleAlbumInStack,
+      createStackDirect,
+      isAlbumInAnyStack,
+      mostRecentStackId,
+      firstStackJustCreated,
       // Album instance editing
       updateAlbum,
       removeFromCollection,
@@ -2513,8 +2513,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       followingAvatars,
       cachedSyncStats,
       // Header callbacks
-      onNewSession,
-      setOnNewSession,
+      onNewStack,
+      setOnNewStack,
       onAddFollowedUser,
       setOnAddFollowedUser,
       followedUserProfile,
@@ -2525,14 +2525,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setOnUnfollowUser,
     }),
     [
-      screen, setScreen, viewMode, wantViewMode, albums, wants, sessions, followedUsers,
+      screen, setScreen, viewMode, wantViewMode, albums, wants, stacks, followedUsers,
       addFollowedUser, refreshFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
       searchQuery, activeFolder, sortOption, effectiveSortOption, filteredAlbums,
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
       toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
-      deleteSession, renameSession, reorderSessionAlbums,
+      deleteStack, renameStack, reorderStackAlbums,
       showFilterDrawer, showAlbumDetail,
       purgeFilter, wantFilter, wantSearchQuery,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
@@ -2554,16 +2554,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearPlayHistory, clearFollowedUsers, clearWantlistPriorities,
       wipeAllData,
       connectDiscogsRequested, requestConnectDiscogs, clearConnectDiscogsRequest,
-      sessionPickerAlbumId, openSessionPicker, closeSessionPicker,
-      isInSession, toggleAlbumInSession, createSessionDirect,
-      isAlbumInAnySession, mostRecentSessionId, firstSessionJustCreated,
+      stackPickerAlbumId, openStackPicker, closeStackPicker,
+      isInStack, toggleAlbumInStack, createStackDirect,
+      isAlbumInAnyStack, mostRecentStackId, firstStackJustCreated,
       updateAlbum, removeFromCollection,
       selectedWantItem, selectedFeedAlbum, followingActivityTabIntent, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, isAuthenticated, isAuthLoading, isNewUser,
       shareActivity, showSharePrompt, setShareActivity,
       followingFeed, followingAvatars, cachedSyncStats,
-      onNewSession, onAddFollowedUser, followedUserProfile, onBackFromProfile, onUnfollowUser,
+      onNewStack, onAddFollowedUser, followedUserProfile, onBackFromProfile, onUnfollowUser,
     ]
   );
 

@@ -202,7 +202,7 @@ export const getHolyGrailsUsers = query({
 
 /**
  * Delete all user data across every Convex table.
- * Nuclear option — wipes purge tags, sessions, last played, want priorities,
+ * Nuclear option — wipes purge tags, stacks, last played, want priorities,
  * following, following feed, collection cache, wantlist cache, preferences,
  * and the user record itself.
  */
@@ -219,12 +219,19 @@ export const deleteAllUserData = mutation({
       .collect();
     for (const row of purgeTags) await ctx.db.delete(row._id);
 
-    // Sessions
-    const sessions = await ctx.db
+    // Stacks
+    const stacks = await ctx.db
+      .query("stacks")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of stacks) await ctx.db.delete(row._id);
+
+    // Stacks — legacy table cleanup (remove once `sessions` is dropped from schema)
+    const legacyStacks = await ctx.db
       .query("sessions")
       .withIndex("by_username", (q) => q.eq("discogs_username", username))
       .collect();
-    for (const row of sessions) await ctx.db.delete(row._id);
+    for (const row of legacyStacks) await ctx.db.delete(row._id);
 
     // Last played
     const lastPlayed = await ctx.db
