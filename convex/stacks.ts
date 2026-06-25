@@ -86,14 +86,18 @@ export const remove = mutation({
 
 /**
  * One-time migration: copies every row from the legacy `sessions` table into
- * `stacks` (mapping session_id → stack_id), remaps the `default_screen`
- * preference value "sessions" → "stacks", then deletes the old session rows.
+ * `stacks` (mapping session_id → stack_id) and remaps the `default_screen`
+ * preference value "sessions" → "stacks".
+ *
+ * Copy-only by design — it does NOT delete the legacy rows, so any client still
+ * running the pre-rename build keeps reading its data during the rollout. The
+ * legacy rows are removed later, in the cleanup step that drops the `sessions`
+ * table from the schema.
  *
  * Idempotent: skips any session whose stack_id already exists in `stacks`, so
- * it is safe to run more than once. Run from the Convex dashboard (Functions →
- * stacks:migrateFromSessions → Run) on dev first, then prod. Once verified,
- * the legacy `sessions` table can be removed from schema.ts and this function
- * deleted.
+ * it is safe to run more than once (re-run after the client deploy to catch any
+ * last-minute edits made by old clients). Run from the Convex dashboard
+ * (Functions → stacks:migrateFromSessions → Run) on dev first, then prod.
  */
 export const migrateFromSessions = internalMutation({
   args: {},
@@ -124,7 +128,6 @@ export const migrateFromSessions = internalMutation({
         });
         migrated++;
       }
-      await ctx.db.delete(row._id);
     }
 
     // Remap any stored default_screen preference from the old route key.
