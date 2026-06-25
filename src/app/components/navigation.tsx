@@ -23,7 +23,7 @@ const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
   { id: "crate", label: "Collection", icon: GalleryVerticalEnd },
   { id: "wants", label: "Wantlist", icon: Heart },
-  { id: "sessions", label: "Sessions", icon: Music },
+  { id: "stacks", label: "Stacks", icon: Music },
 ];
 
 /** Desktop top nav — right group */
@@ -39,7 +39,7 @@ const MOBILE_NAV_ITEMS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
   { id: "crate", label: "Collection", icon: GalleryVerticalEnd },
   { id: "wants", label: "Wantlist", icon: Heart },
-  { id: "sessions", label: "Sessions", icon: Music },
+  { id: "stacks", label: "Stacks", icon: Music },
   { id: "reports", label: "Insights", icon: BarChart3 },
 ];
 
@@ -153,7 +153,7 @@ export function PillLogo({ className, onClick, forceDark }: { className?: string
 const SCREEN_TITLES: Partial<Record<Screen, string>> = {
   crate: "Collection",
   wants: "Wantlist",
-  sessions: "Sessions",
+  stacks: "Stacks",
   reports: "Insights",
   following: "Following",
   settings: "Settings",

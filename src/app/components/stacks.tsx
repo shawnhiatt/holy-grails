@@ -8,71 +8,71 @@ import { NoDiscogsCard } from "./no-discogs-card";
 import { AddAlbumsDrawer } from "./add-albums-drawer";
 import { SwipeToDelete } from "./swipe-to-delete";
 
-export function Sessions() {
+export function Stacks() {
   const {
-    sessions, albums, deleteSession, renameSession, createSessionDirect, isAuthenticated,
-    setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInSession, reorderSessionAlbums,
-    setOnNewSession,
+    stacks, albums, deleteStack, renameStack, createStackDirect, isAuthenticated,
+    setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInStack, reorderStackAlbums,
+    setOnNewStack,
   } = useApp();
 
-  const [showNewSession, setShowNewSession] = useState(false);
-  const [newSessionName, setNewSessionName] = useState("");
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [showNewStack, setShowNewStack] = useState(false);
+  const [newStackName, setNewStackName] = useState("");
+  const [activeStackId, setActiveStackId] = useState<string | null>(null);
   const [showAddDrawer, setShowAddDrawer] = useState(false);
 
-  const handleCreateSession = () => {
-    const trimmed = newSessionName.trim();
+  const handleCreateStack = () => {
+    const trimmed = newStackName.trim();
     if (!trimmed) return;
-    const newId = createSessionDirect(trimmed);
-    setNewSessionName("");
-    setShowNewSession(false);
-    setActiveSessionId(newId);
+    const newId = createStackDirect(trimmed);
+    setNewStackName("");
+    setShowNewStack(false);
+    setActiveStackId(newId);
   };
 
-  // Sort sessions by lastModified (most recent first)
-  const sortedSessions = useMemo(() =>
-    [...sessions].sort((a, b) =>
+  // Sort stacks by lastModified (most recent first)
+  const sortedStacks = useMemo(() =>
+    [...stacks].sort((a, b) =>
       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
     ),
-    [sessions]
+    [stacks]
   );
 
-  const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) : null;
+  const activeStack = activeStackId ? stacks.find((s) => s.id === activeStackId) : null;
 
-  // If the active session was deleted, go back to list
+  // If the active stack was deleted, go back to list
   useEffect(() => {
-    if (activeSessionId && !sessions.find((s) => s.id === activeSessionId)) {
-      setActiveSessionId(null);
+    if (activeStackId && !stacks.find((s) => s.id === activeStackId)) {
+      setActiveStackId(null);
     }
-  }, [activeSessionId, sessions]);
+  }, [activeStackId, stacks]);
 
   // Register header "+" callback
   useEffect(() => {
-    setOnNewSession(() => () => setShowNewSession(true));
-    return () => setOnNewSession(null);
-  }, [setOnNewSession]);
+    setOnNewStack(() => () => setShowNewStack(true));
+    return () => setOnNewStack(null);
+  }, [setOnNewStack]);
 
-  if (activeSession) {
+  if (activeStack) {
     return (
       <>
-        <SessionDetail
-          session={activeSession}
+        <StackDetail
+          stack={activeStack}
           albums={albums}
-          onBack={() => setActiveSessionId(null)}
+          onBack={() => setActiveStackId(null)}
           onDelete={() => {
-            deleteSession(activeSession.id);
-            setActiveSessionId(null);
-            toast.warning(`"${activeSession.name}" deleted.`, { duration: 1500 });
+            deleteStack(activeStack.id);
+            setActiveStackId(null);
+            toast.warning(`"${activeStack.name}" deleted.`, { duration: 1500 });
           }}
-          onRename={(name) => renameSession(activeSession.id, name)}
+          onRename={(name) => renameStack(activeStack.id, name)}
           onOpenDrawer={() => setShowAddDrawer(true)}
           onAlbumTap={(albumId) => { setSelectedAlbumId(albumId); setShowAlbumDetail(true); }}
-          onRemoveAlbum={(albumId) => toggleAlbumInSession(albumId, activeSession.id)}
-          onReorderAlbums={reorderSessionAlbums}
+          onRemoveAlbum={(albumId) => toggleAlbumInStack(albumId, activeStack.id)}
+          onReorderAlbums={reorderStackAlbums}
         />
         <AnimatePresence>
           {showAddDrawer && (
-            <AddAlbumsDrawer sessionId={activeSession.id} onClose={() => setShowAddDrawer(false)} />
+            <AddAlbumsDrawer stackId={activeStack.id} onClose={() => setShowAddDrawer(false)} />
           )}
         </AnimatePresence>
       </>
@@ -81,11 +81,11 @@ export function Sessions() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* FAB — new session */}
+      {/* FAB — new stack */}
       <button
-        onClick={() => setShowNewSession(true)}
+        onClick={() => setShowNewStack(true)}
         className="lg:hidden fixed z-[105] flex items-center justify-center tappable"
-        aria-label="New session"
+        aria-label="New stack"
         style={{
           bottom: "calc(54px + env(safe-area-inset-bottom, 0px) + 12px)",
           right: "12px",
@@ -100,62 +100,62 @@ export function Sessions() {
         <Plus size={24} />
       </button>
 
-      {/* New session input */}
+      {/* New stack input */}
       <AnimatePresence>
-        {showNewSession && (
+        {showNewStack && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }} className="overflow-hidden px-[16px] pt-[16px] pb-[0px]">
             <div className="rounded-[12px] p-4 mb-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-              <p className="mb-2" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>New Session</p>
+              <p className="mb-2" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>New Stack</p>
               <input
-                type="text" placeholder="Name this session..." value={newSessionName} onChange={(e) => setNewSessionName(e.target.value)}
+                type="text" placeholder="Name this stack..." value={newStackName} onChange={(e) => setNewStackName(e.target.value)}
                 maxLength={100}
                 className="w-full rounded-[8px] px-3 py-2 outline-none transition-colors"
                 style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }}
-                onKeyDown={(e) => e.key === "Enter" && handleCreateSession()} autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleCreateStack()} autoFocus
               />
               <div className="flex gap-2 mt-3">
-                <button onClick={() => { setShowNewSession(false); setNewSessionName(""); }} className="flex-1 py-2 rounded-[8px] tappable transition-colors" style={{ fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>Cancel</button>
-                <button onClick={handleCreateSession} disabled={!newSessionName.trim()} className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-40" style={{ fontSize: "13px", fontWeight: 600 }}>Create</button>
+                <button onClick={() => { setShowNewStack(false); setNewStackName(""); }} className="flex-1 py-2 rounded-[8px] tappable transition-colors" style={{ fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>Cancel</button>
+                <button onClick={handleCreateStack} disabled={!newStackName.trim()} className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-40" style={{ fontSize: "13px", fontWeight: 600 }}>Create</button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Session list or empty state */}
+      {/* Stack list or empty state */}
       {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
-          heading="No sessions yet."
-          subtext="Connect your Discogs collection to start building listening sessions."
+          heading="No stacks yet."
+          subtext="Connect your Discogs collection to start building stacks."
         />
       ) : (
         <div className="flex-1 overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
-          {sessions.length === 0 && !showNewSession ? (
+          {stacks.length === 0 && !showNewStack ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
-              <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>Create your first Session</p>
-              <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Save albums into Sessions for different listening occasions, moods, or themes.</p>
+              <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>Create your first Stack</p>
+              <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Save albums into Stacks for different listening occasions, moods, or themes.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {sortedSessions.map((session) => {
-                const sessionAlbums = session.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
+              {sortedStacks.map((stack) => {
+                const stackAlbums = stack.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
                 return (
                   <SwipeToDelete
-                    key={session.id}
+                    key={stack.id}
                     onDelete={() => {
-                      deleteSession(session.id);
-                      toast.warning(`"${session.name}" deleted.`, { duration: 1500 });
+                      deleteStack(stack.id);
+                      toast.warning(`"${stack.name}" deleted.`, { duration: 1500 });
                     }}
                   >
                     <button
-                      onClick={() => setActiveSessionId(session.id)}
+                      onClick={() => setActiveStackId(stack.id)}
                       className="w-full rounded-[12px] flex items-center gap-3 p-4 text-left transition-colors"
                       style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
                     >
                       <div className="relative w-12 h-12 flex-shrink-0">
-                        {sessionAlbums.length > 0 ? (
-                          sessionAlbums.slice(0, 3).map((album, i) => (
+                        {stackAlbums.length > 0 ? (
+                          stackAlbums.slice(0, 3).map((album, i) => (
                             <img loading="lazy" decoding="async" key={album!.id} src={album!.thumb || album!.cover} alt="" className="absolute w-10 h-10 rounded-[6px] object-cover"
                               style={{ top: i * 2, left: i * 2, zIndex: 3 - i, border: "2px solid var(--c-surface)" }} />
                           ))
@@ -166,11 +166,11 @@ export function Sessions() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="line-clamp-2 text-left" style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text)" }}>{session.name}</p>
+                        <p className="line-clamp-2 text-left" style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text)" }}>{stack.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Disc3 size={11} />{session.albumIds.length} album{session.albumIds.length !== 1 ? "s" : ""}</span>
+                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Disc3 size={11} />{stack.albumIds.length} album{stack.albumIds.length !== 1 ? "s" : ""}</span>
                           <span style={{ color: "var(--c-border)" }}>&middot;</span>
-                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Calendar size={11} />{new Date(session.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Calendar size={11} />{new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                         </div>
                       </div>
                       <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
@@ -187,12 +187,12 @@ export function Sessions() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Session Detail Screen
+   Stack Detail Screen
    ═══════════════════════════════════════════════════════════ */
-function SessionDetail({
-  session, albums, onBack, onDelete, onRename, onOpenDrawer, onAlbumTap, onRemoveAlbum, onReorderAlbums,
+function StackDetail({
+  stack, albums, onBack, onDelete, onRename, onOpenDrawer, onAlbumTap, onRemoveAlbum, onReorderAlbums,
 }: {
-  session: { id: string; name: string; albumIds: string[]; createdAt: string };
+  stack: { id: string; name: string; albumIds: string[]; createdAt: string };
   albums: { id: string; title: string; artist: string; cover: string }[];
   onBack: () => void;
   onDelete: () => void;
@@ -200,24 +200,24 @@ function SessionDetail({
   onOpenDrawer: () => void;
   onAlbumTap: (albumId: string) => void;
   onRemoveAlbum: (albumId: string) => void;
-  onReorderAlbums: (sessionId: string, newOrder: string[]) => void;
+  onReorderAlbums: (stackId: string, newOrder: string[]) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(session.name);
+  const [editName, setEditName] = useState(stack.name);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const sessionAlbums = session.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
+  const stackAlbums = stack.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
 
   const handleStartEdit = () => {
-    setEditName(session.name);
+    setEditName(stack.name);
     setIsEditing(true);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const handleSaveEdit = () => {
     const trimmed = editName.trim();
-    if (trimmed && trimmed !== session.name) {
+    if (trimmed && trimmed !== stack.name) {
       onRename(trimmed);
     }
     setIsEditing(false);
@@ -271,7 +271,7 @@ function SessionDetail({
                     color: "var(--c-text)",
                   }}
                 >
-                  {session.name}
+                  {stack.name}
                 </h2>
                 <Pencil size={14} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--c-text-muted)" }} />
               </button>
@@ -279,13 +279,13 @@ function SessionDetail({
           </div>
         </div>
         <p className="pl-10" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-          {session.albumIds.length} album{session.albumIds.length !== 1 ? "s" : ""} &middot; Created {new Date(session.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          {stack.albumIds.length} album{stack.albumIds.length !== 1 ? "s" : ""} &middot; Created {new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </p>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
-        {sessionAlbums.length === 0 ? (
+        {stackAlbums.length === 0 ? (
           /* Empty state */
           <div className="flex flex-col items-center justify-center py-20">
             <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
@@ -308,7 +308,7 @@ function SessionDetail({
               className="mt-4 tappable transition-colors"
               style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}
             >
-              Delete Session
+              Delete Stack
             </button>
           </div>
         ) : (
@@ -316,11 +316,11 @@ function SessionDetail({
           <div className="flex flex-col">
             <Reorder.Group
               axis="y"
-              values={session.albumIds}
-              onReorder={(newOrder) => onReorderAlbums(session.id, newOrder)}
+              values={stack.albumIds}
+              onReorder={(newOrder) => onReorderAlbums(stack.id, newOrder)}
               className="flex flex-col gap-1.5"
             >
-              {sessionAlbums.map((album, i) => (
+              {stackAlbums.map((album, i) => (
                 <Reorder.Item
                   key={album!.id}
                   value={album!.id}
@@ -365,7 +365,7 @@ function SessionDetail({
                 className="tappable transition-colors"
                 style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}
               >
-                Delete Session
+                Delete Stack
               </button>
             </div>
           </div>
@@ -397,7 +397,7 @@ function SessionDetail({
                   <AlertTriangle size={22} style={{ color: "var(--c-destructive)" }} />
                 </div>
                 <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", marginBottom: "6px" }}>
-                  Delete this session?
+                  Delete this stack?
                 </p>
                 <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
                   This cannot be undone.

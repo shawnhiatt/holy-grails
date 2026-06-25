@@ -5,7 +5,7 @@ import { AppProvider, useApp } from "./components/app-context";
 import { BottomTabBar, DesktopTopNav, MobileHeader } from "./components/navigation";
 import { CrateBrowser } from "./components/crate-browser";
 import { PurgeTracker } from "./components/purge-tracker";
-import { Sessions } from "./components/sessions";
+import { Stacks } from "./components/stacks";
 import { Wantlist } from "./components/wantlist";
 import { SettingsScreen } from "./components/settings-screen";
 import { FollowingScreen } from "./components/following-screen";
@@ -18,7 +18,7 @@ import { FeedScreen } from "./components/feed-screen";
 import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
 import { LoadingScreen } from "./components/loading-screen";
-import { SessionPickerSheet } from "./components/session-picker-sheet";
+import { StackPickerSheet } from "./components/stack-picker-sheet";
 import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 import { InstallNudge } from "./components/install-nudge";
@@ -59,7 +59,7 @@ function AppContent() {
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail, cachedSyncStats,
     setScreen,
     connectDiscogsRequested, clearConnectDiscogsRequest,
-    sessionPickerAlbumId,
+    stackPickerAlbumId,
     isAuthenticated, isAuthLoading, isSyncing, isSyncingFollowing, syncProgress, loginWithOAuth,
     showSharePrompt,
     shakeToRandom, setShakeToRandom,
@@ -271,8 +271,8 @@ function AppContent() {
         return <CrateBrowser />;
       case "purge":
         return <PurgeTracker />;
-      case "sessions":
-        return <Sessions />;
+      case "stacks":
+        return <Stacks />;
       case "wants":
         return <Wantlist />;
       case "following":
@@ -456,7 +456,7 @@ function AppContent() {
       </div>
 
       {/* Scroll fade overlay — dissolves content above the floating bottom nav (mobile only) */}
-      {!sessionPickerAlbumId && (
+      {!stackPickerAlbumId && (
         <div
           className="fixed left-0 right-0 pointer-events-none lg:hidden"
           style={{
@@ -478,7 +478,7 @@ function AppContent() {
         {showFilterDrawer && <FilterDrawer />}
       </AnimatePresence>
 
-      <SessionPickerSheet />
+      <StackPickerSheet />
 
       <Toaster
         position="top-center"

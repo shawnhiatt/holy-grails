@@ -184,7 +184,7 @@ export function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps) {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onClickCapture={(e) => {
-          // Suppress click on children (e.g. session button) if user was swiping
+          // Suppress click on children (e.g. stack button) if user was swiping
           if (hasDragged.current) {
             e.stopPropagation();
           }
