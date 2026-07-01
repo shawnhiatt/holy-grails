@@ -188,7 +188,7 @@ interface AppState {
   collectionCrossoverQueue: WantItem[];
   dismissCrossover: (releaseId: number) => void;
   // OAuth / session management
-  loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string; sessionToken: string; is_new: boolean }) => Promise<void>;
+  loginWithOAuth: (user: { username: string; avatarUrl: string; sessionToken: string; is_new: boolean }) => Promise<void>;
   signOut: () => void;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
@@ -1974,8 +1974,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loginWithOAuth = useCallback(async (user: {
     username: string;
     avatarUrl: string;
-    accessToken: string;
-    tokenSecret: string;
     sessionToken: string;
     is_new: boolean;
   }) => {

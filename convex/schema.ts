@@ -8,6 +8,9 @@ export default defineSchema({
     access_token: v.string(),
     token_secret: v.string(),
     session_token: v.optional(v.string()),
+    // When the current session_token was minted. Tokens older than the TTL
+    // (see authHelper.ts) are rejected, forcing a fresh OAuth login.
+    session_created_at: v.optional(v.number()),
     created_at: v.number(),
     last_synced_at: v.optional(v.number()),
     collection_value: v.optional(v.string()),

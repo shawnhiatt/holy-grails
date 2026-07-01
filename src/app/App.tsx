@@ -316,8 +316,6 @@ function AppContent() {
   const handleAuthSuccess = useCallback(async (user: {
     username: string;
     avatarUrl: string;
-    accessToken: string;
-    tokenSecret: string;
     sessionToken: string;
     is_new: boolean;
   }) => {
