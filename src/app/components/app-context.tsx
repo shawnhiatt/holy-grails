@@ -33,7 +33,7 @@ function getOrCreateContext(): React.Context<AppState | null> {
 }
 
 export type Screen = "crate" | "purge" | "stacks" | "wants" | "following" | "settings" | "reports" | "feed";
-export type ViewMode = "crate" | "list" | "grid" | "artwork" | "grid3";
+export type ViewMode = "grid" | "grid3" | "list";
 export type SortOption =
   | "artist-az"
   | "artist-za"
@@ -1385,6 +1385,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // browsing cached data while the cache freshens underneath them.
     const setSyncFlag = background ? setIsBackgroundSyncing : setIsSyncing;
     setSyncFlag(true);
+    setSyncFailed(false); // a fresh attempt clears any earlier failure state
     setSyncProgress("Syncing");
     try {
       // The whole sync runs server-side (convex/discogs.ts syncSelf): pages

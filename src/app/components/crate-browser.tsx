@@ -2,10 +2,8 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X } from "lucide-react";
 import { useApp, type ViewMode } from "./app-context";
 import { useFilteredAlbums } from "./use-filtered-albums";
-import { CrateFlip } from "./crate-flip";
 import { AlbumList } from "./album-list";
 import { AlbumGrid } from "./album-grid";
-import { AlbumArtwork } from "./album-artwork-grid";
 
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
@@ -91,7 +89,6 @@ export function CrateBrowser() {
     lastPlayed,
   });
 
-  const [lightboxActive, setLightboxActive] = useState(false);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -112,14 +109,6 @@ export function CrateBrowser() {
       setViewMode(v);
     }
   }, [viewMode, setViewMode]);
-
-  const handleLightboxActivate = useCallback(() => {
-    setLightboxActive(true);
-  }, []);
-
-  const handleLightboxDeactivate = useCallback(() => {
-    setLightboxActive(false);
-  }, []);
 
   const sortLabel: Record<string, string> = {
     "artist-az": "Artist A\u2192Z",
@@ -306,21 +295,11 @@ export function CrateBrowser() {
         />
       ) : (
         <>
-          {viewMode === "crate" && (
-            <CrateFlip
-              key={`crate|${activeFolder}|${sortOption}|${searchQuery}`}
-              albums={filteredAlbums}
-              lightboxActive={lightboxActive}
-              onLightboxActivate={handleLightboxActivate}
-              onLightboxDeactivate={handleLightboxDeactivate}
-            />
-          )}
           {/* resetKey scrolls the view back to top on filter changes without
               remounting — the old searchQuery-in-key approach rebuilt the
               entire grid DOM on every keystroke */}
           {viewMode === "list" && <AlbumList key="list" albums={filteredAlbums} sortOption={effectiveSortOption} resetKey={`${activeFolder}|${effectiveSortOption}|${searchQuery.trim()}`} />}
-          {(viewMode === "grid" || viewMode === "grid3") && <AlbumGrid key="grid" albums={filteredAlbums} sortOption={effectiveSortOption} searchQuery={searchQuery} resetKey={`${activeFolder}|${effectiveSortOption}|${searchQuery.trim()}`} />}
-          {viewMode === "artwork" && <AlbumArtwork key={`artwork|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
+          {viewMode !== "list" && <AlbumGrid key="grid" albums={filteredAlbums} sortOption={effectiveSortOption} searchQuery={searchQuery} resetKey={`${activeFolder}|${effectiveSortOption}|${searchQuery.trim()}`} />}
         </>
       )}
     </div>

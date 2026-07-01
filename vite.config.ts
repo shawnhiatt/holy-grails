@@ -1,10 +1,23 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  // Fail the build loudly when VITE_CONVEX_URL is missing. Without it, Vite
+  // statically replaces the guard in main.tsx with an unconditional throw and
+  // Rollup dead-code-eliminates the ENTIRE app — the build "succeeds" but
+  // ships an empty 176 kB shell.
+  const env = loadEnv(mode, process.cwd(), '')
+  if (command === 'build' && !env.VITE_CONVEX_URL) {
+    throw new Error(
+      'VITE_CONVEX_URL is not set. Building without it produces an empty app shell. ' +
+      'Set it in .env.local (or the CI/Vercel environment) before building.'
+    )
+  }
+
+  return {
   plugins: [
     react(),
     tailwindcss(),
@@ -84,4 +97,5 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  }
 })

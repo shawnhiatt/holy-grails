@@ -70,8 +70,8 @@ All Convex queries and mutations (except the `oauth.ts` handshake) require a val
 **Session token flow:**
 `auth-callback.tsx` makes a single server-side action call — `oauth.completeLogin(oauth_token, oauth_token_secret, oauth_verifier)` — which exchanges the verifier for an access token, derives the username from Discogs `/oauth/identity` (the client can NEVER supply a username), and upserts the user via the internal `users.upsert` mutation. Raw OAuth access tokens never reach the client. The returned `sessionToken` is stored in `app-context.tsx` state, persisted to `localStorage` as `hg_session_token`, and threaded through all Convex mutation/query call sites.
 
-**Session expiry:**
-Sessions expire 90 days after the token is minted (`session_created_at` + `SESSION_TTL_MS` in `authHelper.ts`). Expired or legacy (pre-TTL) tokens are rejected by `authenticateUser` and `getLatestUser`, sending the user back through OAuth — which mints a fresh token. While a token is valid, re-login reuses it (idempotent across double-fired callbacks; keeps other devices signed in).
+**Per-device sessions (`sessions` table):**
+Every OAuth login mints a FRESH token as its own row in the `sessions` table (token rotation), so one device's login never invalidates another device's session. Sign-out (`users.clearSession`) deletes only the calling device's row — the user record (OAuth tokens, sync metadata) stays, so the next login boots instantly from cache. Sessions expire 90 days after mint (`SESSION_TTL_MS` in `authHelper.ts`); expired rows are pruned at login, and `resolveSession` also honors the legacy single-token fields on `users` read-only until those age out. `users.deleteAllUserData` clears all sessions.
 
 **Session token persistence (`hg_session_token`):**
 The `setSessionToken` wrapper in `app-context.tsx` syncs every token change to `localStorage`. On cold load, `sessionToken` state initializes from `localStorage.getItem("hg_session_token")`. If a stored token exists, it is passed to `getLatestUser` to look up the user by `by_session_token` index. If no stored token exists (fresh visitor, incognito, post-logout), `getLatestUser` is skipped entirely and the visitor sees the login screen. If the stored token is invalid (no matching user), the token is cleared from localStorage and the visitor sees the login screen. This is the only permitted use of `localStorage` in the app — do not add other localStorage usage without discussion.
@@ -82,7 +82,7 @@ The `setSessionToken` wrapper in `app-context.tsx` syncs every token change to `
 - `upsert` — INTERNAL mutation, callable only from `oauth.completeLogin`. It must never be made public: a public variant would let any caller claim any username and receive that user's session token (full account takeover).
 
 **Schema change:**
-`users` table has `session_token` + `session_created_at` fields and a `by_session_token` index.
+New `sessions` table (`session_token`, `discogs_username`, `created_at`) with `by_token`/`by_username` indexes. The `session_token`/`session_created_at` fields on `users` are legacy, honored read-only.
 
 **Exempt from auth guards:**
 `convex/oauth.ts` functions (`requestToken`, `completeLogin`) are intentionally public — they are the OAuth handshake and must remain unauthenticated. `completeLogin` is safe because the identity it mints a session for comes from the Discogs token exchange itself, not from the caller.
@@ -171,7 +171,6 @@ src/
       app-context.tsx    # Global state — do not refactor without discussion. albums/wants reactively derive from Convex cache subscriptions.
       auth-callback.tsx  # OAuth callback handler — processes Discogs redirect and exchanges tokens
       crate-browser.tsx
-      crate-flip.tsx
       depths-album-card.tsx
       dominant-color-card.tsx  # Reusable card wrapper — extracts dominant color from album artwork via canvas, sets CSS custom properties (--dc-bg, --dc-text, etc.) for children. Uses /img-proxy/ to avoid CORS canvas tainting.
       discogs-api.ts     # Types, constants, pure utilities, and in-memory caches (HTTP functions removed — see Discogs API Proxy)
@@ -432,7 +431,7 @@ Image card overlays using `rgba(0,0,0,...)` for photo readability are intentiona
 - **Display / Headings**: `Bricolage Grotesque` (weights 300–700)
 - **Decorative display accents**: `Rock Salt` (Shuffle heading, Format Spotlight) and `Manufacturing Consent` (Insights heading on the feed) — loaded in `fonts.css`, used only for these named feed moments. Do not use them anywhere else.
 - **Body / UI labels**: `DM Sans` (weights 300–700)
-- Both loaded via Google Fonts in `src/styles/fonts.css`
+- Loaded via a `<link>` (with preconnect) in `index.html` — not an `@import` in CSS, so the font fetch starts before CSS parse. Only weights 400/500/600/700 are requested; weight 300 is intentionally not loaded (unused)
 - Never use system fonts for headings — Bricolage Grotesque is part of the brand
 
 ---
@@ -640,7 +639,7 @@ In card grid contexts, use `visibility: hasYear(year) ? "visible" : "hidden"` on
 ### Image Sizing Convention
 Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
 - `thumb` — 150x150px — use for small display contexts (list rows, artwork grid, stack thumbnails, feed compact cards, drawer thumbnails)
-- `cover` — 500x500px — use for large/focal displays (detail panels, crate/swiper, depths cards, grid cards)
+- `cover` — 500x500px — use for large/focal displays (detail panels, depths cards, grid cards)
 
 Never use `cover` in contexts smaller than ~200px — always prefer `thumb || cover` for thumbnails. Loading a 500px image into a 40px element wastes bandwidth.
 
@@ -791,8 +790,6 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Album detail mobile backdrop | `z-[110]` | album-detail.tsx |
 | Desktop side panel | `z-[110]` | App.tsx |
 | New stack / Add user FABs (mobile) | `z-[105]` | stacks.tsx, following-screen.tsx |
-| Swiper lightbox overlay | `z-[100]` | crate-flip.tsx |
-| Swiper active card | `zIndex: 101` | crate-flip.tsx |
 | Scroll fade overlay | `z-100` | App.tsx |
 | Delete confirmation modals | `z-[90]` | stacks.tsx |
 | Purge tracker sheet | `z-[89]` | purge-tracker.tsx |
