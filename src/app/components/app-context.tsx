@@ -365,15 +365,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const convexWantlist = useQuery(api.wantlist.getByUsername, authedArgs);
   const convexFollowingFeed = useQuery(api.following_feed.getByFollower, authedArgs);
 
+  // Set once the boot path has finished deciding (cache hydrated, or the
+  // first-ever sync settled). Distinct from albums.length so a user whose
+  // collection is empty — or contains no vinyl at all — exits the loading
+  // screen instead of spinning forever.
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
-  // Prevents flashing the empty Feed before collection loads.
+  // Prevents flashing the empty Feed before collection loads. Ends as soon as
+  // albums arrive OR the boot path completes (whichever comes first).
   //
   // isRestoringSession: true on cold load while we're checking Convex for an
   // existing user — before discogsUsername is known.
   const isRestoringSession = !discogsUsername && !!sessionToken && convexLatestUser === undefined;
   const isConvexUserGone = !sessionToken;
-  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !isConvexUserGone && !syncFailed;
+  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !initialLoadDone && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
@@ -697,6 +704,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }).catch(() => {});
       }
 
+      setInitialLoadDone(true);
+
       // Cache is on screen instantly — now probe Discogs in the background and
       // perform a real sync only if the collection or wantlist counts changed.
       maybeBackgroundSync(discogsUsername, sessionToken);
@@ -706,6 +715,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("[Auto-sync] Failed:", err);
         setSyncFailed(true);
         toast.error("Sync failed. Try again in Settings.");
+      }).finally(() => {
+        // Boot decision made either way — even a zero-vinyl collection must
+        // exit the loading screen.
+        setInitialLoadDone(true);
       });
     }
   }, [discogsUsername, convexCollection, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1987,7 +2000,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     initialSyncDoneRef.current = true;
 
     // Trigger initial Discogs sync via server-side proxy
-    await performSync(user.username, user.sessionToken);
+    try {
+      await performSync(user.username, user.sessionToken);
+    } finally {
+      setInitialLoadDone(true);
+    }
   }, [setDiscogsUsername, performSync, setSessionToken]);
 
   // ── Share Activity opt-in ──
@@ -2054,6 +2071,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStackPickerAlbumId(null);
     setFirstStackJustCreated(false);
     setSyncFailed(false);
+    setInitialLoadDone(false);
     setScreenRaw("feed"); // Navigate away from any authenticated-only screen
     setColorModeRaw("dark"); // Reset to dark so splash screen has no white flash
 
@@ -2132,6 +2150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStackPickerAlbumId(null);
     setFirstStackJustCreated(false);
     setSyncFailed(false);
+    setInitialLoadDone(false);
     clearCollectionValue();
     try {
       sessionStorage.removeItem("hg_oauth_token_secret");
