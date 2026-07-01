@@ -1,6 +1,6 @@
-import { memo, useCallback, useRef, useMemo } from "react";
+import { memo, useCallback, useRef, useMemo, useEffect } from "react";
 import { Play } from "lucide-react";
-import { useApp } from "./app-context";
+import { useApp, type SortOption } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
@@ -67,7 +67,7 @@ const GridCard = memo(function GridCard({ album, isDarkMode, purgeColor, playCou
       className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
       style={{
         backgroundColor: "var(--c-surface)",
-        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D1D8DF"}`,
+        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "var(--c-border)"}`,
         boxShadow: "var(--c-card-shadow)",
         touchAction: "manipulation",
       }}
@@ -199,10 +199,16 @@ const GridCard = memo(function GridCard({ album, isDarkMode, purgeColor, playCou
 
 interface AlbumGridProps {
   albums: Album[];
+  /** Effective sort applied to `albums` — drives dividers and the alphabet index */
+  sortOption?: SortOption;
+  /** Active search text — only used for the empty-state message */
+  searchQuery?: string;
+  /** Changes whenever the folder/sort/search context changes — scrolls back to top */
+  resetKey?: string;
 }
 
-export function AlbumGrid({ albums }: AlbumGridProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, searchQuery, neverPlayedFilter, setScreen, effectiveSortOption: sortOption, playCounts, viewMode } = useApp();
+export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", resetKey }: AlbumGridProps) {
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, neverPlayedFilter, setScreen, playCounts, viewMode } = useApp();
   const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter;
   const collectionEmpty = allAlbums.length === 0;
 
@@ -210,6 +216,12 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Jump back to the top when the filter context changes (replaces the old
+  // key-based remount, which rebuilt the whole grid on every search keystroke)
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [resetKey]);
 
   // Keep refs array in sync with album count
   if (anchorRefs.current.length !== albums.length) {
@@ -314,6 +326,12 @@ export function AlbumGrid({ albums }: AlbumGridProps) {
               key={album.id}
               className="relative min-w-0"
               ref={!hasDividers && anchorIndices.has(albumIndex) ? (el) => { anchorRefs.current[albumIndex] = el; } : undefined}
+              style={{
+                // Skip layout/paint for offscreen cards — large collections
+                // render only what's visible without a virtualization layer
+                contentVisibility: "auto",
+                containIntrinsicSize: "auto 260px",
+              }}
             >
               <GridCard
                 album={album}

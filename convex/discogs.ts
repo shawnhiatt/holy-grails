@@ -2,7 +2,7 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import crypto from "crypto";
 
 // ─── Config ───
@@ -81,6 +81,16 @@ function buildOAuthHeader(
 // would be rejected.
 const RATE_LIMIT_MAX_RETRIES = 2;
 
+// Adaptive throttle driven by the X-Discogs-Ratelimit-Remaining header
+// (60 req/min rolling window, authenticated). Requests run at full speed
+// while there's headroom and back off progressively as the budget drains —
+// replacing the old fixed 1.1 s sleep between paginated requests, which made
+// large syncs several times slower than necessary. Module state is shared
+// across concurrent actions in the same runtime, so parallel loops (own sync
+// + following feed) self-regulate against the same budget. The 429 retry
+// below remains as the backstop.
+let rateLimitRemaining = 60;
+
 async function discogsFetch(
   method: string,
   url: string,
@@ -89,13 +99,19 @@ async function discogsFetch(
   body?: string
 ): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
+    if (rateLimitRemaining <= 3) await sleep(5000);
+    else if (rateLimitRemaining <= 8) await sleep(1500);
+    else if (rateLimitRemaining <= 15) await sleep(400);
     const headers: Record<string, string> = {
       Authorization: buildOAuthHeader(method, url, accessToken, tokenSecret),
       "User-Agent": USER_AGENT,
     };
     if (body) headers["Content-Type"] = "application/json";
     const res = await fetch(url, { method, headers, body });
+    const remaining = Number(res.headers.get("X-Discogs-Ratelimit-Remaining"));
+    if (Number.isFinite(remaining)) rateLimitRemaining = remaining;
     if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
+    rateLimitRemaining = 0;
     const retryAfter = Number(res.headers.get("Retry-After"));
     const waitMs =
       Number.isFinite(retryAfter) && retryAfter > 0
@@ -374,6 +390,251 @@ async function fetchCustomFieldsInternal(
   return (data.fields || []) as DiscogsCustomField[];
 }
 
+interface Creds {
+  username: string;
+  access_token: string;
+  token_secret: string;
+}
+
+/** Vinyl-only product filter — mirrors isVinylFormat in discogs-api.ts. */
+function isVinylFormat(format: string): boolean {
+  return format.toLowerCase().includes("vinyl");
+}
+
+/**
+ * Fetch a user's full collection (paginated, per-folder for folder_id
+ * fidelity). Used by the server-side sync loops (syncSelf, syncFollowedUser).
+ * Pacing is handled by the adaptive throttle in discogsFetch.
+ */
+async function fetchCollectionInternal(
+  creds: Creds,
+  username: string,
+  skipPrivateFields: boolean,
+  onProgress?: (fetched: number, total: number) => Promise<void>
+): Promise<{ albums: ProxyAlbum[]; folders: FolderInfo[] }> {
+  const folderResult: { map: Map<number, string>; list: FolderInfo[] } = skipPrivateFields
+    ? { map: new Map<number, string>(), list: [] }
+    : await fetchFolderMapInternal(
+        username,
+        creds.access_token,
+        creds.token_secret
+      );
+  const folderMap: Map<number, string> = folderResult.map;
+  const fields = skipPrivateFields
+    ? []
+    : await fetchCustomFieldsInternal(
+        username,
+        creds.access_token,
+        creds.token_secret
+      );
+  const fieldMap = buildFieldMap(fields);
+
+  const albums: ProxyAlbum[] = [];
+
+  // Discogs does not return folder_id on releases fetched from folder 0 (All).
+  // Fetch from each real folder individually so we know the folder assignment.
+  // When skipPrivateFields is true (followed users), fall back to folder 0.
+  const folderIds = skipPrivateFields
+    ? [0]
+    : Array.from(folderMap.keys()).filter((id) => id !== 0);
+
+  // Total instances across real folders — drives sync progress reporting.
+  let totalItems = folderResult.list
+    .filter((f) => f.id !== 0)
+    .reduce((sum, f) => sum + f.count, 0);
+
+  for (const folderId of folderIds) {
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const url = `${BASE}/users/${encodeURIComponent(username)}/collection/folders/${folderId}/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`;
+      const res = await discogsFetch(
+        "GET",
+        url,
+        creds.access_token,
+        creds.token_secret
+      );
+      if (!res.ok)
+        throw new Error(
+          `Failed to fetch collection folder ${folderId} page ${page} (${res.status})`
+        );
+      const data: CollectionPage = await res.json();
+      totalPages = data.pagination.pages;
+      if (skipPrivateFields && page === 1) totalItems = data.pagination.items;
+
+      for (const r of data.releases) {
+        // Inject folder_id from the folder we're fetching — Discogs omits it
+        r.folder_id = folderId;
+        albums.push(mapRelease(r, folderMap, fieldMap));
+      }
+      if (onProgress) await onProgress(albums.length, totalItems);
+      page++;
+    }
+  }
+
+  // Dedupe by release_id
+  const seen = new Set<number>();
+  const deduped: ProxyAlbum[] = [];
+  for (const a of albums) {
+    if (!seen.has(a.release_id)) {
+      seen.add(a.release_id);
+      deduped.push(a);
+    }
+  }
+
+  // Build rich folder list for client — "All" is a virtual folder (id 0)
+  const folderObjects: FolderInfo[] = folderResult.list.length > 0
+    ? folderResult.list
+    : [{ id: 0, name: "All", count: deduped.length }];
+
+  return { albums: deduped, folders: folderObjects };
+}
+
+interface ProxyWant {
+  id: string;
+  release_id: number;
+  master_id?: number;
+  title: string;
+  artist: string;
+  year: number;
+  thumb: string;
+  cover: string;
+  label: string;
+  priority: boolean;
+}
+
+/**
+ * Fetch a user's full wantlist (paginated). Shared by proxyFetchWantlist and
+ * the server-side sync loop.
+ */
+async function fetchWantlistInternal(
+  creds: Creds,
+  username: string,
+  onProgress?: (fetched: number, total: number) => Promise<void>
+): Promise<ProxyWant[]> {
+  const wants: ProxyWant[] = [];
+  let page = 1;
+  let totalPages = 1;
+  let totalItems = 0;
+
+  while (page <= totalPages) {
+    const url = `${BASE}/users/${encodeURIComponent(username)}/wants?per_page=100&page=${page}`;
+    const res = await discogsFetch(
+      "GET",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok)
+      throw new Error(
+        `Failed to fetch wantlist page ${page} (${res.status})`
+      );
+    const data: WantPage = await res.json();
+    totalPages = data.pagination.pages;
+    if (page === 1) totalItems = data.pagination.items;
+
+    for (const w of data.wants) {
+      const bi = w.basic_information;
+      const artist = bi.artists
+        .map((a) => formatArtistName(a.anv || a.name))
+        .join(", ");
+      wants.push({
+        id: `w-${bi.id}`,
+        release_id: bi.id,
+        master_id: bi.master_id || undefined,
+        title: bi.title,
+        artist,
+        year: bi.year || 0,
+        thumb: bi.thumb || "",
+        cover: bi.cover_image || bi.thumb || "",
+        label: bi.labels?.[0]?.name || "Unknown",
+        priority: false,
+      });
+    }
+    if (onProgress) await onProgress(wants.length, totalItems);
+    page++;
+  }
+
+  return wants;
+}
+
+/**
+ * Fetch a user's profile, including the raw num_collection / num_wantlist
+ * instance counts used by the change-detection probe.
+ */
+async function fetchProfileInternal(creds: Creds, username: string) {
+  const url = `${BASE}/users/${encodeURIComponent(username)}`;
+  const res = await discogsFetch(
+    "GET",
+    url,
+    creds.access_token,
+    creds.token_secret
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to fetch user profile (${res.status})`);
+  }
+  const data = await res.json();
+  return {
+    username: data.username as string,
+    avatar: (data.avatar_url as string) || "",
+    profile: (data.profile as string) || "",
+    location: (data.location as string) || "",
+    registered: (data.registered as string) || "",
+    buyerRating: (data.buyer_rating as number) || 0,
+    buyerRatingStars: (data.buyer_rating_stars as number) || 0,
+    sellerRating: (data.seller_rating as number) || 0,
+    sellerRatingStars: (data.seller_rating_stars as number) || 0,
+    releasesContributed: (data.releases_contributed as number) || 0,
+    releasesRated: (data.releases_rated as number) || 0,
+    numLists: (data.num_lists as number) || 0,
+    rank: (data.rank as number) || 0,
+    num_collection: (data.num_collection as number) ?? 0,
+    num_wantlist: (data.num_wantlist as number) ?? 0,
+  };
+}
+
+/** Fetch the authenticated user's collection value. */
+async function fetchCollectionValueInternal(creds: Creds): Promise<{
+  minimum: number;
+  median: number;
+  maximum: number;
+  currency: string;
+  fetchedAt: number;
+}> {
+  const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/value`;
+  const res = await discogsFetch(
+    "GET",
+    url,
+    creds.access_token,
+    creds.token_secret
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to fetch collection value (${res.status})${body ? ": " + body : ""}`
+    );
+  }
+  const data = await res.json();
+  const minimum = parseCurrencyString(data.minimum);
+  const median = parseCurrencyString(data.median);
+  const maximum = parseCurrencyString(data.maximum);
+
+  if (!isFinite(minimum) || !isFinite(median) || !isFinite(maximum)) {
+    throw new Error(
+      `Collection value fields are not finite numbers — response may have changed shape.`
+    );
+  }
+
+  return {
+    minimum,
+    median,
+    maximum,
+    currency: (data.currency as string) || "USD",
+    fetchedAt: Date.now(),
+  };
+}
+
 // ─── Public actions ───
 
 // 1. Fetch identity (username)
@@ -509,95 +770,6 @@ export const proxyFetchSyncSignals = action({
   },
 });
 
-// 3. Fetch full collection (paginated, with folders + custom fields)
-export const proxyFetchCollection = action({
-  args: {
-    sessionToken: v.string(),
-    username: v.string(),
-    skipPrivateFields: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    const creds = await ctx.runQuery(
-      internal.discogsHelpers.getUserCredentials,
-      { sessionToken: args.sessionToken }
-    );
-    const skip = args.skipPrivateFields === true;
-    const folderResult: { map: Map<number, string>; list: FolderInfo[] } = skip
-      ? { map: new Map<number, string>(), list: [] }
-      : await fetchFolderMapInternal(
-          args.username,
-          creds.access_token,
-          creds.token_secret
-        );
-    const folderMap: Map<number, string> = folderResult.map;
-    const fields = skip
-      ? []
-      : await fetchCustomFieldsInternal(
-          args.username,
-          creds.access_token,
-          creds.token_secret
-        );
-    const fieldMap = buildFieldMap(fields);
-
-    const albums: ProxyAlbum[] = [];
-
-    // Discogs does not return folder_id on releases fetched from folder 0 (All).
-    // Fetch from each real folder individually so we know the folder assignment.
-    // When skipPrivateFields is true (followed users), fall back to folder 0.
-    const folderIds = skip
-      ? [0]
-      : Array.from(folderMap.keys()).filter((id) => id !== 0);
-
-    let isFirstRequest = true;
-    for (const folderId of folderIds) {
-      let page = 1;
-      let totalPages = 1;
-
-      while (page <= totalPages) {
-        if (!isFirstRequest) await sleep(1100);
-        isFirstRequest = false;
-        const url = `${BASE}/users/${encodeURIComponent(args.username)}/collection/folders/${folderId}/releases?per_page=100&page=${page}&sort=artist&sort_order=asc`;
-        const res = await discogsFetch(
-          "GET",
-          url,
-          creds.access_token,
-          creds.token_secret
-        );
-        if (!res.ok)
-          throw new Error(
-            `Failed to fetch collection folder ${folderId} page ${page} (${res.status})`
-          );
-        const data: CollectionPage = await res.json();
-        totalPages = data.pagination.pages;
-
-        for (const r of data.releases) {
-          // Inject folder_id from the folder we're fetching — Discogs omits it
-          r.folder_id = folderId;
-          albums.push(mapRelease(r, folderMap, fieldMap));
-        }
-        page++;
-      }
-    }
-
-    // Dedupe by release_id
-    const seen = new Set<number>();
-    const deduped: ProxyAlbum[] = [];
-    for (const a of albums) {
-      if (!seen.has(a.release_id)) {
-        seen.add(a.release_id);
-        deduped.push(a);
-      }
-    }
-
-    // Build rich folder list for client — "All" is a virtual folder (id 0)
-    const folderObjects: FolderInfo[] = folderResult.list.length > 0
-      ? folderResult.list
-      : [{ id: 0, name: "All", count: deduped.length }];
-
-    return { albums: deduped, folders: folderObjects };
-  },
-});
-
 // 4. Fetch wantlist (paginated)
 export const proxyFetchWantlist = action({
   args: { sessionToken: v.string(), username: v.string() },
@@ -606,59 +778,7 @@ export const proxyFetchWantlist = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const wants: {
-      id: string;
-      release_id: number;
-      master_id?: number;
-      title: string;
-      artist: string;
-      year: number;
-      thumb: string;
-      cover: string;
-      label: string;
-      priority: boolean;
-    }[] = [];
-    let page = 1;
-    let totalPages = 1;
-
-    while (page <= totalPages) {
-      if (page > 1) await sleep(1100);
-      const url = `${BASE}/users/${encodeURIComponent(args.username)}/wants?per_page=100&page=${page}`;
-      const res = await discogsFetch(
-        "GET",
-        url,
-        creds.access_token,
-        creds.token_secret
-      );
-      if (!res.ok)
-        throw new Error(
-          `Failed to fetch wantlist page ${page} (${res.status})`
-        );
-      const data: WantPage = await res.json();
-      totalPages = data.pagination.pages;
-
-      for (const w of data.wants) {
-        const bi = w.basic_information;
-        const artist = bi.artists
-          .map((a) => formatArtistName(a.anv || a.name))
-          .join(", ");
-        wants.push({
-          id: `w-${bi.id}`,
-          release_id: bi.id,
-          master_id: bi.master_id || undefined,
-          title: bi.title,
-          artist,
-          year: bi.year || 0,
-          thumb: bi.thumb || "",
-          cover: bi.cover_image || bi.thumb || "",
-          label: bi.labels?.[0]?.name || "Unknown",
-          priority: false,
-        });
-      }
-      page++;
-    }
-
-    return wants;
+    return await fetchWantlistInternal(creds, args.username);
   },
 });
 
@@ -670,37 +790,313 @@ export const proxyFetchCollectionValue = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/value`;
-    const res = await discogsFetch(
-      "GET",
-      url,
-      creds.access_token,
-      creds.token_secret
+    return await fetchCollectionValueInternal(creds);
+  },
+});
+
+// 6. Server-side sync loop — the whole collection/wantlist sync runs inside
+// this single action. Pages are fetched with the adaptive throttle, results
+// are written straight to the Convex cache (no round trip through the
+// client), and per-page progress lands in the sync_status table the client
+// subscribes to. The client receives the fresh data reactively through its
+// existing collection/wantlist cache subscriptions.
+export const syncSelf = action({
+  args: { sessionToken: v.string() },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    profile: {
+      username: string;
+      avatar: string;
+      profile: string;
+      location: string;
+      registered: string;
+      buyerRating: number;
+      buyerRatingStars: number;
+      sellerRating: number;
+      sellerRatingStars: number;
+      releasesContributed: number;
+      releasesRated: number;
+      numLists: number;
+      rank: number;
+    } | null;
+    folders: FolderInfo[];
+    albumCount: number;
+    wantCount: number;
+    collDiff: { added: number; removed: number; updated: number };
+    wantDiff: { added: number; removed: number; updated: number };
+    crossovers: ProxyWant[];
+    collectionValue: {
+      minimum: number;
+      median: number;
+      maximum: number;
+      currency: string;
+      fetchedAt: number;
+    } | null;
+  }> => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
     );
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(
-        `Failed to fetch collection value (${res.status})${body ? ": " + body : ""}`
-      );
-    }
-    const data = await res.json();
-    const minimum = parseCurrencyString(data.minimum);
-    const median = parseCurrencyString(data.median);
-    const maximum = parseCurrencyString(data.maximum);
 
-    if (!isFinite(minimum) || !isFinite(median) || !isFinite(maximum)) {
-      throw new Error(
-        `Collection value fields are not finite numbers — response may have changed shape.`
-      );
-    }
-
-    return {
-      minimum,
-      median,
-      maximum,
-      currency: (data.currency as string) || "USD",
-      fetchedAt: Date.now(),
+    const setStatus = async (phase: string, current?: number, total?: number) => {
+      try {
+        await ctx.runMutation(internal.syncStatus.set, {
+          username: creds.username,
+          phase,
+          current,
+          total,
+        });
+      } catch {
+        // Progress is best-effort — never fail the sync over it.
+      }
     };
+
+    try {
+      // Profile first: enriched data for the client plus the raw
+      // num_collection / num_wantlist counts the next boot probe compares.
+      await setStatus("collection");
+      let profile: Awaited<ReturnType<typeof fetchProfileInternal>> | null = null;
+      try {
+        profile = await fetchProfileInternal(creds, creds.username);
+      } catch (e) {
+        console.warn("[Discogs] Profile fetch failed during sync:", e);
+      }
+
+      // Collection — paginated fetch with live progress, vinyl-only filter,
+      // then a single server-to-server diff write.
+      const { albums, folders } = await fetchCollectionInternal(
+        creds,
+        creds.username,
+        false,
+        (fetched, total) => setStatus("collection", fetched, total)
+      );
+      const vinylAlbums = albums.filter((a) => isVinylFormat(a.format));
+
+      await setStatus("caching");
+      const collDiff: { added: number; removed: number; updated: number } =
+        await ctx.runMutation(api.collection.applyDiff, {
+          sessionToken: args.sessionToken,
+          albums: vinylAlbums.map((a) => ({
+            releaseId: a.release_id,
+            masterId: a.master_id || undefined,
+            instanceId: a.instance_id,
+            folderId: a.folder_id,
+            artist: a.artist,
+            title: a.title,
+            year: a.year,
+            thumb: a.thumb,
+            cover: a.cover,
+            folder: a.folder,
+            label: a.label,
+            catalogNumber: a.catalogNumber,
+            format: a.format,
+            mediaCondition: a.mediaCondition,
+            sleeveCondition: a.sleeveCondition,
+            pricePaid: a.pricePaid,
+            notes: a.notes,
+            customFields: a.customFields,
+            dateAdded: a.dateAdded,
+          })),
+        });
+
+      // Wantlist
+      await setStatus("wantlist");
+      const wants = await fetchWantlistInternal(
+        creds,
+        creds.username,
+        (fetched, total) => setStatus("wantlist", fetched, total)
+      );
+      const wantDiff: { added: number; removed: number; updated: number } =
+        await ctx.runMutation(api.wantlist.applyDiff, {
+          sessionToken: args.sessionToken,
+          items: wants.map((w) => ({
+            release_id: w.release_id,
+            master_id: w.master_id || undefined,
+            title: w.title,
+            artist: w.artist,
+            year: w.year,
+            cover: w.cover,
+            thumb: w.thumb || undefined,
+            label: w.label,
+            priority: w.priority,
+          })),
+        });
+
+      // Wantlist items that are now in the collection — drives the
+      // "Now in your collection" crossover prompt.
+      const collectionRids = new Set(vinylAlbums.map((a) => a.release_id));
+      const crossovers = wants.filter((w) => collectionRids.has(w.release_id));
+
+      // Collection value (non-fatal)
+      await setStatus("value");
+      let collectionValue: {
+        minimum: number;
+        median: number;
+        maximum: number;
+        currency: string;
+        fetchedAt: number;
+      } | null = null;
+      try {
+        collectionValue = await fetchCollectionValueInternal(creds);
+        await ctx.runMutation(api.users.updateCollectionValue, {
+          sessionToken: args.sessionToken,
+          collection_value: JSON.stringify(collectionValue),
+        });
+      } catch (e) {
+        console.warn("[Discogs] Collection value fetch failed during sync:", e);
+      }
+
+      // Persist sync metadata + raw counts for the next boot probe.
+      await ctx.runMutation(api.users.updateLastSynced, {
+        sessionToken: args.sessionToken,
+        collectionCount: profile?.num_collection,
+        wantlistCount: profile?.num_wantlist,
+      });
+
+      return {
+        profile: profile
+          ? {
+              username: profile.username,
+              avatar: profile.avatar,
+              profile: profile.profile,
+              location: profile.location,
+              registered: profile.registered,
+              buyerRating: profile.buyerRating,
+              buyerRatingStars: profile.buyerRatingStars,
+              sellerRating: profile.sellerRating,
+              sellerRatingStars: profile.sellerRatingStars,
+              releasesContributed: profile.releasesContributed,
+              releasesRated: profile.releasesRated,
+              numLists: profile.numLists,
+              rank: profile.rank,
+            }
+          : null,
+        folders,
+        albumCount: vinylAlbums.length,
+        wantCount: wants.length,
+        collDiff,
+        wantDiff,
+        crossovers,
+        collectionValue,
+      };
+    } finally {
+      await setStatus("idle");
+    }
+  },
+});
+
+// 6b. Server-side followed-user sync — fetches a followed user's full
+// collection + wantlist and persists slim rows to the followed_items cache.
+// Profiles render instantly from the cache; this runs in the background when
+// a profile is opened stale (24h TTL, checked client-side) or right after a
+// new follow. Replaces the old client hydration loop that re-downloaded every
+// followed collection each session and held it in memory only.
+export const syncFollowedUser = action({
+  args: { sessionToken: v.string(), username: v.string() },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ albums: number; wants: number; isPrivate: boolean }> => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+
+    let albums: ProxyAlbum[] = [];
+    let isPrivate = false;
+    try {
+      const result = await fetchCollectionInternal(creds, args.username, true);
+      // Vinyl-only, matching the product rule applied to the user's own data
+      albums = result.albums.filter((a) => isVinylFormat(a.format));
+    } catch (e: any) {
+      if (String(e?.message ?? "").includes("403")) {
+        isPrivate = true;
+      } else {
+        throw e;
+      }
+    }
+
+    let wants: ProxyWant[] = [];
+    if (!isPrivate) {
+      try {
+        wants = await fetchWantlistInternal(creds, args.username);
+      } catch {
+        // Wantlist may be unavailable — collection alone is still useful
+      }
+    }
+
+    // Refresh the stored avatar while we're here (previously a side effect
+    // of the old client hydration loop)
+    let avatarUrl: string | undefined;
+    try {
+      const profile = await fetchProfileInternal(creds, args.username);
+      avatarUrl = profile.avatar || undefined;
+    } catch {
+      // Non-critical
+    }
+
+    const slim = (x: {
+      release_id: number;
+      master_id?: number;
+      title: string;
+      artist: string;
+      year: number;
+      thumb: string;
+      cover: string;
+      label: string;
+    } & { dateAdded?: string }) => ({
+      release_id: x.release_id,
+      master_id: x.master_id || undefined,
+      title: x.title,
+      artist: x.artist,
+      year: x.year,
+      thumb: x.thumb || undefined,
+      cover: x.cover,
+      label: x.label,
+      dateAdded: x.dateAdded ?? "",
+    });
+
+    // Chunked replace keeps each mutation comfortably under Convex's
+    // per-transaction write limits for large collections.
+    const CHUNK = 400;
+    await ctx.runMutation(internal.followed_items.clearForUser, {
+      follower_username: creds.username,
+      followed_username: args.username,
+      kind: "collection",
+    });
+    for (let i = 0; i < albums.length; i += CHUNK) {
+      await ctx.runMutation(internal.followed_items.appendItems, {
+        follower_username: creds.username,
+        followed_username: args.username,
+        kind: "collection",
+        items: albums.slice(i, i + CHUNK).map(slim),
+      });
+    }
+    await ctx.runMutation(internal.followed_items.clearForUser, {
+      follower_username: creds.username,
+      followed_username: args.username,
+      kind: "want",
+    });
+    for (let i = 0; i < wants.length; i += CHUNK) {
+      await ctx.runMutation(internal.followed_items.appendItems, {
+        follower_username: creds.username,
+        followed_username: args.username,
+        kind: "want",
+        items: wants.slice(i, i + CHUNK).map(slim),
+      });
+    }
+
+    await ctx.runMutation(internal.following.updateSyncMeta, {
+      follower_username: creds.username,
+      following_username: args.username,
+      collection_synced_at: Date.now(),
+      is_private: isPrivate,
+      avatar_url: avatarUrl,
+    });
+
+    return { albums: albums.length, wants: wants.length, isPrivate };
   },
 });
 

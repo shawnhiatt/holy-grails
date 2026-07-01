@@ -163,7 +163,10 @@ function getWantGroupLabel(item: WantItem): string {
 }
 
 export function Wantlist() {
-  const { wants, toggleWantPriority, wantFilter, setWantFilter, wantSearchQuery, setWantSearchQuery, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
+  const { wants, toggleWantPriority, wantFilter, setWantFilter, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
+  // Search state is screen-local: a keystroke re-renders this screen only,
+  // not every consumer of the app context.
+  const [wantSearchQuery, setWantSearchQuery] = useState("");
 
   const wantGridModes = useMemo(() => [
     { id: viewMode === "grid3" ? "grid3" as ViewMode : "grid" as ViewMode, icon: viewMode === "grid3" ? Grid3x3 : Grid2x2, label: viewMode === "grid3" ? "Compact Grid" : "Grid" },
@@ -303,9 +306,9 @@ export function Wantlist() {
       ) : (
         <>
           {viewMode === "crate" && <WantCrateView key={`crate|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
-          {viewMode === "list" && <WantlistView key={`list|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
-          {viewMode === "grid" && <WantGridView key={`grid|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
-          {viewMode === "grid3" && <WantGridView key={`grid3|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} compact />}
+          {viewMode === "list" && <WantlistView key={`list|${wantFilter}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
+          {viewMode === "grid" && <WantGridView key={`grid|${wantFilter}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
+          {viewMode === "grid3" && <WantGridView key={`grid3|${wantFilter}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} compact />}
           {viewMode === "artwork" && <WantArtworkView key={`artwork|${wantFilter}|${wantSearchQuery}`} wants={filteredWants} togglePriority={handleTogglePriority} onSelect={handleSelectWant} />}
         </>
       )}

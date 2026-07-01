@@ -26,11 +26,66 @@ const hasYear = (year: number | null | undefined): year is number =>
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
 type FollowingTab = "collection" | "wants" | "insights";
 
+/** Slim followed_items cache row → Album shape used by the profile views. */
+interface FollowedItemRow {
+  release_id: number;
+  master_id?: number;
+  title: string;
+  artist: string;
+  year: number;
+  thumb?: string;
+  cover: string;
+  label: string;
+  dateAdded: string;
+}
+
+function slimToAlbum(r: FollowedItemRow): Album {
+  return {
+    id: String(r.release_id),
+    release_id: r.release_id,
+    master_id: r.master_id || undefined,
+    instance_id: 0,
+    folder_id: 0,
+    title: r.title,
+    artist: r.artist,
+    year: r.year,
+    thumb: r.thumb ?? "",
+    cover: r.cover,
+    folder: "All",
+    label: r.label,
+    catalogNumber: "",
+    format: "Vinyl",
+    mediaCondition: "",
+    sleeveCondition: "",
+    pricePaid: "",
+    notes: "",
+    dateAdded: r.dateAdded,
+    discogsUrl: `https://www.discogs.com/release/${r.release_id}`,
+    purgeTag: null,
+  };
+}
+
+function slimToWant(r: FollowedItemRow): WantItem {
+  return {
+    id: `w-${r.release_id}`,
+    release_id: r.release_id,
+    master_id: r.master_id || undefined,
+    title: r.title,
+    artist: r.artist,
+    year: r.year,
+    thumb: r.thumb ?? "",
+    cover: r.cover,
+    label: r.label,
+    priority: false,
+  };
+}
+
+const FOLLOWED_STALE_MS = 24 * 60 * 60 * 1000;
+
 export function FollowingScreen() {
   const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setSelectedFeedAlbum, setShowAlbumDetail, setOnAddFollowedUser, setFollowedUserProfile, setOnBackFromProfile, setOnUnfollowUser } = useApp();
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
-  const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
-  const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
+  const syncFollowedUserAction = useAction(api.discogs.syncFollowedUser);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUsername, setAddUsername] = useState("");
@@ -38,10 +93,55 @@ export function FollowingScreen() {
   const [addProgress, setAddProgress] = useState("");
   const [addError, setAddError] = useState("");
 
-  const selectedUser = useMemo(
+  const baseUser = useMemo(
     () => followedUsers.find((f) => f.id === selectedUserId) || null,
     [followedUsers, selectedUserId]
   );
+
+  // Per-profile subscription to the persisted followed-items cache. The
+  // profile renders instantly from cached rows and updates reactively as a
+  // background sync writes fresh chunks.
+  const followedItems = useQuery(
+    api.followed_items.getForUser,
+    sessionToken && baseUser
+      ? { sessionToken, followed_username: baseUser.username }
+      : "skip"
+  );
+
+  const selectedUser = useMemo<FollowedUser | null>(() => {
+    if (!baseUser) return null;
+    if (followedItems === undefined) {
+      // Cache read in flight — the profile shows its loading skeleton
+      return { ...baseUser, hydrated: false };
+    }
+    return {
+      ...baseUser,
+      isPrivate: followedItems.isPrivate,
+      collection: followedItems.collection.map(slimToAlbum),
+      wants: followedItems.wants.map(slimToWant),
+      // hydrated=false keeps the skeleton up until this user's first sync
+      // has actually run (fresh follow), after which data streams in
+      hydrated: followedItems.syncedAt != null,
+      lastSynced: followedItems.syncedAt
+        ? new Date(followedItems.syncedAt).toISOString().split("T")[0]
+        : baseUser.lastSynced,
+    };
+  }, [baseUser, followedItems]);
+
+  // Freshen a stale profile in the background (24h TTL, once per user per
+  // session). The subscription above streams the new data in as it lands.
+  const staleSyncKickedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!baseUser || !sessionToken) return;
+    if (followedItems === undefined) return; // wait for the cache read
+    const key = baseUser.username.toLowerCase();
+    if (staleSyncKickedRef.current.has(key)) return;
+    const stale = !followedItems.syncedAt || Date.now() - followedItems.syncedAt > FOLLOWED_STALE_MS;
+    if (!stale) return;
+    staleSyncKickedRef.current.add(key);
+    syncFollowedUserAction({ sessionToken, username: baseUser.username })
+      .catch((e) => console.warn(`[Following] Profile sync failed for @${baseUser.username}:`, e));
+  }, [baseUser, followedItems, sessionToken, syncFollowedUserAction]);
 
   const followedUsernames = useMemo(
     () => followedUsers.map((f) => f.username),
@@ -96,67 +196,21 @@ export function FollowingScreen() {
     setAddProgress("Looking up user...");
 
     try {
-      // 1. Check user exists and get their canonical username + avatar
+      // Verify the user exists and get their canonical username + avatar.
+      // The follow registers immediately — their full collection/wantlist
+      // syncs in the background (kicked off inside addFollowedUser) and the
+      // profile fills in reactively from the followed_items cache.
       const profile = await proxyFetchUserProfile({ sessionToken, username });
 
-      // 2. Fetch their collection
-      setAddProgress("Fetching collection...");
-      let collectedAlbums: Album[] = [];
-      let collectedFolders: string[] = ["All"];
-      try {
-        const result = await proxyFetchCollection({
-          sessionToken,
-          username: profile.username,
-          skipPrivateFields: true,
-        });
-        collectedAlbums = result.albums;
-        collectedFolders = result.folders;
-      } catch (e: any) {
-        // Collection may be private — continue with empty
-        console.warn("[Following] Could not fetch collection:", e.message);
-        if (e.message?.includes("403")) {
-          // Private collection
-          const newUser: FollowedUser = {
-            id: "f-" + Date.now(),
-            username: profile.username,
-            avatar: profile.avatar,
-            isPrivate: true,
-            folders: ["All"],
-            lastSynced: new Date().toISOString().split("T")[0],
-            collection: [],
-            wants: [],
-          };
-          addFollowedUser(newUser);
-          setAddUsername("");
-          setShowAddForm(false);
-          setAddProgress("");
-          toast.warning("@" + profile.username + "'s collection is private.", { duration: 3000 });
-          return;
-        }
-      }
-
-      // 3. Fetch their want list
-      setAddProgress("Fetching wantlist...");
-      let collectedWants: WantItem[] = [];
-      try {
-        collectedWants = await proxyFetchWantlist({
-          sessionToken,
-          username: profile.username,
-        });
-      } catch (e: any) {
-        console.warn("[Following] Could not fetch want list:", e.message);
-      }
-
-      // 4. Create the followed user entry
       const newUser: FollowedUser = {
         id: "f-" + Date.now(),
         username: profile.username,
         avatar: profile.avatar,
         isPrivate: false,
-        folders: collectedFolders,
+        folders: ["All"],
         lastSynced: new Date().toISOString().split("T")[0],
-        collection: collectedAlbums,
-        wants: collectedWants,
+        collection: [],
+        wants: [],
       };
       addFollowedUser(newUser);
       setAddUsername("");
@@ -170,7 +224,7 @@ export function FollowingScreen() {
     } finally {
       setAddLoading(false);
     }
-  }, [addUsername, followedUsers, addFollowedUser, isAuthenticated, sessionToken, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist]);
+  }, [addUsername, followedUsers, addFollowedUser, isAuthenticated, sessionToken, proxyFetchUserProfile]);
 
   if (selectedUser) {
     return (

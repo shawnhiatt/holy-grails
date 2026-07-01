@@ -24,6 +24,7 @@ import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial } from "../utils/format";
+import { shuffle } from "../utils/shuffle";
 import { FormatSpotlight } from "./format-spotlight";
 import { DominantColorCard } from "./dominant-color-card";
 
@@ -266,16 +267,23 @@ interface FeedActivity {
   displayDate: string;
 }
 
-function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number, avatarMap?: Map<string, string>): FeedActivity[] {
+function buildFeedActivityFrom(
+  feedEntries: FollowingFeedEntry[],
+  source: "collection" | "wants",
+  max: number,
+  avatarMap?: Map<string, string>
+): FeedActivity[] {
   const items: FeedActivity[] = [];
+  const idPrefix = source === "wants" ? "feed-want" : "feed";
   for (const entry of feedEntries) {
-    if (entry.recent_albums.length === 0) continue;
-    const sorted = [...entry.recent_albums]
+    const albums = source === "wants" ? entry.recent_wants : entry.recent_albums;
+    if (!albums || albums.length === 0) continue;
+    const sorted = [...albums]
       .sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""))
       .slice(0, 4);
     sorted.forEach((album) => {
       items.push({
-        id: `feed-${entry.followed_username}-${album.release_id}`,
+        id: `${idPrefix}-${entry.followed_username}-${album.release_id}`,
         followedId: `f-${entry.followed_username}`,
         followedUsername: entry.followed_username,
         followedAvatar: avatarMap?.get(entry.followed_username) || "",
@@ -299,38 +307,12 @@ function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number, avata
   return items.slice(0, max);
 }
 
+function buildFeedActivity(feedEntries: FollowingFeedEntry[], max: number, avatarMap?: Map<string, string>): FeedActivity[] {
+  return buildFeedActivityFrom(feedEntries, "collection", max, avatarMap);
+}
+
 function buildFeedWantActivity(feedEntries: FollowingFeedEntry[], max: number, avatarMap?: Map<string, string>): FeedActivity[] {
-  const items: FeedActivity[] = [];
-  for (const entry of feedEntries) {
-    const wants = entry.recent_wants;
-    if (!wants || wants.length === 0) continue;
-    const sorted = [...wants]
-      .sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""))
-      .slice(0, 4);
-    sorted.forEach((album) => {
-      items.push({
-        id: `feed-want-${entry.followed_username}-${album.release_id}`,
-        followedId: `f-${entry.followed_username}`,
-        followedUsername: entry.followed_username,
-        followedAvatar: avatarMap?.get(entry.followed_username) || "",
-        albumTitle: album.title,
-        albumArtist: album.artist,
-        albumThumb: album.thumb || "",
-        albumCover: album.cover,
-        albumReleaseId: album.release_id,
-        albumMasterId: album.master_id,
-        albumYear: album.year,
-        albumLabel: album.label,
-        date: album.dateAdded || "",
-        displayDate: "",
-      });
-    });
-  }
-  items.sort((a, b) => b.date.localeCompare(a.date));
-  for (const item of items) {
-    item.displayDate = item.date ? formatActivityDate(item.date) : "";
-  }
-  return items.slice(0, max);
+  return buildFeedActivityFrom(feedEntries, "wants", max, avatarMap);
 }
 
 /* ─── Section Header ─── */
@@ -424,7 +406,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
     const [decade, decadeAlbums] = eligible[Math.floor(Math.random() * eligible.length)];
     // Shuffle and take up to 10
-    const shuffled = [...decadeAlbums].sort(() => Math.random() - 0.5).slice(0, 10);
+    const shuffled = shuffle(decadeAlbums).slice(0, 10);
     const header = decadeFlavor[decade] ?? `Your ${decade} Records`;
 
     return { decade, header, albums: shuffled };
@@ -433,8 +415,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   // From the Depths — 10 random albums, reshuffled every mount
   const [depthsAlbums] = useState(() => {
     if (albums.length === 0) return [];
-    const shuffled = [...albums].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(10, shuffled.length));
+    return shuffle(albums).slice(0, 10);
   });
 
   // On the Hunt — shuffled wantlist items, weighted toward priority
@@ -443,7 +424,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     // Weight priority items: duplicate them so they appear more often in shuffle
     const weighted = wants.flatMap((w) => (w.priority ? [w, w] : [w]));
     const seen = new Set<number>();
-    const shuffled = [...weighted].sort(() => Math.random() - 0.5).filter((w) => {
+    const shuffled = shuffle(weighted).filter((w) => {
       if (seen.has(w.release_id)) return false;
       seen.add(w.release_id);
       return true;

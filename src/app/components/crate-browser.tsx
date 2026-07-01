@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X } from "lucide-react";
 import { useApp, type ViewMode } from "./app-context";
+import { useFilteredAlbums } from "./use-filtered-albums";
 import { CrateFlip } from "./crate-flip";
 import { AlbumList } from "./album-list";
 import { AlbumGrid } from "./album-grid";
@@ -61,9 +62,6 @@ export function CrateBrowser() {
   const {
     viewMode,
     setViewMode,
-    searchQuery,
-    setSearchQuery,
-    filteredAlbums,
     setShowFilterDrawer,
     activeFolder,
     setActiveFolder,
@@ -71,6 +69,7 @@ export function CrateBrowser() {
     setSortOption,
     albums,
     isDarkMode,
+    lastPlayed,
     neverPlayedFilter,
     setNeverPlayedFilter,
     playsRecordedFilter,
@@ -78,6 +77,19 @@ export function CrateBrowser() {
     isAuthenticated,
     defaultCollectionSort,
   } = useApp();
+
+  // Search state is screen-local: a keystroke re-renders this screen only,
+  // not every consumer of the app context.
+  const [searchQuery, setSearchQuery] = useState("");
+  const { filteredAlbums, effectiveSortOption } = useFilteredAlbums({
+    albums,
+    activeFolder,
+    sortOption,
+    searchQuery,
+    neverPlayedFilter,
+    playsRecordedFilter,
+    lastPlayed,
+  });
 
   const [lightboxActive, setLightboxActive] = useState(false);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
@@ -303,9 +315,11 @@ export function CrateBrowser() {
               onLightboxDeactivate={handleLightboxDeactivate}
             />
           )}
-          {viewMode === "list" && <AlbumList key={`list|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
-          {viewMode === "grid" && <AlbumGrid key={`grid|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
-          {viewMode === "grid3" && <AlbumGrid key={`grid3|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
+          {/* resetKey scrolls the view back to top on filter changes without
+              remounting — the old searchQuery-in-key approach rebuilt the
+              entire grid DOM on every keystroke */}
+          {viewMode === "list" && <AlbumList key="list" albums={filteredAlbums} sortOption={effectiveSortOption} resetKey={`${activeFolder}|${effectiveSortOption}|${searchQuery.trim()}`} />}
+          {(viewMode === "grid" || viewMode === "grid3") && <AlbumGrid key="grid" albums={filteredAlbums} sortOption={effectiveSortOption} searchQuery={searchQuery} resetKey={`${activeFolder}|${effectiveSortOption}|${searchQuery.trim()}`} />}
           {viewMode === "artwork" && <AlbumArtwork key={`artwork|${activeFolder}|${sortOption}|${searchQuery}`} albums={filteredAlbums} />}
         </>
       )}

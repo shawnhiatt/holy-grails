@@ -100,7 +100,9 @@ interface CachedColor {
   isLight: boolean;
 }
 
-const colorCache = new Map<string, CachedColor>();
+// null = extraction failed for this URL — cached so a broken image doesn't
+// retry the load + canvas sample on every mount
+const colorCache = new Map<string, CachedColor | null>();
 
 /* ─── Component ─── */
 
@@ -152,9 +154,9 @@ export function DominantColorCard({
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
-    // Already cached
+    // Already cached (including cached failures)
     if (colorCache.has(imageUrl)) {
-      setCached(colorCache.get(imageUrl)!);
+      setCached(colorCache.get(imageUrl) ?? null);
       return;
     }
 
@@ -165,7 +167,10 @@ export function DominantColorCard({
     img.onload = () => {
       if (stale) return;
       const rgb = extractDominantFromCanvas(img);
-      if (!rgb) return;
+      if (!rgb) {
+        colorCache.set(imageUrl, null);
+        return;
+      }
       const entry: CachedColor = {
         rgb,
         isLight: isLightColor(...rgb),
@@ -173,7 +178,9 @@ export function DominantColorCard({
       colorCache.set(imageUrl, entry);
       setCached(entry);
     };
-    img.onerror = () => {}; // silent fallback
+    img.onerror = () => {
+      if (!stale) colorCache.set(imageUrl, null); // silent fallback
+    };
     img.src = toProxyUrl(imageUrl);
 
     return () => {

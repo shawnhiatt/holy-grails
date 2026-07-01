@@ -1,30 +1,31 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { authenticateUser } from "./authHelper";
+import { internalMutation, mutation, query } from "./_generated/server";
+import { authenticateUser, isSessionValid } from "./authHelper";
 
 /**
  * Bootstrap query for session restore on cold load.
  *
  * Looks up a user by session_token stored in the client's localStorage.
- * Returns the user record WITHOUT OAuth tokens, or null if the token is
- * invalid / not found. Never returns a record based on insertion order.
+ * Returns the user record WITHOUT OAuth tokens (and without echoing the
+ * session token back), or null if the token is invalid, expired, or not
+ * found. Never returns a record based on insertion order.
  */
 export const getLatestUser = query({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
+    if (!args.sessionToken) return null;
     const user = await ctx.db
       .query("users")
       .withIndex("by_session_token", (q) =>
         q.eq("session_token", args.sessionToken)
       )
       .first();
-    if (!user) return null;
+    if (!user || !isSessionValid(user)) return null;
     return {
       _id: user._id,
       _creationTime: user._creationTime,
       discogs_username: user.discogs_username,
       discogs_avatar_url: user.discogs_avatar_url,
-      session_token: user.session_token,
       created_at: user.created_at,
       last_synced_at: user.last_synced_at,
       collection_value: user.collection_value,
@@ -62,12 +63,18 @@ export const getMe = query({
 /**
  * Create or update a user record during OAuth login.
  *
- * Intentionally unauthenticated — called after OAuth completes, before
- * a session token exists. Reuses the existing session_token for returning
- * users (idempotent across double-fired callbacks). Only generates a new
- * token for genuinely new users.
+ * INTERNAL ONLY — callable exclusively from oauth.completeLogin, which
+ * derives discogs_username server-side from the Discogs /oauth/identity
+ * endpoint. This function must never be exposed publicly: a public variant
+ * would let any caller claim any username and receive that user's session
+ * token (full takeover of their Holy Grails data).
+ *
+ * Reuses the existing session_token while it is still valid (idempotent
+ * across double-fired callbacks in React StrictMode / HMR, and keeps other
+ * devices logged in). Mints a fresh token for new users and for expired or
+ * legacy (pre-TTL) sessions.
  */
-export const upsert = mutation({
+export const upsert = internalMutation({
   args: {
     discogs_username: v.string(),
     discogs_avatar_url: v.optional(v.string()),
@@ -84,10 +91,8 @@ export const upsert = mutation({
 
     const is_new = !existing;
 
-    // Reuse existing session token if the user already has one (idempotent
-    // across double-fired OAuth callbacks in React StrictMode / HMR).
-    // Only generate a fresh token for genuinely new users.
-    const sessionToken = existing?.session_token ?? crypto.randomUUID();
+    const reuseToken = existing !== null && isSessionValid(existing);
+    const sessionToken = reuseToken ? existing!.session_token! : crypto.randomUUID();
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -95,6 +100,7 @@ export const upsert = mutation({
         token_secret: args.token_secret,
         discogs_avatar_url: args.discogs_avatar_url,
         session_token: sessionToken,
+        ...(reuseToken ? {} : { session_created_at: Date.now() }),
       });
       return { _id: existing._id, session_token: sessionToken, is_new };
     }
@@ -105,6 +111,7 @@ export const upsert = mutation({
       access_token: args.access_token,
       token_secret: args.token_secret,
       session_token: sessionToken,
+      session_created_at: Date.now(),
       created_at: Date.now(),
     });
     return { _id: id, session_token: sessionToken, is_new };
@@ -274,6 +281,22 @@ export const deleteAllUserData = mutation({
       .withIndex("by_follower", (q) => q.eq("follower_username", username))
       .collect();
     for (const row of followingFeed) await ctx.db.delete(row._id);
+
+    // Followed collections cache
+    const followedItems = await ctx.db
+      .query("followed_items")
+      .withIndex("by_follower_followed", (q) =>
+        q.eq("follower_username", username)
+      )
+      .collect();
+    for (const row of followedItems) await ctx.db.delete(row._id);
+
+    // Sync status
+    const syncStatus = await ctx.db
+      .query("sync_status")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of syncStatus) await ctx.db.delete(row._id);
 
     // Delete the user record itself
     await ctx.db.delete(user._id);

@@ -20,7 +20,6 @@ The app is a passion project and portfolio piece built by a designer (Shawn) usi
 - **Animation**: Framer Motion (imported as `motion` from `"motion/react"`)
 - **Icons**: Lucide React
 - **Charts**: Recharts
-- **UI components**: shadcn/ui (in `src/app/components/ui/`)
 - **Fonts**: Bricolage Grotesque (display/headings) + DM Sans (body/UI) via Google Fonts
 - **Backend**: Convex (all Holy Grails-exclusive data — purge tags, stacks, following, preferences, last played, want priorities)
 - **Auth**: Discogs OAuth 1.0a — the Discogs username is the primary key for all Convex data. Session-token-based auth guards on all Convex functions (see Authentication Architecture). There is no separate Holy Grails account system.
@@ -44,9 +43,11 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - Wantlist cache (`wantlist` table — mirrors Discogs wantlist for offline/fast reads, 24h TTL synced alongside collection)
 - Want list priority bolts, keyed by `discogs_username` + `release_id`
 - Last-played timestamps, keyed by `discogs_username` + `release_id`
-- Collection cache (`collection` table — mirrors Discogs collection for offline/fast reads, synced alongside wantlist with 24h TTL)
+- Collection cache (`collection` table — mirrors Discogs collection for offline/fast reads; local `albums`/`wants` state is reactively derived from these cache subscriptions)
+- Followed collections cache (`followed_items` table — slim rows of each followed user's collection + wantlist, written server-side by `discogs.syncFollowedUser`, read per-profile; sync metadata `is_private`/`collection_synced_at` lives on the `following` table)
+- Sync progress (`sync_status` table — one doc per user, written by the server-side sync loop, subscribed by the client for per-page progress)
 - User preferences (theme, hide purge indicators, hide gallery meta, shake to random, view mode, want view mode, default screen), keyed by `discogs_username`
-- OAuth tokens (access token + token secret), `session_token`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
+- OAuth tokens (access token + token secret), `session_token`, `session_created_at`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
 
 ### Vinyl-Only Filter
 Holy Grails is intentionally vinyl-only. A global filter (`formats[].name === "Vinyl"`) is applied at the data layer during Convex collection sync and cache hydration in `app-context.tsx`. CDs, cassettes, and other formats are excluded before albums reach any UI component. This is a product decision, not a flag or user setting. No other formats should ever surface in the UI.
@@ -56,29 +57,35 @@ Holy Grails is intentionally vinyl-only. A global filter (`formats[].name === "V
 - All Convex reads use `useQuery`, all writes use `useMutation`
 - Use optimistic updates for writes wherever Convex supports it
 - The public API of `app-context.tsx` must not change when wiring Convex — components should not need to update
+- **Reactive hydration:** local `albums` and `wants` state is derived from the Convex `collection`/`wantlist` cache subscriptions (merged with purge tags / want priorities) in `app-context.tsx`. Any code path that changes collection/wantlist data MUST also write the corresponding Convex cache mutation (`addItem`/`removeItem`/`updateInstance`/`renameFolderInCache`), or the change will be reverted by the next re-derive.
+- **Search state is screen-local:** `searchQuery` (Collection) and `wantSearchQuery` (Wantlist) live in their screens, filtered via the `useFilteredAlbums` hook — they are intentionally NOT in the app context so a keystroke doesn't re-render every context consumer. Do not add search state back to `app-context.tsx`. Do not put `searchQuery` in view `key` props (it remounts the whole grid per keystroke) — pass `resetKey` for scroll-to-top instead.
 
 ---
 
 ## Authentication Architecture
 
 **Session token auth pattern:**
-All Convex queries and mutations (except `oauth.ts` and `users.upsert`) require a valid `sessionToken`. A central `authenticateUser()` helper in `convex/authHelper.ts` handles validation and returns the authenticated user record. The `discogs_username` is always derived server-side from the authenticated user — never accepted as a client-supplied argument.
+All Convex queries and mutations (except the `oauth.ts` handshake) require a valid `sessionToken`. A central `authenticateUser()` helper in `convex/authHelper.ts` handles validation (including expiry) and returns the authenticated user record. The `discogs_username` is always derived server-side from the authenticated user — never accepted as a client-supplied argument.
 
 **Session token flow:**
-`sessionToken` is generated on `users.upsert` during OAuth callback, extracted in `auth-callback.tsx`, stored in `app-context.tsx` state, persisted to `localStorage` as `hg_session_token`, and threaded through all ~37 Convex mutation/query call sites.
+`auth-callback.tsx` makes a single server-side action call — `oauth.completeLogin(oauth_token, oauth_token_secret, oauth_verifier)` — which exchanges the verifier for an access token, derives the username from Discogs `/oauth/identity` (the client can NEVER supply a username), and upserts the user via the internal `users.upsert` mutation. Raw OAuth access tokens never reach the client. The returned `sessionToken` is stored in `app-context.tsx` state, persisted to `localStorage` as `hg_session_token`, and threaded through all Convex mutation/query call sites.
+
+**Session expiry:**
+Sessions expire 90 days after the token is minted (`session_created_at` + `SESSION_TTL_MS` in `authHelper.ts`). Expired or legacy (pre-TTL) tokens are rejected by `authenticateUser` and `getLatestUser`, sending the user back through OAuth — which mints a fresh token. While a token is valid, re-login reuses it (idempotent across double-fired callbacks; keeps other devices signed in).
 
 **Session token persistence (`hg_session_token`):**
 The `setSessionToken` wrapper in `app-context.tsx` syncs every token change to `localStorage`. On cold load, `sessionToken` state initializes from `localStorage.getItem("hg_session_token")`. If a stored token exists, it is passed to `getLatestUser` to look up the user by `by_session_token` index. If no stored token exists (fresh visitor, incognito, post-logout), `getLatestUser` is skipped entirely and the visitor sees the login screen. If the stored token is invalid (no matching user), the token is cleared from localStorage and the visitor sees the login screen. This is the only permitted use of `localStorage` in the app — do not add other localStorage usage without discussion.
 
 **users.ts function split:**
-- `getLatestUser` — session restore query, requires `sessionToken` argument, looks up user by `by_session_token` index (never returns data without a valid token)
+- `getLatestUser` — session restore query, requires `sessionToken` argument, looks up user by `by_session_token` index; returns the user record WITHOUT OAuth tokens and WITHOUT echoing the session token; returns `null` for invalid/expired tokens
 - `getMe` — authenticated query, returns user record without tokens
+- `upsert` — INTERNAL mutation, callable only from `oauth.completeLogin`. It must never be made public: a public variant would let any caller claim any username and receive that user's session token (full account takeover).
 
 **Schema change:**
-`users` table has a `session_token` field and a `by_session_token` index.
+`users` table has `session_token` + `session_created_at` fields and a `by_session_token` index.
 
 **Exempt from auth guards:**
-`convex/oauth.ts` functions (`requestToken`, `accessToken`, `fetchIdentity`) are intentionally public — they are part of the OAuth handshake and must remain unauthenticated.
+`convex/oauth.ts` functions (`requestToken`, `completeLogin`) are intentionally public — they are the OAuth handshake and must remain unauthenticated. `completeLogin` is safe because the identity it mints a session for comes from the Discogs token exchange itself, not from the caller.
 
 **`discogsAuth` removed from AppState.** Components that previously used `discogsAuth` to make Discogs API calls now get `sessionToken` from `useApp()` and pass it to Convex proxy actions instead.
 
@@ -95,7 +102,12 @@ All authenticated `useQuery` subscriptions in `app-context.tsx` use a shared `au
 
 All authenticated Discogs API calls go through server-side Convex actions in `convex/discogs.ts`. The client never calls the Discogs API directly. Actions look up the user's credentials server-side via `getUserCredentials` (an internalQuery in `convex/discogsHelpers.ts`) and sign requests using HMAC-SHA1.
 
-**convex/discogs.ts** — `"use node"` directive. Contains 19 public proxy actions: `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchMarketData`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`, `proxyAddToCollection`. All take `sessionToken` as the first argument.
+**convex/discogs.ts** — `"use node"` directive. Public actions (all take `sessionToken` as the first argument): `syncSelf`, `syncFollowedUser`, `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchSyncSignals`, `proxyFetchWantlist`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`, `proxyAddToCollection`.
+
+**Server-side sync loops:**
+- `syncSelf` — the user's own collection/wantlist sync runs entirely inside this action: paginated fetch (shared `fetchCollectionInternal`/`fetchWantlistInternal` helpers), vinyl-only filter, diff writes straight to the Convex `collection`/`wantlist` caches via `applyDiff`, collection value, profile, and sync metadata. Synced data never round-trips through the client; the client receives it reactively through its cache subscriptions. Per-page progress is written to the `sync_status` table.
+- `syncFollowedUser` — fetches a followed user's collection (folder 0, `skipPrivateFields` semantics) + wantlist and replaces their `followed_items` rows in chunks. Detects private collections (403 → `is_private` on the `following` row) and refreshes the stored avatar.
+- **Adaptive rate limiting** — `discogsFetch` reads `X-Discogs-Ratelimit-Remaining` and backs off progressively as the 60/min budget drains (full speed with headroom, sleeps near the floor, 429 retry as backstop). The old fixed 1.1s sleep between pages is gone; do not re-add fixed sleeps to server-side pagination loops.
 
 **Self-operation username derivation:** Actions that operate on the authenticated user's own data (collection value, instance updates, folder moves/management, collection add/remove, wantlist add/remove, profile update) build their Discogs URLs from `creds.username` returned by `getUserCredentials` — the client-supplied `username` argument is accepted for backward compatibility but ignored. Only the cross-user read actions (`proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`) honor the `username` argument, since they are also used to fetch followed users' data.
 
@@ -103,7 +115,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 
 **convex/discogsHelpers.ts** — Contains `getUserCredentials` (internalQuery). Separated from `convex/discogs.ts` because Convex does not allow queries in `"use node"` runtime files. If adding new internal queries needed by Discogs actions, they must live here, not in `discogs.ts`.
 
-**convex/oauth.ts** — OAuth handshake actions (`requestToken`, `accessToken`, `fetchIdentity`). Now read `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` from `process.env` — no longer accept them as client arguments. Still uses PLAINTEXT signing (acceptable for transient token exchange over HTTPS).
+**convex/oauth.ts** — OAuth handshake actions (`requestToken`, `completeLogin`). `completeLogin` performs the access-token exchange, derives the username server-side from `/oauth/identity`, and calls the internal `users.upsert`. Reads `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` from `process.env`. Still uses PLAINTEXT signing (acceptable for transient token exchange over HTTPS).
 
 **discogs-api.ts** — HTTP functions removed. File now contains only: exported types (`Album`, `WantItem`, `Stack`, `FollowedUser`, `FeedAlbum`, `PurgeTag`, `UserProfile`, `CollectionValue`, `MarketData`, `ConditionPrice`, `MarketplaceStats`), constants (`CONDITION_GRADES`, `CONDITION_SHORT`), pure utility functions (`normalizeCondition`, `buildFieldMap`), and in-memory market/collection value cache functions. Do not re-add HTTP functions here.
 
@@ -113,7 +125,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 
 **Convex "use node" constraint:** Files with the `"use node"` directive (like `convex/discogs.ts`) cannot contain queries or mutations — only actions. Any internalQuery needed by a Node.js action must live in a separate file (e.g. `convex/discogsHelpers.ts`) and be called via `ctx.runQuery(internal.discogsHelpers.functionName, args)`.
 
-**Sync progress granularity:** After the 1b migration, paginated sync no longer reports specific page counts ("Fetching 150/300"). The loading phase shows "Syncing" without per-page progress. This is a known tradeoff of server-side proxying — progress callbacks are not available across Convex action boundaries.
+**Sync progress:** the server-side sync loop writes per-page progress to the `sync_status` table (`convex/syncStatus.ts`); the client subscribes via `api.syncStatus.get` and formats messages like "Syncing collection (150 of 300)" (`formatSyncStatus` in `app-context.tsx`).
 
 ---
 
@@ -147,7 +159,7 @@ The app runs on `http://localhost:5173` by default (Vite).
 ```
 src/
   app/
-    App.tsx              # Root layout, screen routing, splash flow, side panel
+    App.tsx              # Root layout, screen routing, splash flow, side panel. ReportsScreen and album-detail are React.lazy chunks (recharts stays off the critical path) prefetched at idle — keep them lazy.
     components/
       accordion-section.tsx
       add-albums-drawer.tsx
@@ -156,7 +168,7 @@ src/
       album-grid.tsx
       album-list.tsx
       alphabet-sidebar.tsx # Shared useAlphabetIndex hook + AlphabetSidebar component for album-grid and album-list
-      app-context.tsx    # Global state — do not refactor without discussion
+      app-context.tsx    # Global state — do not refactor without discussion. albums/wants reactively derive from Convex cache subscriptions.
       auth-callback.tsx  # OAuth callback handler — processes Discogs redirect and exchanges tokens
       crate-browser.tsx
       crate-flip.tsx
@@ -187,6 +199,7 @@ src/
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in stacks.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD, v2.1.4). Scene loaded from local `/splash-screen.json` (scene ID `w7mlqmYVwPpRyrBLkt7m`). Falls back to `#01294D` if WebGL is unavailable.
+      use-filtered-albums.ts  # Screen-local collection filtering/sorting hook (search lives in the screens, not context)
       use-shake.ts  # Shake-to-Random gesture hook. Detects lateral shake via DeviceMotion API (threshold: 25 m/s²), fires callback. Requires iOS DeviceMotionEvent.requestPermission() flow — toggle lives in Settings → Gestures. Preference persisted to Convex (`shake_to_random`). `App.tsx` performs a silent boot-time permission check: if `shakeToRandom` is `true` on load and `DeviceMotionEvent.requestPermission()` does not return `'granted'`, the preference is reset to `false` in Convex and a toast is shown. The check runs once per session via a `hasDonePermissionCheckRef` guard.
     hooks/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
@@ -194,9 +207,9 @@ src/
       wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
       wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
       loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
-      ui/                # shadcn components — do not modify directly
     utils/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial)
+      shuffle.ts         # Fisher-Yates shuffle — use this, never .sort(() => Math.random() - 0.5)
     imports/
     styles/
       fonts.css
@@ -207,10 +220,12 @@ convex/                  # Convex backend functions and schema
   authHelper.ts        # Central session-token auth guard — used by all guarded queries/mutations
   collection.ts
   schema.ts
-  users.ts             # getLatestUser (public bootstrap), getMe, upsert, updateLastSynced, updateCollectionValue, clearSession
+  users.ts             # getLatestUser (public bootstrap), getMe, upsert (INTERNAL — see Authentication Architecture), updateLastSynced, updateCollectionValue, clearSession
   oauth.ts             # Public OAuth handshake — reads credentials from process.env, intentionally unauthenticated
-  discogs.ts           # "use node" — 18 server-side Discogs API proxy actions (see Discogs API Proxy)
+  discogs.ts           # "use node" — server-side sync loops (syncSelf, syncFollowedUser) + Discogs API proxy actions (see Discogs API Proxy)
   discogsHelpers.ts    # getUserCredentials internalQuery — separated from discogs.ts due to "use node" constraint
+  followed_items.ts    # Followed collections cache: getForUser, clearForUser/appendItems (internal)
+  syncStatus.ts        # Sync progress doc: get (subscribed by client), set (internal)
   purge_tags.ts
   stacks.ts
   last_played.ts
@@ -635,7 +650,10 @@ Never use `cover` in contexts smaller than ~200px — always prefer `thumb || co
 ### Following Feed Cache
 The `following_feed` Convex table caches the 50 most recent albums per followed user (up to 25 users, most recently followed first). 24h TTL per user — bypassed when cached data lacks `master_id` (one-time migration). Powers Feed Recent Activity and From the Depths without requiring Following screen hydration. Avatar URLs for followed users are stored in the `following` Convex table and exposed via the `followingAvatars` map in context.
 
-**Manual sync (Sync Now)** bypasses the 24h TTL on the following feed — `performSync()` accepts a `forceRefresh` parameter that skips the cache freshness check. `syncFromDiscogs()` (the manual trigger) always passes `forceRefresh: true`. Startup sync uses the default (`false`) and respects the 24h cache.
+**Manual sync (Sync Now)** bypasses the 24h TTL on the following feed — `syncFollowingFeed()` accepts a `forceRefresh` parameter that skips the cache freshness check. `syncFromDiscogs()` (the manual trigger) always passes `forceRefresh: true`. Startup sync uses the default (`false`) and respects the 24h cache.
+
+### Followed Collections (followed_items)
+Followed users' full collections/wantlists persist in the `followed_items` Convex table (slim rows, vinyl-only), written server-side by `discogs.syncFollowedUser`. The Following screen reads them per-profile via `followed_items.getForUser` (one subscription returning collection, wants, `syncedAt`, `isPrivate`). Profiles render instantly from cache; a background sync fires when a profile opens stale (24h TTL, once per user per session) or right after a new follow. Following someone is instant — one profile lookup registers the follow; there is no blocking collection fetch. Rows are cleaned up on unfollow, clear-all, and account wipe. Do not reintroduce client-side hydration loops that fetch followed collections from Discogs on screen open.
 
 ### Wantlist Caching
 The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as the collection. `convex/wantlist.ts` handles persistence (`getByUsername`, `replaceAll`, `addItem`, `removeItem`). Wantlist write operations (add/remove) update both local state and the Convex wantlist cache on success.
@@ -804,7 +822,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Design system (colors, typography, motion tokens)
 - All UI interactions and animations
 - Navigation structure
-- Four view modes (Grid, Artwork, List, Swiper/Crate Flip)
+- Two view modes (Grid incl. compact grid3, List) — legacy crate/artwork stored prefs are mapped back to grid at preferences hydration
 - Discogs OAuth 1.0a authentication (real login via Discogs)
 - Live Discogs API sync via server-side Convex proxy actions (collection, folders, wantlist, collection value)
 - All Holy Grails-exclusive data persisted in Convex (purge tags, stacks, last played, want priorities, following, preferences)
@@ -843,7 +861,6 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Empty state standardization — icon sizes, vertical padding, and icon-to-text spacing are inconsistent across screens. Needs a dedicated design pass with visual references before normalizing.
 - Purge Cut confirmation icon — Minus vs X icon flagged during Phase 7 QA for visual review.
 - Startup Convex auth errors — `Unauthorized` errors appear briefly in terminal/logs during app startup (race condition between proxy actions firing and sessionToken populating). Cosmetic, non-blocking. Queued for investigation.
-- Sync progress granularity — paginated collection/wantlist sync no longer reports specific page counts after the 1b proxy migration. Shows static "Syncing" message. Consider restoring progress feedback via a different mechanism.
 
 ---
 
@@ -851,7 +868,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 1. **Read before writing.** Understand the existing pattern before adding new code. Check how similar components are built and match them.
 
-2. **Never modify `src/app/components/ui/`** unless explicitly asked. These are shadcn components.
+2. **Do not reintroduce a component library.** The shadcn/ui directory (`src/app/components/ui/`) and its dependencies were removed after the Figma Make prototype phase ended — all UI is hand-built with Tailwind + inline styles. New components follow the existing bespoke patterns.
 
 3. **Never change the design system.** Colors, typography, motion tokens, and spacing are locked. If something looks wrong, fix the implementation, not the tokens.
 
@@ -924,15 +941,15 @@ No other localStorage usage is permitted anywhere in the codebase.
 
 **Folder sync architecture (per-folder fetching)**
 
-`proxyFetchCollection` fetches collection releases per-folder rather than from the aggregate folder 0 ("All") endpoint. This is required because the Discogs API does not return `folder_id` on release objects from the folder 0 endpoint. The flow: fetch the folder list via `/collection/folders`, then for each folder (skipping folder 0), fetch `/collection/folders/{id}/releases` and inject `folder_id` from the folder being fetched onto each release before mapping. Folder 1 ("Uncategorized") is included — it is a real folder releases can live in. Rate limiting uses `sleep(1100)` between paginated requests (~54 req/min, under the 60 req/min authenticated limit), and `discogsFetch` retries 429 responses up to 2 times, honoring the `Retry-After` header.
+`fetchCollectionInternal` (in `convex/discogs.ts`, used by `syncSelf`) fetches collection releases per-folder rather than from the aggregate folder 0 ("All") endpoint. This is required because the Discogs API does not return `folder_id` on release objects from the folder 0 endpoint. The flow: fetch the folder list via `/collection/folders`, then for each folder (skipping folder 0), fetch `/collection/folders/{id}/releases` and inject `folder_id` from the folder being fetched onto each release before mapping. Folder 1 ("Uncategorized") is included — it is a real folder releases can live in. Rate limiting is adaptive (driven by `X-Discogs-Ratelimit-Remaining` inside `discogsFetch`), and 429 responses retry up to 2 times honoring the `Retry-After` header.
 
 **skipPrivateFields**
 
-`proxyFetchCollection` accepts an optional `skipPrivateFields: true` argument. When set, skips `fetchCustomFields` and `fetchFolderMap` calls which always return 403 for other users' collections, and falls back to fetching from folder 0 since folder names are irrelevant for followed users. Always pass this when fetching followed users' collections.
+`fetchCollectionInternal` takes a `skipPrivateFields` flag. When set, it skips `fetchCustomFields` and `fetchFolderMap` calls which always return 403 for other users' collections, and falls back to fetching from folder 0 since folder names are irrelevant for followed users. `syncFollowedUser` always sets this.
 
 **Multi-folder dedup behavior**
 
-`proxyFetchCollection` in `convex/discogs.ts` deduplicates collection items by `release_id` after fetching all folders. If a release exists in more than one folder, only the first instance is kept. The second instance's folder assignment, condition notes, and grading are silently discarded. This is a known architectural assumption: one copy per release. Do not attempt to fix or change this behavior without explicit instruction from Shawn.
+`fetchCollectionInternal` deduplicates collection items by `release_id` after fetching all folders. If a release exists in more than one folder, only the first instance is kept. The second instance's folder assignment, condition notes, and grading are silently discarded. This is a known architectural assumption: one copy per release. Do not attempt to fix or change this behavior without explicit instruction from Shawn.
 
 **Folder management**
 

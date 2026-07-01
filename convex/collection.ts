@@ -259,6 +259,33 @@ export const updateInstance = mutation({
   },
 });
 
+/**
+ * Rename a folder across all cached collection rows. Called after a Discogs
+ * folder rename so the cache (which client album state is reactively derived
+ * from) never resurfaces the old name.
+ */
+export const renameFolderInCache = mutation({
+  args: {
+    sessionToken: v.string(),
+    folderId: v.number(),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const rows = await ctx.db
+      .query("collection")
+      .withIndex("by_username", (q) =>
+        q.eq("discogsUsername", user.discogs_username)
+      )
+      .collect();
+    for (const row of rows) {
+      if (row.folderId === args.folderId) {
+        await ctx.db.patch(row._id, { folder: args.name });
+      }
+    }
+  },
+});
+
 /** Remove a single album from the collection cache by releaseId. */
 export const removeItem = mutation({
   args: {

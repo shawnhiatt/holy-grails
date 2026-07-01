@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useAction, useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { oauthInFlight } from "./oauth-helpers";
 
@@ -7,8 +7,6 @@ interface AuthCallbackProps {
   onSuccess: (user: {
     username: string;
     avatarUrl: string;
-    accessToken: string;
-    tokenSecret: string;
     sessionToken: string;
     is_new: boolean;
   }) => void;
@@ -19,17 +17,15 @@ interface AuthCallbackProps {
 /**
  * Handles the OAuth callback from Discogs.
  *
- * Reads oauth_token and oauth_verifier from URL params, exchanges them for
- * an access token via Convex action, fetches the user's identity, and stores
- * credentials in Convex. Renders nothing — the parent shows the LoadingScreen.
- *
- * Consumer credentials are resolved server-side in Convex actions —
- * the client never sends them.
+ * Reads oauth_token and oauth_verifier from URL params and passes them to a
+ * single server-side Convex action (oauth.completeLogin) that exchanges the
+ * verifier, derives the username from Discogs /oauth/identity, and stores
+ * credentials — all server-side. The client never sees raw OAuth tokens and
+ * never supplies a username. Renders nothing — the parent shows the
+ * LoadingScreen.
  */
 export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbackProps) {
-  const exchangeToken = useAction(api.oauth.accessToken);
-  const fetchIdentityAction = useAction(api.oauth.fetchIdentity);
-  const upsertUser = useMutation(api.users.upsert);
+  const completeLogin = useAction(api.oauth.completeLogin);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -58,32 +54,11 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
       oauthInFlight.current = false;
 
       try {
-        // Step 1: Exchange verifier for access token
         onStatusChange?.("Authenticating");
-        const tokens = await exchangeToken({
+        const result = await completeLogin({
           oauth_token: oauthToken!,
           oauth_token_secret: tokenSecret!,
           oauth_verifier: oauthVerifier!,
-        });
-
-        if (cancelled) return;
-
-        // Step 2: Fetch identity (username + avatar)
-        onStatusChange?.("Fetching your profile");
-        const identity = await fetchIdentityAction({
-          access_token: tokens.access_token,
-          token_secret: tokens.token_secret,
-        });
-
-        if (cancelled) return;
-
-        // Step 3: Store in Convex
-        onStatusChange?.("Saving credentials");
-        const { session_token, is_new } = await upsertUser({
-          discogs_username: identity.username,
-          discogs_avatar_url: identity.avatar_url || undefined,
-          access_token: tokens.access_token,
-          token_secret: tokens.token_secret,
         });
 
         // Clean up session storage
@@ -95,12 +70,10 @@ export function AuthCallback({ onSuccess, onError, onStatusChange }: AuthCallbac
         window.history.replaceState({}, "", "/");
 
         onSuccess({
-          username: identity.username,
-          avatarUrl: identity.avatar_url,
-          accessToken: tokens.access_token,
-          tokenSecret: tokens.token_secret,
-          sessionToken: session_token,
-          is_new,
+          username: result.username,
+          avatarUrl: result.avatar_url,
+          sessionToken: result.session_token,
+          is_new: result.is_new,
         });
       } catch (err: any) {
         if (cancelled) return;

@@ -69,15 +69,10 @@ interface AppState {
   selectedAlbumId: string | null;
   setSelectedAlbumId: (id: string | null) => void;
   selectedAlbum: Album | null;
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
   activeFolder: string;
   setActiveFolder: (f: string) => void;
   sortOption: SortOption;
   setSortOption: (s: SortOption) => void;
-  /** Sort actually applied to the grid — forced to artist A→Z while a search is active, otherwise mirrors sortOption */
-  effectiveSortOption: SortOption;
-  filteredAlbums: Album[];
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
   deletePurgeTag: (releaseId: number) => void;
   executePurgeCut: () => Promise<void>;
@@ -98,8 +93,6 @@ interface AppState {
   setPurgeFilter: (f: PurgeTag | "unrated" | "all") => void;
   wantFilter: "all" | "priority";
   setWantFilter: (f: "all" | "priority") => void;
-  wantSearchQuery: string;
-  setWantSearchQuery: (q: string) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   colorMode: "light" | "dark" | "system";
@@ -188,7 +181,7 @@ interface AppState {
   collectionCrossoverQueue: WantItem[];
   dismissCrossover: (releaseId: number) => void;
   // OAuth / session management
-  loginWithOAuth: (user: { username: string; avatarUrl: string; accessToken: string; tokenSecret: string; sessionToken: string; is_new: boolean }) => Promise<void>;
+  loginWithOAuth: (user: { username: string; avatarUrl: string; sessionToken: string; is_new: boolean }) => Promise<void>;
   signOut: () => void;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
@@ -215,19 +208,34 @@ interface AppState {
   setOnUnfollowUser: (fn: (() => void) | null) => void;
 }
 
+/** Human copy for the server-side sync progress doc (sync_status table). */
+function formatSyncStatus(s: { phase: string; current?: number; total?: number }): string {
+  const counts = s.total && s.total > 0 ? ` (${Math.min(s.current ?? 0, s.total)} of ${s.total})` : "";
+  switch (s.phase) {
+    case "collection": return `Syncing collection${counts}`;
+    case "caching": return "Caching collection";
+    case "wantlist": return `Syncing wantlist${counts}`;
+    case "value": return "Fetching collection value";
+    default: return "Syncing";
+  }
+}
+
 /** Build lastPlayed (most recent per release), playCounts, and allTimestamps from raw play records. */
 function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>) {
-  const lastPlayedMap: Record<string, string> = {};
+  const latestMs: Record<string, number> = {};
   const countMap: Record<string, number> = {};
   const allTimestamps: number[] = [];
   for (const lp of records) {
     const key = String(lp.release_id);
     countMap[key] = (countMap[key] || 0) + 1;
     allTimestamps.push(lp.played_at);
-    const iso = new Date(lp.played_at).toISOString();
-    if (!lastPlayedMap[key] || iso > lastPlayedMap[key]) {
-      lastPlayedMap[key] = iso;
+    if (!latestMs[key] || lp.played_at > latestMs[key]) {
+      latestMs[key] = lp.played_at;
     }
+  }
+  const lastPlayedMap: Record<string, string> = {};
+  for (const [key, ms] of Object.entries(latestMs)) {
+    lastPlayedMap[key] = new Date(ms).toISOString();
   }
   return { lastPlayedMap, countMap, allTimestamps };
 }
@@ -246,14 +254,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [viewMode, setViewModeRaw] = useState<ViewMode>("grid");
   const [wantViewMode, setWantViewModeRaw] = useState<ViewMode>("grid");
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("added-new");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [showAlbumDetail, setShowAlbumDetail] = useState(false);
   const [purgeFilter, setPurgeFilter] = useState<PurgeTag | "unrated" | "all">("unrated");
   const [wantFilter, setWantFilter] = useState<"all" | "priority">("all");
-  const [wantSearchQuery, setWantSearchQuery] = useState("");
 
   // ── Auth state ──
 
@@ -364,16 +370,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const convexCollection = useQuery(api.collection.getByUsername, authedArgs);
   const convexWantlist = useQuery(api.wantlist.getByUsername, authedArgs);
   const convexFollowingFeed = useQuery(api.following_feed.getByFollower, authedArgs);
+  // Live progress doc written by the server-side sync loop (discogs.syncSelf)
+  const convexSyncStatus = useQuery(api.syncStatus.get, authedArgs);
+
+  // Set once the boot path has finished deciding (cache hydrated, or the
+  // first-ever sync settled). Distinct from albums.length so a user whose
+  // collection is empty — or contains no vinyl at all — exits the loading
+  // screen instead of spinning forever.
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // isAuthLoading: true when a returning user's session is being restored
   // (Convex query in flight or initial sync running) but data hasn't arrived yet.
-  // Prevents flashing the empty Feed before collection loads.
+  // Prevents flashing the empty Feed before collection loads. Ends as soon as
+  // albums arrive OR the boot path completes (whichever comes first).
   //
   // isRestoringSession: true on cold load while we're checking Convex for an
   // existing user — before discogsUsername is known.
   const isRestoringSession = !discogsUsername && !!sessionToken && convexLatestUser === undefined;
   const isConvexUserGone = !sessionToken;
-  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !isConvexUserGone && !syncFailed;
+  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !initialLoadDone && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
@@ -388,27 +403,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearWantPrioritiesMut = useMutation(api.want_priorities.clearAll);
   const addFollowingMut = useMutation(api.following.add);
   const removeFollowingMut = useMutation(api.following.remove);
-  const updateAvatarMut = useMutation(api.following.updateAvatar);
   const clearFollowingMut = useMutation(api.following.clearAll);
   const upsertPreferencesMut = useMutation(api.preferences.upsert);
-  const updateLastSyncedMut = useMutation(api.users.updateLastSynced);
   const clearSessionMut = useMutation(api.users.clearSession);
   const setShareActivityMut = useMutation(api.users.setShareActivity);
   const deleteAllUserDataMut = useMutation(api.users.deleteAllUserData);
   const updateInstanceMut = useMutation(api.collection.updateInstance);
   const updateCollectionValueMut = useMutation(api.users.updateCollectionValue);
   const replaceWantlistMut = useMutation(api.wantlist.replaceAll);
-  const applyCollectionDiffMut = useMutation(api.collection.applyDiff);
-  const applyWantlistDiffMut = useMutation(api.wantlist.applyDiff);
+  const renameFolderCacheMut = useMutation(api.collection.renameFolderInCache);
   const addWantlistItemMut = useMutation(api.wantlist.addItem);
   const removeWantlistItemMut = useMutation(api.wantlist.removeItem);
   const upsertFollowingFeedMut = useMutation(api.following_feed.upsert);
   const deleteFollowingFeedMut = useMutation(api.following_feed.deleteEntry);
 
   // ── Convex actions (server-side Discogs API proxy) ──
+  const syncSelfAction = useAction(api.discogs.syncSelf);
+  const syncFollowedUserAction = useAction(api.discogs.syncFollowedUser);
   const proxyFetchIdentity = useAction(api.discogs.proxyFetchIdentity);
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
-  const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
   const proxyFetchCollectionValue = useAction(api.discogs.proxyFetchCollectionValue);
   const proxyFetchSyncSignals = useAction(api.discogs.proxyFetchSyncSignals);
@@ -427,12 +440,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeCollectionItemMut = useMutation(api.collection.removeItem);
 
   // ── Refs for latest Convex data (used in sync functions) ──
-  const purgeTagsRef = useRef(convexPurgeTags);
-  purgeTagsRef.current = convexPurgeTags;
-  const wantPrioritiesRef = useRef(convexWantPriorities);
-  wantPrioritiesRef.current = convexWantPriorities;
-  const lastPlayedRef = useRef(convexLastPlayed);
-  lastPlayedRef.current = convexLastPlayed;
   const followingRef = useRef(convexFollowing);
   followingRef.current = convexFollowing;
   const wantlistRef = useRef(convexWantlist);
@@ -460,12 +467,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Track one-time hydration from Convex → local state
   const hydratedRef = useRef({
-    purgeTags: false,
     stacks: false,
     lastPlayed: false,
-    wantPriorities: false,
     preferences: false,
-    following: false,
   });
 
   // Track whether initial auto-sync has run
@@ -522,6 +526,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // returning user never sits through a sync that has nothing to load.
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
+  // ── Reactive hydration: albums and wants mirror the Convex cache ──
+  //
+  // The Convex collection/wantlist caches are the single source of truth for
+  // local state. Whenever the cache changes — cold-load hydration, the
+  // server-side sync loop writing a diff, a single-item add/remove — these
+  // effects re-derive local state, merging purge tags and want priorities.
+  // Optimistic local writes elsewhere stay for snappiness; the derive
+  // confirms them once the corresponding Convex write lands.
+  useEffect(() => {
+    if (!discogsUsername) return;
+    if (convexCollection === undefined) return; // subscription not resolved
+    const tagMap = new Map((convexPurgeTags ?? []).map((t) => [t.release_id, t.tag as PurgeTag]));
+    const derived: Album[] = convexCollection
+      .filter((row) => isVinylFormat(row.format))
+      .map((row) => ({
+        id: String(row.releaseId),
+        release_id: row.releaseId,
+        master_id: (row as any).masterId || undefined,
+        instance_id: row.instanceId,
+        folder_id: row.folderId ?? 1,
+        title: row.title,
+        artist: row.artist,
+        year: row.year,
+        thumb: row.thumb ?? "",
+        cover: row.cover,
+        folder: row.folder,
+        label: row.label,
+        catalogNumber: row.catalogNumber,
+        format: row.format,
+        mediaCondition: row.mediaCondition,
+        sleeveCondition: row.sleeveCondition,
+        pricePaid: row.pricePaid,
+        notes: row.notes,
+        customFields: row.customFields,
+        dateAdded: row.dateAdded,
+        discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
+        purgeTag: tagMap.get(row.releaseId) || null,
+      }));
+    setAlbums((prev) => {
+      // Never clobber a populated collection with an empty cache — protects
+      // the window where a first-ever sync populated local state but the
+      // cache write hasn't landed yet.
+      if (derived.length === 0 && prev.length > 0) return prev;
+      return derived;
+    });
+  }, [convexCollection, convexPurgeTags, discogsUsername]);
+
+  useEffect(() => {
+    if (!discogsUsername) return;
+    if (convexWantlist === undefined) return;
+    const prioMap = new Map((convexWantPriorities ?? []).map((p) => [p.release_id, p.is_priority]));
+    const derived: WantItem[] = convexWantlist.map((row) => ({
+      id: `w-${row.release_id}`,
+      release_id: row.release_id,
+      master_id: (row as any).master_id || undefined,
+      title: row.title,
+      artist: row.artist,
+      year: row.year,
+      thumb: row.thumb ?? "",
+      cover: row.cover,
+      label: row.label,
+      priority: prioMap.get(row.release_id) || false,
+    }));
+    setWants((prev) => {
+      // Same empty-cache guard as albums (covers the boot fallback fetch
+      // that populates local wants before the cache write lands).
+      if (derived.length === 0 && prev.length > 0) return prev;
+      return derived;
+    });
+  }, [convexWantlist, convexWantPriorities, discogsUsername]);
+
   useEffect(() => {
     if (initialSyncDoneRef.current) return;
     if (!discogsUsername) return;
@@ -531,171 +606,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     initialSyncDoneRef.current = true;
 
     if (convexCollection.length > 0) {
-      // ── Instant boot: hydrate from cache regardless of age ──
-      if (convexCollection.length > 0) {
-        // Hydrate albums from Convex cache
-        const cachedAlbums: Album[] = convexCollection.map((row) => ({
-          id: String(row.releaseId),
-          release_id: row.releaseId,
-          master_id: (row as any).masterId || undefined,
-          instance_id: row.instanceId,
-          folder_id: row.folderId ?? 1,
-          title: row.title,
-          artist: row.artist,
-          year: row.year,
-          thumb: row.thumb ?? "",
-          cover: row.cover,
-          folder: row.folder,
-          label: row.label,
-          catalogNumber: row.catalogNumber,
-          format: row.format,
-          mediaCondition: row.mediaCondition,
-          sleeveCondition: row.sleeveCondition,
-          pricePaid: row.pricePaid,
-          notes: row.notes,
-          customFields: row.customFields,
-          dateAdded: row.dateAdded,
-          discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
-          purgeTag: null,
-        })).filter((a) => isVinylFormat(a.format));
+      // ── Instant boot: albums/wants hydrate reactively from the cache
+      // subscriptions (see effects above). This effect handles the pieces
+      // that don't live in the cache: folders, sync stats, collection value,
+      // and the profile — then probes Discogs for changes in the background.
 
-        // Derive folder list from cached albums (name-only fallback until proxyFetchFolders runs)
-        const folderMap = new Map<string, { id: number; count: number }>();
-        for (const a of cachedAlbums) {
-          const entry = folderMap.get(a.folder);
-          if (entry) {
-            entry.count++;
-          } else {
-            folderMap.set(a.folder, { id: a.folder_id, count: 1 });
-          }
-        }
-        const cachedFolders: { id: number; name: string; count: number }[] = [
-          { id: 0, name: "All", count: cachedAlbums.length },
-          ...Array.from(folderMap.entries())
-            .filter(([name]) => name !== "All")
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([name, info]) => ({ id: info.id, name, count: info.count })),
-        ];
-
-        // Merge purge tags
-        const tags = purgeTagsRef.current;
-        if (tags !== undefined) {
-          const tagMap = new Map(tags.map((t) => [t.release_id, t.tag as PurgeTag]));
-          setAlbums(cachedAlbums.map((a) => ({
-            ...a,
-            purgeTag: tagMap.get(a.release_id) || null,
-          })));
-          hydratedRef.current.purgeTags = true;
+      // Derive folder list from cached rows (fallback until the next sync
+      // returns the authoritative folder list with IDs and counts)
+      const folderMap = new Map<string, { id: number; count: number }>();
+      for (const row of convexCollection) {
+        const entry = folderMap.get(row.folder);
+        if (entry) {
+          entry.count++;
         } else {
-          setAlbums(cachedAlbums);
+          folderMap.set(row.folder, { id: row.folderId ?? 1, count: 1 });
         }
-        setFolders(cachedFolders);
+      }
+      const cachedFolders: { id: number; name: string; count: number }[] = [
+        { id: 0, name: "All", count: convexCollection.length },
+        ...Array.from(folderMap.entries())
+          .filter(([name]) => name !== "All")
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([name, info]) => ({ id: info.id, name, count: info.count })),
+      ];
+      setFolders(cachedFolders);
 
-        // Load wantlist from Convex cache, fall back to Discogs if empty
-        const cachedWants = wantlistRef.current;
-        const hydrateWants = (newWants: WantItem[]) => {
-          const prios = wantPrioritiesRef.current;
-          if (prios !== undefined) {
-            const prioMap = new Map(prios.map((p) => [p.release_id, p.is_priority]));
-            setWants(newWants.map((w) => ({
-              ...w,
-              priority: prioMap.get(w.release_id) || false,
-            })));
-            hydratedRef.current.wantPriorities = true;
-          } else {
-            setWants(newWants);
-          }
-
-          // Merge last played
-          const lpData = lastPlayedRef.current;
-          if (lpData !== undefined && lpData.length > 0) {
-            const { lastPlayedMap, countMap, allTimestamps } = buildPlayMaps(lpData);
-            setLastPlayed(lastPlayedMap);
-            setPlayCounts(countMap);
-            setAllPlayTimestamps(allTimestamps);
-            hydratedRef.current.lastPlayed = true;
-          }
-
+      const folderCount = cachedFolders.filter((f) => f.name !== "All").length;
+      const cachedWants = wantlistRef.current;
+      if (cachedWants !== undefined && cachedWants.length > 0) {
+        setSyncStats({
+          albums: convexCollection.length,
+          folders: folderCount,
+          wants: cachedWants.length,
+        });
+      } else {
+        // Convex wantlist cache empty — populate it from Discogs; the
+        // reactive hydration effect picks it up once the write lands.
+        proxyFetchWantlist({ sessionToken, username: discogsUsername }).then((newWants) => {
           setSyncStats({
-            albums: cachedAlbums.length,
-            folders: cachedFolders.filter((f) => f.name !== "All").length,
+            albums: convexCollection.length,
+            folders: folderCount,
             wants: newWants.length,
           });
-        };
-
-        if (cachedWants !== undefined && cachedWants.length > 0) {
-          // Hydrate wantlist from Convex cache
-          const wantsFromCache: WantItem[] = cachedWants.map((row) => ({
-            id: String(row.release_id),
-            release_id: row.release_id,
-            master_id: (row as any).master_id || undefined,
-            title: row.title,
-            artist: row.artist,
-            year: row.year,
-            thumb: row.thumb ?? "",
-            cover: row.cover,
-            label: row.label,
-            priority: row.priority,
-          }));
-          hydrateWants(wantsFromCache);
-        } else {
-          // Convex wantlist empty — fall back to Discogs fetch via server proxy
-          proxyFetchWantlist({ sessionToken, username: discogsUsername }).then((newWants) => {
-            hydrateWants(newWants);
-            // Populate Convex cache for next load
-            replaceWantlistMut({
-              sessionToken,
-              items: newWants.map((w) => ({
-                release_id: w.release_id,
-                master_id: w.master_id || undefined,
-                title: w.title,
-                artist: w.artist,
-                year: w.year,
-                cover: w.cover,
-                thumb: w.thumb || undefined,
-                label: w.label,
-                priority: w.priority,
-              })),
-            }).catch((e) => console.warn("[Convex] Wantlist cache write failed:", e));
-          }).catch((err) => {
-            console.warn("[Cache load] Wantlist fetch failed:", err);
-            setSyncStats({
-              albums: cachedAlbums.length,
-              folders: cachedFolders.filter((f) => f.name !== "All").length,
-              wants: 0,
-            });
+          replaceWantlistMut({
+            sessionToken,
+            items: newWants.map((w) => ({
+              release_id: w.release_id,
+              master_id: w.master_id || undefined,
+              title: w.title,
+              artist: w.artist,
+              year: w.year,
+              cover: w.cover,
+              thumb: w.thumb || undefined,
+              label: w.label,
+              priority: w.priority,
+            })),
+          }).catch((e) => console.warn("[Convex] Wantlist cache write failed:", e));
+        }).catch((err) => {
+          console.warn("[Cache load] Wantlist fetch failed:", err);
+          setSyncStats({
+            albums: convexCollection.length,
+            folders: folderCount,
+            wants: 0,
           });
-        }
-
-        // Restore collection value from Convex cache, or fetch from Discogs
-        const cachedValue = convexUser?.collection_value ?? convexLatestUser?.collection_value;
-        const valueSyncedAt = convexUser?.collection_value_synced_at ?? convexLatestUser?.collection_value_synced_at;
-        if (cachedValue && valueSyncedAt && (Date.now() - valueSyncedAt) < TWENTY_FOUR_HOURS) {
-          try {
-            const parsed: CollectionValue = JSON.parse(cachedValue);
-            setCollectionValueCache(parsed);
-          } catch { /* invalid JSON — fall through to Discogs fetch */ }
-        } else {
-          proxyFetchCollectionValue({ sessionToken, username: discogsUsername }).then((val) => {
-            setCollectionValueCache(val);
-            updateCollectionValueMut({
-              sessionToken,
-              collection_value: JSON.stringify(val),
-            }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
-          }).catch((e) => {
-            console.warn("[Cache load] Collection value fetch failed:", e);
-          });
-        }
-
-        // Fetch avatar in background — skip if already set from Convex
-        // Fetch profile in background — always fetch for enriched data, avatar fallback if not cached
-        proxyFetchUserProfile({ sessionToken, username: discogsUsername }).then((p) => {
-          if (!convexUser?.discogs_avatar_url && !convexLatestUser?.discogs_avatar_url) {
-            setUserAvatar(p.avatar);
-          }
-          setUserProfile(p);
-        }).catch(() => {});
+        });
       }
+
+      // Restore collection value from Convex cache, or fetch from Discogs
+      const cachedValue = convexUser?.collection_value ?? convexLatestUser?.collection_value;
+      const valueSyncedAt = convexUser?.collection_value_synced_at ?? convexLatestUser?.collection_value_synced_at;
+      if (cachedValue && valueSyncedAt && (Date.now() - valueSyncedAt) < TWENTY_FOUR_HOURS) {
+        try {
+          const parsed: CollectionValue = JSON.parse(cachedValue);
+          setCollectionValueCache(parsed);
+        } catch { /* invalid JSON — fall through to Discogs fetch */ }
+      } else {
+        proxyFetchCollectionValue({ sessionToken, username: discogsUsername }).then((val) => {
+          setCollectionValueCache(val);
+          updateCollectionValueMut({
+            sessionToken,
+            collection_value: JSON.stringify(val),
+          }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
+        }).catch((e) => {
+          console.warn("[Cache load] Collection value fetch failed:", e);
+        });
+      }
+
+      // Fetch profile in background — always fetch for enriched data, avatar fallback if not cached
+      proxyFetchUserProfile({ sessionToken, username: discogsUsername }).then((p) => {
+        if (!convexUser?.discogs_avatar_url && !convexLatestUser?.discogs_avatar_url) {
+          setUserAvatar(p.avatar);
+        }
+        setUserProfile(p);
+      }).catch(() => {});
+
+      setInitialLoadDone(true);
 
       // Cache is on screen instantly — now probe Discogs in the background and
       // perform a real sync only if the collection or wantlist counts changed.
@@ -706,21 +711,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("[Auto-sync] Failed:", err);
         setSyncFailed(true);
         toast.error("Sync failed. Try again in Settings.");
+      }).finally(() => {
+        // Boot decision made either way — even a zero-vinyl collection must
+        // exit the loading screen.
+        setInitialLoadDone(true);
       });
     }
   }, [discogsUsername, convexCollection, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Hydrate purge tags from Convex into albums (one-time, after albums are populated)
-  useEffect(() => {
-    if (!hydratedRef.current.purgeTags && convexPurgeTags !== undefined && albums.length > 0) {
-      hydratedRef.current.purgeTags = true;
-      const tagMap = new Map(convexPurgeTags.map(t => [t.release_id, t.tag as PurgeTag]));
-      setAlbums(prev => prev.map(a => ({
-        ...a,
-        purgeTag: tagMap.get(a.release_id) || null,
-      })));
-    }
-  }, [convexPurgeTags, albums.length]);
 
   // Hydrate stacks from Convex (one-time)
   useEffect(() => {
@@ -751,18 +748,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexLastPlayed]);
 
-  // Hydrate want priorities from Convex into wants (one-time, after wants are populated)
-  useEffect(() => {
-    if (!hydratedRef.current.wantPriorities && convexWantPriorities !== undefined && wants.length > 0) {
-      hydratedRef.current.wantPriorities = true;
-      const prioMap = new Map(convexWantPriorities.map(p => [p.release_id, p.is_priority]));
-      setWants(prev => prev.map(w => ({
-        ...w,
-        priority: prioMap.get(w.release_id) || false,
-      })));
-    }
-  }, [convexWantPriorities, wants.length]);
-
   // Hydrate preferences from Convex (one-time)
   useEffect(() => {
     if (!hydratedRef.current.preferences && convexPreferences) {
@@ -771,8 +756,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHidePurgeIndicatorsRaw(convexPreferences.hide_purge_indicators);
       setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
       setShakeToRandomRaw(convexPreferences.shake_to_random ?? false);
-      if (convexPreferences.view_mode) setViewModeRaw(convexPreferences.view_mode as ViewMode);
-      if (convexPreferences.want_view_mode) setWantViewModeRaw(convexPreferences.want_view_mode as ViewMode);
+      // Legacy stored view modes (crate/artwork were removed from the product)
+      // are mapped back to grid so removed modes can't resurface via prefs.
+      const legacyModes = new Set(["crate", "artwork"]);
+      if (convexPreferences.view_mode) {
+        const vm = convexPreferences.view_mode as ViewMode;
+        setViewModeRaw(legacyModes.has(vm) ? "grid" : vm);
+      }
+      if (convexPreferences.want_view_mode) {
+        const wvm = convexPreferences.want_view_mode as ViewMode;
+        setWantViewModeRaw(legacyModes.has(wvm) ? "grid" : wvm);
+      }
       if (convexPreferences.default_screen) {
         const ds = convexPreferences.default_screen as Screen;
         setDefaultScreenRaw(ds);
@@ -814,78 +808,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [convexFollowing]);
 
-  // Hydrate following from Convex — deferred until the user navigates to
-  // the Following screen so we don't burn rate-limit budget on app load.
-  useEffect(() => {
-    if (screen !== "following") return;
-    if (hydratedRef.current.following) return;
-    if (convexFollowing === undefined) return; // still loading
-    if (!sessionToken) return; // wait for session token
-    if (convexFollowing.length === 0) {
-      hydratedRef.current.following = true;
-      return;
-    }
-    hydratedRef.current.following = true;
-    const tokenSnapshot = sessionToken;
-    (async () => {
-      for (let i = 0; i < convexFollowing.length; i++) {
-        const username = convexFollowing[i].following_username;
-        try {
-          const profile = await proxyFetchUserProfile({ sessionToken: tokenSnapshot, username });
-          let userAlbums: Album[] = [];
-          let userFolders: string[] = ["All"];
-          let userWants: WantItem[] = [];
-          let isPrivate = false;
-          try {
-            const result = await proxyFetchCollection({ sessionToken: tokenSnapshot, username, skipPrivateFields: true });
-            userAlbums = result.albums;
-            userFolders = result.folders;
-          } catch (e: any) {
-            if (e?.message?.includes("403")) isPrivate = true;
-          }
-          try {
-            userWants = await proxyFetchWantlist({ sessionToken: tokenSnapshot, username });
-          } catch { /* wantlist may be unavailable — skip */ }
-          const followedUser: FollowedUser = {
-            id: `f-${username}`,
-            username: profile.username,
-            avatar: profile.avatar,
-            isPrivate,
-            folders: userFolders,
-            lastSynced: new Date().toISOString().split("T")[0],
-            collection: userAlbums,
-            wants: userWants,
-            hydrated: true,
-          };
-          setFollowedUsers(prev => {
-            // Replace partial entry or add new
-            const idx = prev.findIndex(f => f.username.toLowerCase() === followedUser.username.toLowerCase());
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = followedUser;
-              return updated;
-            }
-            return [...prev, followedUser];
-          });
-          // Persist avatar to Convex following table for feed usage
-          if (profile.avatar) {
-            updateAvatarMut({
-              sessionToken: tokenSnapshot,
-              following_username: username,
-              avatar_url: profile.avatar,
-            }).catch(() => {});
-          }
-        } catch (e) {
-          console.warn(`[Following] Could not restore @${username}:`, e);
-        }
-
-        // 1-second delay between Discogs fetches to respect rate limits
-        if (i < convexFollowing.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    })();
-  }, [screen, convexFollowing, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Followed users' collections/wantlists are no longer hydrated from
+  // Discogs here. They persist in the followed_items Convex table (written
+  // by discogs.syncFollowedUser) and are read per-profile by the Following
+  // screen — profiles render instantly from cache and freshen in the
+  // background when stale.
 
   // Hydrate following feed cache from Convex on cold load
   useEffect(() => {
@@ -1015,77 +942,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [albums, selectedAlbumId]
   );
 
-  // While searching, results are always grouped/sorted by artist A→Z — the
-  // chosen sortOption (and its Date Added grouping) resumes once search clears.
-  const effectiveSortOption: SortOption = searchQuery.trim() ? "artist-az" : sortOption;
-
-  const filteredAlbums = useMemo(() => {
-    let result = [...albums];
-
-    if (activeFolder !== "All") {
-      result = result.filter((a) => a.folder === activeFolder);
-    }
-
-    if (neverPlayedFilter) {
-      result = result.filter((a) => !lastPlayed[a.id]);
-    }
-
-    if (playsRecordedFilter) {
-      result = result.filter((a) => !!lastPlayed[a.id]);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.artist.toLowerCase().includes(q) ||
-          a.title.toLowerCase().includes(q) ||
-          a.label.toLowerCase().includes(q)
-      );
-    }
-
-    switch (effectiveSortOption) {
-      case "artist-az":
-        result.sort((a, b) => a.artist.localeCompare(b.artist));
-        break;
-      case "artist-za":
-        result.sort((a, b) => b.artist.localeCompare(a.artist));
-        break;
-      case "title-az":
-        result.sort((a, b) => a.title.localeCompare(b.title));
-        break;
-      case "year-new":
-        result.sort((a, b) => b.year - a.year);
-        break;
-      case "year-old":
-        result.sort((a, b) => a.year - b.year);
-        break;
-      case "added-new":
-        result.sort(
-          (a, b) =>
-            new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
-        );
-        break;
-      case "added-old":
-        result.sort(
-          (a, b) =>
-            new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()
-        );
-        break;
-      case "label-az":
-        result.sort((a, b) => a.label.localeCompare(b.label));
-        break;
-      case "last-played-oldest":
-        result.sort((a, b) => {
-          const aDate = lastPlayed[a.id] ? new Date(lastPlayed[a.id]).getTime() : 0;
-          const bDate = lastPlayed[b.id] ? new Date(lastPlayed[b.id]).getTime() : 0;
-          return aDate - bDate;
-        });
-        break;
-    }
-
-    return result;
-  }, [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, lastPlayed]);
+  // Search state and collection filtering/sorting live in the screens that
+  // render them (see use-filtered-albums.ts) — a search keystroke no longer
+  // invalidates the app context for every consumer.
 
   // ── Data mutations (local state + Convex fire-and-forget) ──
 
@@ -1157,7 +1016,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFolders((prev) => prev.map((f) => f.id === folderId ? { ...f, name: updated.name } : f));
     // Update folder name on albums that reference this folder
     setAlbums((prev) => prev.map((a) => a.folder_id === folderId ? { ...a, folder: updated.name } : a));
-  }, [sessionToken, discogsUsername, proxyRenameFolder]);
+    // Keep the Convex collection cache consistent — albums are reactively
+    // derived from it, so a stale folder name there would resurface.
+    renameFolderCacheMut({ sessionToken, folderId, name: updated.name })
+      .catch((e) => console.warn("[Convex] Folder rename cache write failed:", e));
+  }, [sessionToken, discogsUsername, proxyRenameFolder, renameFolderCacheMut]);
 
   const deleteFolder = useCallback(async (folderId: number) => {
     if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
@@ -1223,7 +1086,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Build Album object from the returned data
     const folderName = folders.find(f => f.id === 1)?.name || "Uncategorized";
     const newAlbum: Album = {
-      id: `${result.release_id}-${result.instance_id}`,
+      // id matches the cache-derived scheme (String(releaseId)) so the album
+      // keeps its identity when the reactive hydration re-derives state.
+      id: String(result.release_id),
       release_id: result.release_id,
       master_id: result.master_id,
       instance_id: result.instance_id,
@@ -1474,34 +1339,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         })
         .catch((e) => console.warn(`[FollowingFeed] Could not sync @${user.username}:`, e));
+      // Kick the full collection/wantlist sync in the background — the
+      // profile fills in reactively from the followed_items cache as it lands.
+      syncFollowedUserAction({ sessionToken, username: user.username })
+        .catch((e) => console.warn(`[Following] Background sync failed for @${user.username}:`, e));
     }
-  }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage, upsertFollowingFeedMut]);
+  }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage, upsertFollowingFeedMut, syncFollowedUserAction]);
 
-  // Manually re-fetch a single followed user's collection + wantlist. Used to
-  // recover from a silent hydration failure (collection came back empty while
-  // the user was still marked hydrated — see Following hydration loop).
+  // Re-sync a single followed user's collection + wantlist into the
+  // followed_items cache. The profile view updates reactively through its
+  // Convex subscription — no local state to patch here.
   const refreshFollowedUser = useCallback(async (username: string) => {
     if (!sessionToken) throw new Error("Not authenticated");
-    const result = await proxyFetchCollection({ sessionToken, username, skipPrivateFields: true });
-    let userWants: WantItem[] = [];
-    try {
-      userWants = await proxyFetchWantlist({ sessionToken, username });
-    } catch { /* wantlist may be unavailable — keep existing */ }
-    setFollowedUsers((prev) => {
-      const idx = prev.findIndex((f) => f.username.toLowerCase() === username.toLowerCase());
-      if (idx < 0) return prev;
-      const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        collection: result.albums,
-        folders: result.folders,
-        wants: userWants.length > 0 ? userWants : updated[idx].wants,
-        hydrated: true,
-        isPrivate: false,
-      };
-      return updated;
-    });
-  }, [sessionToken, proxyFetchCollection, proxyFetchWantlist]);
+    await syncFollowedUserAction({ sessionToken, username });
+  }, [sessionToken, syncFollowedUserAction]);
 
   const removeFollowedUser = useCallback((userId: string) => {
     setFollowedUsers((prev) => {
@@ -1522,14 +1373,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     token: string,
     opts: {
       background?: boolean;
-      signals?: { num_collection: number; num_wantlist: number } | null;
       // When true, emit a toast summarizing what a background sync brought in.
       // Used by the auto background path (boot probe, sync-on-focus) — the
       // manual Sync Now and first-ever sync surface their own feedback.
       notify?: boolean;
     } = {}
   ): Promise<{ albums: number; folders: number; wants: number }> => {
-    const { background = false, signals: probedSignals, notify = false } = opts;
+    const { background = false, notify = false } = opts;
     // Background syncs flip a separate flag so the loading-screen phase machine
     // (which watches isSyncing) never takes over the screen — the user keeps
     // browsing cached data while the cache freshens underneath them.
@@ -1537,165 +1387,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSyncFlag(true);
     setSyncProgress("Syncing");
     try {
-      // Fetch user profile (avatar + enriched data)
-      try {
-        const profile = await proxyFetchUserProfile({ sessionToken: token, username });
-        setUserAvatar(profile.avatar);
-        setUserProfile(profile);
-      } catch (e) {
-        console.warn("[Discogs] Profile fetch failed:", e);
+      // The whole sync runs server-side (convex/discogs.ts syncSelf): pages
+      // are fetched with the adaptive rate-limit throttle and written straight
+      // to the Convex cache — no round trip through the client. Albums and
+      // wants land in local state via the reactive cache subscriptions;
+      // per-page progress arrives through the sync_status subscription.
+      const result = await syncSelfAction({ sessionToken: token });
+
+      if (result.profile) {
+        if (result.profile.avatar) setUserAvatar(result.profile.avatar);
+        setUserProfile(result.profile);
+      }
+      setFolders(result.folders);
+      if (result.collectionValue) {
+        setCollectionValueCache(result.collectionValue);
       }
 
-      // Fetch collection and wantlist in parallel — no dependency between them
-      setSyncProgress("Syncing");
-      const [{ albums: rawAlbums, folders: newFolders }, newWants] = await Promise.all([
-        proxyFetchCollection({ sessionToken: token, username }),
-        proxyFetchWantlist({ sessionToken: token, username }),
-      ]);
-      const newAlbums = rawAlbums.filter(a => isVinylFormat(a.format));
-
-      // Merge purge tags from current Convex data
-      const tags = purgeTagsRef.current;
-      if (tags !== undefined) {
-        const tagMap = new Map(tags.map(t => [t.release_id, t.tag as PurgeTag]));
-        setAlbums(newAlbums.map(a => ({
-          ...a,
-          purgeTag: tagMap.get(a.release_id) || null,
-        })));
-        hydratedRef.current.purgeTags = true;
-      } else {
-        setAlbums(newAlbums);
-      }
-      setFolders(newFolders);
-
-      // Merge want priorities from current Convex data
-      const prios = wantPrioritiesRef.current;
-      if (prios !== undefined) {
-        const prioMap = new Map(prios.map(p => [p.release_id, p.is_priority]));
-        setWants(newWants.map(w => ({
-          ...w,
-          priority: prioMap.get(w.release_id) || false,
-        })));
-        hydratedRef.current.wantPriorities = true;
-      } else {
-        setWants(newWants);
+      // Wantlist items that are now in the collection → crossover prompt
+      if (result.crossovers.length > 0) {
+        setCollectionCrossoverQueue(result.crossovers);
       }
 
-      // Detect wantlist items that are now in the collection
-      const collectionRids = new Set(newAlbums.map(a => a.release_id));
-      const crossovers = newWants.filter(w => collectionRids.has(w.release_id));
-      if (crossovers.length > 0) {
-        setCollectionCrossoverQueue(crossovers);
-      }
-
-      // Merge last played from current Convex data
-      const lpData = lastPlayedRef.current;
-      if (lpData !== undefined && lpData.length > 0) {
-        const { lastPlayedMap, countMap } = buildPlayMaps(lpData);
-        setLastPlayed(lastPlayedMap);
-        setPlayCounts(countMap);
-        hydratedRef.current.lastPlayed = true;
-      }
-
-      // Write collection to Convex cache — incremental diff (insert/patch/delete)
-      // so the cache never flashes empty mid-background-sync. The returned
-      // counts drive the background-sync completion toast.
-      setSyncProgress("Caching collection");
-      let collDiff = { added: 0, removed: 0, updated: 0 };
-      try {
-        collDiff = await applyCollectionDiffMut({
-          sessionToken: token,
-          albums: newAlbums.map((a) => ({
-            releaseId: a.release_id,
-            masterId: a.master_id || undefined,
-            instanceId: a.instance_id,
-            folderId: a.folder_id,
-            artist: a.artist,
-            title: a.title,
-            year: a.year,
-            thumb: a.thumb,
-            cover: a.cover,
-            folder: a.folder,
-            label: a.label,
-            catalogNumber: a.catalogNumber,
-            format: a.format,
-            mediaCondition: a.mediaCondition,
-            sleeveCondition: a.sleeveCondition,
-            pricePaid: a.pricePaid,
-            notes: a.notes,
-            customFields: a.customFields,
-            dateAdded: a.dateAdded,
-          })),
-        });
-      } catch (e) {
-        console.warn("[Convex] Collection cache write failed:", e);
-      }
-
-      // Write wantlist to Convex cache — incremental diff (insert/patch/delete)
-      let wantDiff = { added: 0, removed: 0, updated: 0 };
-      try {
-        wantDiff = await applyWantlistDiffMut({
-          sessionToken: token,
-          items: newWants.map((w) => ({
-            release_id: w.release_id,
-            master_id: w.master_id || undefined,
-            title: w.title,
-            artist: w.artist,
-            year: w.year,
-            cover: w.cover,
-            thumb: w.thumb || undefined,
-            label: w.label,
-            priority: w.priority,
-          })),
-        });
-      } catch (e) {
-        console.warn("[Convex] Wantlist cache write failed:", e);
-      }
-
-      // Update sync metadata
+      // Update sync metadata (Convex-side last_synced_at and raw counts are
+      // written by syncSelf itself)
       const now = new Date();
       const formatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
         + " \u00b7 " + now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
       setLastSynced(formatted);
+      const folderCount = result.folders.filter((f: { name: string }) => f.name !== "All").length;
       setSyncStats({
-        albums: newAlbums.length,
-        folders: newFolders.filter((f: { name: string }) => f.name !== "All").length,
-        wants: newWants.length,
+        albums: result.albumCount,
+        folders: folderCount,
+        wants: result.wantCount,
       });
-      setSyncProgress("");
-
-      // Fetch collection value and cache in Convex
-      setSyncProgress("Fetching collection value");
-      try {
-        const val = await proxyFetchCollectionValue({ sessionToken: token, username });
-        setCollectionValueCache(val);
-        updateCollectionValueMut({
-          sessionToken: token,
-          collection_value: JSON.stringify(val),
-        }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
-      } catch (e) {
-        console.warn("[Discogs] Collection value fetch failed:", e);
-      }
-
-      // Update lastSynced in Convex, persisting the raw Discogs counts so the
-      // next cold load's probe can detect whether anything changed. Reuse the
-      // counts from the probe that triggered this sync; otherwise fetch them.
-      const syncSignals =
-        probedSignals ??
-        (await proxyFetchSyncSignals({ sessionToken: token, username }).catch(() => null));
-      updateLastSyncedMut({
-        sessionToken: token,
-        collectionCount: syncSignals?.num_collection,
-        wantlistCount: syncSignals?.num_wantlist,
-      });
-
-      // Following feed is no longer synced here — it syncs lazily in the
-      // background when the user opens the Feed or Following screen (see
-      // syncFollowingFeed), so it never blocks the collection sync.
 
       // Completion feedback for background syncs the user isn't watching.
       // Only adds/removes are worth a toast — in-place patches stay silent.
       if (notify) {
+        const { collDiff, wantDiff } = result;
         let msg: string | null = null;
         if (collDiff.added > 0 && collDiff.removed === 0) {
           msg = `${collDiff.added} ${collDiff.added === 1 ? "record" : "records"} added.`;
@@ -1712,9 +1441,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSyncProgress("");
 
       return {
-        albums: newAlbums.length,
-        folders: newFolders.filter((f: { name: string }) => f.name !== "All").length,
-        wants: newWants.length,
+        albums: result.albumCount,
+        folders: folderCount,
+        wants: result.wantCount,
       };
     } catch (err: any) {
       setSyncProgress("");
@@ -1723,7 +1452,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setSyncFlag(false);
     }
-  }, [updateLastSyncedMut, applyCollectionDiffMut, applyWantlistDiffMut, updateCollectionValueMut, proxyFetchUserProfile, proxyFetchCollection, proxyFetchWantlist, proxyFetchCollectionValue, proxyFetchSyncSignals]);
+  }, [syncSelfAction]);
+
+  // Surface the server-side sync loop's progress doc while a sync is running.
+  // Restores per-page granularity ("Syncing collection (150 of 300)") that was
+  // lost when the sync moved behind the Convex action boundary.
+  useEffect(() => {
+    if (!isSyncing && !isBackgroundSyncing) return;
+    if (!convexSyncStatus || convexSyncStatus.phase === "idle") return;
+    setSyncProgress(formatSyncStatus(convexSyncStatus));
+  }, [convexSyncStatus, isSyncing, isBackgroundSyncing]);
 
   // ── Following feed sync (lazy + background) ──
   // Syncs the recent-activity feed for up to 25 followed users. Pulled out of
@@ -1863,7 +1601,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (!changed) return "unchanged"; // nothing changed — no sync needed
 
-      await performSync(username, token, { background: true, signals, notify: true });
+      await performSync(username, token, { background: true, notify: true });
       return "changed";
     } catch (e) {
       console.warn("[Sync] Background change-check failed:", e);
@@ -1947,6 +1685,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           instanceId: album.instance_id,
         });
         deletePurgeTag(album.release_id);
+        // Update the Convex cache immediately — local albums state derives
+        // from it reactively, so each cut disappears as it lands instead of
+        // waiting for the full re-sync at the end.
+        removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
+          .catch((e) => console.warn("[PurgeCut] Cache remove failed:", e));
       } catch (err) {
         console.error("[PurgeCut] Failed to remove", album.release_id, err);
         failedIds.push(album.release_id);
@@ -1967,15 +1710,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setScreen("crate");
     syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
-  }, [sessionToken, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs, proxyRemoveFromCollection]);
+  }, [sessionToken, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs, proxyRemoveFromCollection, removeCollectionItemMut]);
 
   // ── OAuth login ──
 
   const loginWithOAuth = useCallback(async (user: {
     username: string;
     avatarUrl: string;
-    accessToken: string;
-    tokenSecret: string;
     sessionToken: string;
     is_new: boolean;
   }) => {
@@ -1989,7 +1730,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     initialSyncDoneRef.current = true;
 
     // Trigger initial Discogs sync via server-side proxy
-    await performSync(user.username, user.sessionToken);
+    try {
+      await performSync(user.username, user.sessionToken);
+    } finally {
+      setInitialLoadDone(true);
+    }
   }, [setDiscogsUsername, performSync, setSessionToken]);
 
   // ── Share Activity opt-in ──
@@ -2038,12 +1783,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
-    setSearchQuery("");
     setActiveFolder("All");
     setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
-    setWantSearchQuery("");
     setLastSynced("");
     setSyncStats(null);
     setSyncProgress("");
@@ -2056,6 +1799,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStackPickerAlbumId(null);
     setFirstStackJustCreated(false);
     setSyncFailed(false);
+    setInitialLoadDone(false);
     setScreenRaw("feed"); // Navigate away from any authenticated-only screen
     setColorModeRaw("dark"); // Reset to dark so splash screen has no white flash
 
@@ -2067,12 +1811,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Reset hydration flags
     hydratedRef.current = {
-      purgeTags: false,
       stacks: false,
       lastPlayed: false,
-      wantPriorities: false,
       preferences: false,
-      following: false,
     };
     initialSyncDoneRef.current = false;
   }, [sessionToken, clearSessionMut, setDiscogsUsername]);
@@ -2114,12 +1855,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
-    setSearchQuery("");
     setActiveFolder("All");
     setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
-    setWantSearchQuery("");
     setDiscogsUsername("");
     setSessionToken(null);
     setLastSynced("");
@@ -2134,6 +1873,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStackPickerAlbumId(null);
     setFirstStackJustCreated(false);
     setSyncFailed(false);
+    setInitialLoadDone(false);
     clearCollectionValue();
     try {
       sessionStorage.removeItem("hg_oauth_token_secret");
@@ -2143,12 +1883,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     hasSignedOutRef.current = true;
 
     hydratedRef.current = {
-      purgeTags: false,
       stacks: false,
       lastPlayed: false,
-      wantPriorities: false,
       preferences: false,
-      following: false,
     };
     initialSyncDoneRef.current = false;
   }, [sessionToken, deleteAllUserDataMut, setDiscogsUsername]);
@@ -2382,14 +2119,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedAlbumId,
       setSelectedAlbumId,
       selectedAlbum,
-      searchQuery,
-      setSearchQuery,
       activeFolder,
       setActiveFolder,
       sortOption,
       setSortOption,
-      effectiveSortOption,
-      filteredAlbums,
       setPurgeTag,
       deletePurgeTag,
       executePurgeCut,
@@ -2410,8 +2143,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPurgeFilter,
       wantFilter,
       setWantFilter,
-      wantSearchQuery,
-      setWantSearchQuery,
       isDarkMode,
       toggleDarkMode,
       colorMode,
@@ -2528,13 +2259,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       screen, setScreen, viewMode, wantViewMode, albums, wants, stacks, followedUsers,
       addFollowedUser, refreshFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
-      searchQuery, activeFolder, sortOption, effectiveSortOption, filteredAlbums,
+      activeFolder, sortOption,
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
       toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
       deleteStack, renameStack, reorderStackAlbums,
       showFilterDrawer, showAlbumDetail,
-      purgeFilter, wantFilter, wantSearchQuery,
+      purgeFilter, wantFilter,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
       lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,

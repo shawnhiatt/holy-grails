@@ -1,6 +1,6 @@
-import { memo, useCallback, useRef, useMemo } from "react";
+import { memo, useCallback, useRef, useMemo, useEffect } from "react";
 import { Play } from "lucide-react";
-import { useApp } from "./app-context";
+import { useApp, type SortOption } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { formatRelativeDate } from "./last-played-utils";
@@ -34,7 +34,15 @@ const ListRow = memo(function ListRow({ album, isDarkMode, showDot, lastPlayedIs
     <button
       {...useSafeTap(() => onOpen(album.id))}
       className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
-      style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
+      style={{
+        padding: "12px 0",
+        borderBottom: "1px solid var(--c-border)",
+        touchAction: "manipulation",
+        // Skip layout/paint for offscreen rows — large collections render
+        // only what's visible without a virtualization layer
+        contentVisibility: "auto",
+        containIntrinsicSize: "auto 85px",
+      }}
     >
       <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
         <img loading="lazy" decoding="async" src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
@@ -101,15 +109,25 @@ const ListRow = memo(function ListRow({ album, isDarkMode, showDot, lastPlayedIs
 interface AlbumListProps {
   albums: Album[];
   showPurgeIndicator?: boolean;
+  /** Effective sort applied to `albums` — drives dividers and the alphabet index */
+  sortOption?: SortOption;
+  /** Changes whenever the folder/sort/search context changes — scrolls back to top */
+  resetKey?: string;
 }
 
-export function AlbumList({ albums, showPurgeIndicator = true }: AlbumListProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, effectiveSortOption: sortOption, playCounts } = useApp();
+export function AlbumList({ albums, showPurgeIndicator = true, sortOption = "artist-az", resetKey }: AlbumListProps) {
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, lastPlayed, hidePurgeIndicators, albums: allAlbums, setScreen, playCounts } = useApp();
   const collectionEmpty = allAlbums.length === 0;
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Jump back to the top when the filter context changes (replaces the old
+  // key-based remount, which rebuilt the whole list on every search keystroke)
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [resetKey]);
 
   const hasDividers = DIVIDER_SORT_OPTS.has(sortOption);
 
