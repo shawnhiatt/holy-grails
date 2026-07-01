@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, Component } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, Component, lazy, Suspense } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { Toaster, toast } from "sonner";
+import { Disc3 } from "lucide-react";
 import { AppProvider, useApp } from "./components/app-context";
 import { BottomTabBar, DesktopTopNav, MobileHeader } from "./components/navigation";
 import { CrateBrowser } from "./components/crate-browser";
@@ -9,11 +10,9 @@ import { Stacks } from "./components/stacks";
 import { Wantlist } from "./components/wantlist";
 import { SettingsScreen } from "./components/settings-screen";
 import { FollowingScreen } from "./components/following-screen";
-import { AlbumDetailPanel, AlbumDetailSheet } from "./components/album-detail";
 import { FilterDrawer } from "./components/filter-drawer";
 import { getContentTokens } from "./components/theme";
 import { useShake } from "./components/use-shake";
-import { ReportsScreen } from "./components/reports-screen";
 import { FeedScreen } from "./components/feed-screen";
 import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
@@ -27,6 +26,28 @@ import { ShareActivityPrompt } from "./components/share-activity-prompt";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
 /* nav-clearance: scroll containers consume --nav-clearance for bottom padding */
+
+// Code-split the two heaviest modules off the critical path:
+//  - reports-screen pulls in Recharts (+d3) — ~450 kB min, only needed on Insights
+//  - album-detail is a 3k-line panel never needed for first paint
+// Both chunks are prefetched at idle after mount so navigation stays instant.
+const ReportsScreen = lazy(() =>
+  import("./components/reports-screen").then((m) => ({ default: m.ReportsScreen }))
+);
+const AlbumDetailPanel = lazy(() =>
+  import("./components/album-detail").then((m) => ({ default: m.AlbumDetailPanel }))
+);
+const AlbumDetailSheet = lazy(() =>
+  import("./components/album-detail").then((m) => ({ default: m.AlbumDetailSheet }))
+);
+
+function ScreenLoadingFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
+    </div>
+  );
+}
 
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
@@ -244,6 +265,22 @@ function AppContent() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
+  // Prefetch the lazy chunks at idle so opening an album or Insights never
+  // waits on the network. Errors are ignored — the Suspense boundaries retry
+  // on actual use.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const idle = (window as any).requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 2000));
+    const handle = idle(() => {
+      import("./components/album-detail").catch(() => {});
+      import("./components/reports-screen").catch(() => {});
+    });
+    return () => {
+      const cancel = (window as any).cancelIdleCallback ?? clearTimeout;
+      cancel(handle);
+    };
+  }, [isAuthenticated]);
+
   const handleShake = useCallback(() => {
     if (albums.length === 0) return;
     const randomAlbum = albums[Math.floor(Math.random() * albums.length)];
@@ -280,7 +317,11 @@ function AppContent() {
       case "settings":
         return <SettingsScreen />;
       case "reports":
-        return <ReportsScreen />;
+        return (
+          <Suspense fallback={<ScreenLoadingFallback />}>
+            <ReportsScreen />
+          </Suspense>
+        );
       case "feed":
         return <FeedScreen onHeroVisibility={setHeroVisible} />;
       default:
@@ -446,7 +487,9 @@ function AppContent() {
               } as React.CSSProperties}
             >
               <div className="w-[380px] h-full">
-                <AlbumDetailPanel />
+                <Suspense fallback={null}>
+                  <AlbumDetailPanel />
+                </Suspense>
               </div>
             </motion.div>
           )}
@@ -469,7 +512,11 @@ function AppContent() {
       <BottomTabBar />
 
       <AnimatePresence>
-        {showAlbumDetail && (selectedAlbum || selectedWantItem || selectedFeedAlbum) && <AlbumDetailSheet shakeEntrance={shakeEntrance} />}
+        {showAlbumDetail && (selectedAlbum || selectedWantItem || selectedFeedAlbum) && (
+          <Suspense fallback={null}>
+            <AlbumDetailSheet shakeEntrance={shakeEntrance} />
+          </Suspense>
+        )}
       </AnimatePresence>
 
       <AnimatePresence>

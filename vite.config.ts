@@ -66,6 +66,24 @@ export default defineConfig({
     },
   },
 
+  build: {
+    rollupOptions: {
+      output: {
+        // Split stable vendors into their own chunks so a one-line app change
+        // doesn't invalidate the entire PWA precache on deploy — returning
+        // users re-download only the app chunk. Recharts is NOT listed here:
+        // it rides in the lazy reports-screen chunk (see App.tsx).
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react-vendor'
+          if (id.includes('node_modules/convex/')) return 'convex'
+          if (/node_modules\/(motion|framer-motion|motion-dom|motion-utils)\//.test(id)) return 'motion'
+          return undefined
+        },
+      },
+    },
+  },
+
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })
