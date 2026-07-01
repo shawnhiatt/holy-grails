@@ -125,6 +125,17 @@ export default defineSchema({
     default_collection_sort: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
 
+  // Live progress for the server-side sync loop (discogs.syncSelf). One doc
+  // per user, upserted as the sync advances; the client subscribes and
+  // renders "Syncing collection (150 of 300)" style messages.
+  sync_status: defineTable({
+    discogs_username: v.string(),
+    phase: v.string(), // "collection" | "caching" | "wantlist" | "value" | "idle"
+    current: v.optional(v.number()),
+    total: v.optional(v.number()),
+    updated_at: v.number(),
+  }).index("by_username", ["discogs_username"]),
+
   following_feed: defineTable({
     follower_username: v.string(),
     followed_username: v.string(),
