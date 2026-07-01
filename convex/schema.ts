@@ -2,14 +2,28 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  // One row per signed-in device. Every OAuth login mints a fresh token
+  // (rotation), other devices keep their own sessions, and sign-out deletes
+  // only the calling device's row. Rows expire after SESSION_TTL_MS
+  // (authHelper.ts) and are pruned on login.
+  sessions: defineTable({
+    session_token: v.string(),
+    discogs_username: v.string(),
+    created_at: v.number(),
+  })
+    .index("by_token", ["session_token"])
+    .index("by_username", ["discogs_username"]),
+
   users: defineTable({
     discogs_username: v.string(),
     discogs_avatar_url: v.optional(v.string()),
     access_token: v.string(),
     token_secret: v.string(),
+    // LEGACY single-token session fields — still honored read-only by
+    // authenticateUser so existing devices stay signed in, but new logins
+    // write to the sessions table instead. Remove once all legacy tokens
+    // have aged past the TTL.
     session_token: v.optional(v.string()),
-    // When the current session_token was minted. Tokens older than the TTL
-    // (see authHelper.ts) are rejected, forcing a fresh OAuth login.
     session_created_at: v.optional(v.number()),
     created_at: v.number(),
     last_synced_at: v.optional(v.number()),

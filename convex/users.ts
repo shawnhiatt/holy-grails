@@ -1,26 +1,20 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { authenticateUser, isSessionValid } from "./authHelper";
+import { authenticateUser, resolveSession, SESSION_TTL_MS } from "./authHelper";
 
 /**
  * Bootstrap query for session restore on cold load.
  *
- * Looks up a user by session_token stored in the client's localStorage.
- * Returns the user record WITHOUT OAuth tokens (and without echoing the
- * session token back), or null if the token is invalid, expired, or not
- * found. Never returns a record based on insertion order.
+ * Resolves the session token stored in the client's localStorage (sessions
+ * table, with legacy single-token fallback). Returns the user record WITHOUT
+ * OAuth tokens (and without echoing the session token back), or null if the
+ * token is invalid, expired, or not found.
  */
 export const getLatestUser = query({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
-    if (!args.sessionToken) return null;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_session_token", (q) =>
-        q.eq("session_token", args.sessionToken)
-      )
-      .first();
-    if (!user || !isSessionValid(user)) return null;
+    const user = await resolveSession(ctx, args.sessionToken);
+    if (!user) return null;
     return {
       _id: user._id,
       _creationTime: user._creationTime,
@@ -66,13 +60,12 @@ export const getMe = query({
  * INTERNAL ONLY — callable exclusively from oauth.completeLogin, which
  * derives discogs_username server-side from the Discogs /oauth/identity
  * endpoint. This function must never be exposed publicly: a public variant
- * would let any caller claim any username and receive that user's session
- * token (full takeover of their Holy Grails data).
+ * would let any caller claim any username and receive a session token for
+ * that user (full takeover of their Holy Grails data).
  *
- * Reuses the existing session_token while it is still valid (idempotent
- * across double-fired callbacks in React StrictMode / HMR, and keeps other
- * devices logged in). Mints a fresh token for new users and for expired or
- * legacy (pre-TTL) sessions.
+ * Every login mints a FRESH token as a new sessions-table row (rotation),
+ * so one device's login never reuses or invalidates another device's
+ * session. Expired session rows for this user are pruned while we're here.
  */
 export const upsert = internalMutation({
   args: {
@@ -90,17 +83,31 @@ export const upsert = internalMutation({
       .first();
 
     const is_new = !existing;
+    const sessionToken = crypto.randomUUID();
+    const now = Date.now();
 
-    const reuseToken = existing !== null && isSessionValid(existing);
-    const sessionToken = reuseToken ? existing!.session_token! : crypto.randomUUID();
+    // Prune expired session rows for this user
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", args.discogs_username)
+      )
+      .collect();
+    for (const s of sessions) {
+      if (now - s.created_at >= SESSION_TTL_MS) await ctx.db.delete(s._id);
+    }
+
+    await ctx.db.insert("sessions", {
+      session_token: sessionToken,
+      discogs_username: args.discogs_username,
+      created_at: now,
+    });
 
     if (existing) {
       await ctx.db.patch(existing._id, {
         access_token: args.access_token,
         token_secret: args.token_secret,
         discogs_avatar_url: args.discogs_avatar_url,
-        session_token: sessionToken,
-        ...(reuseToken ? {} : { session_created_at: Date.now() }),
       });
       return { _id: existing._id, session_token: sessionToken, is_new };
     }
@@ -110,9 +117,7 @@ export const upsert = internalMutation({
       discogs_avatar_url: args.discogs_avatar_url,
       access_token: args.access_token,
       token_secret: args.token_secret,
-      session_token: sessionToken,
-      session_created_at: Date.now(),
-      created_at: Date.now(),
+      created_at: now,
     });
     return { _id: id, session_token: sessionToken, is_new };
   },
@@ -165,7 +170,24 @@ export const clearSession = mutation({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
     // Look up directly instead of authenticateUser — sign-out must succeed
-    // even if the token is stale (e.g. rotated by a double-fired upsert).
+    // even if the token is stale or expired.
+    if (!args.sessionToken) return;
+
+    // Sessions-table path: sign out THIS device only. Other devices' rows
+    // and the user record (OAuth tokens, sync metadata, caches) stay put,
+    // so the next login boots instantly from cache.
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("session_token", args.sessionToken))
+      .first();
+    if (session) {
+      await ctx.db.delete(session._id);
+      return;
+    }
+
+    // Legacy single-token path: clear the fields rather than deleting the
+    // whole user record (the old behavior destroyed OAuth tokens and sync
+    // metadata on every sign-out).
     const user = await ctx.db
       .query("users")
       .withIndex("by_session_token", (q) =>
@@ -173,7 +195,10 @@ export const clearSession = mutation({
       )
       .first();
     if (!user) return; // already signed out or token invalid — nothing to do
-    await ctx.db.delete(user._id);
+    await ctx.db.patch(user._id, {
+      session_token: undefined,
+      session_created_at: undefined,
+    });
   },
 });
 
@@ -297,6 +322,13 @@ export const deleteAllUserData = mutation({
       .withIndex("by_username", (q) => q.eq("discogs_username", username))
       .collect();
     for (const row of syncStatus) await ctx.db.delete(row._id);
+
+    // All sessions (every device)
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of sessions) await ctx.db.delete(row._id);
 
     // Delete the user record itself
     await ctx.db.delete(user._id);
