@@ -20,7 +20,6 @@ The app is a passion project and portfolio piece built by a designer (Shawn) usi
 - **Animation**: Framer Motion (imported as `motion` from `"motion/react"`)
 - **Icons**: Lucide React
 - **Charts**: Recharts
-- **UI components**: shadcn/ui (in `src/app/components/ui/`)
 - **Fonts**: Bricolage Grotesque (display/headings) + DM Sans (body/UI) via Google Fonts
 - **Backend**: Convex (all Holy Grails-exclusive data — purge tags, stacks, following, preferences, last played, want priorities)
 - **Auth**: Discogs OAuth 1.0a — the Discogs username is the primary key for all Convex data. Session-token-based auth guards on all Convex functions (see Authentication Architecture). There is no separate Holy Grails account system.
@@ -208,7 +207,6 @@ src/
       wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
       wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
       loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
-      ui/                # shadcn components — do not modify directly
     utils/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial)
       shuffle.ts         # Fisher-Yates shuffle — use this, never .sort(() => Math.random() - 0.5)
@@ -870,7 +868,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 1. **Read before writing.** Understand the existing pattern before adding new code. Check how similar components are built and match them.
 
-2. **Never modify `src/app/components/ui/`** unless explicitly asked. These are shadcn components.
+2. **Do not reintroduce a component library.** The shadcn/ui directory (`src/app/components/ui/`) and its dependencies were removed after the Figma Make prototype phase ended — all UI is hand-built with Tailwind + inline styles. New components follow the existing bespoke patterns.
 
 3. **Never change the design system.** Colors, typography, motion tokens, and spacing are locked. If something looks wrong, fix the implementation, not the tokens.
 
