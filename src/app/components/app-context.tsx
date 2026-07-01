@@ -409,7 +409,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearWantPrioritiesMut = useMutation(api.want_priorities.clearAll);
   const addFollowingMut = useMutation(api.following.add);
   const removeFollowingMut = useMutation(api.following.remove);
-  const updateAvatarMut = useMutation(api.following.updateAvatar);
   const clearFollowingMut = useMutation(api.following.clearAll);
   const upsertPreferencesMut = useMutation(api.preferences.upsert);
   const clearSessionMut = useMutation(api.users.clearSession);
@@ -426,9 +425,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Convex actions (server-side Discogs API proxy) ──
   const syncSelfAction = useAction(api.discogs.syncSelf);
+  const syncFollowedUserAction = useAction(api.discogs.syncFollowedUser);
   const proxyFetchIdentity = useAction(api.discogs.proxyFetchIdentity);
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
-  const proxyFetchCollection = useAction(api.discogs.proxyFetchCollection);
   const proxyFetchWantlist = useAction(api.discogs.proxyFetchWantlist);
   const proxyFetchCollectionValue = useAction(api.discogs.proxyFetchCollectionValue);
   const proxyFetchSyncSignals = useAction(api.discogs.proxyFetchSyncSignals);
@@ -477,7 +476,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stacks: false,
     lastPlayed: false,
     preferences: false,
-    following: false,
   });
 
   // Track whether initial auto-sync has run
@@ -807,78 +805,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [convexFollowing]);
 
-  // Hydrate following from Convex — deferred until the user navigates to
-  // the Following screen so we don't burn rate-limit budget on app load.
-  useEffect(() => {
-    if (screen !== "following") return;
-    if (hydratedRef.current.following) return;
-    if (convexFollowing === undefined) return; // still loading
-    if (!sessionToken) return; // wait for session token
-    if (convexFollowing.length === 0) {
-      hydratedRef.current.following = true;
-      return;
-    }
-    hydratedRef.current.following = true;
-    const tokenSnapshot = sessionToken;
-    (async () => {
-      for (let i = 0; i < convexFollowing.length; i++) {
-        const username = convexFollowing[i].following_username;
-        try {
-          const profile = await proxyFetchUserProfile({ sessionToken: tokenSnapshot, username });
-          let userAlbums: Album[] = [];
-          let userFolders: string[] = ["All"];
-          let userWants: WantItem[] = [];
-          let isPrivate = false;
-          try {
-            const result = await proxyFetchCollection({ sessionToken: tokenSnapshot, username, skipPrivateFields: true });
-            userAlbums = result.albums;
-            userFolders = result.folders;
-          } catch (e: any) {
-            if (e?.message?.includes("403")) isPrivate = true;
-          }
-          try {
-            userWants = await proxyFetchWantlist({ sessionToken: tokenSnapshot, username });
-          } catch { /* wantlist may be unavailable — skip */ }
-          const followedUser: FollowedUser = {
-            id: `f-${username}`,
-            username: profile.username,
-            avatar: profile.avatar,
-            isPrivate,
-            folders: userFolders,
-            lastSynced: new Date().toISOString().split("T")[0],
-            collection: userAlbums,
-            wants: userWants,
-            hydrated: true,
-          };
-          setFollowedUsers(prev => {
-            // Replace partial entry or add new
-            const idx = prev.findIndex(f => f.username.toLowerCase() === followedUser.username.toLowerCase());
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = followedUser;
-              return updated;
-            }
-            return [...prev, followedUser];
-          });
-          // Persist avatar to Convex following table for feed usage
-          if (profile.avatar) {
-            updateAvatarMut({
-              sessionToken: tokenSnapshot,
-              following_username: username,
-              avatar_url: profile.avatar,
-            }).catch(() => {});
-          }
-        } catch (e) {
-          console.warn(`[Following] Could not restore @${username}:`, e);
-        }
-
-        // 1-second delay between Discogs fetches to respect rate limits
-        if (i < convexFollowing.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    })();
-  }, [screen, convexFollowing, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Followed users' collections/wantlists are no longer hydrated from
+  // Discogs here. They persist in the followed_items Convex table (written
+  // by discogs.syncFollowedUser) and are read per-profile by the Following
+  // screen — profiles render instantly from cache and freshen in the
+  // background when stale.
 
   // Hydrate following feed cache from Convex on cold load
   useEffect(() => {
@@ -1473,34 +1404,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         })
         .catch((e) => console.warn(`[FollowingFeed] Could not sync @${user.username}:`, e));
+      // Kick the full collection/wantlist sync in the background — the
+      // profile fills in reactively from the followed_items cache as it lands.
+      syncFollowedUserAction({ sessionToken, username: user.username })
+        .catch((e) => console.warn(`[Following] Background sync failed for @${user.username}:`, e));
     }
-  }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage, upsertFollowingFeedMut]);
+  }, [sessionToken, addFollowingMut, proxyFetchUserCollectionPage, proxyFetchUserWantlistPage, upsertFollowingFeedMut, syncFollowedUserAction]);
 
-  // Manually re-fetch a single followed user's collection + wantlist. Used to
-  // recover from a silent hydration failure (collection came back empty while
-  // the user was still marked hydrated — see Following hydration loop).
+  // Re-sync a single followed user's collection + wantlist into the
+  // followed_items cache. The profile view updates reactively through its
+  // Convex subscription — no local state to patch here.
   const refreshFollowedUser = useCallback(async (username: string) => {
     if (!sessionToken) throw new Error("Not authenticated");
-    const result = await proxyFetchCollection({ sessionToken, username, skipPrivateFields: true });
-    let userWants: WantItem[] = [];
-    try {
-      userWants = await proxyFetchWantlist({ sessionToken, username });
-    } catch { /* wantlist may be unavailable — keep existing */ }
-    setFollowedUsers((prev) => {
-      const idx = prev.findIndex((f) => f.username.toLowerCase() === username.toLowerCase());
-      if (idx < 0) return prev;
-      const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        collection: result.albums,
-        folders: result.folders,
-        wants: userWants.length > 0 ? userWants : updated[idx].wants,
-        hydrated: true,
-        isPrivate: false,
-      };
-      return updated;
-    });
-  }, [sessionToken, proxyFetchCollection, proxyFetchWantlist]);
+    await syncFollowedUserAction({ sessionToken, username });
+  }, [sessionToken, syncFollowedUserAction]);
 
   const removeFollowedUser = useCallback((userId: string) => {
     setFollowedUsers((prev) => {
@@ -1959,7 +1876,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stacks: false,
       lastPlayed: false,
       preferences: false,
-      following: false,
     };
     initialSyncDoneRef.current = false;
   }, [sessionToken, clearSessionMut, setDiscogsUsername]);
@@ -2034,7 +1950,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stacks: false,
       lastPlayed: false,
       preferences: false,
-      following: false,
     };
     initialSyncDoneRef.current = false;
   }, [sessionToken, deleteAllUserDataMut, setDiscogsUsername]);

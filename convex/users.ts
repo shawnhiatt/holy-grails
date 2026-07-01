@@ -282,6 +282,22 @@ export const deleteAllUserData = mutation({
       .collect();
     for (const row of followingFeed) await ctx.db.delete(row._id);
 
+    // Followed collections cache
+    const followedItems = await ctx.db
+      .query("followed_items")
+      .withIndex("by_follower_followed", (q) =>
+        q.eq("follower_username", username)
+      )
+      .collect();
+    for (const row of followedItems) await ctx.db.delete(row._id);
+
+    // Sync status
+    const syncStatus = await ctx.db
+      .query("sync_status")
+      .withIndex("by_username", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of syncStatus) await ctx.db.delete(row._id);
+
     // Delete the user record itself
     await ctx.db.delete(user._id);
   },

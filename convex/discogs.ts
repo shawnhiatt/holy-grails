@@ -1007,6 +1007,119 @@ export const syncSelf = action({
   },
 });
 
+// 6b. Server-side followed-user sync — fetches a followed user's full
+// collection + wantlist and persists slim rows to the followed_items cache.
+// Profiles render instantly from the cache; this runs in the background when
+// a profile is opened stale (24h TTL, checked client-side) or right after a
+// new follow. Replaces the old client hydration loop that re-downloaded every
+// followed collection each session and held it in memory only.
+export const syncFollowedUser = action({
+  args: { sessionToken: v.string(), username: v.string() },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ albums: number; wants: number; isPrivate: boolean }> => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+
+    let albums: ProxyAlbum[] = [];
+    let isPrivate = false;
+    try {
+      const result = await fetchCollectionInternal(creds, args.username, true);
+      // Vinyl-only, matching the product rule applied to the user's own data
+      albums = result.albums.filter((a) => isVinylFormat(a.format));
+    } catch (e: any) {
+      if (String(e?.message ?? "").includes("403")) {
+        isPrivate = true;
+      } else {
+        throw e;
+      }
+    }
+
+    let wants: ProxyWant[] = [];
+    if (!isPrivate) {
+      try {
+        wants = await fetchWantlistInternal(creds, args.username);
+      } catch {
+        // Wantlist may be unavailable — collection alone is still useful
+      }
+    }
+
+    // Refresh the stored avatar while we're here (previously a side effect
+    // of the old client hydration loop)
+    let avatarUrl: string | undefined;
+    try {
+      const profile = await fetchProfileInternal(creds, args.username);
+      avatarUrl = profile.avatar || undefined;
+    } catch {
+      // Non-critical
+    }
+
+    const slim = (x: {
+      release_id: number;
+      master_id?: number;
+      title: string;
+      artist: string;
+      year: number;
+      thumb: string;
+      cover: string;
+      label: string;
+    } & { dateAdded?: string }) => ({
+      release_id: x.release_id,
+      master_id: x.master_id || undefined,
+      title: x.title,
+      artist: x.artist,
+      year: x.year,
+      thumb: x.thumb || undefined,
+      cover: x.cover,
+      label: x.label,
+      dateAdded: x.dateAdded ?? "",
+    });
+
+    // Chunked replace keeps each mutation comfortably under Convex's
+    // per-transaction write limits for large collections.
+    const CHUNK = 400;
+    await ctx.runMutation(internal.followed_items.clearForUser, {
+      follower_username: creds.username,
+      followed_username: args.username,
+      kind: "collection",
+    });
+    for (let i = 0; i < albums.length; i += CHUNK) {
+      await ctx.runMutation(internal.followed_items.appendItems, {
+        follower_username: creds.username,
+        followed_username: args.username,
+        kind: "collection",
+        items: albums.slice(i, i + CHUNK).map(slim),
+      });
+    }
+    await ctx.runMutation(internal.followed_items.clearForUser, {
+      follower_username: creds.username,
+      followed_username: args.username,
+      kind: "want",
+    });
+    for (let i = 0; i < wants.length; i += CHUNK) {
+      await ctx.runMutation(internal.followed_items.appendItems, {
+        follower_username: creds.username,
+        followed_username: args.username,
+        kind: "want",
+        items: wants.slice(i, i + CHUNK).map(slim),
+      });
+    }
+
+    await ctx.runMutation(internal.following.updateSyncMeta, {
+      follower_username: creds.username,
+      following_username: args.username,
+      collection_synced_at: Date.now(),
+      is_private: isPrivate,
+      avatar_url: avatarUrl,
+    });
+
+    return { albums: albums.length, wants: wants.length, isPrivate };
+  },
+});
+
 // 7. Update collection instance (custom fields)
 export const proxyUpdateCollectionInstance = action({
   args: {

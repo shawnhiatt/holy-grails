@@ -12,6 +12,7 @@ import type * as authHelper from "../authHelper.js";
 import type * as collection from "../collection.js";
 import type * as discogs from "../discogs.js";
 import type * as discogsHelpers from "../discogsHelpers.js";
+import type * as followed_items from "../followed_items.js";
 import type * as following from "../following.js";
 import type * as following_feed from "../following_feed.js";
 import type * as last_played from "../last_played.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   collection: typeof collection;
   discogs: typeof discogs;
   discogsHelpers: typeof discogsHelpers;
+  followed_items: typeof followed_items;
   following: typeof following;
   following_feed: typeof following_feed;
   last_played: typeof last_played;
