@@ -403,7 +403,7 @@ function isVinylFormat(format: string): boolean {
 
 /**
  * Fetch a user's full collection (paginated, per-folder for folder_id
- * fidelity). Shared by proxyFetchCollection and the server-side sync loop.
+ * fidelity). Used by the server-side sync loops (syncSelf, syncFollowedUser).
  * Pacing is handled by the adaptive throttle in discogsFetch.
  */
 async function fetchCollectionInternal(
@@ -767,26 +767,6 @@ export const proxyFetchSyncSignals = action({
       console.warn("[Discogs] Sync signals probe failed:", err);
       return null;
     }
-  },
-});
-
-// 3. Fetch full collection (paginated, with folders + custom fields)
-export const proxyFetchCollection = action({
-  args: {
-    sessionToken: v.string(),
-    username: v.string(),
-    skipPrivateFields: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    const creds = await ctx.runQuery(
-      internal.discogsHelpers.getUserCredentials,
-      { sessionToken: args.sessionToken }
-    );
-    return await fetchCollectionInternal(
-      creds,
-      args.username,
-      args.skipPrivateFields === true
-    );
   },
 });
 

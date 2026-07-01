@@ -416,8 +416,12 @@ function AppContent() {
 
   return (
     <div
-      className="h-screen w-screen flex flex-col overflow-hidden"
+      className="w-screen flex flex-col overflow-hidden"
       style={{
+        // 100dvh, not h-screen/100vh — on iOS Safari 100vh includes the area
+        // behind the browser chrome, pushing the bottom tab bar off-screen
+        // until the PWA is installed (see CLAUDE.md viewport height rule)
+        height: "100dvh",
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: isDarkMode ? "#081A31" : "#ACDEF2",
         background: gradientBg,

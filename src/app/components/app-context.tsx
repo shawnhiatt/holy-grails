@@ -69,15 +69,10 @@ interface AppState {
   selectedAlbumId: string | null;
   setSelectedAlbumId: (id: string | null) => void;
   selectedAlbum: Album | null;
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
   activeFolder: string;
   setActiveFolder: (f: string) => void;
   sortOption: SortOption;
   setSortOption: (s: SortOption) => void;
-  /** Sort actually applied to the grid — forced to artist A→Z while a search is active, otherwise mirrors sortOption */
-  effectiveSortOption: SortOption;
-  filteredAlbums: Album[];
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
   deletePurgeTag: (releaseId: number) => void;
   executePurgeCut: () => Promise<void>;
@@ -98,8 +93,6 @@ interface AppState {
   setPurgeFilter: (f: PurgeTag | "unrated" | "all") => void;
   wantFilter: "all" | "priority";
   setWantFilter: (f: "all" | "priority") => void;
-  wantSearchQuery: string;
-  setWantSearchQuery: (q: string) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   colorMode: "light" | "dark" | "system";
@@ -229,17 +222,20 @@ function formatSyncStatus(s: { phase: string; current?: number; total?: number }
 
 /** Build lastPlayed (most recent per release), playCounts, and allTimestamps from raw play records. */
 function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>) {
-  const lastPlayedMap: Record<string, string> = {};
+  const latestMs: Record<string, number> = {};
   const countMap: Record<string, number> = {};
   const allTimestamps: number[] = [];
   for (const lp of records) {
     const key = String(lp.release_id);
     countMap[key] = (countMap[key] || 0) + 1;
     allTimestamps.push(lp.played_at);
-    const iso = new Date(lp.played_at).toISOString();
-    if (!lastPlayedMap[key] || iso > lastPlayedMap[key]) {
-      lastPlayedMap[key] = iso;
+    if (!latestMs[key] || lp.played_at > latestMs[key]) {
+      latestMs[key] = lp.played_at;
     }
+  }
+  const lastPlayedMap: Record<string, string> = {};
+  for (const [key, ms] of Object.entries(latestMs)) {
+    lastPlayedMap[key] = new Date(ms).toISOString();
   }
   return { lastPlayedMap, countMap, allTimestamps };
 }
@@ -258,14 +254,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [viewMode, setViewModeRaw] = useState<ViewMode>("grid");
   const [wantViewMode, setWantViewModeRaw] = useState<ViewMode>("grid");
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("added-new");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [showAlbumDetail, setShowAlbumDetail] = useState(false);
   const [purgeFilter, setPurgeFilter] = useState<PurgeTag | "unrated" | "all">("unrated");
   const [wantFilter, setWantFilter] = useState<"all" | "priority">("all");
-  const [wantSearchQuery, setWantSearchQuery] = useState("");
 
   // ── Auth state ──
 
@@ -762,8 +756,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHidePurgeIndicatorsRaw(convexPreferences.hide_purge_indicators);
       setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
       setShakeToRandomRaw(convexPreferences.shake_to_random ?? false);
-      if (convexPreferences.view_mode) setViewModeRaw(convexPreferences.view_mode as ViewMode);
-      if (convexPreferences.want_view_mode) setWantViewModeRaw(convexPreferences.want_view_mode as ViewMode);
+      // Legacy stored view modes (crate/artwork were removed from the product)
+      // are mapped back to grid so removed modes can't resurface via prefs.
+      const legacyModes = new Set(["crate", "artwork"]);
+      if (convexPreferences.view_mode) {
+        const vm = convexPreferences.view_mode as ViewMode;
+        setViewModeRaw(legacyModes.has(vm) ? "grid" : vm);
+      }
+      if (convexPreferences.want_view_mode) {
+        const wvm = convexPreferences.want_view_mode as ViewMode;
+        setWantViewModeRaw(legacyModes.has(wvm) ? "grid" : wvm);
+      }
       if (convexPreferences.default_screen) {
         const ds = convexPreferences.default_screen as Screen;
         setDefaultScreenRaw(ds);
@@ -939,77 +942,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [albums, selectedAlbumId]
   );
 
-  // While searching, results are always grouped/sorted by artist A→Z — the
-  // chosen sortOption (and its Date Added grouping) resumes once search clears.
-  const effectiveSortOption: SortOption = searchQuery.trim() ? "artist-az" : sortOption;
-
-  const filteredAlbums = useMemo(() => {
-    let result = [...albums];
-
-    if (activeFolder !== "All") {
-      result = result.filter((a) => a.folder === activeFolder);
-    }
-
-    if (neverPlayedFilter) {
-      result = result.filter((a) => !lastPlayed[a.id]);
-    }
-
-    if (playsRecordedFilter) {
-      result = result.filter((a) => !!lastPlayed[a.id]);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.artist.toLowerCase().includes(q) ||
-          a.title.toLowerCase().includes(q) ||
-          a.label.toLowerCase().includes(q)
-      );
-    }
-
-    switch (effectiveSortOption) {
-      case "artist-az":
-        result.sort((a, b) => a.artist.localeCompare(b.artist));
-        break;
-      case "artist-za":
-        result.sort((a, b) => b.artist.localeCompare(a.artist));
-        break;
-      case "title-az":
-        result.sort((a, b) => a.title.localeCompare(b.title));
-        break;
-      case "year-new":
-        result.sort((a, b) => b.year - a.year);
-        break;
-      case "year-old":
-        result.sort((a, b) => a.year - b.year);
-        break;
-      case "added-new":
-        result.sort(
-          (a, b) =>
-            new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
-        );
-        break;
-      case "added-old":
-        result.sort(
-          (a, b) =>
-            new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()
-        );
-        break;
-      case "label-az":
-        result.sort((a, b) => a.label.localeCompare(b.label));
-        break;
-      case "last-played-oldest":
-        result.sort((a, b) => {
-          const aDate = lastPlayed[a.id] ? new Date(lastPlayed[a.id]).getTime() : 0;
-          const bDate = lastPlayed[b.id] ? new Date(lastPlayed[b.id]).getTime() : 0;
-          return aDate - bDate;
-        });
-        break;
-    }
-
-    return result;
-  }, [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, lastPlayed]);
+  // Search state and collection filtering/sorting live in the screens that
+  // render them (see use-filtered-albums.ts) — a search keystroke no longer
+  // invalidates the app context for every consumer.
 
   // ── Data mutations (local state + Convex fire-and-forget) ──
 
@@ -1750,6 +1685,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           instanceId: album.instance_id,
         });
         deletePurgeTag(album.release_id);
+        // Update the Convex cache immediately — local albums state derives
+        // from it reactively, so each cut disappears as it lands instead of
+        // waiting for the full re-sync at the end.
+        removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
+          .catch((e) => console.warn("[PurgeCut] Cache remove failed:", e));
       } catch (err) {
         console.error("[PurgeCut] Failed to remove", album.release_id, err);
         failedIds.push(album.release_id);
@@ -1770,7 +1710,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setScreen("crate");
     syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
-  }, [sessionToken, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs, proxyRemoveFromCollection]);
+  }, [sessionToken, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs, proxyRemoveFromCollection, removeCollectionItemMut]);
 
   // ── OAuth login ──
 
@@ -1843,12 +1783,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
-    setSearchQuery("");
     setActiveFolder("All");
     setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
-    setWantSearchQuery("");
     setLastSynced("");
     setSyncStats(null);
     setSyncProgress("");
@@ -1917,12 +1855,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
-    setSearchQuery("");
     setActiveFolder("All");
     setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
-    setWantSearchQuery("");
     setDiscogsUsername("");
     setSessionToken(null);
     setLastSynced("");
@@ -2183,14 +2119,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedAlbumId,
       setSelectedAlbumId,
       selectedAlbum,
-      searchQuery,
-      setSearchQuery,
       activeFolder,
       setActiveFolder,
       sortOption,
       setSortOption,
-      effectiveSortOption,
-      filteredAlbums,
       setPurgeTag,
       deletePurgeTag,
       executePurgeCut,
@@ -2211,8 +2143,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPurgeFilter,
       wantFilter,
       setWantFilter,
-      wantSearchQuery,
-      setWantSearchQuery,
       isDarkMode,
       toggleDarkMode,
       colorMode,
@@ -2329,13 +2259,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       screen, setScreen, viewMode, wantViewMode, albums, wants, stacks, followedUsers,
       addFollowedUser, refreshFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
-      searchQuery, activeFolder, sortOption, effectiveSortOption, filteredAlbums,
+      activeFolder, sortOption,
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
       toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
       deleteStack, renameStack, reorderStackAlbums,
       showFilterDrawer, showAlbumDetail,
-      purgeFilter, wantFilter, wantSearchQuery,
+      purgeFilter, wantFilter,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
       lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,
