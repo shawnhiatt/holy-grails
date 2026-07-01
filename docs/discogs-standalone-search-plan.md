@@ -60,12 +60,24 @@ Response caveats (from `docs/Discogs API V2 - Database.md` + live behavior):
 - Complex queries can return `500 "Query time exceeded"` — needs a generic
   error state, not a crash.
 
-### `GET /masters/{master_id}/versions` (Phase 2)
+### `GET /masters/{master_id}/versions` (core to the pressing picker)
 
-Lists every pressing of a master. Supports `format=Vinyl`, pagination, and
-per-version `stats.user.in_collection` / `in_wantlist` — ideal for both a
-"pick your pressing" step and an "Other pressings" section in the detail
-panel.
+Lists every pressing of a master, and critically, **filters server-side**:
+`format=Vinyl`, `country`, `released` (year), and `label` are native query
+params, plus `sort`/`sort_order` (`released`, `title`, `format`, `label`,
+`catno`, `country`). A master with 302 vinyl pressings never has to be
+loaded client-side — a filter tap is one request returning one short page.
+
+- Per-version `stats.user.in_collection` / `in_wantlist` → "In Collection"
+  badges in the picker come free.
+- `pagination.items` gives the total pressing count for the picker header.
+- The modern API also returns **filter facets** (available countries/years/
+  labels with counts) on this endpoint — the 2014-era doc snapshot in `docs/`
+  predates this, so verify against the live API. If present, filter chips
+  build themselves; if not, derive options from loaded pages.
+- Also relevant: `GET /masters/{master_id}` provides `main_release` — the
+  canonical (usually earliest) pressing, used for the pinned "Original
+  pressing" row in the picker.
 
 ### Already proxied, reused as-is
 
@@ -87,13 +99,15 @@ View Your Copy buttons. `App.tsx`'s sheet gate already opens on
 ### New Convex action — `proxySearchDatabase` (action #20, `convex/discogs.ts`)
 
 ```
-args: { sessionToken, query, page? }        // fielded params added in Phase 2
+args: { sessionToken, query, searchType?, page? }   // searchType: "master" | "release", default "master"
 ```
 
 - Authenticates via `getUserCredentials`, signs with HMAC-SHA1, uses the
   existing `discogsFetch` (which already retries 429s honoring Retry-After).
-- Appends `format=Vinyl&type=release&per_page=25&page={page}` server-side —
-  the client cannot opt out of the vinyl filter.
+- Appends `format=Vinyl&type={searchType}&per_page=25&page={page}`
+  server-side — the client cannot opt out of the vinyl filter. `searchType`
+  is validated against the two allowed values (`artist`/`label` search stays
+  out of scope).
 - Maps results **server-side** to a trimmed shape so the client payload stays
   small and the "Artist - Title" split lives in one place:
 
@@ -108,6 +122,21 @@ args: { sessionToken, query, page? }        // fielded params added in Phase 2
   page, totalPages, totalItems,
 }
 ```
+
+### New Convex action — `proxyFetchMasterVersions` (action #21)
+
+```
+args: { sessionToken, masterId, page?, country?, year?, label? }
+```
+
+- Appends `format=Vinyl` unconditionally; passes filters through to the
+  versions endpoint's native params; sorts `released asc`.
+- Returns trimmed version rows (`release_id, title, format, label, catno,
+  country, year, thumb, inCollection, inWantlist`) plus pagination totals and
+  facets (if the live API provides them).
+- A small `proxyFetchMaster` (or a `mainRelease` field folded into the first
+  versions response) supplies `main_release` for the pinned row — decide the
+  cheaper shape at build time.
 
 ### Client mapping → `FeedAlbum`
 
@@ -156,10 +185,46 @@ label, dateAdded`. Search results map 1:1; `dateAdded: ""` is safe —
 - **Badges**: "In Collection" check and filled heart via `isInCollection` /
   `isInWants` with `master_id` matching — build `ownMasterIds`/`wantMasterIds`
   Sets like Feed/Following do.
-- Tap row → map to `FeedAlbum` → `setSelectedFeedAlbum(...)` →
+- Tap a master row → **drill into the pressing picker** (see below), a second
+  view inside the same sheet with a back button — no new z-index layer.
+- Tap a pressing → map to `FeedAlbum` → `setSelectedFeedAlbum(...)` →
   `ReleaseDetailPanel` opens above the sheet (z-[120] > z-[85]). After a
-  successful add, the row badge updates reactively since collection state
-  changed.
+  successful add, badges update reactively since collection state changed.
+
+### The pressing picker (drill-in view)
+
+Albums like *Let It Bleed* have ~300 vinyl pressings — a flat release list is
+unusable for them. Discogs' own UI answers this with a master card + a
+filterable versions table; the picker is the mobile-native mirror of that.
+
+- **Header**: thumb + album title + "{N} pressings" (from
+  `pagination.items`). Back chevron returns to search results.
+- **Pinned first row — "Original pressing"**: the master's `main_release`,
+  visually distinguished. Covers the "I just want this album, any version"
+  intent in one tap (the wantlist is release-based, so *some* release must be
+  chosen; this is the sane default).
+- **Filter chips**: Country, Year, Label — each applies server-side via the
+  versions endpoint's native params (one request per change, never filtering
+  302 rows client-side). Options from filter facets if the live API provides
+  them, else derived from loaded pages. Active chip styling follows the
+  existing active-filter-chip pattern.
+- **Sort**: `released asc` (original first). No sort UI in Phase 1.
+- **Rows**: thumb, format descriptions (e.g. "LP, Album, Stereo, Terre Haute
+  Pressing"), label – catno, country, year, "In Collection" badge from
+  `stats.user`. These are exactly the fields that distinguish pressings.
+- **Pagination**: "Load more", 25/page.
+
+### Escape hatches the master flow serves poorly
+
+- **"I'm holding this exact pressing"** — catalog # / barcode queries should
+  hit release search directly and skip the master hop. Cheap heuristic: if
+  the query is digit-heavy or matches a catno shape, run a release search
+  (or run both and show a "Pressings" result group). Exact-identifier queries
+  return few results, so noise isn't a concern.
+- **Releases with no master** (`master_id` = 0 — bootlegs, some singles,
+  regional oddities) are invisible to `type=master` search. When master
+  results are empty or thin, show a "Search pressings instead" fallback that
+  reruns the query as `type=release`.
 - **Search behavior**: debounce ~500 ms, minimum 3 characters, stale-request
   guard (`let stale = false` + cleanup — the established pattern), `Disc3`
   spinner while in flight, "Load more" button for pagination (25/page).
@@ -180,20 +245,27 @@ component to the Z-Index Hierarchy table in CLAUDE.md at rollout.
 
 ## 5. Release-Level vs Master-Level Search
 
-**Recommendation: Phase 1 ships release-level search (`type=release`).**
+**Recommendation: master-first search with the pressing picker, in Phase 1.**
 
-- *For*: a collector adding a record is usually holding a specific pressing —
-  catno/barcode/year queries resolve to exact releases; results are directly
-  addable with no second hop; zero extra API calls.
-- *Against*: popular albums return dozens of pressings. Mitigated by showing
-  `catno · country · year` on every row so pressings are distinguishable.
+An earlier draft of this plan recommended a flat release list for the MVP.
+The *Let It Bleed* case killed that: ~302 vinyl pressings of one album would
+flood the results for exactly the classic records people search for most. A
+flat list only works for obscure titles; the master → picker flow works for
+both, and the versions endpoint's server-side filtering keeps it cheap.
 
-**Phase 2 adds the master layer where it pays off most** — an "Other
-pressings" section inside `ReleaseDetailPanel` (fed by
-`proxyFetchMasterVersions`, action #21). This helps beyond search: when a
-friend owns the UK pressing and you own the US one, you can jump to your
-version before adding. A full master-grouped search mode (search masters →
-version picker) is optional after that and shouldn't block anything.
+How each collector intent routes:
+
+| Intent | Path |
+|---|---|
+| "Add this album" (most common) | Master row → picker → pinned "Original pressing" or a filtered pick |
+| "Add the exact pressing in my hand" | Catno/barcode query → direct release search, no master hop |
+| "Want it, any version" | Master row → picker → pinned "Original pressing" → Add to Wantlist |
+| Masterless oddities | "Search pressings instead" fallback (`type=release`) |
+
+**"Other pressings" inside `ReleaseDetailPanel` moves to Phase 2** — same
+`proxyFetchMasterVersions` action, second consumer. It helps the
+followed-user flow too: a friend owns the UK pressing, you own the US one —
+jump to your version before adding.
 
 ---
 
@@ -211,18 +283,25 @@ version picker) is optional after that and shouldn't block anything.
 
 ## 7. Phasing
 
-**Phase 1 — MVP (one focused session)**
-- `proxySearchDatabase` in `convex/discogs.ts` (+ `npx convex deploy`)
-- `discogs-search-sheet.tsx` component (SlideOutPanel-based)
+**Phase 1 — MVP (likely two focused sessions: backend + sheet, then picker
+polish)**
+- `proxySearchDatabase` + `proxyFetchMasterVersions` in `convex/discogs.ts`
+  (+ `npx convex deploy`)
+- `discogs-search-sheet.tsx` (SlideOutPanel-based): master search results +
+  drill-in pressing picker with pinned "Original pressing" row and
+  Country/Year/Label filter chips
+- Catno/barcode heuristic → direct release search; "Search pressings instead"
+  fallback for masterless releases
 - Plus-button entry points on Collection + Wantlist headers (mobile variant
   wiring in `navigation.tsx`, context callback, desktop buttons)
 - Empty-state CTAs
 - Handoff to `ReleaseDetailPanel` via `setSelectedFeedAlbum`
 
-**Phase 2 — Pressings**
-- `proxyFetchMasterVersions` (action #21)
+**Phase 2 — Pressings everywhere + refinements**
 - "Other pressings" section in `ReleaseDetailPanel` / `WantItemDetailPanel`
+  (second consumer of `proxyFetchMasterVersions`)
 - Fielded search refinements (explicit catno / barcode / year chips)
+- Sort control in the picker if oldest-first proves wrong in practice
 
 **Phase 3 — Barcode scanning (optional, needs a decision)**
 - Typing a barcode into the search box already works in Phase 1 (Discogs
@@ -245,8 +324,11 @@ version picker) is optional after that and shouldn't block anything.
 1. **Folder at add time** — keep "always Uncategorized, edit after" (current
    `addToCollection` behavior), or add a folder picker to the add flow?
    Recommend: keep, revisit in Phase 4.
-2. **Search results default** — flat release list (recommended) vs
-   master-grouped with a version picker?
+2. ~~Search results default — flat release list vs master-grouped?~~
+   **Decided: master-first with pressing picker** (the *Let It Bleed* ~302
+   pressings case settled it). Remaining sub-question: is the pinned
+   "Original pressing" row the right default for "any version" wantlist adds,
+   or should the picker nudge toward the most-collected pressing instead?
 3. **Recent searches** — persist per-user in Convex, or session-only?
    Recommend session-only for MVP (no schema change).
 4. **Feed entry point** — should the home feed also expose "Add a Record"
@@ -265,9 +347,9 @@ scope line should be amended when this ships to avoid future confusion:
 > Database **search-to-add** is in scope.
 
 Other CLAUDE.md updates at rollout:
-- Proxy actions list: add `proxySearchDatabase` (#20) — and note the count
-  (the doc currently says both "18" and "19" in different places; fix while
-  in there).
+- Proxy actions list: add `proxySearchDatabase` (#20) and
+  `proxyFetchMasterVersions` (#21) — and note the count (the doc currently
+  says both "18" and "19" in different places; fix while in there).
 - Z-Index Hierarchy table: add the search sheet at z-[85]/z-[80].
 - File structure: add `discogs-search-sheet.tsx`.
 - MobileHeader variants: document the Plus button on Collection/Wantlist.
