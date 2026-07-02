@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties }
 import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { motion } from "motion/react";
-import { Disc3, ArrowLeft, Check, X, ScanBarcode, History } from "lucide-react";
+import { Disc3, ArrowLeft, Check, X, ScanBarcode, History, SlidersHorizontal } from "lucide-react";
 // Bundled locally so the decoder never fetches from a CDN (PWA/CSP-safe);
 // the module itself is dynamic-imported only when the scanner opens
 import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
@@ -167,6 +167,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const [isLoadingVersions, setIsLoadingVersions] = useState(false);
   const [countryFilter, setCountryFilter] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const panelBg = isDarkMode ? "#0C1A2E" : "#F9F9FA";
@@ -326,6 +327,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     setFacets([]);
     setCountryFilter(null);
     setYearFilter(null);
+    setShowFilters(false);
     setVersionsPage(1);
     setVersionsTotalPages(1);
     setVersionsTotal(0);
@@ -560,7 +562,10 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       {/* ── Fixed header: back + search bar (Discogs-app style, no divider) ── */}
       <div
         className="flex-shrink-0 px-3 pb-2"
-        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
+          borderBottom: pickerMaster ? "1px solid var(--c-border)" : undefined,
+        }}
       >
         <div className="w-full max-w-[640px] mx-auto">
           {!pickerMaster ? (
@@ -616,7 +621,8 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3">
+              {/* Nav row: back left, filter disclosure right */}
+              <div className="flex items-center justify-between">
                 <button
                   onClick={() => setPickerMaster(null)}
                   className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
@@ -625,40 +631,70 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                 >
                   <ArrowLeft size={20} />
                 </button>
+                {(countryOptions.length > 1 || yearOptions.length > 1) && (
+                  <button
+                    onClick={() => setShowFilters((v) => !v)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full tappable cursor-pointer flex-shrink-0"
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      touchAction: "manipulation",
+                      backgroundColor: (countryFilter || yearFilter || showFilters)
+                        ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
+                        : "var(--c-chip-bg)",
+                      color: (countryFilter || yearFilter || showFilters)
+                        ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                        : "var(--c-text-secondary)",
+                    }}
+                    aria-label="Filter pressings"
+                  >
+                    <SlidersHorizontal size={14} />
+                    Filter
+                    {(countryFilter || yearFilter) &&
+                      ` · ${(countryFilter ? 1 : 0) + (yearFilter ? 1 : 0)}`}
+                  </button>
+                )}
+              </div>
+
+              {/* Hero: large artwork + identity */}
+              <div className="flex items-center gap-4 pt-2 pb-3 px-1">
                 {(pickerMaster.cover || pickerMaster.thumb) && (
                   <img
                     src={pickerMaster.cover || pickerMaster.thumb}
                     alt=""
-                    className="w-16 h-16 rounded-[8px] object-cover flex-shrink-0"
-                    style={{ border: "1px solid var(--c-border)" }}
+                    className="w-28 h-28 rounded-[10px] object-cover flex-shrink-0"
+                    style={{ border: "1px solid var(--c-border-strong)" }}
                   />
                 )}
                 <div className="flex-1 min-w-0">
                   <span
+                    className="line-clamp-2"
                     style={{
-                      ...rowTitleStyle,
-                      fontSize: "18px",
+                      fontSize: "22px",
                       fontWeight: 700,
                       fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                      letterSpacing: "-0.3px",
+                      letterSpacing: "-0.4px",
+                      lineHeight: 1.2,
+                      color: "var(--c-text)",
                     }}
                   >
                     {pickerMaster.title}
                   </span>
                   {pickerMaster.artist && (
-                    <span style={{ ...rowMetaStyle, fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
+                    <span className="block mt-1" style={{ ...rowMetaStyle, fontSize: "15px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
                       {pickerMaster.artist}
                     </span>
                   )}
                   {versionsTotal > 0 && (
-                    <span style={rowMetaStyle}>
+                    <span className="block mt-0.5" style={{ ...rowMetaStyle, fontSize: "13px" }}>
                       {versionsTotal} pressing{versionsTotal === 1 ? "" : "s"}
                     </span>
                   )}
                 </div>
               </div>
-              {(countryOptions.length > 1 || yearOptions.length > 1) && (
-                <div className="flex gap-1.5 overflow-x-auto pt-2 -mx-3 px-3 overlay-scroll" style={{ scrollbarWidth: "none" }}>
+
+              {showFilters && (countryOptions.length > 1 || yearOptions.length > 1) && (
+                <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-3 px-3 overlay-scroll" style={{ scrollbarWidth: "none" }}>
                   {countryOptions.map((c) => (
                     <button key={`c-${c.value}`} onClick={() => applyFilter(countryFilter === c.value ? null : c.value, yearFilter)} style={chipStyle(countryFilter === c.value)} className="tappable">
                       {c.label}
