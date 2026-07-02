@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from "react";
-import { useAction } from "convex/react";
+import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { motion } from "motion/react";
-import { Disc3, ArrowLeft, Check, X, ScanBarcode } from "lucide-react";
+import { Disc3, ArrowLeft, Check, X, ScanBarcode, History } from "lucide-react";
 // Bundled locally so the decoder never fetches from a CDN (PWA/CSP-safe);
 // the module itself is dynamic-imported only when the scanner opens
 import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
@@ -111,6 +111,17 @@ function normalizeQuery(q: string): string {
     .trim();
 }
 
+// Facet values arrive URL-encoded from the versions endpoint
+// ("USA+%26+Canada" → "USA & Canada") — decode for display AND for the
+// filter param (the proxy re-encodes it)
+function decodeFacetValue(s: string): string {
+  try {
+    return decodeURIComponent(s.replace(/\+/g, " "));
+  } catch {
+    return s;
+  }
+}
+
 // One silent retry — Discogs throws transient 500s/429s on search
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -154,6 +165,21 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const panelBg = isDarkMode ? "#0C1A2E" : "#F9F9FA";
   const [showScanner, setShowScanner] = useState(false);
   const cameraSupported = !!navigator.mediaDevices?.getUserMedia;
+
+  // Recent queries — persisted per-user on the preferences doc (no localStorage)
+  const prefs = useQuery(api.preferences.getByUsername, sessionToken ? { sessionToken } : "skip");
+  const upsertPrefs = useMutation(api.preferences.upsert);
+  const recentSearches = useMemo(() => prefs?.recent_searches ?? [], [prefs]);
+  const recordRecent = useCallback((term: string) => {
+    const t = term.trim();
+    if (!sessionToken || t.length < 3) return;
+    const next = [t, ...recentSearches.filter((r) => r.toLowerCase() !== t.toLowerCase())].slice(0, 8);
+    upsertPrefs({ sessionToken, recent_searches: next }).catch(() => {});
+  }, [sessionToken, recentSearches, upsertPrefs]);
+  const clearRecents = useCallback(() => {
+    if (!sessionToken) return;
+    upsertPrefs({ sessionToken, recent_searches: [] }).catch(() => {});
+  }, [sessionToken, upsertPrefs]);
 
   // The bottom nav (z-130) stays tappable over this panel (z-85) — treat a
   // screen change as dismissal so the panel doesn't linger over the new screen
@@ -330,6 +356,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   }, [pickerMaster, openRelease]);
 
   const openSearchResult = useCallback((r: SearchResult) => {
+    recordRecent(query);
     if (r.type === "master") {
       openPicker(r);
     } else {
@@ -345,7 +372,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         dateAdded: "",
       });
     }
-  }, [openPicker, openRelease]);
+  }, [openPicker, openRelease, recordRecent, query]);
 
   const handleScanDetect = useCallback((code: string) => {
     setShowScanner(false);
@@ -363,23 +390,35 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     return best && best.haveCount > 0 ? best : null;
   }, [versions, countryFilter, yearFilter]);
 
-  // Filter chip options — facets when the API provides them, else derived
+  // Filter chip options — facets when the API provides them, else derived.
+  // Facet titles/values are decoded so encoded strings never reach the UI.
   const countryOptions = useMemo(() => {
     const facet = facets.find((f) => f.id.toLowerCase().includes("country"));
-    if (facet) return facet.values.slice(0, 8).map((x) => x.value);
+    if (facet) {
+      return facet.values.slice(0, 8).map((x) => ({
+        value: decodeFacetValue(x.value),
+        label: decodeFacetValue(x.title || x.value),
+      }));
+    }
     const counts = new Map<string, number>();
     for (const ver of versions) {
       if (ver.country) counts.set(ver.country, (counts.get(ver.country) || 0) + 1);
     }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map((e) => e[0]);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+      .map((e) => ({ value: e[0], label: e[0] }));
   }, [facets, versions]);
 
   const yearOptions = useMemo(() => {
     const facet = facets.find((f) => f.id.toLowerCase().includes("year") || f.id.toLowerCase().includes("released"));
-    if (facet) return facet.values.slice(0, 8).map((x) => x.value);
+    if (facet) {
+      return facet.values.slice(0, 8).map((x) => ({
+        value: decodeFacetValue(x.value),
+        label: decodeFacetValue(x.title || x.value),
+      }));
+    }
     const years = new Set<string>();
     for (const ver of versions) if (hasYear(ver.year)) years.add(String(ver.year));
-    return [...years].sort().slice(0, 8);
+    return [...years].sort().slice(0, 8).map((y) => ({ value: y, label: y }));
   }, [facets, versions]);
 
   const chipStyle = (active: boolean): CSSProperties => ({
@@ -556,7 +595,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setPickerMaster(null)}
                   className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
@@ -565,26 +604,48 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                 >
                   <ArrowLeft size={20} />
                 </button>
-                {pickerMaster.thumb && (
-                  <img src={pickerMaster.thumb} alt="" className="w-9 h-9 rounded-[6px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
+                {(pickerMaster.cover || pickerMaster.thumb) && (
+                  <img
+                    src={pickerMaster.cover || pickerMaster.thumb}
+                    alt=""
+                    className="w-16 h-16 rounded-[8px] object-cover flex-shrink-0"
+                    style={{ border: "1px solid var(--c-border)" }}
+                  />
                 )}
                 <div className="flex-1 min-w-0">
-                  <span style={{ ...rowTitleStyle, fontSize: "15px" }}>{pickerMaster.title}</span>
-                  <span style={rowMetaStyle}>
-                    {versionsTotal > 0 ? `${versionsTotal} pressing${versionsTotal === 1 ? "" : "s"}` : pickerMaster.artist}
+                  <span
+                    style={{
+                      ...rowTitleStyle,
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                      letterSpacing: "-0.3px",
+                    }}
+                  >
+                    {pickerMaster.title}
                   </span>
+                  {pickerMaster.artist && (
+                    <span style={{ ...rowMetaStyle, fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
+                      {pickerMaster.artist}
+                    </span>
+                  )}
+                  {versionsTotal > 0 && (
+                    <span style={rowMetaStyle}>
+                      {versionsTotal} pressing{versionsTotal === 1 ? "" : "s"}
+                    </span>
+                  )}
                 </div>
               </div>
               {(countryOptions.length > 1 || yearOptions.length > 1) && (
                 <div className="flex gap-1.5 overflow-x-auto pt-2 -mx-3 px-3 overlay-scroll" style={{ scrollbarWidth: "none" }}>
                   {countryOptions.map((c) => (
-                    <button key={`c-${c}`} onClick={() => applyFilter(countryFilter === c ? null : c, yearFilter)} style={chipStyle(countryFilter === c)} className="tappable">
-                      {c}
+                    <button key={`c-${c.value}`} onClick={() => applyFilter(countryFilter === c.value ? null : c.value, yearFilter)} style={chipStyle(countryFilter === c.value)} className="tappable">
+                      {c.label}
                     </button>
                   ))}
                   {yearOptions.map((y) => (
-                    <button key={`y-${y}`} onClick={() => applyFilter(countryFilter, yearFilter === y ? null : y)} style={chipStyle(yearFilter === y)} className="tappable">
-                      {y}
+                    <button key={`y-${y.value}`} onClick={() => applyFilter(countryFilter, yearFilter === y.value ? null : y.value)} style={chipStyle(yearFilter === y.value)} className="tappable">
+                      {y.label}
                     </button>
                   ))}
                 </div>
@@ -619,6 +680,61 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                 <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
                   No matches.
                 </p>
+              )}
+
+              {/* Empty state (no query yet): scan shortcut + recent queries */}
+              {!isSearching && !searchError && !hasSearched && (
+                <div className="pt-1">
+                  {cameraSupported && (
+                    <button
+                      onClick={() => { inputRef.current?.blur(); setShowScanner(true); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 tappable cursor-pointer text-left"
+                      style={{ touchAction: "manipulation" }}
+                    >
+                      <ScanBarcode size={18} style={{ color: "var(--c-text-muted)" }} />
+                      <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>
+                        Scan a barcode
+                      </span>
+                    </button>
+                  )}
+                  {recentSearches.length > 0 && (
+                    <>
+                      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--c-text-muted)", textTransform: "uppercase" }}>
+                          Recent
+                        </span>
+                        <button
+                          onClick={clearRecents}
+                          className="tappable cursor-pointer"
+                          style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-faint)", touchAction: "manipulation" }}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      {recentSearches.map((term) => (
+                        <button
+                          key={term}
+                          onClick={() => setQuery(term)}
+                          className="w-full flex items-center gap-3 px-4 py-3 tappable cursor-pointer text-left"
+                          style={{ touchAction: "manipulation" }}
+                        >
+                          <History size={16} style={{ color: "var(--c-text-faint)" }} />
+                          <span
+                            style={{
+                              fontSize: "14px",
+                              color: "var(--c-text)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {term}
+                          </span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
               )}
 
               {!isSearching && !searchError && results.map((r) => (
