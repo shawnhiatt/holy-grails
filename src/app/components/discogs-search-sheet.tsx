@@ -1,15 +1,22 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from "react";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Disc3, Search, ArrowLeft, Check } from "lucide-react";
-import { SlideOutPanel } from "./slide-out-panel";
+import { motion } from "motion/react";
+import { Disc3, Search, ArrowLeft, Check, X } from "lucide-react";
 import { useApp } from "./app-context";
+import { getContentTokens } from "./theme";
+import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import type { FeedAlbum } from "./discogs-api";
 
 /* DiscogsSearchSheet — "Look It Up"
-   Standalone Discogs database search. Master-first results with a drill-in
-   pressing picker; barcode-like queries go straight to release search.
-   Tapping a pressing opens the existing ReleaseDetailPanel via
+   Standalone Discogs database search as a FULL-SCREEN panel (Discogs-app
+   style): fixed search bar at the top, results scroll beneath, back button
+   to dismiss — the bottom-sheet version put the keyboard on top of the
+   panel. Master-first results with a drill-in pressing picker; barcode-like
+   queries route to release search. When a master search comes up empty the
+   fallback chain automatically retries as a release search, then with a
+   normalized query (diacritics/dots stripped: "M.J." → "MJ", "João" →
+   "Joao"). Tapping a pressing opens the existing ReleaseDetailPanel via
    setSelectedFeedAlbum. */
 
 interface SearchResult {
@@ -34,6 +41,13 @@ interface SearchPage {
   page: number;
   totalPages: number;
   totalItems: number;
+}
+
+// A resolved search remembers which step of the fallback chain produced the
+// results, so Load More re-queries the same type/query
+interface ResolvedSearch extends SearchPage {
+  effType: "master" | "release";
+  effQuery: string;
 }
 
 interface Version {
@@ -69,7 +83,7 @@ const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
 
 // Session-scoped result cache (mirrors the releaseDataCache pattern)
-const searchCache = new Map<string, SearchPage>();
+const searchCache = new Map<string, ResolvedSearch>();
 
 // Barcode heuristic — a barcode uniquely identifies one release, so master
 // search is the wrong endpoint for it; route straight to release search.
@@ -83,6 +97,27 @@ function isPressingQuery(q: string): boolean {
   return digits / compact.length >= 0.75;
 }
 
+// Forgiving-match fallback: strip diacritics and periods so "M.J. Lenderman"
+// and "João" queries still land when Discogs indexes "MJ Lenderman"/"Joao"
+function normalizeQuery(q: string): string {
+  return q
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// One silent retry — Discogs throws transient 500s/429s on search
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    await new Promise((r) => setTimeout(r, 800));
+    return await fn();
+  }
+}
+
 export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const {
     sessionToken, isDarkMode, albums, wants,
@@ -92,8 +127,8 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const versionsAction = useAction(api.discogs.proxyFetchMasterVersions);
 
   const [query, setQuery] = useState("");
-  const [searchType, setSearchType] = useState<"master" | "release">("master");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [effSearch, setEffSearch] = useState<{ type: "master" | "release"; query: string } | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isSearching, setIsSearching] = useState(false);
@@ -112,7 +147,8 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const [countryFilter, setCountryFilter] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = useState<string | null>(null);
 
-  const surfaceBg = isDarkMode ? "#091E34" : "#FFFFFF";
+  const inputRef = useRef<HTMLInputElement>(null);
+  const panelBg = isDarkMode ? "#0C1A2E" : "#F9F9FA";
 
   // O(1) in-collection / in-wantlist lookups by master_id (master rows)
   const ownMasterIds = useMemo(() => {
@@ -126,22 +162,26 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     return s;
   }, [wants]);
 
-  // Debounced search (500 ms, min 3 chars, stale-guarded)
+  // Debounced search (500 ms, min 3 chars) driving an automatic fallback
+  // chain: master → release → normalized master → normalized release.
+  // First step with results wins; requestId guards staleness across awaits.
   const requestIdRef = useRef(0);
   useEffect(() => {
     const trimmed = query.trim();
+    const requestId = ++requestIdRef.current;
     if (trimmed.length < 3 || !sessionToken) {
       setResults([]);
+      setEffSearch(null);
       setHasSearched(false);
       setSearchError(false);
       setIsSearching(false);
       return;
     }
-    const type = isPressingQuery(trimmed) ? "release" : searchType;
-    const cacheKey = `${type}|${trimmed.toLowerCase()}`;
+    const cacheKey = trimmed.toLowerCase();
     const cached = searchCache.get(cacheKey);
     if (cached) {
       setResults(cached.results);
+      setEffSearch({ type: cached.effType, query: cached.effQuery });
       setPage(cached.page);
       setTotalPages(cached.totalPages);
       setHasSearched(true);
@@ -149,38 +189,53 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       setIsSearching(false);
       return;
     }
-    const requestId = ++requestIdRef.current;
     setIsSearching(true);
     setSearchError(false);
-    const timer = setTimeout(() => {
-      searchAction({ sessionToken, query: trimmed, searchType: type, page: 1 })
-        .then((data) => {
+    const timer = setTimeout(async () => {
+      const steps: { type: "master" | "release"; q: string }[] = [];
+      if (isPressingQuery(trimmed)) {
+        steps.push({ type: "release", q: trimmed });
+      } else {
+        steps.push({ type: "master", q: trimmed }, { type: "release", q: trimmed });
+        const norm = normalizeQuery(trimmed);
+        if (norm.length >= 3 && norm.toLowerCase() !== trimmed.toLowerCase()) {
+          steps.push({ type: "master", q: norm }, { type: "release", q: norm });
+        }
+      }
+      try {
+        let resolved: ResolvedSearch | null = null;
+        for (const step of steps) {
+          const data = (await withRetry(() =>
+            searchAction({ sessionToken, query: step.q, searchType: step.type, page: 1 })
+          )) as SearchPage;
           if (requestId !== requestIdRef.current) return;
-          const pageData = data as SearchPage;
-          searchCache.set(cacheKey, pageData);
-          setResults(pageData.results);
-          setPage(pageData.page);
-          setTotalPages(pageData.totalPages);
-          setHasSearched(true);
-        })
-        .catch(() => {
-          if (requestId !== requestIdRef.current) return;
-          setSearchError(true);
-          setHasSearched(true);
-        })
-        .finally(() => {
-          if (requestId === requestIdRef.current) setIsSearching(false);
-        });
+          if (data.results.length > 0 || step === steps[steps.length - 1]) {
+            resolved = { ...data, effType: step.type, effQuery: step.q };
+            if (data.results.length > 0) break;
+          }
+        }
+        if (!resolved || requestId !== requestIdRef.current) return;
+        searchCache.set(cacheKey, resolved);
+        setResults(resolved.results);
+        setEffSearch({ type: resolved.effType, query: resolved.effQuery });
+        setPage(resolved.page);
+        setTotalPages(resolved.totalPages);
+        setHasSearched(true);
+      } catch {
+        if (requestId !== requestIdRef.current) return;
+        setSearchError(true);
+        setHasSearched(true);
+      } finally {
+        if (requestId === requestIdRef.current) setIsSearching(false);
+      }
     }, 500);
     return () => clearTimeout(timer);
-  }, [query, searchType, sessionToken, searchAction]);
+  }, [query, sessionToken, searchAction]);
 
   const loadMore = useCallback(() => {
-    const trimmed = query.trim();
-    if (!sessionToken || isLoadingMore || page >= totalPages) return;
-    const type = isPressingQuery(trimmed) ? "release" : searchType;
+    if (!sessionToken || !effSearch || isLoadingMore || page >= totalPages) return;
     setIsLoadingMore(true);
-    searchAction({ sessionToken, query: trimmed, searchType: type, page: page + 1 })
+    searchAction({ sessionToken, query: effSearch.query, searchType: effSearch.type, page: page + 1 })
       .then((data) => {
         const pageData = data as SearchPage;
         setResults((prev) => [...prev, ...pageData.results]);
@@ -189,7 +244,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       })
       .catch(() => {})
       .finally(() => setIsLoadingMore(false));
-  }, [query, searchType, sessionToken, page, totalPages, isLoadingMore, searchAction]);
+  }, [sessionToken, effSearch, page, totalPages, isLoadingMore, searchAction]);
 
   // Pressing picker fetch
   const fetchVersions = useCallback((
@@ -198,13 +253,15 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   ) => {
     if (!sessionToken) return;
     setIsLoadingVersions(true);
-    versionsAction({
-      sessionToken,
-      masterId: master.masterId,
-      page: opts.page,
-      country: opts.country ?? undefined,
-      year: opts.year ?? undefined,
-    })
+    withRetry(() =>
+      versionsAction({
+        sessionToken,
+        masterId: master.masterId,
+        page: opts.page,
+        country: opts.country ?? undefined,
+        year: opts.year ?? undefined,
+      })
+    )
       .then((data) => {
         const vp = data as VersionsPage;
         setVersions((prev) => (opts.append ? [...prev, ...vp.versions] : vp.versions));
@@ -218,6 +275,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   }, [sessionToken, versionsAction]);
 
   const openPicker = useCallback((master: SearchResult) => {
+    inputRef.current?.blur();
     setPickerMaster(master);
     setVersions([]);
     setFacets([]);
@@ -239,6 +297,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
 
   // Hand off to the existing ReleaseDetailPanel
   const openRelease = useCallback((fa: FeedAlbum) => {
+    inputRef.current?.blur();
     setSelectedFeedAlbum(fa);
     setShowAlbumDetail(true);
   }, [setSelectedFeedAlbum, setShowAlbumDetail]);
@@ -384,196 +443,217 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     </button>
   );
 
+  const loadMoreButton = (onClick: () => void, loading: boolean) => (
+    <div className="flex justify-center py-3">
+      <button
+        onClick={onClick}
+        className="tappable cursor-pointer px-5 py-2 rounded-[10px]"
+        style={{
+          fontSize: "13px",
+          fontWeight: 600,
+          color: "var(--c-text-secondary)",
+          backgroundColor: "var(--c-chip-bg)",
+          touchAction: "manipulation",
+        }}
+      >
+        {loading ? <Disc3 size={16} className="disc-spinner" /> : "Load more"}
+      </button>
+    </div>
+  );
+
   return (
-    <SlideOutPanel
-      onClose={onClose}
-      title="Look It Up"
-      backdropZIndex={80}
-      sheetZIndex={85}
+    <motion.div
+      initial={{ y: "100%" }}
+      animate={{ y: 0 }}
+      exit={{ y: "100%", pointerEvents: "none" as const }}
+      transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+      className="fixed inset-0 z-[85] flex flex-col"
+      style={{
+        height: "100dvh",
+        backgroundColor: panelBg,
+        ...getContentTokens(isDarkMode),
+      } as CSSProperties}
     >
-      {!pickerMaster ? (
-        <>
-          {/* Sticky search input */}
-          <div
-            className="sticky top-0 z-10 px-4 pb-3"
-            style={{ backgroundColor: surfaceBg }}
-          >
-            <div className="relative">
-              <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: "var(--c-text-faint)" }}
-              />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Artist, title, catalog #"
-                className="w-full rounded-[10px] pl-9 pr-4 py-2.5 outline-none"
-                style={{
-                  fontSize: "16px",
-                  backgroundColor: "var(--c-input-bg)",
-                  color: "var(--c-text)",
-                  border: "1px solid var(--c-border)",
-                }}
-              />
+      {/* ── Fixed header: back + search bar (Discogs-app style, no divider) ── */}
+      <div
+        className="flex-shrink-0 px-3 pb-2"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
+      >
+        <div className="w-full max-w-[640px] mx-auto">
+          {!pickerMaster ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onClose}
+                className="w-10 h-10 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
+                style={{ color: "var(--c-text)", touchAction: "manipulation" }}
+                aria-label="Close"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div className="relative flex-1">
+                <Search
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ color: "var(--c-text-faint)" }}
+                />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Artist, title, catalog #"
+                  autoFocus
+                  enterKeyHint="search"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  className="w-full rounded-full pl-10 pr-10 py-2.5 outline-none"
+                  style={{
+                    fontSize: "16px",
+                    backgroundColor: "var(--c-input-bg)",
+                    color: "var(--c-text)",
+                    border: "1px solid var(--c-border)",
+                  }}
+                />
+                {query && (
+                  <button
+                    onClick={() => { setQuery(""); inputRef.current?.focus(); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center tappable cursor-pointer"
+                    style={{ color: "var(--c-text-muted)", touchAction: "manipulation" }}
+                    aria-label="Clear search"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-
-          {isSearching && (
-            <div className="flex justify-center py-10">
-              <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
-            </div>
-          )}
-
-          {!isSearching && searchError && (
-            <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
-              Search failed. Try again.
-            </p>
-          )}
-
-          {!isSearching && !searchError && hasSearched && results.length === 0 && (
-            <div className="text-center py-10 px-4">
-              <p style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>No matches.</p>
-              {searchType === "master" && (
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setSearchType("release")}
-                  className="mt-3 tappable cursor-pointer"
-                  style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-link)", touchAction: "manipulation" }}
+                  onClick={() => setPickerMaster(null)}
+                  className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
+                  style={{ color: "var(--c-text)", touchAction: "manipulation" }}
+                  aria-label="Back to results"
                 >
-                  Search pressings instead
+                  <ArrowLeft size={20} />
                 </button>
-              )}
-            </div>
-          )}
-
-          {!isSearching && !searchError && results.map((r) => (
-            <button
-              key={`${r.type}-${r.id}`}
-              onClick={() => openSearchResult(r)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 tappable cursor-pointer text-left"
-              style={{ touchAction: "manipulation" }}
-            >
-              {r.thumb ? (
-                <img src={r.thumb} alt="" className="w-12 h-12 rounded-[6px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
-              ) : (
-                <div className="w-12 h-12 rounded-[6px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
-                  <Disc3 size={20} style={{ color: "var(--c-text-faint)" }} />
+                {pickerMaster.thumb && (
+                  <img src={pickerMaster.thumb} alt="" className="w-9 h-9 rounded-[6px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
+                )}
+                <div className="flex-1 min-w-0">
+                  <span style={{ ...rowTitleStyle, fontSize: "15px" }}>{pickerMaster.title}</span>
+                  <span style={rowMetaStyle}>
+                    {versionsTotal > 0 ? `${versionsTotal} pressing${versionsTotal === 1 ? "" : "s"}` : pickerMaster.artist}
+                  </span>
+                </div>
+              </div>
+              {(countryOptions.length > 1 || yearOptions.length > 1) && (
+                <div className="flex gap-1.5 overflow-x-auto pt-2 -mx-3 px-3 overlay-scroll" style={{ scrollbarWidth: "none" }}>
+                  {countryOptions.map((c) => (
+                    <button key={`c-${c}`} onClick={() => applyFilter(countryFilter === c ? null : c, yearFilter)} style={chipStyle(countryFilter === c)} className="tappable">
+                      {c}
+                    </button>
+                  ))}
+                  {yearOptions.map((y) => (
+                    <button key={`y-${y}`} onClick={() => applyFilter(countryFilter, yearFilter === y ? null : y)} style={chipStyle(yearFilter === y)} className="tappable">
+                      {y}
+                    </button>
+                  ))}
                 </div>
               )}
-              <div className="flex-1 min-w-0">
-                <span style={rowTitleStyle}>{r.title}</span>
-                <span style={rowMetaStyle}>
-                  {[
-                    r.artist,
-                    r.type === "release" ? [r.catno, r.country, hasYear(r.year) ? r.year : null].filter(Boolean).join(" · ") : (hasYear(r.year) ? r.year : null),
-                  ].filter(Boolean).join(" · ")}
-                </span>
-              </div>
-              {r.masterId && ownMasterIds.has(r.masterId)
-                ? badge("Have")
-                : r.masterId && wantMasterIds.has(r.masterId)
-                  ? badge("Want")
-                  : null}
-            </button>
-          ))}
-
-          {!isSearching && !searchError && results.length > 0 && page < totalPages && (
-            <div className="flex justify-center py-3 pb-6">
-              <button
-                onClick={loadMore}
-                className="tappable cursor-pointer px-5 py-2 rounded-[10px]"
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "var(--c-text-secondary)",
-                  backgroundColor: "var(--c-chip-bg)",
-                  touchAction: "manipulation",
-                }}
-              >
-                {isLoadingMore ? <Disc3 size={16} className="disc-spinner" /> : "Load more"}
-              </button>
-            </div>
+            </>
           )}
-        </>
-      ) : (
-        <>
-          {/* Picker header — back + master identity */}
-          <div
-            className="sticky top-0 z-10 px-4 pb-2"
-            style={{ backgroundColor: surfaceBg }}
-          >
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPickerMaster(null)}
-                className="w-9 h-9 -ml-2 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
-                style={{ color: "var(--c-text)", touchAction: "manipulation" }}
-                aria-label="Back to results"
-              >
-                <ArrowLeft size={18} />
-              </button>
-              {pickerMaster.thumb && (
-                <img src={pickerMaster.thumb} alt="" className="w-9 h-9 rounded-[6px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
+        </div>
+      </div>
+
+      {/* ── Scrollable results / picker body ── */}
+      <div
+        className="flex-1 overflow-y-auto overlay-scroll"
+        onTouchStart={() => inputRef.current?.blur()}
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+      >
+        <div className="w-full max-w-[640px] mx-auto">
+          {!pickerMaster ? (
+            <>
+              {isSearching && (
+                <div className="flex justify-center py-10">
+                  <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
+                </div>
               )}
-              <div className="flex-1 min-w-0">
-                <span style={{ ...rowTitleStyle, fontSize: "15px" }}>{pickerMaster.title}</span>
-                <span style={rowMetaStyle}>
-                  {versionsTotal > 0 ? `${versionsTotal} pressing${versionsTotal === 1 ? "" : "s"}` : pickerMaster.artist}
-                </span>
-              </div>
-            </div>
-            {/* Filter chips */}
-            {(countryOptions.length > 1 || yearOptions.length > 1) && (
-              <div className="flex gap-1.5 overflow-x-auto pt-2 -mx-4 px-4 overlay-scroll" style={{ scrollbarWidth: "none" }}>
-                {countryOptions.map((c) => (
-                  <button key={`c-${c}`} onClick={() => applyFilter(countryFilter === c ? null : c, yearFilter)} style={chipStyle(countryFilter === c)} className="tappable">
-                    {c}
-                  </button>
-                ))}
-                {yearOptions.map((y) => (
-                  <button key={`y-${y}`} onClick={() => applyFilter(countryFilter, yearFilter === y ? null : y)} style={chipStyle(yearFilter === y)} className="tappable">
-                    {y}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {isLoadingVersions && versions.length === 0 && (
-            <div className="flex justify-center py-10">
-              <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
-            </div>
+              {!isSearching && searchError && (
+                <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
+                  Search failed. Try again.
+                </p>
+              )}
+
+              {!isSearching && !searchError && hasSearched && results.length === 0 && (
+                <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
+                  No matches.
+                </p>
+              )}
+
+              {!isSearching && !searchError && results.map((r) => (
+                <button
+                  key={`${r.type}-${r.id}`}
+                  onClick={() => openSearchResult(r)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 tappable cursor-pointer text-left"
+                  style={{ touchAction: "manipulation" }}
+                >
+                  {r.thumb ? (
+                    <img src={r.thumb} alt="" className="w-12 h-12 rounded-[6px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
+                  ) : (
+                    <div className="w-12 h-12 rounded-[6px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
+                      <Disc3 size={20} style={{ color: "var(--c-text-faint)" }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span style={rowTitleStyle}>{r.title}</span>
+                    <span style={rowMetaStyle}>
+                      {[
+                        r.artist,
+                        r.type === "release" ? [r.catno, r.country, hasYear(r.year) ? r.year : null].filter(Boolean).join(" · ") : (hasYear(r.year) ? r.year : null),
+                      ].filter(Boolean).join(" · ")}
+                    </span>
+                  </div>
+                  {r.masterId && ownMasterIds.has(r.masterId)
+                    ? badge("Have")
+                    : r.masterId && wantMasterIds.has(r.masterId)
+                      ? badge("Want")
+                      : null}
+                </button>
+              ))}
+
+              {!isSearching && !searchError && results.length > 0 && page < totalPages &&
+                loadMoreButton(loadMore, isLoadingMore)}
+            </>
+          ) : (
+            <>
+              {isLoadingVersions && versions.length === 0 && (
+                <div className="flex justify-center py-10">
+                  <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
+                </div>
+              )}
+
+              {!isLoadingVersions && versions.length === 0 && (
+                <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
+                  No pressings found.
+                </p>
+              )}
+
+              {pinnedVersion && versionRow(pinnedVersion, true)}
+              {versions.filter((ver) => ver !== pinnedVersion).map((ver) => versionRow(ver, false))}
+
+              {versions.length > 0 && versionsPage < versionsTotalPages &&
+                loadMoreButton(
+                  () => pickerMaster && fetchVersions(pickerMaster, { page: versionsPage + 1, country: countryFilter, year: yearFilter, append: true }),
+                  isLoadingVersions
+                )}
+            </>
           )}
-
-          {!isLoadingVersions && versions.length === 0 && (
-            <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
-              No pressings found.
-            </p>
-          )}
-
-          {pinnedVersion && versionRow(pinnedVersion, true)}
-          {versions.filter((ver) => ver !== pinnedVersion).map((ver) => versionRow(ver, false))}
-
-          {versions.length > 0 && versionsPage < versionsTotalPages && (
-            <div className="flex justify-center py-3 pb-6">
-              <button
-                onClick={() => pickerMaster && fetchVersions(pickerMaster, { page: versionsPage + 1, country: countryFilter, year: yearFilter, append: true })}
-                className="tappable cursor-pointer px-5 py-2 rounded-[10px]"
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "var(--c-text-secondary)",
-                  backgroundColor: "var(--c-chip-bg)",
-                  touchAction: "manipulation",
-                }}
-              >
-                {isLoadingVersions ? <Disc3 size={16} className="disc-spinner" /> : "Load more"}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-      <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }} />
-    </SlideOutPanel>
+        </div>
+      </div>
+    </motion.div>
   );
 }

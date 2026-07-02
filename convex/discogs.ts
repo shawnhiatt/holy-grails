@@ -1757,7 +1757,7 @@ export const proxyAddToCollection = action({
 
 // ─── Standalone database search & market lookup ───
 
-// 20. Search the Discogs database (vinyl only, enforced server-side)
+// 20. Search the Discogs database (vinyl-only on release searches; see below)
 export const proxySearchDatabase = action({
   args: {
     sessionToken: v.string(),
@@ -1772,7 +1772,13 @@ export const proxySearchDatabase = action({
     );
     const type = args.searchType ?? "master";
     const page = args.page ?? 1;
-    const url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}&format=Vinyl&per_page=25&page=${page}`;
+    // format=Vinyl applies to release searches only. Masters aren't
+    // format-specific objects and coupling them to a format filter starves
+    // results (masters with vinyl pressings can return zero rows). Vinyl-only
+    // is still enforced downstream: the pressing picker's versions call
+    // hard-codes format=Vinyl, so nothing non-vinyl is ever addable.
+    const formatParam = type === "release" ? "&format=Vinyl" : "";
+    const url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}${formatParam}&per_page=25&page=${page}`;
     const res = await discogsFetch(
       "GET",
       url,
