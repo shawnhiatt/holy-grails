@@ -8,9 +8,9 @@ import type { FeedAlbum } from "./discogs-api";
 
 /* DiscogsSearchSheet — "Look It Up"
    Standalone Discogs database search. Master-first results with a drill-in
-   pressing picker; digit-heavy queries (catalog # / barcode) go straight to
-   release search. Tapping a pressing opens the existing ReleaseDetailPanel
-   via setSelectedFeedAlbum. */
+   pressing picker; barcode-like queries go straight to release search.
+   Tapping a pressing opens the existing ReleaseDetailPanel via
+   setSelectedFeedAlbum. */
 
 interface SearchResult {
   id: number;
@@ -71,13 +71,16 @@ const hasYear = (year: number | null | undefined): year is number =>
 // Session-scoped result cache (mirrors the releaseDataCache pattern)
 const searchCache = new Map<string, SearchPage>();
 
-// Catalog # / barcode heuristic — digit-heavy queries identify an exact
-// pressing, so skip the master hop entirely
+// Barcode heuristic — a barcode uniquely identifies one release, so master
+// search is the wrong endpoint for it; route straight to release search.
+// Tuned for precision: long + almost-all-digits catches scanned/typed
+// barcodes while leaving short numeric album titles ("2112", "90125") and
+// letter-prefixed catalog numbers ("SKL 5025") to normal master search.
 function isPressingQuery(q: string): boolean {
   const compact = q.replace(/[\s\-–.]/g, "");
-  if (compact.length < 5) return false;
+  if (compact.length < 8) return false;
   const digits = compact.replace(/\D/g, "").length;
-  return digits / compact.length >= 0.6;
+  return digits / compact.length >= 0.75;
 }
 
 export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
