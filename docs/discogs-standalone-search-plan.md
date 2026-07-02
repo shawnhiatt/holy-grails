@@ -283,12 +283,60 @@ it's standing in a record store checking what a record is worth against the
 sticker price. The search flow above already does the finding; the missing
 piece is **per-release market value in `ReleaseDetailPanel`**.
 
-**Correction to earlier drafts / CLAUDE.md:** CLAUDE.md references
-`market-value.tsx`, `proxyFetchMarketData`, and `MarketData` /
-`ConditionPrice` / `MarketplaceStats` types as existing. **None of these are
-in the codebase** — only the aggregate `CollectionValue` exists. The lookup
-feature builds per-release market data fresh; CLAUDE.md's stale references
-should be corrected at rollout.
+**History:** per-release market value was attempted before and abandoned —
+it proved inaccurate and too complicated to present usefully. The CLAUDE.md
+references to `market-value.tsx`, `proxyFetchMarketData`, and `MarketData` /
+`ConditionPrice` / `MarketplaceStats` are remnants of that abandoned attempt
+and describe nothing in the codebase (confirmed: the only other remnants are
+two comment lines in `discogs-api.ts`, lines 9 and 106 — no dead code).
+Delete all of these at rollout and document what actually ships.
+
+### Why the last attempt failed, and what's different now
+
+Naive market value display has known failure modes:
+
+1. **Asking ≠ sold.** `lowest_price` is the cheapest *ask*, skewed low by
+   beat-up copies and high by delusional sellers. Presented as "the value,"
+   it's wrong; presented as "lowest ask," it's honest and still useful.
+2. **Wrong pressing = wrong number.** A UK first pressing and a 70s reissue
+   differ by 10x. Valuing an album without pinning the exact pressing is
+   meaningless — and the old attempt had no pressing-picking flow.
+3. **Eight condition rows is noise.** A full grade table reads like a
+   spreadsheet, and nobody prices a store find against "Poor."
+4. **False precision.** "$27.83" implies an authority the suggestion
+   algorithm doesn't have.
+5. **Sparse data.** Thin sales history returns empty or garbage suggestions
+   for obscure releases.
+
+What's different now:
+
+- **The context is a store lookup, not an appraisal.** The user wants a
+  ballpark and a buy/pass signal, not a valuation of their copy. Ballparks
+  from honest inputs are achievable; appraisals aren't.
+- **The pressing picker guarantees the right `release_id`** — failure mode 2
+  is structurally solved by the search flow this feature rides on.
+- **`price_suggestions` is derived from Discogs sales history** (their
+  median-sold-based algorithm), making it the closest thing the API offers to
+  real value — the sold-history endpoint itself is not public.
+
+### Presentation rules (the fix for failure modes 1, 3, 4, 5)
+
+- **One line, always (Tier 1):** `Lowest ask $22 · 58 for sale` — labeled
+  "ask," never "value." Zero listings → `No copies for sale` (which is
+  itself a useful store signal: scarce).
+- **Three grades, not eight (Tier 2):** show suggested prices for VG, VG+,
+  and NM only — the grades store bins actually contain. Row colors from
+  `conditionGradeColor`. A grade with no suggestion is hidden.
+- **Round to whole currency units** with a `~` prefix: `VG+ ~$28`.
+- **Label the source, short:** one microcopy line, `From Discogs sales
+  history.` — sets expectations without a disclaimer paragraph.
+- **Hide, never apologize:** no suggestions → Tier 1 only; no data at all →
+  no Value section. No error states, no empty states, no nag to configure
+  seller settings.
+- **Phase 2 option — "Deal check":** tap a grade chip to expand all grades,
+  turning the buy/pass decision into a one-tap interaction. Fits the app's
+  identity (Holy Grails is a decision-making tool — purge is keep/cut; this
+  is buy/pass). Not needed for MVP.
 
 ### Two tiers of value data (verified against `docs/` API reference)
 
@@ -416,10 +464,9 @@ polish)**
 4. ~~Feed entry point?~~ **Decided: yes** — the record-store lookup use case
    (§6) needs one-tap access from cold open. Search icon in the Feed header
    (Variant A).
-5. **Value section reach** — once built for `ReleaseDetailPanel`, should the
-   same section ship in `AlbumDetailPanel` ("what's my copy worth") and
-   `WantItemDetailPanel` in the same phase, or later? Recommend later — keep
-   the session focused per the one-concern rule.
+5. ~~Value section reach — same phase or later?~~ **Decided: later.** The
+   Value section ships in `ReleaseDetailPanel` only. `AlbumDetailPanel` /
+   `WantItemDetailPanel` are a separate future decision.
 
 ---
 
@@ -437,12 +484,13 @@ Other CLAUDE.md updates at rollout:
 - Proxy actions list: add `proxySearchDatabase` (#20),
   `proxyFetchMasterVersions` (#21), `proxyFetchMarketData` (#22) — and fix
   the count (the doc currently says both "18" and "19" in different places).
-- **Correct the stale market-data references**: CLAUDE.md mentions
+- **Delete the abandoned-feature remnants**: CLAUDE.md's references to
   `market-value.tsx`, `proxyFetchMarketData`, `MarketData`/`ConditionPrice`/
-  `MarketplaceStats` types, and "MarketValueSection removed from
-  WantItemDetailPanel and ReleaseDetailPanel" — none of this exists in the
-  code today. Rewrite those references to describe what this feature actually
-  ships.
+  `MarketplaceStats`, and "MarketValueSection removed from
+  WantItemDetailPanel and ReleaseDetailPanel" are leftovers from a prior
+  market-value attempt that was abandoned (inaccurate, over-complicated) —
+  Shawn confirmed. Delete them and document the new Value section instead.
+  Also clean the two stale comment lines in `discogs-api.ts` (lines 9, 106).
 - Z-Index Hierarchy table: add the search sheet at z-[85]/z-[80].
 - File structure: add `discogs-search-sheet.tsx`.
 - MobileHeader variants: document the Plus button on Collection/Wantlist and
