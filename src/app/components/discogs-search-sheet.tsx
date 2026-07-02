@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties }
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { motion } from "motion/react";
-import { Disc3, Search, ArrowLeft, Check, X } from "lucide-react";
+import { Disc3, ArrowLeft, Check, X, ScanBarcode } from "lucide-react";
+// Bundled locally so the decoder never fetches from a CDN (PWA/CSP-safe);
+// the module itself is dynamic-imported only when the scanner opens
+import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
 import { useApp } from "./app-context";
 import { getContentTokens } from "./theme";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
@@ -120,7 +123,7 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 
 export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const {
-    sessionToken, isDarkMode, albums, wants,
+    sessionToken, isDarkMode, albums, wants, screen,
     setSelectedFeedAlbum, setShowAlbumDetail,
   } = useApp();
   const searchAction = useAction(api.discogs.proxySearchDatabase);
@@ -149,6 +152,15 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const panelBg = isDarkMode ? "#0C1A2E" : "#F9F9FA";
+  const [showScanner, setShowScanner] = useState(false);
+  const cameraSupported = !!navigator.mediaDevices?.getUserMedia;
+
+  // The bottom nav (z-130) stays tappable over this panel (z-85) — treat a
+  // screen change as dismissal so the panel doesn't linger over the new screen
+  const initialScreenRef = useRef(screen);
+  useEffect(() => {
+    if (screen !== initialScreenRef.current) onClose();
+  }, [screen, onClose]);
 
   // O(1) in-collection / in-wantlist lookups by master_id (master rows)
   const ownMasterIds = useMemo(() => {
@@ -335,6 +347,11 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     }
   }, [openPicker, openRelease]);
 
+  const handleScanDetect = useCallback((code: string) => {
+    setShowScanner(false);
+    setQuery(code);
+  }, []);
+
   // Pinned "most collected" pressing — max community have-count across
   // loaded, unfiltered versions
   const pinnedVersion = useMemo(() => {
@@ -467,6 +484,12 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       animate={{ y: 0 }}
       exit={{ y: "100%", pointerEvents: "none" as const }}
       transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+      onAnimationComplete={(definition) => {
+        if ((definition as { y?: number | string }).y === 0) {
+          inputRef.current?.focus({ preventScroll: true });
+          window.scrollTo(0, 0);
+        }
+      }}
       className="fixed inset-0 z-[85] flex flex-col"
       style={{
         height: "100dvh",
@@ -491,23 +514,17 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                 <ArrowLeft size={20} />
               </button>
               <div className="relative flex-1">
-                <Search
-                  size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{ color: "var(--c-text-faint)" }}
-                />
                 <input
                   ref={inputRef}
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Artist, title, catalog #"
-                  autoFocus
+                  placeholder="Search artists, titles, catalog #s"
                   enterKeyHint="search"
                   autoCorrect="off"
                   autoCapitalize="none"
                   spellCheck={false}
-                  className="w-full rounded-full pl-10 pr-10 py-2.5 outline-none"
+                  className="w-full rounded-full pl-4 pr-10 py-2.5 outline-none"
                   style={{
                     fontSize: "16px",
                     backgroundColor: "var(--c-input-bg)",
@@ -526,6 +543,16 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                   </button>
                 )}
               </div>
+              {cameraSupported && (
+                <button
+                  onClick={() => { inputRef.current?.blur(); setShowScanner(true); }}
+                  className="w-10 h-10 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
+                  style={{ color: "var(--c-text)", touchAction: "manipulation" }}
+                  aria-label="Scan barcode"
+                >
+                  <ScanBarcode size={20} />
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -571,7 +598,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       <div
         className="flex-1 overflow-y-auto overlay-scroll"
         onTouchStart={() => inputRef.current?.blur()}
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+        style={{ paddingBottom: "calc(54px + env(safe-area-inset-bottom, 0px) + 24px)" }}
       >
         <div className="w-full max-w-[640px] mx-auto">
           {!pickerMaster ? (
@@ -654,6 +681,131 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
+
+      {showScanner && (
+        <BarcodeScanner onDetect={handleScanDetect} onClose={() => setShowScanner(false)} />
+      )}
     </motion.div>
+  );
+}
+
+/* Camera barcode scanner overlay. iOS Safari has no native BarcodeDetector,
+   so frames are decoded with zxing-wasm (lazy-loaded, wasm served from our
+   own origin). Vinyl barcodes are 1D EAN/UPC only. A detected code lands in
+   the search box, where the barcode heuristic routes it to release search. */
+function BarcodeScanner({ onDetect, onClose }: {
+  onDetect: (code: string) => void;
+  onClose: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [cameraError, setCameraError] = useState(false);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let stopped = false;
+    let timer: number | undefined;
+    (async () => {
+      try {
+        const { prepareZXingModule, readBarcodes } = await import("zxing-wasm/reader");
+        prepareZXingModule({
+          overrides: {
+            locateFile: (path: string, prefix: string) =>
+              path.endsWith(".wasm") ? zxingWasmUrl : prefix + path,
+          },
+        });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        if (stopped) return;
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play();
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const tick = async () => {
+          if (stopped || !ctx) return;
+          if (video.readyState >= 2 && video.videoWidth > 0) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            try {
+              const codes = await readBarcodes(
+                ctx.getImageData(0, 0, canvas.width, canvas.height),
+                { formats: ["EAN-13", "UPC-A", "EAN-8", "UPC-E"], tryHarder: true }
+              );
+              const hit = codes.find((c) => c.isValid && c.text);
+              if (hit && !stopped) {
+                onDetect(hit.text);
+                return;
+              }
+            } catch {
+              // Frame decode failure — keep scanning
+            }
+          }
+          timer = window.setTimeout(tick, 220);
+        };
+        tick();
+      } catch {
+        // No camera, permission denied, or wasm load failure
+        if (!stopped) setCameraError(true);
+      }
+    })();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [onDetect]);
+
+  return (
+    <div className="absolute inset-0 z-20" style={{ backgroundColor: "#000" }}>
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        playsInline
+        muted
+      />
+      {!cameraError ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div
+            style={{
+              width: "78%",
+              maxWidth: "360px",
+              aspectRatio: "1.9",
+              border: "2px solid rgba(255,255,255,0.9)",
+              borderRadius: "14px",
+              boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+            }}
+          />
+          <p className="mt-4" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
+            Point at the barcode
+          </p>
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center px-8">
+          <p className="text-center" style={{ fontSize: "14px", color: "rgba(255,255,255,0.8)" }}>
+            Camera unavailable.
+          </p>
+        </div>
+      )}
+      <button
+        onClick={onClose}
+        className="absolute rounded-full flex items-center justify-center tappable cursor-pointer"
+        style={{
+          top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+          right: "16px",
+          width: "36px",
+          height: "36px",
+          backgroundColor: "rgba(0,0,0,0.45)",
+          backdropFilter: "blur(6px)",
+          color: "#FFFFFF",
+          touchAction: "manipulation",
+        }}
+        aria-label="Close scanner"
+      >
+        <X size={18} />
+      </button>
+    </div>
   );
 }
