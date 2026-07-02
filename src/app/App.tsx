@@ -420,12 +420,12 @@ function AppContent() {
 
   return (
     <div
-      className="w-screen flex flex-col overflow-hidden"
+      className="app-viewport w-screen flex flex-col overflow-hidden"
       style={{
-        // 100dvh, not h-screen/100vh — on iOS Safari 100vh includes the area
-        // behind the browser chrome, pushing the bottom tab bar off-screen
-        // until the PWA is installed (see CLAUDE.md viewport height rule)
-        height: "100dvh",
+        // Height comes from the .app-viewport class: 100dvh in the browser
+        // (clears iOS Safari's chrome), 100vh in an installed PWA (standalone
+        // has no chrome, and 100dvh there mis-anchors the fixed bottom nav,
+        // floating it above the home indicator). See theme.css.
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         backgroundColor: isDarkMode ? "#081A31" : "#ACDEF2",
         background: gradientBg,
