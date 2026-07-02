@@ -1407,6 +1407,9 @@ export const proxyFetchRelease = action({
       genres: (data.genres as string[]) || [],
       styles: (data.styles as string[]) || [],
       images,
+      // Market signal (Tier 1) — asking prices, available to all users
+      lowestPrice: typeof data.lowest_price === "number" ? data.lowest_price : null,
+      numForSale: typeof data.num_for_sale === "number" ? data.num_for_sale : 0,
     };
   },
 });
@@ -1749,5 +1752,186 @@ export const proxyAddToCollection = action({
       dateAdded: new Date().toISOString(),
       discogsUrl: rd.uri ? `https://www.discogs.com${rd.uri.replace("https://api.discogs.com", "")}` : `https://www.discogs.com/release/${args.releaseId}`,
     };
+  },
+});
+
+// ─── Standalone database search & market lookup ───
+
+// 20. Search the Discogs database (vinyl only, enforced server-side)
+export const proxySearchDatabase = action({
+  args: {
+    sessionToken: v.string(),
+    query: v.string(),
+    searchType: v.optional(v.union(v.literal("master"), v.literal("release"))),
+    page: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const type = args.searchType ?? "master";
+    const page = args.page ?? 1;
+    const url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}&format=Vinyl&per_page=25&page=${page}`;
+    const res = await discogsFetch(
+      "GET",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok) {
+      throw new Error(`Search failed (${res.status})`);
+    }
+    const data = await res.json();
+    const results = (data.results || []).map((r: any) => {
+      // Search returns a combined "Artist - Title" string
+      const combined: string = r.title || "";
+      const sep = combined.indexOf(" - ");
+      const artist = sep > 0 ? formatArtistName(combined.slice(0, sep)) : "";
+      const title = sep > 0 ? combined.slice(sep + 3) : combined;
+      const isMaster = r.type === "master";
+      return {
+        id: (r.id as number) || 0,
+        type: isMaster ? ("master" as const) : ("release" as const),
+        masterId: (r.master_id as number) || (isMaster ? (r.id as number) : 0),
+        title,
+        artist,
+        year: Number(r.year) || 0,
+        thumb: (r.thumb as string) || "",
+        cover: (r.cover_image as string) || (r.thumb as string) || "",
+        label: Array.isArray(r.label) ? (r.label[0] as string) || "" : "",
+        catno: (r.catno as string) || "",
+        country: (r.country as string) || "",
+        format: Array.isArray(r.format) ? r.format.join(", ") : "",
+        have: (r.community?.have as number) ?? 0,
+        want: (r.community?.want as number) ?? 0,
+      };
+    });
+    return {
+      results,
+      page: (data.pagination?.page as number) ?? page,
+      totalPages: (data.pagination?.pages as number) ?? 1,
+      totalItems: (data.pagination?.items as number) ?? results.length,
+    };
+  },
+});
+
+// 21. Fetch vinyl pressings of a master (server-side filtered/paginated)
+export const proxyFetchMasterVersions = action({
+  args: {
+    sessionToken: v.string(),
+    masterId: v.number(),
+    page: v.optional(v.number()),
+    country: v.optional(v.string()),
+    year: v.optional(v.string()),
+    label: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const page = args.page ?? 1;
+    let url = `${BASE}/masters/${args.masterId}/versions?format=Vinyl&per_page=25&page=${page}&sort=released&sort_order=asc`;
+    if (args.country) url += `&country=${encodeURIComponent(args.country)}`;
+    if (args.year) url += `&released=${encodeURIComponent(args.year)}`;
+    if (args.label) url += `&label=${encodeURIComponent(args.label)}`;
+    const res = await discogsFetch(
+      "GET",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to fetch pressings (${res.status})`);
+    }
+    const data = await res.json();
+    const versions = (data.versions || []).map((ver: any) => ({
+      releaseId: (ver.id as number) || 0,
+      title: (ver.title as string) || "",
+      format: (ver.format as string) || "",
+      label: (ver.label as string) || "",
+      catno: (ver.catno as string) || "",
+      country: (ver.country as string) || "",
+      year: Number(ver.released) || 0,
+      thumb: (ver.thumb as string) || "",
+      inCollection: ((ver.stats?.user?.in_collection as number) ?? 0) > 0,
+      inWantlist: ((ver.stats?.user?.in_wantlist as number) ?? 0) > 0,
+      haveCount: (ver.stats?.community?.in_collection as number) ?? 0,
+    }));
+
+    // Filter facets (modern API; may be absent) — used for filter chips
+    const facets = Array.isArray(data.filter_facets)
+      ? data.filter_facets.map((f: any) => ({
+          id: String(f.id ?? ""),
+          title: String(f.title ?? ""),
+          values: Array.isArray(f.values)
+            ? f.values.map((x: any) => ({
+                value: String(x.value ?? ""),
+                title: String(x.title ?? x.value ?? ""),
+                count: Number(x.count) || 0,
+              }))
+            : [],
+        }))
+      : [];
+
+    // Main release — fallback for the pinned "most collected" row.
+    // Only worth one extra request on an unfiltered first page.
+    let mainReleaseId = 0;
+    if (page === 1 && !args.country && !args.year && !args.label) {
+      const mRes = await discogsFetch(
+        "GET",
+        `${BASE}/masters/${args.masterId}`,
+        creds.access_token,
+        creds.token_secret
+      );
+      if (mRes.ok) {
+        const m = await mRes.json();
+        mainReleaseId = (m.main_release as number) || 0;
+      }
+    }
+
+    return {
+      versions,
+      facets,
+      mainReleaseId,
+      page: (data.pagination?.page as number) ?? page,
+      totalPages: (data.pagination?.pages as number) ?? 1,
+      totalItems: (data.pagination?.items as number) ?? versions.length,
+    };
+  },
+});
+
+// 22. Condition-tiered price suggestions (Tier 2 market data).
+// Discogs only serves this to users with seller settings filled out —
+// callers must treat null as "no data" and degrade silently.
+export const proxyFetchMarketData = action({
+  args: { sessionToken: v.string(), releaseId: v.number() },
+  handler: async (ctx, args) => {
+    const creds = await ctx.runQuery(
+      internal.discogsHelpers.getUserCredentials,
+      { sessionToken: args.sessionToken }
+    );
+    const url = `${BASE}/marketplace/price_suggestions/${args.releaseId}`;
+    const res = await discogsFetch(
+      "GET",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const suggestions: { condition: string; value: number; currency: string }[] = [];
+    for (const [condition, priceRaw] of Object.entries(data || {})) {
+      const price = priceRaw as { currency?: string; value?: number };
+      if (typeof price?.value === "number" && price.value > 0) {
+        suggestions.push({
+          condition,
+          value: price.value,
+          currency: price.currency || "USD",
+        });
+      }
+    }
+    return suggestions.length ? suggestions : null;
   },
 });

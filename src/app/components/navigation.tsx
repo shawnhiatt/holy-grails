@@ -12,6 +12,7 @@ import {
   Newspaper,
   UserMinus,
   ArrowLeft,
+  Search,
 } from "lucide-react";
 import { useApp, type Screen } from "./app-context";
 import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
@@ -164,7 +165,7 @@ export function MobileHeader() {
   const {
     screen, setScreen, isDarkMode, userAvatar,
     followedUserProfile, onBackFromProfile, onUnfollowUser,
-    isBackgroundSyncing, isSyncingFollowing,
+    isBackgroundSyncing, isSyncingFollowing, setShowDiscogsSearch,
   } = useApp();
 
   const activeBg = "rgba(172,222,242,0.12)";
@@ -173,9 +174,22 @@ export function MobileHeader() {
   const isProfileView = screen === "following" && followedUserProfile !== null;
   const showSyncChip = isBackgroundSyncing || isSyncingFollowing;
 
-  // Shared right-side nav buttons (Following + Settings)
+  // Shared right-side nav buttons (Look It Up + Following + Settings)
   const navButtons = (
     <div className="flex items-center flex-shrink-0">
+      <button
+        onClick={() => { setShowDiscogsSearch(true); }}
+        className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
+        title="Look It Up"
+        aria-label="Look It Up"
+      >
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ color: "var(--c-text-muted)", backgroundColor: inactiveBg }}
+        >
+          <Search size={18} strokeWidth={1.3125} />
+        </div>
+      </button>
       {showSyncChip && (
         <div
           className="flex items-center justify-center w-11 h-11"
@@ -417,7 +431,7 @@ export function BottomTabBar() {
 
 /** Desktop top navigation bar — replaces sidebar on lg+ viewports */
 export function DesktopTopNav() {
-  const { screen, setScreen, isDarkMode, toggleDarkMode, userAvatar, isBackgroundSyncing, isSyncingFollowing } = useApp();
+  const { screen, setScreen, isDarkMode, toggleDarkMode, userAvatar, isBackgroundSyncing, isSyncingFollowing, setShowDiscogsSearch } = useApp();
   const showSyncChip = isBackgroundSyncing || isSyncingFollowing;
 
   const logoFill = isDarkMode ? "#E2E8F0" : "#0C284A";
@@ -513,6 +527,25 @@ export function DesktopTopNav() {
             </span>
           </div>
         )}
+        <button
+          onClick={() => setShowDiscogsSearch(true)}
+          className="flex items-center gap-[7px] px-[12px] py-[7px] rounded-[8px] tappable transition-all cursor-pointer"
+          title="Look It Up"
+          aria-label="Look It Up"
+        >
+          <Search size={17} strokeWidth={1.2} color={inactiveColor} />
+          <span
+            style={{
+              fontSize: "13px",
+              fontWeight: 400,
+              lineHeight: "13px",
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              color: inactiveColor,
+            }}
+          >
+            Look It Up
+          </span>
+        </button>
         {DESKTOP_RIGHT_NAV.map(renderNavItem)}
         <div className="ml-[8px]">
           <ThemeSwitch isDark={isDarkMode} onToggle={toggleDarkMode} variant="header" />
