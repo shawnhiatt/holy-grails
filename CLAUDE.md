@@ -568,6 +568,17 @@ style={{ height: "100dvh" }}
 
 `100dvh` adjusts to the actual visible area as the browser chrome shows/hides. Supported in all modern browsers (baseline late 2022).
 
+**Standalone PWA exception (the app root).** `100dvh` is correct in a browser tab, but in an installed (standalone) iOS PWA it resolves *shorter* than the physical screen — it excludes the home-indicator strip. Because the app root is `overflow: hidden`, the fixed bottom nav then anchors to the root's box and `bottom: 0` lands above the strip, floating the nav above the home indicator. The app root therefore uses the `.app-viewport` class (theme.css), not an inline height:
+
+```css
+.app-viewport { height: 100dvh; }                 /* browser: clears chrome */
+@media all and (display-mode: standalone) {
+  .app-viewport { height: 100vh; }                /* installed PWA: fills the true screen */
+}
+```
+
+Do not move the app-root height back to an inline `100dvh` — that reintroduces the floating-nav bug in the installed PWA. Splash/loading screens keep plain `100dvh` (they have no fixed bottom nav, so the standalone quirk doesn't surface).
+
 ### Input Font Size (iOS Auto-Zoom Prevention)
 All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zooms on inputs smaller than 16px. This is a hard rule.
 
@@ -715,7 +726,7 @@ Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 - **Theme-aware surface** (reads `isDarkMode`):
   - Dark: background `linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)` (derived from `--c-surface-alt` → `--c-bg`), top border `rgba(172,222,242,0.08)`, active `#EBFD00`, inactive `#D1D8DF`
   - Light: background `linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)`, top border `#D2D8DE`, active `#0C284A` (navy, matching desktop nav — yellow does not read on a light bar), inactive `rgba(12,40,74,0.65)`
-- The PWA standalone `.bottom-tab-bar` override has been removed — flush bar requires no override
+- The nav itself needs no PWA-standalone override — it stays flush via the app-root height fix (see the `.app-viewport` note under "Full-Screen Viewport Height"). The `.bottom-tab-bar` class on the `<nav>` is a styling hook with no rules attached; keeping the nav flush is the app root's job, not the nav's.
 
 5 items:
 

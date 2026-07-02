@@ -274,3 +274,17 @@ input, textarea, select {
   font-size: 14px !important;
   font-family: 'DM Sans', system-ui, sans-serif !important;
 }
+/* Full-viewport app root.
+   - Browser (Safari/Chrome): 100dvh so the fixed bottom nav clears the
+     dynamic browser chrome.
+   - Installed PWA (standalone): 100vh. Standalone has no chrome, and under
+     100dvh iOS mis-anchors the fixed bottom nav, floating it above the home
+     indicator. 100vh fills the true screen there. */
+.app-viewport {
+  height: 100dvh;
+}
+@media all and (display-mode: standalone) {
+  .app-viewport {
+    height: 100vh;
+  }
+}
