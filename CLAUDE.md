@@ -70,7 +70,7 @@ All Convex queries and mutations (except the `oauth.ts` handshake) require a val
 **Session token flow:**
 `auth-callback.tsx` makes a single server-side action call — `oauth.completeLogin(oauth_token, oauth_token_secret, oauth_verifier)` — which exchanges the verifier for an access token, derives the username from Discogs `/oauth/identity` (the client can NEVER supply a username), and upserts the user via the internal `users.upsert` mutation. Raw OAuth access tokens never reach the client. The returned `sessionToken` is stored in `app-context.tsx` state, persisted to `localStorage` as `hg_session_token`, and threaded through all Convex mutation/query call sites.
 
-**Per-device sessions (`sessions` table):**
+**Per-device sessions (`auth_sessions` table):**
 Every OAuth login mints a FRESH token as its own row in the `sessions` table (token rotation), so one device's login never invalidates another device's session. Sign-out (`users.clearSession`) deletes only the calling device's row — the user record (OAuth tokens, sync metadata) stays, so the next login boots instantly from cache. Sessions expire 90 days after mint (`SESSION_TTL_MS` in `authHelper.ts`); expired rows are pruned at login, and `resolveSession` also honors the legacy single-token fields on `users` read-only until those age out. `users.deleteAllUserData` clears all sessions.
 
 **Session token persistence (`hg_session_token`):**
@@ -82,7 +82,7 @@ The `setSessionToken` wrapper in `app-context.tsx` syncs every token change to `
 - `upsert` — INTERNAL mutation, callable only from `oauth.completeLogin`. It must never be made public: a public variant would let any caller claim any username and receive that user's session token (full account takeover).
 
 **Schema change:**
-New `sessions` table (`session_token`, `discogs_username`, `created_at`) with `by_token`/`by_username` indexes. The `session_token`/`session_created_at` fields on `users` are legacy, honored read-only.
+New `auth_sessions` table (`session_token`, `discogs_username`, `created_at`) with `by_token`/`by_username` indexes. The `session_token`/`session_created_at` fields on `users` are legacy, honored read-only. The table is deliberately NOT named `sessions` — an undeclared legacy `sessions` table from the pre-Stacks-rename era still holds old rows in the deployments, and declaring that name fails Convex schema validation.
 
 **Exempt from auth guards:**
 `convex/oauth.ts` functions (`requestToken`, `completeLogin`) are intentionally public — they are the OAuth handshake and must remain unauthenticated. `completeLogin` is safe because the identity it mints a session for comes from the Discogs token exchange itself, not from the caller.

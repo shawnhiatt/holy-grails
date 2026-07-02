@@ -88,7 +88,7 @@ export const upsert = internalMutation({
 
     // Prune expired session rows for this user
     const sessions = await ctx.db
-      .query("sessions")
+      .query("auth_sessions")
       .withIndex("by_username", (q) =>
         q.eq("discogs_username", args.discogs_username)
       )
@@ -97,7 +97,7 @@ export const upsert = internalMutation({
       if (now - s.created_at >= SESSION_TTL_MS) await ctx.db.delete(s._id);
     }
 
-    await ctx.db.insert("sessions", {
+    await ctx.db.insert("auth_sessions", {
       session_token: sessionToken,
       discogs_username: args.discogs_username,
       created_at: now,
@@ -177,7 +177,7 @@ export const clearSession = mutation({
     // and the user record (OAuth tokens, sync metadata, caches) stay put,
     // so the next login boots instantly from cache.
     const session = await ctx.db
-      .query("sessions")
+      .query("auth_sessions")
       .withIndex("by_token", (q) => q.eq("session_token", args.sessionToken))
       .first();
     if (session) {
@@ -325,7 +325,7 @@ export const deleteAllUserData = mutation({
 
     // All sessions (every device)
     const sessions = await ctx.db
-      .query("sessions")
+      .query("auth_sessions")
       .withIndex("by_username", (q) => q.eq("discogs_username", username))
       .collect();
     for (const row of sessions) await ctx.db.delete(row._id);
