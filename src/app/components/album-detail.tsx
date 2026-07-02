@@ -1800,8 +1800,6 @@ function ValueSection({ releaseId, lowestPrice, numForSale }: {
     .filter((sug) => VALUE_GRADES.includes(sug.short))
     .sort((a, b) => VALUE_GRADES.indexOf(a.short) - VALUE_GRADES.indexOf(b.short));
 
-  const listingsUrl = `/api/go?u=${encodeURIComponent(`https://www.discogs.com/sell/release/${releaseId}`)}`;
-
   return (
     <div className="px-4 pb-4">
       <div className="rounded-[10px] p-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
@@ -1813,14 +1811,7 @@ function ValueSection({ releaseId, lowestPrice, numForSale }: {
             <>
               Lowest ask {formatPrice(lowestPrice, gradeRows[0]?.currency || "USD", false)}
               {" · "}
-              <a
-                href={listingsUrl}
-                target="_blank"
-                rel="noopener"
-                style={{ color: "var(--c-link)", fontWeight: 600, textDecoration: "none", touchAction: "manipulation" }}
-              >
-                {numForSale} for sale
-              </a>
+              {numForSale} for sale
             </>
           ) : (
             <span style={{ color: "var(--c-text-secondary)" }}>No copies for sale</span>
