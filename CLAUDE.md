@@ -105,7 +105,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 **convex/discogs.ts** — `"use node"` directive. Public actions (all take `sessionToken` as the first argument): `syncSelf`, `syncFollowedUser`, `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchSyncSignals`, `proxyFetchWantlist`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`, `proxyAddToCollection`, `proxySearchDatabase`, `proxyFetchMasterVersions`, `proxyFetchMarketData`.
 
 **Standalone database search & market lookup:**
-- `proxySearchDatabase` — searches the Discogs database. `type` is `master` (default) or `release` only; `format=Vinyl` and pagination are appended server-side (the client cannot opt out of the vinyl filter). Splits the combined "Artist - Title" result string and returns a trimmed row shape (`id`, `type`, `masterId`, `title`, `artist`, `year`, `thumb`, `cover`, `label`, `catno`, `country`, `format`, `have`, `want`) plus pagination totals.
+- `proxySearchDatabase` — searches the Discogs database. `type` is `master` (default) or `release` only; pagination is appended server-side. `format=Vinyl` is applied to **release searches only** — masters aren't format-specific objects and coupling them to a format filter starves results (masters with vinyl pressings can return zero rows). Vinyl-only still holds: the pressing picker's versions call hard-codes `format=Vinyl`, so nothing non-vinyl is ever addable. Splits the combined "Artist - Title" result string and returns a trimmed row shape (`id`, `type`, `masterId`, `title`, `artist`, `year`, `thumb`, `cover`, `label`, `catno`, `country`, `format`, `have`, `want`) plus pagination totals.
 - `proxyFetchMasterVersions` — vinyl pressings of a master, filtered/paginated server-side (`country`, `year`→`released`, `label` native params; sorted `released asc`). Returns per-version `inCollection`/`inWantlist`/`haveCount` from `stats`, filter facets (when the API provides them), `mainReleaseId` (fetched once on the unfiltered first page), and pagination totals.
 - `proxyFetchMarketData` — condition-tiered price suggestions from `/marketplace/price_suggestions/{id}`. **Returns `null` when the user has no Discogs seller settings** — all callers must treat `null` as "no data" and degrade silently. Never surface an error or a prompt to configure seller settings.
 - `proxyFetchRelease` now also returns Tier 1 market signal: `lowestPrice` (number | null, lowest *ask*) and `numForSale`. Zero extra requests — these ride on the existing release fetch.
@@ -180,7 +180,7 @@ src/
       depths-album-card.tsx
       dominant-color-card.tsx  # Reusable card wrapper — extracts dominant color from album artwork via canvas, sets CSS custom properties (--dc-bg, --dc-text, etc.) for children. Uses /img-proxy/ to avoid CORS canvas tainting.
       discogs-api.ts     # Types, constants, pure utilities (HTTP functions removed — see Discogs API Proxy)
-      discogs-search-sheet.tsx  # "Look It Up" — standalone Discogs database search on SlideOutPanel (z-[85]/z-[80]). Master-first results with a drill-in pressing picker; barcode-like queries route to release search. Opened from the Search button in the mobile header and desktop top nav. Hands a chosen pressing to ReleaseDetailPanel via setSelectedFeedAlbum.
+      discogs-search-sheet.tsx  # "Look It Up" — standalone Discogs database search as a FULL-SCREEN panel (z-[85], no backdrop, Discogs-app style: fixed search bar at top, back arrow to dismiss — a bottom sheet put the iOS keyboard on top of the panel; do not convert it back to SlideOutPanel). Master-first results with a drill-in pressing picker; barcode-like queries route to release search; empty results auto-fall back master → release → normalized query (diacritics/dots stripped), with one silent retry on transient errors. Opened from the Search button in the mobile header and desktop top nav. Hands a chosen pressing to ReleaseDetailPanel via setSelectedFeedAlbum.
       feed-screen.tsx
       filter-drawer.tsx
       folders-screen.tsx  # Folder management subview (accessed from Settings > Tools > Folders). Create, rename, delete folders. Folders 0/1 are read-only. Uses inline edit and confirmation modal patterns from stacks.tsx.
@@ -827,8 +827,7 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Stack picker mobile backdrop | `z-[80]` | stack-picker-sheet.tsx |
 | Add Albums drawer sheet | `z-[85]` | add-albums-drawer.tsx |
 | Add Albums drawer backdrop | `z-[80]` | add-albums-drawer.tsx |
-| Look It Up search sheet | `z-[85]` | discogs-search-sheet.tsx |
-| Look It Up search backdrop | `z-[80]` | discogs-search-sheet.tsx |
+| Look It Up search panel (full-screen, no backdrop) | `z-[85]` | discogs-search-sheet.tsx |
 | Filter drawer panel | `z-[70]` | filter-drawer.tsx |
 | Filter drawer backdrop | `z-[60]` | filter-drawer.tsx |
 | Desktop stack picker | `z-50` | stack-picker-sheet.tsx |
