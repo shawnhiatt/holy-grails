@@ -28,6 +28,7 @@ export const upsert = mutation({
     want_view_mode: v.optional(v.string()),
     default_screen: v.optional(v.string()),
     default_collection_sort: v.optional(v.string()),
+    recent_searches: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -51,6 +52,7 @@ export const upsert = mutation({
       if (args.want_view_mode !== undefined) updates.want_view_mode = args.want_view_mode;
       if (args.default_screen !== undefined) updates.default_screen = args.default_screen;
       if (args.default_collection_sort !== undefined) updates.default_collection_sort = args.default_collection_sort;
+      if (args.recent_searches !== undefined) updates.recent_searches = args.recent_searches;
 
       await ctx.db.patch(existing._id, updates);
       return existing._id;
@@ -62,6 +64,7 @@ export const upsert = mutation({
       hide_purge_indicators: args.hide_purge_indicators ?? false,
       hide_gallery_meta: args.hide_gallery_meta ?? false,
       shake_to_random: args.shake_to_random ?? false,
+      ...(args.recent_searches !== undefined ? { recent_searches: args.recent_searches } : {}),
     });
   },
 });
