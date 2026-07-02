@@ -102,7 +102,13 @@ All authenticated `useQuery` subscriptions in `app-context.tsx` use a shared `au
 
 All authenticated Discogs API calls go through server-side Convex actions in `convex/discogs.ts`. The client never calls the Discogs API directly. Actions look up the user's credentials server-side via `getUserCredentials` (an internalQuery in `convex/discogsHelpers.ts`) and sign requests using HMAC-SHA1.
 
-**convex/discogs.ts** — `"use node"` directive. Public actions (all take `sessionToken` as the first argument): `syncSelf`, `syncFollowedUser`, `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchSyncSignals`, `proxyFetchWantlist`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`, `proxyAddToCollection`.
+**convex/discogs.ts** — `"use node"` directive. Public actions (all take `sessionToken` as the first argument): `syncSelf`, `syncFollowedUser`, `proxyFetchIdentity`, `proxyFetchUserProfile`, `proxyFetchSyncSignals`, `proxyFetchWantlist`, `proxyFetchCollectionValue`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyRemoveFromCollection`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchRelease`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`, `proxyUpdateProfile`, `proxyAddToCollection`, `proxySearchDatabase`, `proxyFetchMasterVersions`, `proxyFetchMarketData`.
+
+**Standalone database search & market lookup:**
+- `proxySearchDatabase` — searches the Discogs database. `type` is `master` (default) or `release` only; `format=Vinyl` and pagination are appended server-side (the client cannot opt out of the vinyl filter). Splits the combined "Artist - Title" result string and returns a trimmed row shape (`id`, `type`, `masterId`, `title`, `artist`, `year`, `thumb`, `cover`, `label`, `catno`, `country`, `format`, `have`, `want`) plus pagination totals.
+- `proxyFetchMasterVersions` — vinyl pressings of a master, filtered/paginated server-side (`country`, `year`→`released`, `label` native params; sorted `released asc`). Returns per-version `inCollection`/`inWantlist`/`haveCount` from `stats`, filter facets (when the API provides them), `mainReleaseId` (fetched once on the unfiltered first page), and pagination totals.
+- `proxyFetchMarketData` — condition-tiered price suggestions from `/marketplace/price_suggestions/{id}`. **Returns `null` when the user has no Discogs seller settings** — all callers must treat `null` as "no data" and degrade silently. Never surface an error or a prompt to configure seller settings.
+- `proxyFetchRelease` now also returns Tier 1 market signal: `lowestPrice` (number | null, lowest *ask*) and `numForSale`. Zero extra requests — these ride on the existing release fetch.
 
 **Server-side sync loops:**
 - `syncSelf` — the user's own collection/wantlist sync runs entirely inside this action: paginated fetch (shared `fetchCollectionInternal`/`fetchWantlistInternal` helpers), vinyl-only filter, diff writes straight to the Convex `collection`/`wantlist` caches via `applyDiff`, collection value, profile, and sync metadata. Synced data never round-trips through the client; the client receives it reactively through its cache subscriptions. Per-page progress is written to the `sync_status` table.
@@ -117,7 +123,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 
 **convex/oauth.ts** — OAuth handshake actions (`requestToken`, `completeLogin`). `completeLogin` performs the access-token exchange, derives the username server-side from `/oauth/identity`, and calls the internal `users.upsert`. Reads `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` from `process.env`. Still uses PLAINTEXT signing (acceptable for transient token exchange over HTTPS).
 
-**discogs-api.ts** — HTTP functions removed. File now contains only: exported types (`Album`, `WantItem`, `Stack`, `FollowedUser`, `FeedAlbum`, `PurgeTag`, `UserProfile`, `CollectionValue`, `MarketData`, `ConditionPrice`, `MarketplaceStats`), constants (`CONDITION_GRADES`, `CONDITION_SHORT`), pure utility functions (`normalizeCondition`, `buildFieldMap`), and in-memory market/collection value cache functions. Do not re-add HTTP functions here.
+**discogs-api.ts** — HTTP functions removed. File now contains only: exported types (`Album`, `WantItem`, `Stack`, `FollowedUser`, `FeedAlbum`, `PurgeTag`, `UserProfile`, `CollectionValue`), constants (`CONDITION_GRADES`, `CONDITION_SHORT`), and pure utility functions (`normalizeCondition`, `buildFieldMap`). Do not re-add HTTP functions here.
 
 **`DiscogsAuth` type removed.** The client no longer holds raw OAuth credentials. Auth is identified entirely by `sessionToken`.
 
@@ -173,7 +179,8 @@ src/
       crate-browser.tsx
       depths-album-card.tsx
       dominant-color-card.tsx  # Reusable card wrapper — extracts dominant color from album artwork via canvas, sets CSS custom properties (--dc-bg, --dc-text, etc.) for children. Uses /img-proxy/ to avoid CORS canvas tainting.
-      discogs-api.ts     # Types, constants, pure utilities, and in-memory caches (HTTP functions removed — see Discogs API Proxy)
+      discogs-api.ts     # Types, constants, pure utilities (HTTP functions removed — see Discogs API Proxy)
+      discogs-search-sheet.tsx  # "Look It Up" — standalone Discogs database search on SlideOutPanel (z-[85]/z-[80]). Master-first results with a drill-in pressing picker; barcode-like queries route to release search. Opened from the Search button in the mobile header and desktop top nav. Hands a chosen pressing to ReleaseDetailPanel via setSelectedFeedAlbum.
       feed-screen.tsx
       filter-drawer.tsx
       folders-screen.tsx  # Folder management subview (accessed from Settings > Tools > Folders). Create, rename, delete folders. Folders 0/1 are read-only. Uses inline edit and confirmation modal patterns from stacks.tsx.
@@ -181,7 +188,6 @@ src/
       following-screen.tsx
       install-nudge.tsx   # Dismissible PWA install nudge bottom sheet for mobile browser users. Fixed-position sheet (z-[150]) with backdrop (z-[149]). Detects standalone mode, listens for beforeinstallprompt (Android), shows instructional copy (iOS). Dismissal persisted to localStorage. Mounted from App.tsx.
       last-played-utils.ts
-      market-value.tsx
       motion-tokens.ts
       navigation.tsx
       no-discogs-card.tsx
@@ -234,7 +240,7 @@ convex/                  # Convex backend functions and schema
   wantlist.ts        # Wantlist cache: getByUsername, replaceAll, addItem, removeItem
   preferences.ts
   lib/
-    condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail, market-value, reports-screen.
+    condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail (incl. the Value section), reports-screen.
 src/
   main.tsx
 ```
@@ -588,26 +594,32 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **In-memory cache**: A module-level `Map<number, ReleaseData>` persists across panel open/close within the same session. No Convex persistence — this is session-scoped enrichment data.
 - **Stale guard**: The `useEffect` fetch uses a `let stale = false` + cleanup return pattern to prevent state updates after the component unmounts or the album changes.
 - **Hook ordering**: All hooks (`useState`, `useEffect`, `useCallback`, `useMemo`, `useAction`) must be called unconditionally before the two early returns (want item guard and null album guard). Moving hooks below early returns causes "Rendered fewer hooks than expected" errors.
-- **ReleaseData shape**: `{ country, notes, tracklist, credits, community, identifiers, genres, styles }`.
+- **ReleaseData shape**: `{ country, notes, tracklist, credits, community, identifiers, genres, styles, lowestPrice, numForSale }`. `lowestPrice`/`numForSale` power the Value section (see below).
 - **Mobile hero image**: On mobile (`hideHeader === true`), the panel renders a padded square cover image (`px-4 pt-3`, `rounded-[12px]`, `aspect-square`, `1px solid var(--c-border-strong)`) with a gradient scrim overlay (`linear-gradient(to top, rgba(0,0,0,0.82), transparent)`) covering the bottom 55%. Album title (22px, Bricolage Grotesque 700, white) and artist · year (15px, weight 500, white 80%) float as text on the gradient. Desktop side panel layout is unchanged.
 - **Thumbnail carousel**: `mt-3` spacing below the hero image.
 - **Purge tag**: Renders in its own `px-4 pb-2` row below the carousel (left-aligned), only when present and not in edit mode. No longer part of the title block.
 - **"Your Copy" card header**: On mobile, the metadata card has a "YOUR COPY" section label (16px, fontWeight 600, `var(--c-text)`) matching other section heading styles, with the edit pencil button right-aligned in the header row.
-- **Panel section order**: Hero → Thumbnail carousel → Purge tag → Your Copy (with section header, Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Discogs link → Mark as Played → Enriched Tabs (mobile) or accordion sections (desktop) → Community (compact row) → Market Value → Stacks → Rate for Purge.
+- **Panel section order**: Hero → Thumbnail carousel → Purge tag → Your Copy (with section header, Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Mark as Played → Enriched Tabs (mobile) or accordion sections (desktop) → Community (compact row) → Stacks → Rate for Purge. (`AlbumDetailPanel` has no Value section — that lives only in `ReleaseDetailPanel`; see below.)
 - **Enriched content tabs (mobile)**: On mobile, Tracklist, Credits, Pressing Notes, and Identifiers render as a sticky horizontal tab bar instead of accordion sections. Tabs with no data are hidden after the enriched fetch resolves. During loading, all four tabs show at `opacity: 0.4` with a skeleton below. Active tab uses `2px solid #EBFD00` underline indicator. Tab bar uses `position: sticky; top: 0; z-index: 10` with a background matching the sheet's hardcoded background (`isDarkMode ? "#132B44" : "#FFFFFF"`). An IntersectionObserver sentinel pattern applies `paddingTop: 48px` only when the tab bar is stuck, clearing the close button. `tabBarStuck` state resets on album change. On desktop, the original accordion sections remain.
 - **Section component props**: `hideTitle` prop added to `TracklistSection`, `CreditsSection`, `PressingNotesSection` — suppresses section headings when rendered inside tab content on mobile. `hideToggle` prop added to `TracklistSection` — shows full tracklist without Show More truncation on mobile tabs.
 - **Inner scroll container**: The `div.flex-1.overflow-y-auto` inside `AlbumDetailPanel` conditionally applies `overflow-y-auto` only on desktop (`hideHeader === false`). On mobile, `overflow-y` is removed so `position: sticky` resolves against `scrollRef` in `SlideOutPanel`.
 - **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section (or Pressing Notes tab on mobile). Never merge these.
 - **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
-- **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads, matching the market-value pattern.
+- **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads.
 - **Sheet open gate (`App.tsx`):** The desktop side panel and mobile sheet open condition checks `selectedAlbum || selectedWantItem || selectedFeedAlbum`. Any new panel type added to `AlbumDetailPanel` routing must also be added to this gate or the sheet will silently refuse to open.
 - **DestructiveButton** — shared two-tap confirm button component, local to `album-detail.tsx`. Props: `label`, `confirming`, `loading`, `onClick`, `variant?: "destructive" | "neutral"` (default: `"destructive"`). Destructive variant: outlined white text (first tap) → solid `#FF2D78` fill (confirm tap) → `Disc3` spinner while async in flight. Neutral variant: `var(--c-surface)` bg + `var(--c-border-strong)` border + `var(--c-text)` color in all states, no pink. Used by `WantItemDetailPanel`, `AlbumDetailPanel` (remove from collection) with `destructive`; `ReleaseDetailPanel` (remove from wantlist) with `neutral`.
 
-`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, and action buttons. Does not include Mark as Played, Purge, Edit, or stack picker. Action buttons ("Add to Collection", "Add to Wantlist", "Remove from Wantlist") all use neutral surface style — `var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color. No leading icons. "View Your Copy" (shown when already in collection) retains its green surface style. "Remove from Wantlist" uses `DestructiveButton` with `variant="neutral"`.
+`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following, and pressings chosen in "Look It Up"). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, the **Value section**, and action buttons. Does not include Mark as Played, Purge, Edit, or stack picker. Action buttons ("Add to Collection", "Add to Wantlist", "Remove from Wantlist") all use neutral surface style — `var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color. No leading icons. "View Your Copy" (shown when already in collection) retains its green surface style. "Remove from Wantlist" uses `DestructiveButton` with `variant="neutral"`.
+
+**Value section (`ReleaseDetailPanel` only)** — the record-store price lookup. A prior full market-value attempt was abandoned as inaccurate/over-complicated; this is the deliberately minimal replacement. Presentation rules are load-bearing, not cosmetic:
+- **Tier 1, always**: `Lowest ask {price} · {N} for sale` from `proxyFetchRelease`'s `lowestPrice`/`numForSale`. Labeled "ask," never "value." Zero listings → `No copies for sale`.
+- **Tier 2, when available**: suggested prices for **VG, VG+, NM only** (not all eight grades) from `proxyFetchMarketData`, rounded to whole units with a `~` prefix, colored via `conditionGradeColor`, with the microcopy `From Discogs sales history.` `null` (no seller settings, or sparse data) → Tier 1 only, silently. No error/empty states, no nag.
+- Session-scoped `marketDataCache` (module-level `Map`), mirroring `releaseDataCache`.
+- **The "N for sale" text is the one sanctioned outbound Discogs link** (`/sell/release/{id}`). It must go through the `/go.html` redirector (see below) — never a raw `discogs.com` href. Reach to `AlbumDetailPanel`/`WantItemDetailPanel` is a deliberate future decision, not shipped.
+
+**Outbound Discogs links & the `public/go.html` redirector.** Tapping a raw `discogs.com` link inside the installed PWA triggers the Discogs app's iOS Universal Link and strands the user on its home screen. `public/go.html` is a same-origin redirector: links point at `/go.html?u={encoded url}` (a same-origin tap, so no Universal Link fires), and `go.html` validates `u` against a `https://www.discogs.com/` allowlist and `location.replace()`s to it (a programmatic navigation iOS does not hand to the native app). It is excluded from the service-worker navigation fallback in `vite.config.ts` (`navigateFallbackDenylist`), or the SW would serve `index.html` and the redirect would never run. This is the required pattern for any outbound Discogs link. The blanket "View on Discogs" link removal otherwise stands — the Value section listings link is the single exception.
 
 Stack picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper). Stack picker is now accessed via (1) the `Music` icon button on the Recommended card in the Feed screen, and (2) the inline Save for Later accordion in `album-detail.tsx`.
-
-"View on Discogs" links removed app-wide from all album/release contexts. OAuth flows unaffected. `MarketValueSection` removed from `WantItemDetailPanel` and `ReleaseDetailPanel` — only present in collection `AlbumDetailPanel`.
 
 ### Search/Filter Row
 
@@ -756,6 +768,12 @@ Muted UserMinus button (var(--c-text-muted), NOT destructive red) right.
 Back calls `onBackFromProfile`. Unfollow calls `onUnfollowUser` (triggers
 existing confirmation modal — does not unfollow directly).
 
+The shared right-side button group (`navButtons`, used by Variants A–D)
+leads with a **Search button** that opens the "Look It Up" sheet via
+`setShowDiscogsSearch(true)` — present on every screen except the Following
+profile sub-view, so the record-store lookup is one tap from a cold open.
+Then the sync chip (when syncing), Users icon, and avatar.
+
 Title truncation on all variants: `white-space: nowrap`,
 `overflow: hidden`, `text-overflow: ellipsis`, `min-width: 0`,
 `flex: 1` on title wrapper. Right button group is `flex-shrink: 0`.
@@ -765,10 +783,10 @@ Per-screen internal title bars have been removed from all screens —
 do not re-add them.
 
 ### Desktop (>= 1024px)
-Horizontal top nav with 8 items split left/center/right. Logo centered. Both groups are `flex-1`.
+Horizontal top nav with 9 items split left/center/right. Logo centered. Both groups are `flex-1`.
 
 **Left group:** Feed > Collection > Wantlist > Stacks
-**Right group:** Following > Purge > Insights > Settings > theme toggle
+**Right group:** Look It Up (Search) > Following > Purge > Insights > Settings > theme toggle
 
 Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarChart3`. Active state: `#EBFD00` icon + translucent background highlight.
 
@@ -798,6 +816,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarCha
 | Stack picker mobile backdrop | `z-[80]` | stack-picker-sheet.tsx |
 | Add Albums drawer sheet | `z-[85]` | add-albums-drawer.tsx |
 | Add Albums drawer backdrop | `z-[80]` | add-albums-drawer.tsx |
+| Look It Up search sheet | `z-[85]` | discogs-search-sheet.tsx |
+| Look It Up search backdrop | `z-[80]` | discogs-search-sheet.tsx |
 | Filter drawer panel | `z-[70]` | filter-drawer.tsx |
 | Filter drawer backdrop | `z-[60]` | filter-drawer.tsx |
 | Desktop stack picker | `z-50` | stack-picker-sheet.tsx |
@@ -843,12 +863,14 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Following feed cache in Convex — powers Feed Recent Activity without requiring Following screen hydration
 - Wantlist cached in Convex — synced alongside collection with 24h TTL
 - `master_id` matching for "In Collection" and heart state across different pressings
+- **Standalone Discogs search ("Look It Up")** — `discogs-search-sheet.tsx`: master-first database search with a drill-in vinyl pressing picker (server-side country/year filtering, pinned most-collected row), barcode-like queries routed to release search, handoff to `ReleaseDetailPanel`. Makes the app usable without touching Discogs — add to collection/wantlist and check market value from search results.
+- **Record-store price lookup** — Value section in `ReleaseDetailPanel` (lowest ask + N-for-sale + VG/VG+/NM suggestions), with an outbound listings link via the `public/go.html` same-origin redirector (avoids the iOS PWA→Discogs-app Universal Link trap).
 - Deployed to Vercel — live at holygrails.app (custom domain) and holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope
 - Listening logs — do not add any listen tracking beyond last-played timestamp
 - Seller/marketplace tools
-- Full Discogs database browsing (link out to Discogs instead)
+- Full Discogs database *browsing* — artist pages, label discographies (link out instead). Database **search-to-add and price lookup** ("Look It Up") ARE in scope.
 - Native iOS app — this is a PWA only
 
 ### Known Issues (do not fix without explicit instruction)
