@@ -9,7 +9,7 @@ import { useApp } from "./app-context";
 import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButtonText, purgeToast, purgeClearToast } from "./purge-colors";
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
-import { CONDITION_GRADES, type WantItem, type FeedAlbum } from "./discogs-api";
+import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
 import { useAction, useQuery } from "convex/react";
 import { SwipeToDelete } from "./swipe-to-delete";
 import { api } from "../../../convex/_generated/api";
@@ -80,6 +80,8 @@ interface ReleaseData {
   identifiers: { type: string; value: string }[];
   genres: string[];
   styles: string[];
+  lowestPrice?: number | null;
+  numForSale?: number;
   images?: Array<{
     uri: string;
     uri150: string;
@@ -1741,6 +1743,113 @@ function formatStatNumber(n: number): string {
   return String(n);
 }
 
+// Session-scoped cache for condition-tiered price suggestions (Tier 2)
+const marketDataCache = new Map<number, { condition: string; value: number; currency: string }[] | null>();
+
+const VALUE_GRADES = ["VG", "VG+", "NM"];
+
+function formatPrice(value: number, currency: string, approx: boolean): string {
+  const rounded = approx ? Math.round(value) : value;
+  let out: string;
+  try {
+    out = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: approx ? 0 : 2,
+    }).format(rounded);
+  } catch {
+    out = `${rounded} ${currency}`;
+  }
+  return approx ? `~${out}` : out;
+}
+
+function ValueSection({ releaseId, lowestPrice, numForSale }: {
+  releaseId: number;
+  lowestPrice: number | null;
+  numForSale: number;
+}) {
+  const { sessionToken, isDarkMode } = useApp();
+  const fetchMarketData = useAction(api.discogs.proxyFetchMarketData);
+  const [suggestions, setSuggestions] = useState<{ condition: string; value: number; currency: string }[] | null>(
+    () => marketDataCache.get(releaseId) ?? null
+  );
+
+  useEffect(() => {
+    if (!sessionToken) return;
+    if (marketDataCache.has(releaseId)) {
+      setSuggestions(marketDataCache.get(releaseId) ?? null);
+      return;
+    }
+    let stale = false;
+    setSuggestions(null);
+    fetchMarketData({ sessionToken, releaseId })
+      .then((data) => {
+        const rows = (data as { condition: string; value: number; currency: string }[] | null) ?? null;
+        marketDataCache.set(releaseId, rows);
+        if (!stale) setSuggestions(rows);
+      })
+      .catch(() => {
+        if (!stale) setSuggestions(null);
+      });
+    return () => { stale = true; };
+  }, [releaseId, sessionToken, fetchMarketData]);
+
+  // Three grades only — the bins store inventory actually comes in
+  const gradeRows = (suggestions ?? [])
+    .map((sug) => ({ ...sug, short: CONDITION_SHORT[sug.condition] || "" }))
+    .filter((sug) => VALUE_GRADES.includes(sug.short))
+    .sort((a, b) => VALUE_GRADES.indexOf(a.short) - VALUE_GRADES.indexOf(b.short));
+
+  const listingsUrl = `/go.html?u=${encodeURIComponent(`https://www.discogs.com/sell/release/${releaseId}`)}`;
+
+  return (
+    <div className="px-4 pb-4">
+      <div className="rounded-[10px] p-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--c-text-muted)", textTransform: "uppercase" }}>
+          Value
+        </span>
+        <div className="mt-1.5" style={{ fontSize: "14px", color: "var(--c-text)" }}>
+          {typeof lowestPrice === "number" ? (
+            <>
+              Lowest ask {formatPrice(lowestPrice, gradeRows[0]?.currency || "USD", false)}
+              {" · "}
+              <a
+                href={listingsUrl}
+                target="_blank"
+                rel="noopener"
+                style={{ color: "var(--c-link)", fontWeight: 600, textDecoration: "none", touchAction: "manipulation" }}
+              >
+                {numForSale} for sale
+              </a>
+            </>
+          ) : (
+            <span style={{ color: "var(--c-text-secondary)" }}>No copies for sale</span>
+          )}
+        </div>
+        {gradeRows.length > 0 && (
+          <div className="flex gap-4 mt-2.5">
+            {gradeRows.map((sug) => (
+              <div key={sug.short} className="flex flex-col">
+                <span style={{ fontSize: "11px", fontWeight: 700, color: conditionColor(sug.short, isDarkMode) || "var(--c-text-muted)" }}>
+                  {sug.short}
+                </span>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)" }}>
+                  {formatPrice(sug.value, sug.currency, true)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {gradeRows.length > 0 && (
+          <p className="mt-2" style={{ fontSize: "11px", color: "var(--c-text-faint)" }}>
+            From Discogs sales history.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CommunityRow({ community }: { community: { rating: number | null; ratingCount: number; have: number; want: number } }) {
   const avgRating = community.rating !== null && community.ratingCount > 0
     ? community.rating.toFixed(1)
@@ -2943,6 +3052,15 @@ function ReleaseDetailPanel({
           ) : hasCommunity ? (
             <CommunityRow community={releaseData!.community!} />
           ) : null}
+
+          {/* ═══ Value (market lookup) ═══ */}
+          {releaseData && (
+            <ValueSection
+              releaseId={album.release_id}
+              lowestPrice={releaseData.lowestPrice ?? null}
+              numForSale={releaseData.numForSale ?? 0}
+            />
+          )}
 
           {/* ═══ Enriched Content Tabs ═══ */}
           {(() => {
