@@ -172,6 +172,9 @@ interface AppState {
   // Feed album detail panel (non-collection albums)
   selectedFeedAlbum: FeedAlbum | null;
   setSelectedFeedAlbum: (album: FeedAlbum | null) => void;
+  // Discogs database search sheet ("Look It Up")
+  showDiscogsSearch: boolean;
+  setShowDiscogsSearch: (v: boolean) => void;
   // One-shot deep-link intent for Following screen activity tab ("See all" from Feed)
   followingActivityTabIntent: "collection" | "wantlist" | null;
   setFollowingActivityTabIntent: (t: "collection" | "wantlist" | null) => void;
@@ -257,6 +260,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeFolder, setActiveFolder] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("added-new");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [showDiscogsSearch, setShowDiscogsSearch] = useState(false);
   const [showAlbumDetail, setShowAlbumDetail] = useState(false);
   const [purgeFilter, setPurgeFilter] = useState<PurgeTag | "unrated" | "all">("unrated");
   const [wantFilter, setWantFilter] = useState<"all" | "priority">("all");
@@ -2137,6 +2141,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       renameStack,
       reorderStackAlbums,
       showFilterDrawer,
+      showDiscogsSearch,
+      setShowDiscogsSearch,
       setShowFilterDrawer,
       showAlbumDetail,
       setShowAlbumDetail,
@@ -2265,7 +2271,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
       deleteStack, renameStack, reorderStackAlbums,
-      showFilterDrawer, showAlbumDetail,
+      showFilterDrawer, showAlbumDetail, showDiscogsSearch,
       purgeFilter, wantFilter,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
       lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,

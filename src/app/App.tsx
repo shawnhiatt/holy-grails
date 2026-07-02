@@ -37,6 +37,9 @@ const ReportsScreen = lazy(() =>
 const AlbumDetailPanel = lazy(() =>
   import("./components/album-detail").then((m) => ({ default: m.AlbumDetailPanel }))
 );
+const DiscogsSearchSheet = lazy(() =>
+  import("./components/discogs-search-sheet").then((m) => ({ default: m.DiscogsSearchSheet }))
+);
 const AlbumDetailSheet = lazy(() =>
   import("./components/album-detail").then((m) => ({ default: m.AlbumDetailSheet }))
 );
@@ -77,6 +80,7 @@ class ErrorBoundary extends Component<
 function AppContent() {
   const {
     screen, showAlbumDetail, selectedAlbum, selectedWantItem, selectedFeedAlbum, showFilterDrawer,
+    showDiscogsSearch, setShowDiscogsSearch,
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail, cachedSyncStats,
     setScreen,
     connectDiscogsRequested, clearConnectDiscogsRequest,
@@ -525,6 +529,14 @@ function AppContent() {
 
       <AnimatePresence>
         {showFilterDrawer && <FilterDrawer />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDiscogsSearch && (
+          <Suspense fallback={null}>
+            <DiscogsSearchSheet onClose={() => setShowDiscogsSearch(false)} />
+          </Suspense>
+        )}
       </AnimatePresence>
 
       <StackPickerSheet />
