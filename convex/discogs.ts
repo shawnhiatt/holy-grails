@@ -1757,6 +1757,13 @@ export const proxyAddToCollection = action({
 
 // ─── Standalone database search & market lookup ───
 
+// 23. No-op that warms the "use node" runtime when the Look It Up panel
+// opens, so the first search doesn't also pay the container cold start.
+export const warm = action({
+  args: {},
+  handler: async () => true,
+});
+
 // 20. Search the Discogs database (vinyl-only on release searches; see below)
 export const proxySearchDatabase = action({
   args: {
