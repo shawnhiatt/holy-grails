@@ -15,6 +15,7 @@ there, and sync. This plan closes that gap with in-app Discogs database search.
 |---|---|
 | Add arbitrary release to collection | ❌ Only via a followed user's copy (`ReleaseDetailPanel` → Add to Collection) |
 | Add arbitrary release to wantlist | ❌ Same limitation |
+| Check a record's value at the store | ❌ No per-release market data anywhere in the app (aggregate collection value only) |
 | Edit condition / notes / folder | ✅ Album detail edit mode |
 | Folder management | ✅ Settings → Tools → Folders |
 | Remove from collection / wantlist | ✅ |
@@ -174,7 +175,9 @@ label, dateAdded`. Search results map 1:1; `dateAdded: ""` is safe —
 ### The search sheet
 
 - Built on **`SlideOutPanel`** (per CLAUDE.md: use it for any new mobile
-  panel/sheet). Title: **"Add a Record"**. Desktop: same panel pattern as the
+  panel/sheet). Title: **"Look It Up"** — lookup-first framing (see §6);
+  adding to collection/wantlist is an action inside the detail panel, not the
+  frame of the feature. Desktop: same panel pattern as the
   stack picker's desktop variant, or a modal — decide at build time by
   matching `add-albums-drawer.tsx`.
 - **Sticky search input** at top (mirrors add-albums-drawer): 16px font
@@ -199,10 +202,14 @@ filterable versions table; the picker is the mobile-native mirror of that.
 
 - **Header**: thumb + album title + "{N} pressings" (from
   `pagination.items`). Back chevron returns to search results.
-- **Pinned first row — "Original pressing"**: the master's `main_release`,
-  visually distinguished. Covers the "I just want this album, any version"
-  intent in one tap (the wantlist is release-based, so *some* release must be
-  chosen; this is the sane default).
+- **Pinned first row — "Most collected pressing"**: visually distinguished.
+  Covers the "I just want this album, any version" intent in one tap (the
+  wantlist is release-based, so *some* release must be chosen). API
+  constraint: the versions endpoint cannot sort by community have-count, so
+  pick the max `stats.community.in_collection` across the first 1–2 loaded
+  pages (exact for masters with ≤50 pressings; approximate beyond that, which
+  is fine — dominant pressings surface early). Fall back to the master's
+  `main_release` if stats are missing.
 - **Filter chips**: Country, Year, Label — each applies server-side via the
   versions endpoint's native params (one request per change, never filtering
   302 rows client-side). Options from filter facets if the live API provides
@@ -269,7 +276,74 @@ jump to your version before adding.
 
 ---
 
-## 6. Rate Limiting & Failure Modes
+## 6. The Record-Store Lookup (the real headline use case)
+
+The most common reason a collector opens Discogs in the wild is not adding —
+it's standing in a record store checking what a record is worth against the
+sticker price. The search flow above already does the finding; the missing
+piece is **per-release market value in `ReleaseDetailPanel`**.
+
+**Correction to earlier drafts / CLAUDE.md:** CLAUDE.md references
+`market-value.tsx`, `proxyFetchMarketData`, and `MarketData` /
+`ConditionPrice` / `MarketplaceStats` types as existing. **None of these are
+in the codebase** — only the aggregate `CollectionValue` exists. The lookup
+feature builds per-release market data fresh; CLAUDE.md's stale references
+should be corrected at rollout.
+
+### Two tiers of value data (verified against `docs/` API reference)
+
+**Tier 1 — available to every authenticated user, zero extra requests:**
+`/releases/{id}` already returns `lowest_price` and `num_for_sale`, and
+`proxyFetchRelease` already calls it — it just drops those fields today.
+Extend its return shape and the detail panel can always show:
+
+> **Lowest listed: $22.50 · 58 for sale**
+
+**Tier 2 — condition-tiered price suggestions (the true sticker-price
+comparison):** `/marketplace/price_suggestions/{release_id}` returns a
+suggested price per condition grade ("VG+ → $28"), which is exactly the
+store question. **Caveat: it requires the user to have filled out Discogs
+seller settings**; users who never sell get nothing back. New action
+`proxyFetchMarketData` (#22) wraps it (optionally alongside
+`/marketplace/stats` for buyer-currency-correct lowest price). On 403/empty,
+the section silently shows Tier 1 only — no error state, no nag to configure
+seller settings.
+
+### Value section in `ReleaseDetailPanel`
+
+- New "Value" section in the panel body (below Community, mirroring where
+  CLAUDE.md's section order expects market value to live in
+  `AlbumDetailPanel`). Lazy-loaded on panel open with the skeleton pattern;
+  session-scoped in-memory cache keyed by `release_id`, like
+  `releaseDataCache`.
+- Condition rows use the `conditionGradeColor` spectrum from
+  `src/lib/condition-colors.ts` (the established rule: never re-declare).
+- Currency follows the user's Discogs settings by default (`curr_abbr`
+  available if this ever needs a control — not in scope).
+- Once built, the same section can later serve `AlbumDetailPanel` ("what's my
+  copy worth") and `WantItemDetailPanel` — separate decision, not part of
+  this feature.
+
+### Store-speed implications elsewhere in the plan
+
+- **Entry point**: at the store, the flow must be reachable the moment the
+  app opens. Recommend the Feed header (MobileHeader Variant A) gains a
+  Search icon next to the Users icon → one tap from cold open. The
+  Collection/Wantlist Plus buttons remain the add-framed entries.
+- **Pressing accuracy matters more**: the value of a UK first pressing vs. a
+  70s reissue differs by an order of magnitude — which the pressing picker's
+  catno/country/year rows already handle. This is another argument for
+  master-first + picker over a flat list.
+- **Barcode scanning gets more weight**: typing a barcode works day one
+  (digit-heavy query → direct release search — barcodes are on most post-70s
+  sleeves and identify the exact pressing). The camera scanner (Phase 3)
+  becomes more attractive for store use, but the iOS `BarcodeDetector` gap
+  and new-dependency rule still apply — same decision as before, higher
+  stakes.
+
+---
+
+## 7. Rate Limiting & Failure Modes
 
 - Search shares the 60 req/min budget with sync. Debounce + 3-char minimum
   keeps a typical search session to a handful of requests.
@@ -278,10 +352,13 @@ jump to your version before adding.
 - Searching mid-sync may be slow (sync paces at ~54 req/min). Acceptable; the
   spinner covers it. No special handling in Phase 1.
 - Discogs `500 Query time exceeded` on gnarly queries → same error state.
+- Market value adds at most one extra request per detail-panel open (Tier 1
+  rides free on `proxyFetchRelease`; Tier 2 is one `price_suggestions` call,
+  cached per session).
 
 ---
 
-## 7. Phasing
+## 8. Phasing
 
 **Phase 1 — MVP (likely two focused sessions: backend + sheet, then picker
 polish)**
@@ -293,9 +370,14 @@ polish)**
 - Catno/barcode heuristic → direct release search; "Search pressings instead"
   fallback for masterless releases
 - Plus-button entry points on Collection + Wantlist headers (mobile variant
-  wiring in `navigation.tsx`, context callback, desktop buttons)
+  wiring in `navigation.tsx`, context callback, desktop buttons) + Search
+  icon in the Feed header for store-speed lookup
 - Empty-state CTAs
 - Handoff to `ReleaseDetailPanel` via `setSelectedFeedAlbum`
+- **Value section**: extend `proxyFetchRelease` with
+  `lowest_price`/`num_for_sale` (Tier 1) + `proxyFetchMarketData` (#22) for
+  condition-tiered suggestions (Tier 2, silent fallback without seller
+  settings)
 
 **Phase 2 — Pressings everywhere + refinements**
 - "Other pressings" section in `ReleaseDetailPanel` / `WantItemDetailPanel`
@@ -319,24 +401,29 @@ polish)**
 
 ---
 
-## 8. Open Questions for Shawn
+## 9. Open Questions for Shawn
 
 1. **Folder at add time** — keep "always Uncategorized, edit after" (current
    `addToCollection` behavior), or add a folder picker to the add flow?
    Recommend: keep, revisit in Phase 4.
 2. ~~Search results default — flat release list vs master-grouped?~~
    **Decided: master-first with pressing picker** (the *Let It Bleed* ~302
-   pressings case settled it). Remaining sub-question: is the pinned
-   "Original pressing" row the right default for "any version" wantlist adds,
-   or should the picker nudge toward the most-collected pressing instead?
+   pressings case settled it). ~~Pinned row: original vs most collected?~~
+   **Decided: most collected pressing** (max community have-count across the
+   first 1–2 loaded pages; `main_release` fallback).
 3. **Recent searches** — persist per-user in Convex, or session-only?
    Recommend session-only for MVP (no schema change).
-4. **Feed entry point** — should the home feed also expose "Add a Record"
-   (e.g. in the header or as a feed card), or is Collection/Wantlist enough?
+4. ~~Feed entry point?~~ **Decided: yes** — the record-store lookup use case
+   (§6) needs one-tap access from cold open. Search icon in the Feed header
+   (Variant A).
+5. **Value section reach** — once built for `ReleaseDetailPanel`, should the
+   same section ship in `AlbumDetailPanel` ("what's my copy worth") and
+   `WantItemDetailPanel` in the same phase, or later? Recommend later — keep
+   the session focused per the one-concern rule.
 
 ---
 
-## 9. Scope & CLAUDE.md Amendments at Rollout
+## 10. Scope & CLAUDE.md Amendments at Rollout
 
 CLAUDE.md currently lists **"Full Discogs database browsing (link out to
 Discogs instead)"** as explicitly out of scope. Search-to-add is *not*
@@ -347,12 +434,21 @@ scope line should be amended when this ships to avoid future confusion:
 > Database **search-to-add** is in scope.
 
 Other CLAUDE.md updates at rollout:
-- Proxy actions list: add `proxySearchDatabase` (#20) and
-  `proxyFetchMasterVersions` (#21) — and note the count (the doc currently
-  says both "18" and "19" in different places; fix while in there).
+- Proxy actions list: add `proxySearchDatabase` (#20),
+  `proxyFetchMasterVersions` (#21), `proxyFetchMarketData` (#22) — and fix
+  the count (the doc currently says both "18" and "19" in different places).
+- **Correct the stale market-data references**: CLAUDE.md mentions
+  `market-value.tsx`, `proxyFetchMarketData`, `MarketData`/`ConditionPrice`/
+  `MarketplaceStats` types, and "MarketValueSection removed from
+  WantItemDetailPanel and ReleaseDetailPanel" — none of this exists in the
+  code today. Rewrite those references to describe what this feature actually
+  ships.
 - Z-Index Hierarchy table: add the search sheet at z-[85]/z-[80].
 - File structure: add `discogs-search-sheet.tsx`.
-- MobileHeader variants: document the Plus button on Collection/Wantlist.
+- MobileHeader variants: document the Plus button on Collection/Wantlist and
+  the Search icon on Feed (Variant A).
+- `proxyFetchRelease` return shape: note the added `lowest_price` /
+  `num_for_sale` fields.
 
 Still explicitly out of scope, unchanged: marketplace/seller tools, listening
 logs, native iOS, artist/label browsing, submitting releases to the Discogs
