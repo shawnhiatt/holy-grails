@@ -6,7 +6,11 @@ export default defineSchema({
   // (rotation), other devices keep their own sessions, and sign-out deletes
   // only the calling device's row. Rows expire after SESSION_TTL_MS
   // (authHelper.ts) and are pruned on login.
-  sessions: defineTable({
+  //
+  // Named auth_sessions (not "sessions") because a legacy, undeclared
+  // "sessions" table from the pre-Stacks-rename era still holds old rows in
+  // the deployments — declaring that name fails schema validation.
+  auth_sessions: defineTable({
     session_token: v.string(),
     discogs_username: v.string(),
     created_at: v.number(),

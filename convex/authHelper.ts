@@ -32,7 +32,7 @@ export async function resolveSession(
   if (!sessionToken) return null;
 
   const session = await ctx.db
-    .query("sessions")
+    .query("auth_sessions")
     .withIndex("by_token", (q) => q.eq("session_token", sessionToken))
     .first();
   if (session) {
