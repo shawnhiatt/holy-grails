@@ -1800,7 +1800,7 @@ function ValueSection({ releaseId, lowestPrice, numForSale }: {
     .filter((sug) => VALUE_GRADES.includes(sug.short))
     .sort((a, b) => VALUE_GRADES.indexOf(a.short) - VALUE_GRADES.indexOf(b.short));
 
-  const listingsUrl = `/go.html?u=${encodeURIComponent(`https://www.discogs.com/sell/release/${releaseId}`)}`;
+  const listingsUrl = `/api/go?u=${encodeURIComponent(`https://www.discogs.com/sell/release/${releaseId}`)}`;
 
   return (
     <div className="px-4 pb-4">
@@ -1827,7 +1827,7 @@ function ValueSection({ releaseId, lowestPrice, numForSale }: {
           )}
         </div>
         {gradeRows.length > 0 && (
-          <div className="flex gap-4 mt-2.5">
+          <div className="grid grid-cols-3 mt-2.5">
             {gradeRows.map((sug) => (
               <div key={sug.short} className="flex flex-col">
                 <span style={{ fontSize: "11px", fontWeight: 700, color: conditionColor(sug.short, isDarkMode) || "var(--c-text-muted)" }}>
@@ -1842,7 +1842,7 @@ function ValueSection({ releaseId, lowestPrice, numForSale }: {
         )}
         {gradeRows.length > 0 && (
           <p className="mt-2" style={{ fontSize: "11px", color: "var(--c-text-faint)" }}>
-            From Discogs sales history.
+            Suggested prices from Discogs sales history.
           </p>
         )}
       </div>

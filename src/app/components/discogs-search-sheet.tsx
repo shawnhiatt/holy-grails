@@ -139,6 +139,13 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   } = useApp();
   const searchAction = useAction(api.discogs.proxySearchDatabase);
   const versionsAction = useAction(api.discogs.proxyFetchMasterVersions);
+  const warmAction = useAction(api.discogs.warm);
+
+  // Spin up the "use node" runtime while the user is still typing, so the
+  // first search doesn't pay the container cold start on top of the query
+  useEffect(() => {
+    warmAction({}).catch(() => {});
+  }, [warmAction]);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -499,6 +506,20 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     </button>
   );
 
+  const searchingIndicator = (label: string) => (
+    <div className="flex flex-col items-center gap-3 py-10">
+      <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
+      <span className="inline-flex" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
+        {label}
+        <span aria-hidden className="inline-flex">
+          <span>.</span>
+          <span className="sync-dot-2">.</span>
+          <span className="sync-dot-3">.</span>
+        </span>
+      </span>
+    </div>
+  );
+
   const loadMoreButton = (onClick: () => void, loading: boolean) => (
     <div className="flex justify-center py-3">
       <button
@@ -664,11 +685,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         <div className="w-full max-w-[640px] mx-auto">
           {!pickerMaster ? (
             <>
-              {isSearching && (
-                <div className="flex justify-center py-10">
-                  <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
-                </div>
-              )}
+              {isSearching && searchingIndicator("Searching")}
 
               {!isSearching && searchError && (
                 <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
@@ -682,21 +699,35 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                 </p>
               )}
 
-              {/* Empty state (no query yet): scan shortcut + recent queries */}
+              {/* Empty state (no query yet): centered intro + recent queries */}
               {!isSearching && !searchError && !hasSearched && (
                 <div className="pt-1">
-                  {cameraSupported && (
-                    <button
-                      onClick={() => { inputRef.current?.blur(); setShowScanner(true); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 tappable cursor-pointer text-left"
-                      style={{ touchAction: "manipulation" }}
-                    >
-                      <ScanBarcode size={18} style={{ color: "var(--c-text-muted)" }} />
-                      <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>
-                        Scan a barcode
-                      </span>
-                    </button>
-                  )}
+                  <div
+                    className="flex items-center justify-center text-center px-10"
+                    style={{ minHeight: recentSearches.length > 0 ? "180px" : "45vh" }}
+                  >
+                    <p style={{ fontSize: "17px", lineHeight: 1.55, fontWeight: 500, color: "var(--c-text-secondary)" }}>
+                      Search the Discogs database
+                      {cameraSupported && (
+                        <>
+                          {" or "}
+                          <button
+                            onClick={() => { inputRef.current?.blur(); setShowScanner(true); }}
+                            className="tappable cursor-pointer"
+                            style={{
+                              fontSize: "inherit",
+                              fontWeight: 600,
+                              color: "var(--c-link)",
+                              touchAction: "manipulation",
+                            }}
+                          >
+                            scan a barcode
+                          </button>
+                        </>
+                      )}
+                      .
+                    </p>
+                  </div>
                   {recentSearches.length > 0 && (
                     <>
                       <div className="flex items-center justify-between px-4 pt-3 pb-1">
@@ -773,11 +804,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
             </>
           ) : (
             <>
-              {isLoadingVersions && versions.length === 0 && (
-                <div className="flex justify-center py-10">
-                  <Disc3 size={28} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
-                </div>
-              )}
+              {isLoadingVersions && versions.length === 0 && searchingIndicator("Finding pressings")}
 
               {!isLoadingVersions && versions.length === 0 && (
                 <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
