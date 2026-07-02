@@ -372,7 +372,50 @@ seller settings.
   copy worth") and `WantItemDetailPanel` — separate decision, not part of
   this feature.
 
-### Store-speed implications elsewhere in the plan
+### Linking out to listings — and the PWA → Discogs-app trap
+
+The Value section should link to the actual marketplace listings
+(`https://www.discogs.com/sell/release/{release_id}`) — natural anchor: the
+"58 for sale" text in the Tier 1 line. A previous attempt at outbound Discogs
+links failed in a specific, known way: tapping them in the installed PWA
+bounced to the Discogs iOS app's home screen.
+
+**Diagnosis — Universal Links.** Discogs registers `discogs.com` in its
+apple-app-site-association, so iOS intercepts any user-tap, cross-origin
+navigation to discogs.com and launches the native app instead. The Discogs
+app then fumbles the deep link and lands on its home screen. Standalone PWA
+taps are exactly this kind of navigation.
+
+**Fix — same-origin redirector.** Universal Links only fire on *link-tap*
+navigations to a *different* origin. Both conditions can be broken at once:
+
+1. Ship a static `public/go.html` (Vercel serves the filesystem before the
+   SPA catch-all rewrite — no `vercel.json` change; Vite serves `public/` in
+   dev too).
+2. Links render as
+   `<a href="/go.html?u={encoded discogs URL}" target="_blank" rel="noopener">`
+   — the tap is **same-origin**, so no Universal Link fires; iOS opens the
+   PWA's in-app browser overlay.
+3. `go.html` validates `u` against an allowlist prefix
+   (`https://www.discogs.com/` — prevents open-redirect abuse) and calls
+   `location.replace(u)`. A **programmatic JS navigation is not a link tap**,
+   so iOS does not hand it to the native app — the user lands on Discogs
+   mobile web, in-app.
+
+Notes:
+- Discogs' Smart App Banner may appear on their mobile site — harmless, and
+  the user can choose the app deliberately from there.
+- Same redirector also covers Android App Links (the Discogs Android app
+  registers them too) and is inert on desktop.
+- iOS behavior here is version-sensitive — **must be verified on-device**
+  (iPhone, installed PWA, Discogs app installed) before calling it done.
+  `go.html` body should be blank with the app background color, no
+  interstitial button (a tap from that page would be cross-origin and
+  re-trigger the trap).
+- Scope: this is the *only* outbound Discogs link — the app-wide "View on
+  Discogs" removal stands. The `discogsUrl` field already built on every
+  album in `app-context.tsx` is currently unrendered plumbing; the listings
+  link builds its URL from `release_id` directly.
 
 - **Entry point**: at the store, the flow must be reachable the moment the
   app opens. Recommend the Feed header (MobileHeader Variant A) gains a
@@ -426,6 +469,9 @@ polish)**
   `lowest_price`/`num_for_sale` (Tier 1) + `proxyFetchMarketData` (#22) for
   condition-tiered suggestions (Tier 2, silent fallback without seller
   settings)
+- **Listings link**: `public/go.html` same-origin redirector + "N for sale"
+  anchor in the Value section (on-device iOS verification required — PWA
+  installed, Discogs app installed)
 
 **Phase 2 — Pressings everywhere + refinements**
 - "Other pressings" section in `ReleaseDetailPanel` / `WantItemDetailPanel`
@@ -497,6 +543,11 @@ Other CLAUDE.md updates at rollout:
   the Search icon on Feed (Variant A).
 - `proxyFetchRelease` return shape: note the added `lowest_price` /
   `num_for_sale` fields.
+- Amend the `"View on Discogs" links removed app-wide` rule: the Value
+  section's listings link (via the `go.html` redirector) is the one
+  sanctioned exception. Document the redirector as the required pattern for
+  any future outbound Discogs link (never a raw `discogs.com` href).
+- File structure: add `public/go.html`.
 
 Still explicitly out of scope, unchanged: marketplace/seller tools, listening
 logs, native iOS, artist/label browsing, submitting releases to the Discogs
