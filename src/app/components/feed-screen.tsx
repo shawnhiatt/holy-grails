@@ -23,7 +23,7 @@ import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
-import { formatActivityDate, getInitial } from "../utils/format";
+import { formatActivityDate, getInitial, formatCollectionSince, formatSyncedAgo } from "../utils/format";
 import { shuffle } from "../utils/shuffle";
 import { FormatSpotlight } from "./format-spotlight";
 import { DominantColorCard } from "./dominant-color-card";
@@ -199,37 +199,6 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-/* ── Welcome greeting — time-of-day bucketed, stable per calendar day ── */
-
-const welcomeGreetings: Record<string, string[]> = {
-  morning: [
-    "Mornin', [username].",
-    "Top o' the mornin' to ya, [username].",
-  ],
-  afternoon: [
-    "Howdy, [username].",
-    "Sup, [username]?",
-    "How ya doin', [username]?",
-  ],
-  evening: [
-    "Winding down, [username]?",
-    "Evening, [username].",
-    "Whatcha spinnin', [username]?",
-  ],
-  lateNight: [
-    "Still up, [username]?",
-    "One. more. record.",
-    "Nighty night, [username].",
-    "ZZZzzzzz...",
-  ],
-};
-
-function getWelcomeGreeting(bucket: string, username: string): string {
-  const pool = welcomeGreetings[bucket] ?? welcomeGreetings.afternoon;
-  const dayIndex = new Date().getDate() % pool.length;
-  return pool[dayIndex].replace(/\[username\]/g, username);
-}
-
 /* ── Decades section flavor headers ── */
 
 const decadeFlavor: Record<string, string> = {
@@ -350,6 +319,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     discogsUsername,
     setPurgeTag,
     isSyncing,
+    userAvatar,
+    userProfile,
+    lastSyncedAt,
+    syncFromDiscogs,
     followingAvatars,
     setSelectedWantItem,
     toggleWantPriority,
@@ -551,11 +524,18 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const hasFollowing = followingFeed.length > 0;
 
   // Welcome greeting — stable per calendar day, changes by time-of-day bucket
-  const welcomeGreeting = useMemo(() => {
-    if (!discogsUsername) return "";
-    const bucket = getTimeBucket();
-    return getWelcomeGreeting(bucket, discogsUsername);
-  }, [discogsUsername]);
+  // Manual sync from the feed identity block (mirrors the Settings pattern)
+  const handleSyncNow = useCallback(async () => {
+    if (isSyncing) return;
+    try {
+      const stats = await syncFromDiscogs();
+      toast.success(`Synced \u2014 ${stats.albums} records \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} wantlist items`);
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || "Sync failed. Try again.";
+      console.error("[Discogs Sync Error]", err);
+      toast.error(msg);
+    }
+  }, [isSyncing, syncFromDiscogs]);
 
   // Scroll-linked header transparency
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1931,6 +1911,115 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </div>
   );
 
+  /* ─────────────── IDENTITY BLOCK (above the fold) ─────────────── */
+
+  const syncedAgo = formatSyncedAgo(lastSyncedAt);
+  const statCell = (value: string, label: string, color?: string) => (
+    <div className="flex flex-col">
+      <span
+        style={{
+          fontSize: "20px",
+          fontWeight: 700,
+          fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+          letterSpacing: "-0.3px",
+          color: color || "var(--c-text)",
+          lineHeight: 1.2,
+        }}
+      >
+        {value}
+      </span>
+      <span
+        style={{
+          fontSize: "11px",
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--c-text-muted)",
+          marginTop: "2px",
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+
+  const IdentityBlock = discogsUsername ? (
+    <div className="flex flex-col gap-4">
+      {/* Avatar + username + collecting since */}
+      <div className="flex items-center gap-3">
+        {userAvatar ? (
+          <img
+            src={userAvatar}
+            alt={discogsUsername}
+            className="w-14 h-14 rounded-full object-cover flex-shrink-0"
+            style={{ border: "2px solid var(--c-border)" }}
+          />
+        ) : (
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}
+          >
+            <span style={{ fontSize: "22px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>
+              {getInitial(discogsUsername)}
+            </span>
+          </div>
+        )}
+        <div className="flex-1" style={{ minWidth: 0 }}>
+          <p
+            style={{
+              fontSize: "24px",
+              fontWeight: 700,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              color: "var(--c-text)",
+              letterSpacing: "-0.4px",
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "100%",
+            }}
+          >
+            {discogsUsername}
+          </p>
+          {userProfile?.registered && (
+            <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)", marginTop: "1px" }}>
+              Collecting since {formatCollectionSince(userProfile.registered)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Collection stats */}
+      <div className="flex items-start gap-8">
+        {statCell(albums.length.toLocaleString(), albums.length === 1 ? "Record" : "Records")}
+        {statCell(wants.length.toLocaleString(), "Wantlist")}
+        {hasCollectionValue && statCell(formatCurrency(collectionValue!.median), "Value", "#009A32")}
+      </div>
+
+      {/* Sync status */}
+      <div className="flex items-center gap-2" style={{ fontSize: "13px", color: "var(--c-text-muted)" }}>
+        {isSyncing ? (
+          <>
+            <Disc3 size={13} className="disc-spinner" />
+            <span>Syncing</span>
+          </>
+        ) : (
+          <>
+            {syncedAgo && <span>Synced {syncedAgo}</span>}
+            {syncedAgo && <span aria-hidden>·</span>}
+            <button
+              onClick={handleSyncNow}
+              className="tappable cursor-pointer"
+              style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-link)", touchAction: "manipulation" }}
+            >
+              Sync Now
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   /* ─────────────── RECOMMENDED CARD ─────────────── */
 
   /** Standard card for recommended album — uses dominant color extraction */
@@ -1956,7 +2045,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             lineHeight: 1.4,
           }}
         >
-          How about you give this a spin?
+          Give this one a spin.
         </p>
         <DominantColorCard
         imageUrl={album.cover}
@@ -2084,22 +2173,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
               <div className="flex flex-col gap-[32px]">
-                {/* 0. Welcome greeting */}
-                {welcomeGreeting && (
-                  <p
-                    style={{
-                      fontSize: "48px",
-                      fontWeight: 700,
-                      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                      color: "var(--c-text)",
-                      lineHeight: 1.15,
-                      letterSpacing: "-0.5px",
-                      paddingTop: "8px",
-                    }}
-                  >
-                    {welcomeGreeting}
-                  </p>
-                )}
+                {/* 0. Identity block */}
+                <div style={{ paddingTop: "8px" }}>{IdentityBlock}</div>
 
                 {/* 1. Recommended */}
                 {RecommendedCard}
@@ -2136,21 +2211,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
           {/* ═══ MOBILE STACKED LAYOUT ═══ */}
           <div className="lg:hidden flex flex-col">
-            {/* 0. Welcome greeting — below header clearance */}
-            {hasData && welcomeGreeting && (
+            {/* 0. Identity block — below header clearance */}
+            {hasData && (
               <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 74px)", paddingLeft: "16px", paddingRight: "16px", paddingBottom: "20px" }}>
-                <p
-                  style={{
-                    fontSize: "36px",
-                    fontWeight: 700,
-                    fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                    color: "var(--c-text)",
-                    lineHeight: 1.15,
-                    letterSpacing: "-0.5px",
-                  }}
-                >
-                  {welcomeGreeting}
-                </p>
+                {IdentityBlock}
               </div>
             )}
 

@@ -683,9 +683,11 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 ### Home Feed (feed-screen.tsx)
 
-**Section order:** Recommended, Recently Added, Format Spotlight, Following Activity, On the Hunt, Decades, From the Depths, Purge Tracker, Insights.
+**Section order:** Identity block, Recommended, Recently Added, Format Spotlight, Following Activity, On the Hunt, Decades, From the Depths, Purge Tracker, Insights.
 
-**Recommended hero:** The Recommended section renders as a full-bleed hero card on mobile only. Uses `DominantColorCard` for artwork-driven background tinting. The feed header becomes transparent when scroll position is 0 on the home feed and transitions to opaque on scroll. This behavior is scoped to the home feed screen exclusively via a prop on the header component — not a fork or separate header.
+**Identity block (above the fold):** The scripted time-of-day greeting pool was removed — real data carries the personality instead. Structure: avatar (56px, initial fallback) + username (24px Bricolage) + "Collecting since {Mon YYYY}" (from `userProfile.registered`), a stats row (Records · Wantlist · Value — value in `#009A32`, hidden when no cached collection value), and a sync status line ("Synced {2h ago}" via `formatSyncedAgo` + a "Sync Now" link-colored text button that calls `syncFromDiscogs` with the Settings-style success/error toasts; shows a Disc3 spinner + "Syncing" while a sync runs). Zero additional API calls — all fields come from context/cache. Renders on both mobile (under the transparent-header clearance) and desktop.
+
+**Recommended hero:** The Recommended section renders as a full-bleed hero card on mobile only, introduced by the label "Give this one a spin." Uses `DominantColorCard` for artwork-driven background tinting. The feed header becomes transparent when scroll position is 0 on the home feed and transitions to opaque on scroll. This behavior is scoped to the home feed screen exclusively via a prop on the header component — not a fork or separate header.
 
 **Format Spotlight:** Rotates the featured format on every app load. Filters the user's collection data for obscure vinyl format descriptions (7-Inch, 12-Inch, Limited Edition, Picture Disc, Colored, Etched, 45 RPM, Mono, etc.). Requires a minimum of 3 matching albums per category to be eligible for display. Operates entirely on cached Convex collection data — zero additional API calls.
 
