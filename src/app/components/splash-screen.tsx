@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Disc3, AlertTriangle } from "lucide-react";
+import { Disc3, AlertTriangle } from "./icons";
 import { UnicornScene } from "./unicorn-scene";
 import logoSplash from "../../imports/logo-holy-grails-splash.svg";
 
@@ -106,9 +106,9 @@ export function SplashScreen({
               }}
             >
               {loginLoading ? (
-                <Disc3 size={16} strokeWidth={2} className="disc-spinner" />
+                <Disc3 size={16} className="disc-spinner" />
               ) : (
-                <Disc3 size={16} strokeWidth={2} />
+                <Disc3 size={16} />
               )}
               {loginLoading ? "Connecting..." : "Log in with Discogs"}
             </button>

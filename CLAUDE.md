@@ -18,7 +18,7 @@ The app is a passion project and portfolio piece built by a designer (Shawn) usi
 - **Build tool**: Vite
 - **Styling**: Tailwind CSS + CSS custom properties
 - **Animation**: Framer Motion (imported as `motion` from `"motion/react"`)
-- **Icons**: Lucide React
+- **Icons**: Phosphor Icons (`@phosphor-icons/react`) — imported EXCLUSIVELY through the alias shim `src/app/components/icons.ts`, which re-exports Phosphor icons under the legacy Lucide names the components were written against (e.g. `VinylRecordIcon as Disc3`, `CardsThreeIcon as GalleryVerticalEnd`). Never import from `@phosphor-icons/react` directly in a component, and never reintroduce `lucide-react`. Phosphor has no `strokeWidth` prop — boldness comes from `weight`: `regular` is the global default (set via `IconContext.Provider` in `main.tsx` with `size: 24`, matching Lucide's implicit defaults), `fill` marks active states (selected nav tab, filled heart/bolt/star, solid Play triangles), `light` is the deliberately airy stroke (inactive nav, header buttons, outline hearts/stars — replaces the old fractional strokeWidths 1.2–1.5), `bold` replaces the old strokeWidth 2.25–3 emphasis (small confirm checks, the feed Shuffle button). `thin` and `duotone` are unused — do not introduce them without a design pass.
 - **Charts**: Recharts
 - **Barcode decoding**: zxing-wasm — used ONLY by the Look It Up barcode scanner. Lazy-loaded (dynamic import) with the .wasm bundled locally via `?url` so nothing fetches from a CDN; excluded from the SW precache. Do not import it anywhere else or statically.
 - **Fonts**: Bricolage Grotesque (display/headings) + DM Sans (body/UI) via Google Fonts
@@ -187,6 +187,7 @@ src/
       folders-screen.tsx  # Folder management subview (accessed from Settings > Tools > Folders). Create, rename, delete folders. Folders 0/1 are read-only. Uses inline edit and confirmation modal patterns from stacks.tsx.
       format-spotlight.tsx  # Rotating obscure format highlights section on the home feed
       following-screen.tsx
+      icons.ts           # Icon alias shim — the ONLY place @phosphor-icons/react is imported. Re-exports Phosphor icons under the legacy Lucide names (VinylRecordIcon as Disc3, CardsThreeIcon as GalleryVerticalEnd, LightningIcon as Zap, etc.). All components import icons from here. See Tech Stack for the weight system.
       install-nudge.tsx   # Dismissible PWA install nudge bottom sheet for mobile browser users. Fixed-position sheet (z-[150]) with backdrop (z-[149]). Detects standalone mode, listens for beforeinstallprompt (Android), shows instructional copy (iOS). Dismissal persisted to localStorage. Mounted from App.tsx.
       last-played-utils.ts
       motion-tokens.ts
@@ -518,10 +519,10 @@ style={{
 `line-clamp-1` / `line-clamp-2` is fine for multi-line clamping (grid card titles, stack names).
 
 ### Disc3 Spinner
-All loading states use `Disc3` from lucide-react with the `disc-spinner` CSS class. This spins at 33 1/3 RPM (1.8s per revolution). Never use a generic spinner component.
+All loading states use `Disc3` (Phosphor's `VinylRecord`, aliased in `icons.ts`) with the `disc-spinner` CSS class. This spins at 33 1/3 RPM (1.8s per revolution). Never use a generic spinner component.
 
 ```tsx
-import { Disc3 } from "lucide-react"
+import { Disc3 } from "./icons"
 <Disc3 className="disc-spinner" />
 ```
 
@@ -805,7 +806,7 @@ Horizontal top nav with 9 items split left/center/right. Logo centered. Both gro
 **Left group:** Feed > Collection > Wantlist > Stacks
 **Right group:** Look It Up (Search) > Following > Purge > Insights > Settings > theme toggle
 
-Collection uses `GalleryVerticalEnd` icon (was `Library`). Insights uses `BarChart3`. Active state: `#EBFD00` icon + translucent background highlight.
+Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor migration this alias renders `CardsThree` — records standing in a crate). Insights uses `BarChart3` (Phosphor `ChartBar`). Active state: `#EBFD00` icon + translucent background highlight; active nav items use `weight="fill"`, inactive use `weight="light"`.
 
 ---
 

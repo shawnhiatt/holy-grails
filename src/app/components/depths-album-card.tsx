@@ -1,6 +1,6 @@
 import React from "react";
 import type { ReactNode } from "react";
-import { Play } from "lucide-react";
+import { Play } from "./icons";
 import type { Album } from "./discogs-api";
 import { DominantColorCard } from "./dominant-color-card";
 import { useSafeTap } from "../lib/use-safe-tap";
@@ -89,7 +89,7 @@ export function DepthsAlbumCard({
               className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
               style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
             >
-              <Play size={9} fill="white" color="white" />
+              <Play size={9} weight="fill" color="white" />
               <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                 {playCount}
               </span>

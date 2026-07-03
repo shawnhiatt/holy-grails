@@ -1,5 +1,5 @@
 import type React from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { DURATION_NORMAL } from "./motion-tokens";
 

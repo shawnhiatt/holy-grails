@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
-import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw, Music } from "lucide-react";
+import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw, Music } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
@@ -1986,7 +1986,7 @@ function InlineStackRow({
           border: checked ? "none" : "2px solid var(--c-border-strong)",
         }}
       >
-        {checked && <Check size={12} color="#0C284A" strokeWidth={3} />}
+        {checked && <Check size={12} color="#0C284A" weight="bold" />}
       </div>
     </button>
   );
@@ -2180,7 +2180,7 @@ function WantItemDetailPanel({
                   className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
                   style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
                 >
-                  <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
                 </button>
                 <div
                   className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
@@ -2255,7 +2255,7 @@ function WantItemDetailPanel({
                   className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
                   style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
                 >
-                  <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
                 </button>
               </div>
             </div>
@@ -2301,7 +2301,7 @@ function WantItemDetailPanel({
                 onClick={() => toggleWantPriority(item.id)}
                 className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 mt-1"
               >
-                <Zap size={18} fill={item.priority ? "#EBFD00" : "none"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
+                <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
               </button>
             </div>
           </div>

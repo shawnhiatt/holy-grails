@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Disc3, WifiOff } from "lucide-react";
+import { Disc3, WifiOff } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { UnicornScene } from "./unicorn-scene";
 import { EASE_OUT, DURATION_SLOW, DURATION_NORMAL } from "./motion-tokens";

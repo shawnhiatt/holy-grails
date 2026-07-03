@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties }
 import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { motion } from "motion/react";
-import { Disc3, ArrowLeft, Check, X, ScanBarcode, History, SlidersHorizontal } from "lucide-react";
+import { Disc3, ArrowLeft, Check, X, ScanBarcode, History, SlidersHorizontal } from "./icons";
 // Bundled locally so the decoder never fetches from a CDN (PWA/CSP-safe);
 // the module itself is dynamic-imported only when the scanner opens
 import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
@@ -472,7 +472,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       className="flex items-center gap-1 flex-shrink-0"
       style={{ fontSize: "11px", fontWeight: 600, color: "#3E9842" }}
     >
-      <Check size={12} strokeWidth={2.5} />
+      <Check size={12} weight="bold" />
       {label}
     </span>
   );

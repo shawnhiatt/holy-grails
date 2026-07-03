@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X } from "lucide-react";
+import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X } from "./icons";
 import { useApp, type ViewMode } from "./app-context";
 import { useFilteredAlbums } from "./use-filtered-albums";
 import { AlbumList } from "./album-list";

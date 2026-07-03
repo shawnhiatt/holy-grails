@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
-import { X, Plus, Check } from "lucide-react";
+import { X, Plus, Check } from "./icons";
 import { useApp } from "./app-context";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { getContentTokens } from "./theme";
@@ -413,7 +413,7 @@ function StackRow({
           border: checked ? "none" : "2px solid var(--c-border-strong)",
         }}
       >
-        {checked && <Check size={13} color="#0C284A" strokeWidth={3} />}
+        {checked && <Check size={13} color="#0C284A" weight="bold" />}
       </div>
     </button>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Disc3 } from "lucide-react";
+import { Disc3 } from "./icons";
 import { useApp } from "./app-context";
 import { formatSyncedAgo } from "../utils/format";
 

@@ -134,7 +134,7 @@ style={{
 Used in: album-list.tsx, album-grid.tsx (folder pill text), crate-flip.tsx, wantlist.tsx (list rows), stacks.tsx (stack detail album rows), add-albums-drawer.tsx, stack-picker-sheet.tsx. Tailwind `line-clamp-1` / `line-clamp-2` is still used where multi-line clamping is appropriate (e.g., grid card title/artist, stack names).
 
 ### Disc3 Spinner
-All sync/loading spinners tied to collection sync and API calls use the `Disc3` icon from lucide-react with the `disc-spinner` CSS class, which spins at 1.8s per revolution (33 1/3 RPM), `linear` easing. Defined in `/src/styles/fonts.css`:
+All sync/loading spinners tied to collection sync and API calls use the `Disc3` icon (Phosphor's `VinylRecord`, aliased in `src/app/components/icons.ts`) with the `disc-spinner` CSS class, which spins at 1.8s per revolution (33 1/3 RPM), `linear` easing. Defined in `/src/styles/fonts.css`:
 ```css
 @keyframes spin-record {
   from { transform: rotate(0deg); }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, Pencil, Trash2, Plus, Lock, Disc3, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Pencil, Trash2, Plus, Lock, Disc3, AlertTriangle } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";

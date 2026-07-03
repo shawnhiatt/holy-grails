@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
-import { ChevronRight, Disc3, Square } from "lucide-react";
+import { ChevronRight, Disc3, Square } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { DURATION_NORMAL } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";

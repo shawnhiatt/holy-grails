@@ -11,7 +11,7 @@ import {
   Zap,
   Play,
   Shuffle,
-} from "lucide-react";
+} from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -88,7 +88,7 @@ const RecentAlbumCard = memo(function RecentAlbumCard({ album, width, isDarkMode
             className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
             style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
           >
-            <Play size={9} fill="white" color="white" />
+            <Play size={9} weight="fill" color="white" />
             <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               {playCount}
             </span>
@@ -629,7 +629,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{ backgroundColor: "#EBFD00", color: "#0C284A", touchAction: "manipulation" }}
           aria-label="Shuffle again"
         >
-          <Shuffle size={16} strokeWidth={2.25} />
+          <Shuffle size={16} weight="bold" />
         </button>
       </div>
 
@@ -895,7 +895,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                       justifyContent: "center",
                     }}
                   >
-                    <Zap size={12} fill="#EEFC0F" color="#EEFC0F" />
+                    <Zap size={12} weight="fill" color="#EEFC0F" />
                   </div>
                 )}
               </div>
@@ -991,7 +991,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     justifyContent: "center",
                   }}
                 >
-                  <Zap size={12} fill="#EEFC0F" color="#EEFC0F" />
+                  <Zap size={12} weight="fill" color="#EEFC0F" />
                 </div>
               )}
             </div>
@@ -1211,9 +1211,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   >
                     <Heart
                       size={18}
-                      fill={inWantList ? "#EBFD00" : "none"}
+                      weight={inWantList ? "fill" : "light"}
                       color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
-                      strokeWidth={inWantList ? 0 : 1.5}
                     />
                   </motion.div>
                   {inWantList && (
@@ -2174,7 +2173,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
               style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", zIndex: 2 }}
             >
-              <Play size={9} fill="white" color="white" />
+              <Play size={9} weight="fill" color="white" />
               <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                 {playCounts[String(album.release_id)]}
               </span>

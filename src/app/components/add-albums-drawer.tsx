@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
-import { X, Search, Check } from "lucide-react";
+import { X, Search, Check } from "./icons";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
@@ -248,7 +248,7 @@ function DrawerContent({
               color: "#0C284A",
             }}
           >
-            <Check size={16} strokeWidth={2.5} />
+            <Check size={16} weight="bold" />
           </button>
         </div>
       </div>
@@ -384,7 +384,7 @@ function DrawerContent({
                         border: added ? "none" : "2px solid var(--c-border-strong)",
                       }}
                     >
-                      {added && <Check size={13} color="#0C284A" strokeWidth={3} />}
+                      {added && <Check size={13} color="#0C284A" weight="bold" />}
                     </div>
                   </button>
                 );
@@ -422,7 +422,7 @@ function ThumbnailCard({ album, isAdded, onToggle, isDarkMode }: {
               className="w-6 h-6 rounded-full flex items-center justify-center"
               style={{ backgroundColor: "#EBFD00" }}
             >
-              <Check size={14} color="#0C284A" strokeWidth={3} />
+              <Check size={14} color="#0C284A" weight="bold" />
             </div>
           </div>
         )}

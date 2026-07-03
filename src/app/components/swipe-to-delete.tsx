@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "./icons";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 
 const DELETE_ZONE_WIDTH = 80;
