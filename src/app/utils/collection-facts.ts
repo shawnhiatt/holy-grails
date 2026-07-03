@@ -67,13 +67,19 @@ export function deriveCollectionFacts(albums: Album[]): string[] {
   }
   if (Number.isFinite(oldest)) facts.push(`Oldest pressing: ${oldest}`);
 
-  // Latest pickup — ISO date strings compare lexicographically
+  // Latest pickup — ISO date strings compare lexicographically. Include the
+  // artist so the line reads as a record, not a bare title.
   let latest: Album | null = null;
   for (const a of albums) {
     if (!a.dateAdded) continue;
     if (!latest || a.dateAdded > latest.dateAdded) latest = a;
   }
-  if (latest) facts.push(`Latest pickup: ${latest.title}`);
+  if (latest) {
+    const artist = latest.artist.replace(/\s*\(\d+\)\s*$/, "").trim();
+    facts.push(
+      artist ? `Latest pickup: ${artist} – ${latest.title}` : `Latest pickup: ${latest.title}`
+    );
+  }
 
   return facts;
 }

@@ -4,6 +4,7 @@ import {
   Scissors,
   Disc3,
   ChevronRight,
+  ChevronDown,
   TrendingUp,
   Music,
   GalleryVerticalEnd,
@@ -198,17 +199,6 @@ function getTimeBucket(): "morning" | "afternoon" | "evening" | "lateNight" {
 
 /* ── Decades section flavor headers ── */
 
-const decadeFlavor: Record<string, string> = {
-  "1950s": "Your 1950s Records: Back When It All Started",
-  "1960s": "Your 1960s Records: The Golden Era",
-  "1970s": "Your 1970s Records: Peak Vinyl",
-  "1980s": "Your 1980s Records: Big Sounds, Big Hair",
-  "1990s": "Your 1990s Records: Peak '90s Energy",
-  "2000s": "Your 2000s Records: The Comeback Era",
-  "2010s": "Your 2010s Records: The Revival",
-  "2020s": "Your 2020s Records: Fresh Pressed",
-};
-
 function getDecadeLabel(year: number): string | null {
   if (year <= 0) return null;
   const decadeStart = Math.floor(year / 10) * 10;
@@ -377,7 +367,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     const [decade, decadeAlbums] = pickRandom(eligible);
     // Shuffle and take up to 10
     const shuffled = shuffle(decadeAlbums).slice(0, 10);
-    const header = decadeFlavor[decade] ?? `Your ${decade} Records`;
+    const header = `The ${decade}`;
 
     return { decade, header, albums: shuffled };
   });
@@ -402,9 +392,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     return shuffled.slice(0, 6);
   });
 
-  const followingActivity = useMemo(() => buildFeedActivity(followingFeed, 5, followingAvatars), [followingFeed, followingAvatars]);
-  const followingWantActivity = useMemo(() => buildFeedWantActivity(followingFeed, 5, followingAvatars), [followingFeed, followingAvatars]);
+  const followingActivity = useMemo(() => buildFeedActivity(followingFeed, 10, followingAvatars), [followingFeed, followingAvatars]);
+  const followingWantActivity = useMemo(() => buildFeedWantActivity(followingFeed, 10, followingAvatars), [followingFeed, followingAvatars]);
   const [followingActivityTab, setFollowingActivityTab] = useState<"collection" | "wantlist">("collection");
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const ACTIVITY_COLLAPSED = 5;
 
   const unratedCount = useMemo(
     () => albums.filter((a) => !a.purgeTag).length,
@@ -1279,7 +1271,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             return (
               <button
                 key={tab}
-                onClick={() => setFollowingActivityTab(tab)}
+                onClick={() => { setFollowingActivityTab(tab); setActivityExpanded(false); }}
                 className="cursor-pointer tappable"
                 style={{
                   fontSize: "12px",
@@ -1305,7 +1297,30 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
       {hasFollowing && activeList.length > 0 ? (
         <>
-          {activeList.map((item) => renderActivityRow(item, followingActivityTab === "collection", activeVerb))}
+          {(activityExpanded ? activeList : activeList.slice(0, ACTIVITY_COLLAPSED)).map((item) => renderActivityRow(item, followingActivityTab === "collection", activeVerb))}
+          {activeList.length > ACTIVITY_COLLAPSED && (
+            <button
+              onClick={() => setActivityExpanded((v) => !v)}
+              className="w-full flex items-center justify-center gap-1 px-[16px] py-[12px] cursor-pointer tappable"
+              style={{
+                borderColor: "var(--c-border)",
+                borderTopWidth: "1px",
+                borderTopStyle: "solid" as const,
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--c-link)",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                background: "none",
+                touchAction: "manipulation",
+              }}
+            >
+              {activityExpanded ? "Show less" : "Show more"}
+              <ChevronDown
+                size={14}
+                style={{ transform: activityExpanded ? "rotate(180deg)" : "none", transition: "transform 150ms ease" }}
+              />
+            </button>
+          )}
         </>
       ) : isSyncing ? (
         <div
@@ -1912,14 +1927,22 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
   const syncedAgo = formatSyncedAgo(lastSyncedAt);
 
-  // Rotating collection fact — one per app load, real data doing the
-  // personality work. Set once when albums hydrate, stable afterwards.
-  const [collectionFact, setCollectionFact] = useState<string | null>(null);
+  // Collection facts — real data doing the personality work. Set once when
+  // albums hydrate, stable afterwards. Rendered as a horizontal ticker, or a
+  // single centered line under reduced-motion / sparse data.
+  const [collectionFacts, setCollectionFacts] = useState<string[]>([]);
   useEffect(() => {
-    if (collectionFact || albums.length === 0) return;
-    const facts = deriveCollectionFacts(albums);
-    if (facts.length > 0) setCollectionFact(pickRandom(facts));
-  }, [albums, collectionFact]);
+    if (collectionFacts.length > 0 || albums.length === 0) return;
+    setCollectionFacts(deriveCollectionFacts(albums));
+  }, [albums, collectionFacts]);
+  const collectionFact = useMemo(
+    () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
+    [collectionFacts]
+  );
+  const reduceMotion = useMemo(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+    []
+  );
   const statCell = (value: string, label: string, onTap: () => void, color?: string) => (
     <button
       key={label}
@@ -2022,8 +2045,34 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         {hasCollectionValue && statCell(formatCurrency(collectionValue!.median), "Value", () => setScreen("reports"), "#009A32")}
       </div>
 
-      {/* Rotating collection fact */}
-      {collectionFact && (
+      {/* Collection facts — horizontal ticker (static single line when
+          reduced-motion or too few facts to scroll) */}
+      {collectionFacts.length >= 2 && !reduceMotion ? (
+        <div
+          className="w-full overflow-hidden"
+          style={{
+            marginTop: "-6px",
+            WebkitMaskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
+            maskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
+          }}
+        >
+          <div
+            className="feed-ticker"
+            style={{ display: "inline-flex", whiteSpace: "nowrap", animationDuration: `${collectionFacts.length * 6}s` }}
+          >
+            {[...collectionFacts, ...collectionFacts].map((fact, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center"
+                style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}
+              >
+                {fact}
+                <span aria-hidden style={{ margin: "0 16px", color: "var(--c-text-faint)" }}>·</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : collectionFact ? (
         <p
           className="text-center"
           style={{
@@ -2039,7 +2088,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         >
           {collectionFact}
         </p>
-      )}
+      ) : null}
 
       {/* Sync status */}
       <div className="flex items-center justify-center gap-2" style={{ fontSize: "13px", color: "var(--c-text-muted)", marginTop: "-6px" }}>
@@ -2219,7 +2268,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           {/* ═══ DESKTOP LAYOUT ═══ */}
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
-              <div className="flex flex-col gap-[32px]">
+              <div className="flex flex-col gap-[44px]">
                 {/* 0. Identity block */}
                 <div style={{ paddingTop: "8px" }}>{IdentityBlock}</div>
 
@@ -2270,7 +2319,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               <div className="px-[16px]">{RecommendedCard}</div>
             )}
 
-            <div className="flex flex-col gap-[36px] pt-[36px]">
+            <div className="flex flex-col gap-[48px] pt-[48px]">
               {/* 2. Recently Added */}
               {hasData && (
                 <div className="px-[16px]">{RecentlyAddedSection}</div>

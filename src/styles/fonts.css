@@ -84,6 +84,20 @@
   }
 }
 
+/* Feed identity-block stats ticker — the track holds two identical copies of
+   the facts, so translating by -50% loops seamlessly. Duration is set inline
+   (scales with the number of facts). Transform-only; JS gates the ticker off
+   under reduced motion, so no media-query fallback is needed here. */
+@keyframes feed-ticker-scroll {
+  from { -webkit-transform: translateX(0);    transform: translateX(0); }
+  to   { -webkit-transform: translateX(-50%); transform: translateX(-50%); }
+}
+.feed-ticker {
+  -webkit-animation: feed-ticker-scroll linear infinite;
+          animation: feed-ticker-scroll linear infinite;
+  will-change: transform;
+}
+
 /* Screen title — 28px mobile, 48px desktop */
 @media (min-width: 1024px) {
   .screen-title {
