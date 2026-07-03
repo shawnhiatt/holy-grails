@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useApp } from "./app-context";
+import { shuffle, pickRandom } from "../utils/shuffle";
 import type { Album } from "./discogs-api";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { WantlistHeartButton } from "./wantlist-heart-button";
@@ -42,15 +43,6 @@ function albumMatchesCategory(album: Album, category: FormatCategory): boolean {
   return category.patterns.some((p) => fmt.includes(p.toLowerCase()));
 }
 
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
-
 /* ─── Section title style (matches feed-screen.tsx) ─── */
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -88,10 +80,10 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
     if (eligible.length === 0) return null;
 
     // Pick a random category
-    const pick = eligible[Math.floor(Math.random() * eligible.length)];
+    const pick = pickRandom(eligible);
     // Pick 3–4 random albums from that category
     const count = Math.min(pick.albums.length, Math.random() < 0.5 ? 3 : 4);
-    const selected = shuffleArray(pick.albums).slice(0, count);
+    const selected = shuffle(pick.albums).slice(0, count);
 
     return { header: pick.category.header, badge: pick.category.badge, albums: selected };
   });

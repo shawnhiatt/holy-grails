@@ -11,3 +11,12 @@ export function shuffle<T>(input: readonly T[]): T[] {
   }
   return arr;
 }
+
+/**
+ * Pick one random element. Callers guarantee a non-empty array — the
+ * shared "rotate per app load" helper used by the feed's spotlight
+ * sections and the identity block's collection fact.
+ */
+export function pickRandom<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
