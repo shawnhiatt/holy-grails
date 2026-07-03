@@ -17,25 +17,25 @@ interface FormatCategory {
 }
 
 const FORMAT_CATEGORIES: FormatCategory[] = [
-  // Physical size
-  { patterns: ['7"', "7-inch"], header: "Your 7-Inch Records", badge: '7"' },
-  { patterns: ['10"', "10-inch"], header: "Your 10-Inch Records", badge: '10"' },
-  { patterns: ['12"', "12-inch"], header: "Your 12-Inch Records", badge: '12"' },
+  // Physical size — headers are the plain format name (see FORMAT SPOTLIGHT eyebrow)
+  { patterns: ['7"', "7-inch"], header: "7-Inches", badge: '7"' },
+  { patterns: ['10"', "10-inch"], header: "10-Inches", badge: '10"' },
+  { patterns: ['12"', "12-inch"], header: "12-Inches", badge: '12"' },
   // Edition type
   { patterns: ["limited edition"], header: "Limited Editions", badge: "Limited Edition" },
-  { patterns: ["promo"], header: "Promos in Your Collection", badge: "Promo" },
+  { patterns: ["promo"], header: "Promos", badge: "Promo" },
   { patterns: ["test pressing"], header: "Test Pressings", badge: "Test Pressing" },
-  { patterns: ["advance"], header: "Advance Pressings", badge: "Advance" },
+  { patterns: ["advance"], header: "Advance Copies", badge: "Advance" },
   // Pressing type
   { patterns: ["picture disc"], header: "Picture Discs", badge: "Picture Disc" },
-  { patterns: ["colored", "coloured"], header: "Colored Pressings", badge: "Colored" },
+  { patterns: ["colored", "coloured"], header: "Colored Vinyl", badge: "Colored" },
   { patterns: ["etched"], header: "Etched Vinyl", badge: "Etched" },
   { patterns: ["flexi-disc", "flexi disc", "flexidisc"], header: "Flexi-Discs", badge: "Flexi-Disc" },
   // Obscure speed / format
-  { patterns: ["45 rpm"], header: "Your 45 RPMs", badge: "45 RPM" },
-  { patterns: ["78 rpm"], header: "Your 78s", badge: "78 RPM" },
+  { patterns: ["45 rpm"], header: "45 RPMs", badge: "45 RPM" },
+  { patterns: ["78 rpm"], header: "78 RPMs", badge: "78 RPM" },
   { patterns: ["mono"], header: "Mono Pressings", badge: "Mono" },
-  { patterns: ["quadraphonic"], header: "Quadraphonic Records", badge: "Quadraphonic" },
+  { patterns: ["quadraphonic"], header: "Quadraphonic", badge: "Quadraphonic" },
 ];
 
 function albumMatchesCategory(album: Album, category: FormatCategory): boolean {

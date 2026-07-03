@@ -10,6 +10,7 @@ import {
   GalleryVerticalEnd,
   Zap,
   Play,
+  Shuffle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -373,10 +374,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   });
 
   // From the Depths — 10 random albums, reshuffled every mount
-  const [depthsAlbums] = useState(() => {
+  const [depthsAlbums, setDepthsAlbums] = useState(() => {
     if (albums.length === 0) return [];
     return shuffle(albums).slice(0, 10);
   });
+  const reshuffleDepths = useCallback(() => {
+    if (albums.length === 0) return;
+    setDepthsAlbums(shuffle(albums).slice(0, 10));
+  }, [albums]);
 
   // On the Hunt — shuffled wantlist items, weighted toward priority
   const [huntAlbums] = useState(() => {
@@ -594,7 +599,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const DepthsSection = depthsAlbums.length > 0 ? (
     <div>
       {/* Section header */}
-      <div className="px-[16px] lg:px-0 mb-[10px]">
+      <div className="px-[16px] lg:px-0 mb-[10px] flex items-center justify-between gap-2">
         <h2
           style={{
             background: "linear-gradient(to right, #F276EC, #EBFD00, #48FF91, #00CFFF)",
@@ -602,8 +607,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
             fontFamily: "'Rock Salt', cursive",
-            fontSize: "28px",
-            lineHeight: 1.5,
+            fontSize: "38px",
+            lineHeight: 1.4,
             fontWeight: 400,
             margin: 0,
             // Rock Salt glyphs overrun the text box; background-clip:text only
@@ -618,6 +623,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         >
           Shuffle
         </h2>
+        <button
+          onClick={reshuffleDepths}
+          className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
+          style={{ backgroundColor: "#EBFD00", color: "#0C284A", touchAction: "manipulation" }}
+          aria-label="Shuffle again"
+        >
+          <Shuffle size={16} strokeWidth={2.25} />
+        </button>
       </div>
 
       {/* Mobile: 2x2 grid */}
@@ -2051,23 +2064,24 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         <div
           className="w-full overflow-hidden"
           style={{
-            marginTop: "-6px",
+            marginTop: "2px",
+            marginBottom: "2px",
             WebkitMaskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
             maskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
           }}
         >
           <div
             className="feed-ticker"
-            style={{ display: "inline-flex", whiteSpace: "nowrap", animationDuration: `${collectionFacts.length * 6}s` }}
+            style={{ display: "flex", width: "max-content", whiteSpace: "nowrap", animationDuration: `${collectionFacts.length * 6}s` }}
           >
             {[...collectionFacts, ...collectionFacts].map((fact, i) => (
               <span
                 key={i}
-                className="inline-flex items-center"
-                style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}
+                className="flex items-center"
+                style={{ flexShrink: 0, whiteSpace: "nowrap", fontSize: "14px", fontWeight: 500, color: "var(--c-text-secondary)" }}
               >
                 {fact}
-                <span aria-hidden style={{ margin: "0 16px", color: "var(--c-text-faint)" }}>·</span>
+                <span aria-hidden style={{ margin: "0 18px", color: "var(--c-text-faint)" }}>·</span>
               </span>
             ))}
           </div>
