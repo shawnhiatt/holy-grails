@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import type React from "react";
-import { Heart, Disc3 } from "lucide-react";
+import { Heart, Disc3 } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -142,9 +142,8 @@ export function WantlistHeartButton({
           >
             <Heart
               size={size}
-              fill={inWantlist ? "#EBFD00" : "none"}
+              weight={inWantlist ? "fill" : "light"}
               color={inWantlist ? "#EBFD00" : variant === "overlay" ? "rgba(255,255,255,0.85)" : "var(--c-text-faint)"}
-              strokeWidth={inWantlist ? 0 : 1.5}
             />
           </motion.div>
         )}

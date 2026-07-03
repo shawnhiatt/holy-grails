@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { X, Disc3 } from "lucide-react";
+import { X, Disc3 } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { WifiOff, X } from "lucide-react";
+import { WifiOff, X } from "./icons";
 import { useOnlineStatus } from "../hooks/use-online-status";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 

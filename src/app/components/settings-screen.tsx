@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil } from "lucide-react";
+import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil } from "./icons";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -366,9 +366,8 @@ export function SettingsScreen() {
                         <Star
                           key={i}
                           size={14}
-                          fill={i < userProfile.buyerRatingStars ? "#FFC107" : "none"}
-                          stroke={i < userProfile.buyerRatingStars ? "#FFC107" : "var(--c-text-faint)"}
-                          strokeWidth={1.5}
+                          weight={i < userProfile.buyerRatingStars ? "fill" : "light"}
+                          color={i < userProfile.buyerRatingStars ? "#FFC107" : "var(--c-text-faint)"}
                         />
                       ))}
                       <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", marginLeft: "4px" }}>
@@ -387,9 +386,8 @@ export function SettingsScreen() {
                         <Star
                           key={i}
                           size={14}
-                          fill={i < userProfile.sellerRatingStars ? "#FFC107" : "none"}
-                          stroke={i < userProfile.sellerRatingStars ? "#FFC107" : "var(--c-text-faint)"}
-                          strokeWidth={1.5}
+                          weight={i < userProfile.sellerRatingStars ? "fill" : "light"}
+                          color={i < userProfile.sellerRatingStars ? "#FFC107" : "var(--c-text-faint)"}
                         />
                       ))}
                       <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", marginLeft: "4px" }}>

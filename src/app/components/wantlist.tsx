@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Grid2x2, Grid3x3, List, Zap, X } from "lucide-react";
+import { Search, Grid2x2, Grid3x3, List, Zap, X } from "./icons";
 import { toast } from "sonner";
 import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
@@ -235,7 +235,7 @@ export function Wantlist() {
             <button onClick={() => setWantFilter("priority")}
               className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#0C284A]" : ""}`}
               style={wantFilter !== "priority" ? { fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-secondary)" } : { fontSize: "13px", fontWeight: 500 }}>
-              <Zap size={12} fill={wantFilter === "priority" ? "currentColor" : "none"} />
+              <Zap size={12} weight={wantFilter === "priority" ? "fill" : "regular"} />
               Priorities ({wants.filter((w) => w.priority).length})
             </button>
           </div>
@@ -265,7 +265,7 @@ export function Wantlist() {
             style={wantFilter !== "priority" ? { backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" } : undefined}
             title={wantFilter === "priority" ? "Show all" : "Priorities"}
           >
-            <Zap size={16} fill={wantFilter === "priority" ? "currentColor" : "none"} />
+            <Zap size={16} weight={wantFilter === "priority" ? "fill" : "regular"} />
           </button>
         </div>
         <SyncStatusLine className="mt-[8px]" />
@@ -471,12 +471,12 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 <button onClick={() => togglePriority(want.id)} className="flex-shrink-0 p-2 transition-transform hover:scale-110">
                   {want.priority ? (
                     <Zap size={18}
-                      fill={isDarkMode ? "#EBFD00" : "#B8C900"}
+                      weight="fill"
                       color={isDarkMode ? "#EBFD00" : "#B8C900"}
                     />
                   ) : (
                     <Zap size={18}
-                      fill="none"
+                      weight="regular"
                       color={isDarkMode ? "var(--c-text-faint)" : "var(--c-text-faint)"}
                     />
                   )}
@@ -519,7 +519,7 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
           onClick={() => togglePriority(item.id)}
           className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform hover:scale-110 z-[2]"
         >
-          <Zap size={14} className={item.priority ? "text-[#EEFC0F]" : "text-white/50"} fill={item.priority ? "#EEFC0F" : "none"} />
+          <Zap size={14} className={item.priority ? "text-[#EEFC0F]" : "text-white/50"} weight={item.priority ? "fill" : "regular"} />
         </button>
       </div>
       <div className="px-2.5 pt-2 pb-2.5 min-w-0 overflow-hidden">

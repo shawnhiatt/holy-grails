@@ -4,7 +4,7 @@ import {
   UserPlus, ArrowLeft, Search, UserMinus, Lock,
   Disc3, Users, Grid2x2, Grid3x3, List, SlidersHorizontal,
   Heart, X, GalleryVerticalEnd, RotateCcw,
-} from "lucide-react";
+} from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp, type ViewMode, type Screen, type FollowingFeedEntry } from "./app-context";
@@ -1377,7 +1377,7 @@ function PopulatedFollowingView({
                       border: `2px solid ${isDarkMode ? "#0C1A2E" : "#F9F9FA"}`,
                     }}
                   >
-                    <Disc3 size={12} color="#0C284A" strokeWidth={2.25} />
+                    <Disc3 size={12} color="#0C284A" />
                   </div>
                 )}
               </div>
@@ -1741,9 +1741,8 @@ function PopulatedFollowingView({
                           >
                             <Heart
                               size={18}
-                              fill={inWantList ? "#EBFD00" : "none"}
+                              weight={inWantList ? "fill" : "light"}
                               color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
-                              strokeWidth={inWantList ? 0 : 1.5}
                             />
                           </motion.div>
                           {inWantList && (

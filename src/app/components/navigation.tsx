@@ -13,7 +13,7 @@ import {
   UserMinus,
   ArrowLeft,
   Search,
-} from "lucide-react";
+} from "./icons";
 import { useApp, type Screen } from "./app-context";
 import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
 import logoDark from "../../imports/logo-holy-grails-dark.svg";
@@ -92,7 +92,6 @@ function ThemeSwitch({
     >
       <Sun
         size={12}
-        strokeWidth={2}
         style={{
           position: "absolute",
           left: "8px",
@@ -105,7 +104,6 @@ function ThemeSwitch({
       />
       <Moon
         size={12}
-        strokeWidth={2}
         style={{
           position: "absolute",
           right: "8px",
@@ -187,7 +185,7 @@ export function MobileHeader() {
           className="w-8 h-8 rounded-full flex items-center justify-center"
           style={{ color: "var(--c-text-muted)", backgroundColor: inactiveBg }}
         >
-          <Search size={18} strokeWidth={1.3125} />
+          <Search size={18} weight="light" />
         </div>
       </button>
       {showSyncChip && (
@@ -213,7 +211,7 @@ export function MobileHeader() {
             border: screen === "following" ? "2px solid #EBFD00" : "2px solid transparent",
           }}
         >
-          <Users size={18} strokeWidth={1.3125} />
+          <Users size={18} weight="light" />
         </div>
       </button>
       <button
@@ -238,7 +236,7 @@ export function MobileHeader() {
               className="w-8 h-8 rounded-full object-cover"
             />
           ) : (
-            <UserRound size={18} strokeWidth={screen === "settings" ? 1.83 : 1.3125} />
+            <UserRound size={18} weight={screen === "settings" ? "fill" : "light"} />
           )}
         </div>
       </button>
@@ -407,7 +405,7 @@ export function BottomTabBar() {
           >
             <Icon
               size={22}
-              strokeWidth={isActive ? 1.83 : 1.26}
+              weight={isActive ? "fill" : "light"}
               color={isActive ? activeColor : inactiveColor}
             />
             <span
@@ -468,7 +466,7 @@ export function DesktopTopNav() {
         ) : (
           <Icon
             size={17}
-            strokeWidth={isActive ? 1.8 : 1.2}
+            weight={isActive ? "fill" : "light"}
             color={isActive ? "#EBFD00" : inactiveColor}
           />
         )}
@@ -533,7 +531,7 @@ export function DesktopTopNav() {
           title="Look It Up"
           aria-label="Look It Up"
         >
-          <Search size={17} strokeWidth={1.2} color={inactiveColor} />
+          <Search size={17} weight="light" color={inactiveColor} />
           <span
             style={{
               fontSize: "13px",

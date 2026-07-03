@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, Component, lazy, Suspense } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { Toaster, toast } from "sonner";
-import { Disc3 } from "lucide-react";
+import { Disc3 } from "./components/icons";
 import { AppProvider, useApp } from "./components/app-context";
 import { BottomTabBar, DesktopTopNav, MobileHeader } from "./components/navigation";
 import { CrateBrowser } from "./components/crate-browser";

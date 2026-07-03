@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { IconContext } from "./app/components/icons";
 import App from "./app/App.tsx";
 import "./styles/index.css";
 
@@ -19,6 +20,10 @@ const convex = new ConvexReactClient(convexUrl);
 
 createRoot(document.getElementById("root")!).render(
   <ConvexProvider client={convex}>
-    <App />
+    {/* Phosphor defaults matching Lucide's implicit ones: 24px, regular weight.
+        Phosphor's own default size is 1em — size 24 here is required for parity. */}
+    <IconContext.Provider value={{ size: 24, weight: "regular" }}>
+      <App />
+    </IconContext.Provider>
   </ConvexProvider>
 );

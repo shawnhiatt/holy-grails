@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import type React from "react";
-import { X } from "lucide-react";
+import { X } from "./icons";
 import { motion, useMotionValue, animate } from "motion/react";
 import { useApp } from "./app-context";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";

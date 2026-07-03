@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Disc3 } from "lucide-react";
+import { Disc3 } from "./icons";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
 import { getContentTokens } from "./theme";
@@ -82,7 +82,7 @@ export function ShareActivityPrompt() {
             }}
           >
             {pending === "share" && (
-              <Disc3 size={16} strokeWidth={2} className="disc-spinner" />
+              <Disc3 size={16} className="disc-spinner" />
             )}
             Share my activity
           </button>
@@ -102,7 +102,7 @@ export function ShareActivityPrompt() {
             }}
           >
             {pending === "private" && (
-              <Disc3 size={16} strokeWidth={2} className="disc-spinner" />
+              <Disc3 size={16} className="disc-spinner" />
             )}
             Keep it private
           </button>

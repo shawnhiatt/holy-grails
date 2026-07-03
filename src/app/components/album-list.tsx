@@ -1,5 +1,5 @@
 import { memo, useCallback, useRef, useMemo, useEffect } from "react";
-import { Play } from "lucide-react";
+import { Play } from "./icons";
 import { useApp, type SortOption } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
@@ -93,7 +93,7 @@ const ListRow = memo(function ListRow({ album, isDarkMode, showDot, lastPlayedIs
             className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
             style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
           >
-            <Play size={9} fill="white" color="white" />
+            <Play size={9} weight="fill" color="white" />
             <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               {playCount}
             </span>

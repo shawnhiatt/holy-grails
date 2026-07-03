@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { Check, Minus, HelpCircle, Disc3, Trash2 } from "lucide-react";
+import { Check, Minus, HelpCircle, Disc3, Trash2 } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
