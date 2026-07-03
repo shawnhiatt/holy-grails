@@ -1993,9 +1993,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
   const IdentityBlock = discogsUsername ? (
     <div
-      className="w-full max-w-[640px] mx-auto flex flex-col items-center gap-4"
+      className="w-full max-w-[640px] mx-auto flex flex-col items-center"
       style={{
-        padding: "20px 16px",
+        padding: "16px",
+        gap: "10px",
         borderRadius: "16px",
         // Elevated container — token-derived lift in dark (reads as the
         // subtle translucent panel), plain surface card in light where a
@@ -2064,8 +2065,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         <div
           className="w-full overflow-hidden"
           style={{
-            marginTop: "2px",
-            marginBottom: "2px",
             WebkitMaskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
             maskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
           }}
@@ -2078,10 +2077,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               <span
                 key={i}
                 className="flex items-center"
-                style={{ flexShrink: 0, whiteSpace: "nowrap", fontSize: "14px", fontWeight: 500, color: "var(--c-text-secondary)" }}
+                style={{ flexShrink: 0, whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}
               >
                 {fact}
-                <span aria-hidden style={{ margin: "0 18px", color: "var(--c-text-faint)" }}>·</span>
+                <span aria-hidden style={{ margin: "0 14px", color: "var(--c-text-faint)" }}>·</span>
               </span>
             ))}
           </div>
@@ -2092,8 +2091,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{
             fontSize: "13px",
             fontWeight: 500,
-            color: "var(--c-text-secondary)",
-            marginTop: "-6px",
+            color: "var(--c-text-muted)",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -2105,7 +2103,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       ) : null}
 
       {/* Sync status */}
-      <div className="flex items-center justify-center gap-2" style={{ fontSize: "13px", color: "var(--c-text-muted)", marginTop: "-6px" }}>
+      <div className="flex items-center justify-center gap-2" style={{ fontSize: "13px", color: "var(--c-text-muted)" }}>
         {isSyncing ? (
           <>
             <Disc3 size={13} className="disc-spinner" />
@@ -2323,7 +2321,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           <div className="lg:hidden flex flex-col">
             {/* 0. Identity block — below header clearance */}
             {hasData && (
-              <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 74px)", paddingLeft: "16px", paddingRight: "16px", paddingBottom: "20px" }}>
+              <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 66px)", paddingLeft: "16px", paddingRight: "16px", paddingBottom: "12px" }}>
                 {IdentityBlock}
               </div>
             )}
