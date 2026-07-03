@@ -214,8 +214,9 @@ src/
       wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
       loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
     utils/
-      format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial)
-      shuffle.ts         # Fisher-Yates shuffle — use this, never .sort(() => Math.random() - 0.5)
+      format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
+      shuffle.ts         # Fisher-Yates shuffle + pickRandom — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
+      collection-facts.ts  # deriveCollectionFacts — threshold-gated rotating stat lines (top decade/artist/label, oldest pressing, latest pickup) for the feed identity block
     imports/
     styles/
       fonts.css
@@ -436,7 +437,7 @@ Image card overlays using `rgba(0,0,0,...)` for photo readability are intentiona
 ### Typography
 
 - **Display / Headings**: `Bricolage Grotesque` (weights 300–700)
-- **Decorative display accents**: `Rock Salt` (Shuffle heading, Format Spotlight) and `Manufacturing Consent` (Insights heading on the feed) — loaded in `fonts.css`, used only for these named feed moments. Do not use them anywhere else.
+- **Decorative display accents**: `Rock Salt` (Shuffle heading, Format Spotlight, the feed's "Give this one a spin." heading) and `Manufacturing Consent` (Insights heading on the feed) — loaded in `fonts.css`, used only for these named feed moments. Do not use them anywhere else.
 - **Body / UI labels**: `DM Sans` (weights 300–700)
 - Loaded via a `<link>` (with preconnect) in `index.html` — not an `@import` in CSS, so the font fetch starts before CSS parse. Only weights 400/500/600/700 are requested; weight 300 is intentionally not loaded (unused)
 - Never use system fonts for headings — Bricolage Grotesque is part of the brand
@@ -685,9 +686,9 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 **Section order:** Identity block, Recommended, Recently Added, Format Spotlight, Following Activity, On the Hunt, Decades, From the Depths, Purge Tracker, Insights.
 
-**Identity block (above the fold):** The scripted time-of-day greeting pool was removed — real data carries the personality instead. Structure: avatar (56px, initial fallback) + username (24px Bricolage) + "Collecting since {Mon YYYY}" (from `userProfile.registered`), a stats row (Records · Wantlist · Value — value in `#009A32`, hidden when no cached collection value), and a sync status line ("Synced {2h ago}" via `formatSyncedAgo` + a "Sync Now" link-colored text button that calls `syncFromDiscogs` with the Settings-style success/error toasts; shows a Disc3 spinner + "Syncing" while a sync runs). Zero additional API calls — all fields come from context/cache. Renders on both mobile (under the transparent-header clearance) and desktop.
+**Identity block (above the fold):** The scripted time-of-day greeting pool was removed — real data carries the personality instead. A center-aligned elevated container (radius 16, max-w 640 centered; dark: `oklab(from #0C1A2E calc(l + 0.045) a b)` + `var(--c-border)`; light: `#FFFFFF` + card shadow — a white tint would vanish on the light canvas) holding: avatar (64px, initial fallback) beside the username (28px Bricolage, truncates with ellipsis — never wraps) with "Collecting since {Mon YYYY}" under it (from `userProfile.registered`); a stats row (Records · Wantlist · Value — value in `#009A32`, hidden when no cached collection value) where **each stat is a tappable shortcut** (Records → crate, Wantlist → wants, Value → reports); a rotating collection fact line (one `deriveCollectionFacts` pick per app load, set once when albums hydrate); and a sync status line ("Synced {2h ago}" via `formatSyncedAgo` + a "Sync Now" link-colored text button that calls `syncFromDiscogs` with the Settings-style success/error toasts; shows a Disc3 spinner + "Syncing" while a sync runs). Zero additional API calls — all fields come from context/cache. Renders on both mobile (under the transparent-header clearance) and desktop.
 
-**Recommended hero:** The Recommended section renders as a full-bleed hero card on mobile only, introduced by the label "Give this one a spin." Uses `DominantColorCard` for artwork-driven background tinting. The feed header becomes transparent when scroll position is 0 on the home feed and transitions to opaque on scroll. This behavior is scoped to the home feed screen exclusively via a prop on the header component — not a fork or separate header.
+**Recommended hero:** The Recommended section renders as a full-bleed hero card on mobile only, introduced by the "Give this one a spin." heading (Rock Salt 24px, white, glyph-overrun padding like the Shuffle heading). Uses `DominantColorCard` for artwork-driven background tinting. The feed header becomes transparent when scroll position is 0 on the home feed and transitions to opaque on scroll. This behavior is scoped to the home feed screen exclusively via a prop on the header component — not a fork or separate header.
 
 **Format Spotlight:** Rotates the featured format on every app load. Filters the user's collection data for obscure vinyl format descriptions (7-Inch, 12-Inch, Limited Edition, Picture Disc, Colored, Etched, 45 RPM, Mono, etc.). Requires a minimum of 3 matching albums per category to be eligible for display. Operates entirely on cached Convex collection data — zero additional API calls.
 

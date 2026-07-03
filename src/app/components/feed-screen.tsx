@@ -24,7 +24,8 @@ import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial, formatCollectionSince, formatSyncedAgo } from "../utils/format";
-import { shuffle } from "../utils/shuffle";
+import { shuffle, pickRandom } from "../utils/shuffle";
+import { deriveCollectionFacts } from "../utils/collection-facts";
 import { FormatSpotlight } from "./format-spotlight";
 import { DominantColorCard } from "./dominant-color-card";
 
@@ -195,10 +196,6 @@ function getTimeBucket(): "morning" | "afternoon" | "evening" | "lateNight" {
   return "lateNight";
 }
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 /* ── Decades section flavor headers ── */
 
 const decadeFlavor: Record<string, string> = {
@@ -344,9 +341,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const [purgeEvalAlbumId, setPurgeEvalAlbumId] = useState<string | null>(() => {
     // Pick initial album: unrated first, then maybes
     const unrated = albums.filter((a) => !a.purgeTag);
-    if (unrated.length > 0) return unrated[Math.floor(Math.random() * unrated.length)].id;
+    if (unrated.length > 0) return pickRandom(unrated).id;
     const maybes = albums.filter((a) => a.purgeTag === "maybe");
-    if (maybes.length > 0) return maybes[Math.floor(Math.random() * maybes.length)].id;
+    if (maybes.length > 0) return pickRandom(maybes).id;
     return null;
   });
   const [purgeEvalFading, setPurgeEvalFading] = useState(false);
@@ -377,7 +374,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     const eligible = [...byDecade.entries()].filter(([, arr]) => arr.length >= 5);
     if (eligible.length === 0) return null;
 
-    const [decade, decadeAlbums] = eligible[Math.floor(Math.random() * eligible.length)];
+    const [decade, decadeAlbums] = pickRandom(eligible);
     // Shuffle and take up to 10
     const shuffled = shuffle(decadeAlbums).slice(0, 10);
     const header = decadeFlavor[decade] ?? `Your ${decade} Records`;
@@ -1914,8 +1911,23 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   /* ─────────────── IDENTITY BLOCK (above the fold) ─────────────── */
 
   const syncedAgo = formatSyncedAgo(lastSyncedAt);
-  const statCell = (value: string, label: string, color?: string) => (
-    <div className="flex flex-col">
+
+  // Rotating collection fact — one per app load, real data doing the
+  // personality work. Set once when albums hydrate, stable afterwards.
+  const [collectionFact, setCollectionFact] = useState<string | null>(null);
+  useEffect(() => {
+    if (collectionFact || albums.length === 0) return;
+    const facts = deriveCollectionFacts(albums);
+    if (facts.length > 0) setCollectionFact(pickRandom(facts));
+  }, [albums, collectionFact]);
+  const statCell = (value: string, label: string, onTap: () => void, color?: string) => (
+    <button
+      key={label}
+      onClick={onTap}
+      className="flex flex-col items-center tappable cursor-pointer"
+      style={{ touchAction: "manipulation" }}
+      aria-label={label}
+    >
       <span
         style={{
           fontSize: "20px",
@@ -1940,34 +1952,48 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       >
         {label}
       </span>
-    </div>
+    </button>
   );
 
   const IdentityBlock = discogsUsername ? (
-    <div className="flex flex-col gap-4">
-      {/* Avatar + username + collecting since */}
-      <div className="flex items-center gap-3">
+    <div
+      className="w-full max-w-[640px] mx-auto flex flex-col items-center gap-4"
+      style={{
+        padding: "20px 16px",
+        borderRadius: "16px",
+        // Elevated container — token-derived lift in dark (reads as the
+        // subtle translucent panel), plain surface card in light where a
+        // white tint would vanish against the near-white canvas
+        backgroundColor: isDarkMode
+          ? "oklab(from #0C1A2E calc(l + 0.045) a b)"
+          : "#FFFFFF",
+        border: "1px solid var(--c-border)",
+        boxShadow: isDarkMode ? undefined : "var(--c-card-shadow)",
+      }}
+    >
+      {/* Avatar + username, centered row */}
+      <div className="w-full flex items-center justify-center gap-3" style={{ minWidth: 0 }}>
         {userAvatar ? (
           <img
             src={userAvatar}
             alt={discogsUsername}
-            className="w-14 h-14 rounded-full object-cover flex-shrink-0"
+            className="w-16 h-16 rounded-full object-cover flex-shrink-0"
             style={{ border: "2px solid var(--c-border)" }}
           />
         ) : (
           <div
-            className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+            className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}
           >
-            <span style={{ fontSize: "22px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>
+            <span style={{ fontSize: "24px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>
               {getInitial(discogsUsername)}
             </span>
           </div>
         )}
-        <div className="flex-1" style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           <p
             style={{
-              fontSize: "24px",
+              fontSize: "28px",
               fontWeight: 700,
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
               color: "var(--c-text)",
@@ -1989,15 +2015,34 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         </div>
       </div>
 
-      {/* Collection stats */}
-      <div className="flex items-start gap-8">
-        {statCell(albums.length.toLocaleString(), albums.length === 1 ? "Record" : "Records")}
-        {statCell(wants.length.toLocaleString(), "Wantlist")}
-        {hasCollectionValue && statCell(formatCurrency(collectionValue!.median), "Value", "#009A32")}
+      {/* Collection stats — tappable shortcuts */}
+      <div className="w-full flex items-start justify-around">
+        {statCell(albums.length.toLocaleString(), albums.length === 1 ? "Record" : "Records", () => setScreen("crate"))}
+        {statCell(wants.length.toLocaleString(), "Wantlist", () => setScreen("wants"))}
+        {hasCollectionValue && statCell(formatCurrency(collectionValue!.median), "Value", () => setScreen("reports"), "#009A32")}
       </div>
 
+      {/* Rotating collection fact */}
+      {collectionFact && (
+        <p
+          className="text-center"
+          style={{
+            fontSize: "13px",
+            fontWeight: 500,
+            color: "var(--c-text-secondary)",
+            marginTop: "-6px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "100%",
+          }}
+        >
+          {collectionFact}
+        </p>
+      )}
+
       {/* Sync status */}
-      <div className="flex items-center gap-2" style={{ fontSize: "13px", color: "var(--c-text-muted)" }}>
+      <div className="flex items-center justify-center gap-2" style={{ fontSize: "13px", color: "var(--c-text-muted)", marginTop: "-6px" }}>
         {isSyncing ? (
           <>
             <Disc3 size={13} className="disc-spinner" />
@@ -2034,19 +2079,21 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
     return (
       <>
-        <p
+        <h2
           style={{
-            fontSize: "13px",
+            fontFamily: "'Rock Salt', cursive",
+            fontSize: "24px",
             fontWeight: 400,
-            color: "var(--c-text-secondary)",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-            marginTop: "2px",
-            marginBottom: "8px",
             lineHeight: 1.4,
+            color: "white",
+            margin: 0,
+            marginBottom: "10px",
+            // Rock Salt glyphs overrun the text box (see Shuffle heading)
+            paddingTop: "0.15em",
           }}
         >
           Give this one a spin.
-        </p>
+        </h2>
         <DominantColorCard
         imageUrl={album.cover}
         className="cursor-pointer group"
