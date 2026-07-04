@@ -84,6 +84,8 @@ interface ReleaseData {
   styles: string[];
   lowestPrice?: number | null;
   numForSale?: number;
+  // Bootlegs — can't be sold on Discogs, so market data for them is noise
+  isUnofficial?: boolean;
   images?: Array<{
     uri: string;
     uri150: string;
@@ -2997,8 +2999,12 @@ function ReleaseDetailPanel({
             <CommunityRow community={releaseData!.community!} />
           ) : null}
 
-          {/* ═══ Value (market lookup) ═══ */}
-          {releaseData && (
+          {/* ═══ Value (market lookup) ═══
+              Hidden for unofficial releases: Discogs bans selling bootlegs,
+              so there are no listings and the price suggestions have no
+              sales history behind them — showing them would be made-up
+              pricing. Accurate or nothing. */}
+          {releaseData && !releaseData.isUnofficial && (
             <ValueSection
               releaseId={album.release_id}
               lowestPrice={releaseData.lowestPrice ?? null}

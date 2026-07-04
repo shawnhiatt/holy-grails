@@ -1397,6 +1397,16 @@ export const proxyFetchRelease = action({
       height: (img.height as number) || 0,
     }));
 
+    // Unofficial releases (bootlegs) can't be sold on Discogs, so market
+    // data for them is noise — price suggestions come back algorithmic with
+    // no sales history behind them. Callers use this to hide the Value section.
+    const isUnofficial = (data.formats || []).some(
+      (f: { descriptions?: string[] }) =>
+        (f.descriptions || []).some(
+          (d: string) => d.toLowerCase() === "unofficial release"
+        )
+    );
+
     return {
       country: (data.country as string) || "",
       notes: (data.notes as string) || "",
@@ -1410,6 +1420,7 @@ export const proxyFetchRelease = action({
       // Market signal (Tier 1) — asking prices, available to all users
       lowestPrice: typeof data.lowest_price === "number" ? data.lowest_price : null,
       numForSale: typeof data.num_for_sale === "number" ? data.num_for_sale : 0,
+      isUnofficial,
     };
   },
 });
