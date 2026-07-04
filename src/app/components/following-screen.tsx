@@ -3,8 +3,9 @@ import type React from "react";
 import {
   UserPlus, ArrowLeft, Search, UserMinus, Lock,
   Disc3, Users, Grid2x2, Grid3x3, List, SlidersHorizontal,
-  Heart, X, GalleryVerticalEnd, RotateCcw,
+  X, GalleryVerticalEnd, RotateCcw,
 } from "./icons";
+import { WantlistAddIcon } from "./wantlist-add-icon";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp, type ViewMode, type Screen, type FollowingFeedEntry } from "./app-context";
@@ -1739,9 +1740,9 @@ function PopulatedFollowingView({
                             animate={{ scale: 1 }}
                             transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
                           >
-                            <Heart
+                            <WantlistAddIcon
+                              filled={inWantList}
                               size={18}
-                              weight={inWantList ? "fill" : "light"}
                               color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
                             />
                           </motion.div>

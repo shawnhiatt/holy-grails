@@ -1,7 +1,6 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
-  Heart,
-  Scissors,
+  StackMinus,
   Disc3,
   ChevronRight,
   ChevronDown,
@@ -12,6 +11,7 @@ import {
   Play,
   Shuffle,
 } from "./icons";
+import { WantlistAddIcon } from "./wantlist-add-icon";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -1209,9 +1209,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     animate={{ scale: 1 }}
                     transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
                   >
-                    <Heart
+                    <WantlistAddIcon
+                      filled={inWantList}
                       size={18}
-                      weight={inWantList ? "fill" : "light"}
                       color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
                     />
                   </motion.div>
@@ -1568,7 +1568,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       {/* Unrated + No play recorded — side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
         <InsightRow
-          icon={<Scissors size={16} style={{ color: "var(--c-text-muted)" }} />}
+          icon={<StackMinus size={16} style={{ color: "var(--c-text-muted)" }} />}
           label={`${unratedCount} record${unratedCount !== 1 ? "s" : ""} still unrated`}
           isDarkMode={isDarkMode}
           onTap={() => {

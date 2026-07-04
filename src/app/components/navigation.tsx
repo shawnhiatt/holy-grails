@@ -206,12 +206,12 @@ export function MobileHeader() {
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center"
           style={{
-            color: "var(--c-text-muted)",
+            color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
             backgroundColor: screen === "following" ? activeBg : inactiveBg,
             border: screen === "following" ? "2px solid #EBFD00" : "2px solid transparent",
           }}
         >
-          <Users size={18} weight="light" />
+          <Users size={18} weight={screen === "following" ? "fill" : "light"} />
         </div>
       </button>
       <button
