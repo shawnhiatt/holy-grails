@@ -170,7 +170,11 @@ export function MobileHeader() {
   const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
 
   const isProfileView = screen === "following" && followedUserProfile !== null;
-  const showSyncChip = isBackgroundSyncing || isSyncingFollowing;
+  // On the feed, the identity block's SYNC control already shows the
+  // collection sync — the chip there would be redundant. It still shows on
+  // the feed for following-feed syncs, which the SYNC control doesn't cover.
+  const showSyncChip =
+    (isBackgroundSyncing && screen !== "feed") || isSyncingFollowing;
 
   // Shared right-side nav buttons (Look It Up + Following + Settings).
   // The sync chip leads the group so it never splits the button cluster.
@@ -434,7 +438,10 @@ export function BottomTabBar() {
 /** Desktop top navigation bar — replaces sidebar on lg+ viewports */
 export function DesktopTopNav() {
   const { screen, setScreen, isDarkMode, toggleDarkMode, userAvatar, isBackgroundSyncing, isSyncingFollowing, setShowDiscogsSearch } = useApp();
-  const showSyncChip = isBackgroundSyncing || isSyncingFollowing;
+  // Mirrors MobileHeader: the feed identity block already shows the
+  // collection sync, so the chip is redundant there
+  const showSyncChip =
+    (isBackgroundSyncing && screen !== "feed") || isSyncingFollowing;
 
   const logoFill = isDarkMode ? "#E2E8F0" : "#0C284A";
   const activeColor = isDarkMode ? "#E2E8F0" : "#0C284A";

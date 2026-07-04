@@ -790,11 +790,13 @@ existing confirmation modal — does not unfollow directly).
 
 The shared right-side button group (`navButtons`, used by Variants A–D)
 leads with the sync chip (when syncing — it sits at the far left of the
-group so it never splits the button cluster), then a **Search button**
-that opens the "Look It Up" sheet via `setShowDiscogsSearch(true)` —
-present on every screen except the Following profile sub-view, so the
-record-store lookup is one tap from a cold open. Then the Users icon and
-avatar.
+group so it never splits the button cluster; on the Feed screen it is
+suppressed during collection syncs since the identity block's SYNC
+control already shows that state, but still appears there for
+following-feed syncs), then a **Search button** that opens the "Look It
+Up" sheet via `setShowDiscogsSearch(true)` — present on every screen
+except the Following profile sub-view, so the record-store lookup is one
+tap from a cold open. Then the Users icon and avatar.
 
 Title truncation on all variants: `white-space: nowrap`,
 `overflow: hidden`, `text-overflow: ellipsis`, `min-width: 0`,

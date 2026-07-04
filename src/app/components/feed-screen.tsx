@@ -310,7 +310,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setPurgeTag,
     isSyncing,
     isBackgroundSyncing,
-    syncProgress,
     userAvatar,
     lastSyncedAt,
     syncFromDiscogs,
@@ -2078,28 +2077,13 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             {syncInFlight ? "SYNCING" : "SYNC"}
           </span>
         </button>
-        {syncInFlight ? (
-          syncProgress && (
-            <span
-              style={{
-                fontSize: "12px",
-                fontWeight: 500,
-                color: "var(--c-text-muted)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                maxWidth: "180px",
-              }}
-            >
-              {syncProgress}
-            </span>
-          )
-        ) : (
-          syncedAgo && (
-            <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-              Synced {syncedAgo}
-            </span>
-          )
+        {/* No subtext while syncing — the spinner + SYNCING label is enough,
+            and a progress line crowds long usernames. Per-page progress
+            stays a Settings/loading-screen detail. */}
+        {!syncInFlight && syncedAgo && (
+          <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+            Synced {syncedAgo}
+          </span>
         )}
       </div>
     );
