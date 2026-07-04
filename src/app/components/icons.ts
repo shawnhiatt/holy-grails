@@ -45,6 +45,7 @@ export {
   PencilSimpleIcon as Pencil,
   PlayIcon as Play,
   PlusIcon as Plus,
+  ArrowsClockwiseIcon as RefreshCw,
   ArrowCounterClockwiseIcon as RotateCcw,
   BarcodeIcon as ScanBarcode,
   ScissorsIcon as Scissors,

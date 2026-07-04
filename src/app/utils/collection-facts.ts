@@ -1,10 +1,17 @@
 import type { Album } from "../components/discogs-api";
 
 /* Rotating collection facts — real data doing the personality work.
-   One fact is picked per app load for the feed identity block. Every fact
-   is threshold-gated so sparse collections never produce weak lines, and
-   the derivation rules mirror reports-screen (artist exclusions,
-   disambiguation-suffix stripping, decade minimums). */
+   Rendered in the feed identity block ticker as an eyebrow label ("TOP
+   ARTIST") beside its value ("Talking Heads"), so facts are structured
+   pairs rather than prose lines. Every fact is threshold-gated so sparse
+   collections never produce weak lines, and the derivation rules mirror
+   reports-screen (artist exclusions, disambiguation-suffix stripping,
+   decade minimums). */
+
+export interface CollectionFact {
+  label: string;
+  value: string;
+}
 
 const EXCLUDED_ARTISTS = new Set([
   "various",
@@ -13,8 +20,8 @@ const EXCLUDED_ARTISTS = new Set([
   "unknown",
 ]);
 
-export function deriveCollectionFacts(albums: Album[]): string[] {
-  const facts: string[] = [];
+export function deriveCollectionFacts(albums: Album[]): CollectionFact[] {
+  const facts: CollectionFact[] = [];
   if (albums.length === 0) return facts;
 
   // Most collected decade — 5+ records, matching the Decades section minimum
@@ -30,7 +37,7 @@ export function deriveCollectionFacts(albums: Album[]): string[] {
   for (const [d, n] of byDecade) {
     if (n > topDecadeN) { topDecade = d; topDecadeN = n; }
   }
-  if (topDecade && topDecadeN >= 5) facts.push(`Most collected: the ${topDecade}`);
+  if (topDecade && topDecadeN >= 5) facts.push({ label: "Top decade", value: `The ${topDecade}` });
 
   // Top artist — 3+ records, reports-screen exclusions
   const byArtist = new Map<string, number>();
@@ -44,7 +51,7 @@ export function deriveCollectionFacts(albums: Album[]): string[] {
   for (const [name, n] of byArtist) {
     if (n > topArtistN) { topArtist = name; topArtistN = n; }
   }
-  if (topArtist && topArtistN >= 3) facts.push(`Top artist: ${topArtist}`);
+  if (topArtist && topArtistN >= 3) facts.push({ label: "Top artist", value: topArtist });
 
   // Top label — 3+ records
   const byLabel = new Map<string, number>();
@@ -58,14 +65,14 @@ export function deriveCollectionFacts(albums: Album[]): string[] {
   for (const [name, n] of byLabel) {
     if (n > topLabelN) { topLabel = name; topLabelN = n; }
   }
-  if (topLabel && topLabelN >= 3) facts.push(`Top label: ${topLabel}`);
+  if (topLabel && topLabelN >= 3) facts.push({ label: "Top label", value: topLabel });
 
   // Oldest pressing
   let oldest = Infinity;
   for (const a of albums) {
     if (a.year && a.year >= 1900 && a.year < oldest) oldest = a.year;
   }
-  if (Number.isFinite(oldest)) facts.push(`Oldest pressing: ${oldest}`);
+  if (Number.isFinite(oldest)) facts.push({ label: "Oldest pressing", value: String(oldest) });
 
   // Latest pickup — ISO date strings compare lexicographically. Include the
   // artist so the line reads as a record, not a bare title.
@@ -76,9 +83,10 @@ export function deriveCollectionFacts(albums: Album[]): string[] {
   }
   if (latest) {
     const artist = latest.artist.replace(/\s*\(\d+\)\s*$/, "").trim();
-    facts.push(
-      artist ? `Latest pickup: ${artist} – ${latest.title}` : `Latest pickup: ${latest.title}`
-    );
+    facts.push({
+      label: "Latest pickup",
+      value: artist ? `${artist} – ${latest.title}` : latest.title,
+    });
   }
 
   return facts;
