@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { Check, Minus, HelpCircle, Disc3, Trash2 } from "./icons";
+import { Check, StackMinus, HelpCircle, Disc3, Trash2 } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
@@ -248,7 +248,7 @@ export function PurgeCutDialog({
             className="w-8 h-8 rounded-full flex items-center justify-center"
             style={{ border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
           >
-            <Minus size={16} />
+            <StackMinus size={16} />
           </button>
         </div>
 
@@ -441,7 +441,7 @@ function SwipeableAlbumRow({ album, onTag, onTap, isDark }: {
         }}
       >
         <span style={{ color: purgeButtonText("cut", isDark), fontSize: "13px", fontWeight: 600, marginRight: 6 }}>Cut</span>
-        <Minus size={20} color={purgeButtonText("cut", isDark)} />
+        <StackMinus size={20} color={purgeButtonText("cut", isDark)} />
       </div>
 
       {/* Card content — draggable layer */}
@@ -487,7 +487,7 @@ function SwipeableAlbumRow({ album, onTag, onTap, isDark }: {
             <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "cut" ? null : "cut"); }}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
               style={{ backgroundColor: album.purgeTag === "cut" ? purgeTagBg("cut", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "cut" ? cutClr : "var(--c-text-faint)" }}>
-              <Minus size={14} />
+              <StackMinus size={14} />
             </button>
           </div>
         </div>

@@ -53,6 +53,9 @@ export {
   SlidersHorizontalIcon as SlidersHorizontal,
   SquareIcon as Square,
   ArrowSquareOutIcon as SquareArrowOutUpRight,
+  // Icons added post-migration under their Phosphor names (no Lucide predecessor):
+  StackMinusIcon as StackMinus, // the "cut" purge verdict — remove from the stack
+  ImageSquareIcon as ImageSquare, // sleeve/cover condition (Media uses the vinyl disc)
   StarIcon as Star,
   SunIcon as Sun,
   TrashIcon as Trash2,

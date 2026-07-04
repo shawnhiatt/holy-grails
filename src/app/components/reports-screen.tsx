@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
-import { ChevronRight, Disc3, Square } from "./icons";
+import { ChevronRight, Disc3, ImageSquare } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { DURATION_NORMAL } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";
@@ -1292,7 +1292,7 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
     const unset = (v?: string) => !v || !v.trim();
     const list = [
       { id: "media", label: "Media Condition", Icon: Disc3, items: albums.filter((a) => unset(a.mediaCondition)) },
-      { id: "sleeve", label: "Sleeve Condition", Icon: Square, items: albums.filter((a) => unset(a.sleeveCondition)) },
+      { id: "sleeve", label: "Sleeve Condition", Icon: ImageSquare, items: albums.filter((a) => unset(a.sleeveCondition)) },
     ];
     return list.filter((c) => c.items.length > 0);
   }, [albums]);
