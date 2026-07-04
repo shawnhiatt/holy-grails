@@ -9,6 +9,7 @@ import {
   GalleryVerticalEnd,
   Zap,
   Play,
+  RefreshCw,
   Shuffle,
 } from "./icons";
 import { WantlistAddIcon } from "./wantlist-add-icon";
@@ -25,9 +26,9 @@ import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
-import { formatActivityDate, getInitial, formatCollectionSince, formatSyncedAgo } from "../utils/format";
+import { formatActivityDate, getInitial, formatSyncedAgo } from "../utils/format";
 import { shuffle, pickRandom } from "../utils/shuffle";
-import { deriveCollectionFacts } from "../utils/collection-facts";
+import { deriveCollectionFacts, type CollectionFact } from "../utils/collection-facts";
 import { FormatSpotlight } from "./format-spotlight";
 import { DominantColorCard } from "./dominant-color-card";
 
@@ -308,7 +309,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setPurgeTag,
     isSyncing,
     userAvatar,
-    userProfile,
     lastSyncedAt,
     syncFromDiscogs,
     followingAvatars,
@@ -1942,7 +1942,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   // Collection facts — real data doing the personality work. Set once when
   // albums hydrate, stable afterwards. Rendered as a horizontal ticker, or a
   // single centered line under reduced-motion / sparse data.
-  const [collectionFacts, setCollectionFacts] = useState<string[]>([]);
+  const [collectionFacts, setCollectionFacts] = useState<CollectionFact[]>([]);
   useEffect(() => {
     if (collectionFacts.length > 0 || albums.length === 0) return;
     setCollectionFacts(deriveCollectionFacts(albums));
@@ -1955,34 +1955,42 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
     []
   );
-  const statCell = (value: string, label: string, onTap: () => void, color?: string) => (
+  // Full-width band, no card container — rows separated by hairline
+  // dividers. Cells are tappable shortcuts (Collection → crate,
+  // Med. Value → reports, Wantlist → wants).
+  const statCell = (value: string, label: string, onTap: () => void, opts?: { color?: string; divider?: boolean; padding?: string }) => (
     <button
       key={label}
       onClick={onTap}
-      className="flex flex-col items-center tappable cursor-pointer"
-      style={{ touchAction: "manipulation" }}
+      className="flex flex-col items-center justify-center tappable cursor-pointer"
+      style={{
+        touchAction: "manipulation",
+        padding: opts?.padding ?? "12px 8px",
+        minWidth: 0,
+        borderLeft: opts?.divider ? "1px solid var(--c-border)" : undefined,
+      }}
       aria-label={label}
     >
       <span
         style={{
-          fontSize: "20px",
+          fontSize: "22px",
           fontWeight: 700,
           fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
           letterSpacing: "-0.3px",
-          color: color || "var(--c-text)",
-          lineHeight: 1.2,
+          color: opts?.color || "var(--c-text)",
+          lineHeight: 1.15,
         }}
       >
         {value}
       </span>
       <span
         style={{
-          fontSize: "11px",
+          fontSize: "10px",
           fontWeight: 600,
-          letterSpacing: "0.08em",
+          letterSpacing: "0.1em",
           textTransform: "uppercase",
           color: "var(--c-text-muted)",
-          marginTop: "2px",
+          marginTop: "3px",
         }}
       >
         {label}
@@ -1990,140 +1998,205 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </button>
   );
 
-  const IdentityBlock = discogsUsername ? (
-    <div
-      className="w-full max-w-[640px] mx-auto flex flex-col items-center"
-      style={{
-        padding: "16px",
-        gap: "10px",
-        borderRadius: "16px",
-        // Elevated container — token-derived lift in dark (reads as the
-        // subtle translucent panel), plain surface card in light where a
-        // white tint would vanish against the near-white canvas
-        backgroundColor: isDarkMode
-          ? "oklab(from #0C1A2E calc(l + 0.045) a b)"
-          : "#FFFFFF",
-        border: "1px solid var(--c-border)",
-        boxShadow: isDarkMode ? undefined : "var(--c-card-shadow)",
-      }}
-    >
-      {/* Avatar + username, centered row */}
-      <div className="w-full flex items-center justify-center gap-3" style={{ minWidth: 0 }}>
-        {userAvatar ? (
-          <img
-            src={userAvatar}
-            alt={discogsUsername}
-            className="w-16 h-16 rounded-full object-cover flex-shrink-0"
-            style={{ border: "2px solid var(--c-border)" }}
-          />
-        ) : (
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}
-          >
-            <span style={{ fontSize: "24px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>
-              {getInitial(discogsUsername)}
-            </span>
-          </div>
-        )}
-        <div style={{ minWidth: 0 }}>
-          <p
-            style={{
-              fontSize: "28px",
-              fontWeight: 700,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: "var(--c-text)",
-              letterSpacing: "-0.4px",
-              lineHeight: 1.2,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "100%",
-            }}
-          >
-            {discogsUsername}
-          </p>
-          {userProfile?.registered && (
-            <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)", marginTop: "1px" }}>
-              Collecting since {formatCollectionSince(userProfile.registered)}
-            </p>
+  // Ticker fact — eyebrow label beside its value, matching the stat cell
+  // label treatment so the strip reads as part of the same system
+  const factSpan = (fact: CollectionFact, key: number | string) => (
+    <span key={key} className="flex items-baseline" style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+      <span
+        style={{
+          fontSize: "10px",
+          fontWeight: 600,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--c-text-faint)",
+          marginRight: "7px",
+        }}
+      >
+        {fact.label}
+      </span>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text)" }}>
+        {fact.value}
+      </span>
+      <span aria-hidden style={{ margin: "0 14px", color: "var(--c-text-faint)" }}>·</span>
+    </span>
+  );
+
+  const identityBlock = (variant: "mobile" | "desktop") => {
+    if (!discogsUsername) return null;
+    const isMobile = variant === "mobile";
+    const avatarSize = isMobile ? 44 : 48;
+
+    const avatarEl = userAvatar ? (
+      <img
+        src={userAvatar}
+        alt={discogsUsername}
+        className="rounded-full object-cover flex-shrink-0"
+        style={{ width: avatarSize, height: avatarSize, border: "2px solid var(--c-border)" }}
+      />
+    ) : (
+      <div
+        className="rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ width: avatarSize, height: avatarSize, backgroundColor: "var(--c-chip-bg)", border: "2px solid var(--c-border)" }}
+      >
+        <span style={{ fontSize: isMobile ? "18px" : "20px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>
+          {getInitial(discogsUsername)}
+        </span>
+      </div>
+    );
+
+    const usernameEl = (
+      <p
+        className="flex-1"
+        style={{
+          fontSize: isMobile ? "22px" : "26px",
+          fontWeight: 700,
+          fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+          color: "var(--c-text)",
+          letterSpacing: "-0.4px",
+          lineHeight: 1.2,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          minWidth: 0,
+        }}
+      >
+        {discogsUsername}
+      </p>
+    );
+
+    const syncControl = (
+      <div className="flex flex-col items-end flex-shrink-0" style={{ gap: "1px" }}>
+        <button
+          onClick={handleSyncNow}
+          disabled={isSyncing}
+          className="tappable cursor-pointer flex items-center"
+          style={{ gap: "5px", color: "var(--c-link)", touchAction: "manipulation" }}
+          aria-label="Sync with Discogs"
+        >
+          {isSyncing ? (
+            <Disc3 size={14} className="disc-spinner" />
+          ) : (
+            <RefreshCw size={14} weight="bold" />
           )}
-        </div>
+          <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.1em" }}>
+            {isSyncing ? "SYNCING" : "SYNC"}
+          </span>
+        </button>
+        {!isSyncing && syncedAgo && (
+          <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+            Synced {syncedAgo}
+          </span>
+        )}
       </div>
+    );
 
-      {/* Collection stats — tappable shortcuts */}
-      <div className="w-full flex items-start justify-around">
-        {statCell(albums.length.toLocaleString(), albums.length === 1 ? "Record" : "Records", () => setScreen("crate"))}
-        {statCell(wants.length.toLocaleString(), "Wantlist", () => setScreen("wants"))}
-        {hasCollectionValue && statCell(formatCurrency(collectionValue!.median), "Value", () => setScreen("reports"), "#009A32")}
-      </div>
+    const cellPad = isMobile ? "12px 8px" : "4px 22px";
+    const statCells = (
+      <>
+        {statCell(albums.length.toLocaleString(), "In Collection", () => setScreen("crate"), { padding: cellPad })}
+        {hasCollectionValue && statCell(formatCurrency(collectionValue!.median), "Med. Value", () => setScreen("reports"), { color: "#009A32", divider: true, padding: cellPad })}
+        {statCell(wants.length.toLocaleString(), "In Wantlist", () => setScreen("wants"), { divider: true, padding: cellPad })}
+      </>
+    );
 
-      {/* Collection facts — horizontal ticker (static single line when
-          reduced-motion or too few facts to scroll) */}
-      {collectionFacts.length >= 2 && !reduceMotion ? (
+    // Subtle lift behind the ticker strip — one perceptual step off the
+    // canvas in each theme (Oklab-derived, per the color rules)
+    const tickerBg = isDarkMode
+      ? "oklab(from #0C1A2E calc(l + 0.03) a b)"
+      : "oklab(from #F9F9FA calc(l - 0.025) a b)";
+
+    const tickerStrip =
+      collectionFacts.length >= 2 && !reduceMotion ? (
         <div
           className="w-full overflow-hidden"
-          style={{
-            WebkitMaskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
-            maskImage: "linear-gradient(to right, transparent, #000 10%, #000 90%, transparent)",
-          }}
+          style={{ borderTop: "1px solid var(--c-border)", backgroundColor: tickerBg, padding: "8px 0" }}
         >
           <div
             className="feed-ticker"
             style={{ display: "flex", width: "max-content", whiteSpace: "nowrap", animationDuration: `${collectionFacts.length * 6}s` }}
           >
-            {[...collectionFacts, ...collectionFacts].map((fact, i) => (
-              <span
-                key={i}
-                className="flex items-center"
-                style={{ flexShrink: 0, whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}
-              >
-                {fact}
-                <span aria-hidden style={{ margin: "0 14px", color: "var(--c-text-faint)" }}>·</span>
-              </span>
-            ))}
+            {[...collectionFacts, ...collectionFacts].map((fact, i) => factSpan(fact, i))}
           </div>
         </div>
       ) : collectionFact ? (
-        <p
-          className="text-center"
-          style={{
-            fontSize: "13px",
-            fontWeight: 500,
-            color: "var(--c-text-muted)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            maxWidth: "100%",
-          }}
+        <div
+          className="w-full flex items-baseline justify-center overflow-hidden"
+          style={{ borderTop: "1px solid var(--c-border)", backgroundColor: tickerBg, padding: "8px 16px", whiteSpace: "nowrap" }}
         >
-          {collectionFact}
-        </p>
-      ) : null}
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "var(--c-text-faint)",
+              marginRight: "7px",
+              flexShrink: 0,
+            }}
+          >
+            {collectionFact.label}
+          </span>
+          <span
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--c-text)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              minWidth: 0,
+            }}
+          >
+            {collectionFact.value}
+          </span>
+        </div>
+      ) : null;
 
-      {/* Sync status */}
-      <div className="flex items-center justify-center gap-2" style={{ fontSize: "13px", color: "var(--c-text-muted)" }}>
-        {isSyncing ? (
-          <>
-            <Disc3 size={13} className="disc-spinner" />
-            <span>Syncing</span>
-          </>
-        ) : (
-          <>
-            {syncedAgo && <span>Synced {syncedAgo}</span>}
-            {syncedAgo && <span aria-hidden>·</span>}
-            <button
-              onClick={handleSyncNow}
-              className="tappable cursor-pointer"
-              style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-link)", touchAction: "manipulation" }}
-            >
-              Sync Now
-            </button>
-          </>
-        )}
+    if (isMobile) {
+      return (
+        <div className="w-full flex flex-col" style={{ borderTop: "1px solid var(--c-border)", borderBottom: "1px solid var(--c-border)" }}>
+          {/* Avatar + username | sync */}
+          <div className="flex items-center" style={{ gap: "12px", padding: "10px 16px", minWidth: 0 }}>
+            {avatarEl}
+            {usernameEl}
+            {syncControl}
+          </div>
+
+          {/* Stats — three equal columns with vertical dividers */}
+          <div
+            className="w-full grid"
+            style={{
+              gridTemplateColumns: `repeat(${hasCollectionValue ? 3 : 2}, minmax(0, 1fr))`,
+              borderTop: "1px solid var(--c-border)",
+            }}
+          >
+            {statCells}
+          </div>
+
+          {tickerStrip}
+        </div>
+      );
+    }
+
+    // Desktop — single header strip: identity left, stats center, sync
+    // right, with the ticker running underneath
+    return (
+      <div className="w-full flex flex-col" style={{ borderTop: "1px solid var(--c-border)", borderBottom: "1px solid var(--c-border)" }}>
+        <div className="flex items-center" style={{ gap: "16px", padding: "12px 4px", minWidth: 0 }}>
+          {avatarEl}
+          {usernameEl}
+          <div
+            className="flex items-stretch flex-shrink-0"
+            style={{ margin: "0 8px", borderLeft: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)" }}
+          >
+            {statCells}
+          </div>
+          {syncControl}
+        </div>
+        {tickerStrip}
       </div>
-    </div>
-  ) : null;
+    );
+  };
 
   /* ─────────────── RECOMMENDED CARD ─────────────── */
 
@@ -2281,7 +2354,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             {hasData && (
               <div className="flex flex-col gap-[44px]">
                 {/* 0. Identity block */}
-                <div style={{ paddingTop: "8px" }}>{IdentityBlock}</div>
+                <div style={{ paddingTop: "8px" }}>{identityBlock("desktop")}</div>
 
                 {/* 1. Recommended */}
                 {RecommendedCard}
@@ -2318,10 +2391,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
           {/* ═══ MOBILE STACKED LAYOUT ═══ */}
           <div className="lg:hidden flex flex-col">
-            {/* 0. Identity block — below header clearance */}
+            {/* 0. Identity block — full-bleed band, flush under the header
+                (its own top hairline reads as the header's bottom edge) */}
             {hasData && (
-              <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 66px)", paddingLeft: "16px", paddingRight: "16px", paddingBottom: "12px" }}>
-                {IdentityBlock}
+              <div style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 58px)", paddingBottom: "20px" }}>
+                {identityBlock("mobile")}
               </div>
             )}
 
