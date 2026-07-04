@@ -621,10 +621,11 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section (or Pressing Notes tab on mobile). Never merge these.
 - **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
 - **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads.
+- **Image lightbox (`ImageLightbox`)**: shared by all three detail panels, rendered via `createPortal` to `document.body`. The portal is load-bearing: the panels live inside transform-animated containers (bottom sheet / side panel), which trap `position: fixed` and z-index inside the sheet's stacking context — without the portal, the sheet's floating close button (`sheetZIndex + 1`) sits on top of the lightbox's close button and tapping X closes the whole detail card. Do not inline the lightbox back into the panels.
 - **Sheet open gate (`App.tsx`):** The desktop side panel and mobile sheet open condition checks `selectedAlbum || selectedWantItem || selectedFeedAlbum`. Any new panel type added to `AlbumDetailPanel` routing must also be added to this gate or the sheet will silently refuse to open.
 - **DestructiveButton** — shared two-tap confirm button component, local to `album-detail.tsx`. Props: `label`, `confirming`, `loading`, `onClick`, `variant?: "destructive" | "neutral"` (default: `"destructive"`). Destructive variant: outlined white text (first tap) → solid `#FF2D78` fill (confirm tap) → `Disc3` spinner while async in flight. Neutral variant: `var(--c-surface)` bg + `var(--c-border-strong)` border + `var(--c-text)` color in all states, no pink. Used by `WantItemDetailPanel`, `AlbumDetailPanel` (remove from collection) with `destructive`; `ReleaseDetailPanel` (remove from wantlist) with `neutral`.
 
-`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following, and pressings chosen in "Look It Up"). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, the **Value section**, and action buttons. Does not include Mark as Played, Purge, Edit, or stack picker. Action buttons ("Add to Collection", "Add to Wantlist", "Remove from Wantlist") all use neutral surface style — `var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color. No leading icons. "View Your Copy" (shown when already in collection) retains its green surface style. "Remove from Wantlist" uses `DestructiveButton` with `variant="neutral"`.
+`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following, and pressings chosen in "Look It Up"). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, the **Value section**, and action buttons. Does not include Mark as Played, Purge, Edit, or stack picker. Action buttons ("Add to Collection", "Add to Wantlist", "Remove from Wantlist") render side by side in one row (`flex gap-2`, each `flex-1 min-w-0`) and use neutral surface style — `var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color. Add buttons carry leading icons: `GalleryVerticalEnd` (collection) and `Heart` (wantlist), 16px. "View Your Copy" (shown when already in collection) retains its green surface style with the `GalleryVerticalEnd` icon. "Remove from Wantlist" uses `DestructiveButton` with `variant="neutral"` (no icon).
 
 **Value section (`ReleaseDetailPanel` only)** — the record-store price lookup. A prior full market-value attempt was abandoned as inaccurate/over-complicated; this is the deliberately minimal replacement. Presentation rules are load-bearing, not cosmetic:
 - **Tier 1, always**: `Lowest ask {price} · {N} for sale` from `proxyFetchRelease`'s `lowestPrice`/`numForSale`. Labeled "ask," never "value." Zero listings → `No copies for sale`.
@@ -788,10 +789,12 @@ Back calls `onBackFromProfile`. Unfollow calls `onUnfollowUser` (triggers
 existing confirmation modal — does not unfollow directly).
 
 The shared right-side button group (`navButtons`, used by Variants A–D)
-leads with a **Search button** that opens the "Look It Up" sheet via
-`setShowDiscogsSearch(true)` — present on every screen except the Following
-profile sub-view, so the record-store lookup is one tap from a cold open.
-Then the sync chip (when syncing), Users icon, and avatar.
+leads with the sync chip (when syncing — it sits at the far left of the
+group so it never splits the button cluster), then a **Search button**
+that opens the "Look It Up" sheet via `setShowDiscogsSearch(true)` —
+present on every screen except the Following profile sub-view, so the
+record-store lookup is one tap from a cold open. Then the Users icon and
+avatar.
 
 Title truncation on all variants: `white-space: nowrap`,
 `overflow: hidden`, `text-overflow: ellipsis`, `min-width: 0`,

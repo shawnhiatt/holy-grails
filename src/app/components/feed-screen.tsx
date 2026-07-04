@@ -309,6 +309,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     discogsUsername,
     setPurgeTag,
     isSyncing,
+    isBackgroundSyncing,
+    syncProgress,
     userAvatar,
     lastSyncedAt,
     syncFromDiscogs,
@@ -519,9 +521,12 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const hasFollowing = followingFeed.length > 0;
 
   // Welcome greeting — stable per calendar day, changes by time-of-day bucket
-  // Manual sync from the feed identity block (mirrors the Settings pattern)
+  // Manual sync from the feed identity block (mirrors the Settings pattern).
+  // Manual Sync Now runs as a *background* sync (isBackgroundSyncing), so the
+  // SYNC control must watch both flags or it never shows its syncing state.
+  const syncInFlight = isSyncing || isBackgroundSyncing;
   const handleSyncNow = useCallback(async () => {
-    if (isSyncing) return;
+    if (syncInFlight) return;
     try {
       const stats = await syncFromDiscogs();
       toast.success(`Synced \u2014 ${stats.albums} records \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} wantlist items`);
@@ -530,7 +535,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       console.error("[Discogs Sync Error]", err);
       toast.error(msg);
     }
-  }, [isSyncing, syncFromDiscogs]);
+  }, [syncInFlight, syncFromDiscogs]);
 
   // Scroll-linked header transparency
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -546,6 +551,15 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     onHeroVisibility?.(true);
     return () => onHeroVisibility?.(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tapping the active Feed nav item scrolls back to the top
+  useEffect(() => {
+    const onScrollTop = () => {
+      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener("hg:feed-scroll-top", onScrollTop);
+    return () => window.removeEventListener("hg:feed-scroll-top", onScrollTop);
+  }, []);
 
   const cardBg = "var(--c-surface)";
   const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
@@ -2050,24 +2064,42 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div className="flex flex-col items-end flex-shrink-0" style={{ gap: "1px" }}>
         <button
           onClick={handleSyncNow}
-          disabled={isSyncing}
+          disabled={syncInFlight}
           className="tappable cursor-pointer flex items-center"
           style={{ gap: "5px", color: "var(--c-link)", touchAction: "manipulation" }}
           aria-label="Sync with Discogs"
         >
-          {isSyncing ? (
+          {syncInFlight ? (
             <Disc3 size={14} className="disc-spinner" />
           ) : (
             <RefreshCw size={14} weight="bold" />
           )}
           <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.1em" }}>
-            {isSyncing ? "SYNCING" : "SYNC"}
+            {syncInFlight ? "SYNCING" : "SYNC"}
           </span>
         </button>
-        {!isSyncing && syncedAgo && (
-          <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-            Synced {syncedAgo}
-          </span>
+        {syncInFlight ? (
+          syncProgress && (
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--c-text-muted)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "180px",
+              }}
+            >
+              {syncProgress}
+            </span>
+          )
+        ) : (
+          syncedAgo && (
+            <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+              Synced {syncedAgo}
+            </span>
+          )
         )}
       </div>
     );

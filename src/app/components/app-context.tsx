@@ -1110,6 +1110,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sleeveCondition: "",
       pricePaid: "",
       notes: "",
+      // Custom field definitions (empty values) ride along from the add
+      // action so they're editable immediately, not only after the next sync
+      customFields: result.customFields,
       dateAdded: result.dateAdded ?? new Date().toISOString(),
       discogsUrl: result.discogsUrl ?? `https://www.discogs.com/release/${releaseId}`,
       purgeTag: null,
@@ -1138,6 +1141,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sleeveCondition: newAlbum.sleeveCondition,
       pricePaid: newAlbum.pricePaid,
       notes: newAlbum.notes,
+      customFields: newAlbum.customFields,
       dateAdded: newAlbum.dateAdded,
     }).catch((e) => console.warn("[Convex] Collection add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToCollection, addCollectionItemMut, folders]);

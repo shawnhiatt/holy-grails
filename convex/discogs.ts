@@ -1736,7 +1736,28 @@ export const proxyAddToCollection = action({
       for (const desc of fmt.descriptions || []) formatParts.push(desc);
     }
 
+    // Include the user's custom field definitions (empty values) so the fresh
+    // add matches what a full sync produces — without this, custom fields
+    // don't appear on the album (or in edit mode) until the next sync.
+    const fieldDefs = await fetchCustomFieldsInternal(
+      creds.username,
+      creds.access_token,
+      creds.token_secret
+    );
+    const fieldMap = buildFieldMap(fieldDefs);
+    const customFields: { name: string; value: string; fieldId: number; type: string; options?: string[] }[] = [];
+    for (const [fieldId, fieldInfo] of fieldMap.otherFields) {
+      customFields.push({
+        name: fieldInfo.name,
+        value: "",
+        fieldId,
+        type: fieldInfo.type,
+        ...(fieldInfo.options && { options: fieldInfo.options }),
+      });
+    }
+
     return {
+      customFields: customFields.length > 0 ? customFields : undefined,
       instance_id: instanceId,
       release_id: args.releaseId,
       master_id: rd.master_id || undefined,
