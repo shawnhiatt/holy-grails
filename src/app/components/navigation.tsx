@@ -4,7 +4,7 @@ import {
   Heart,
   UserRound,
   GalleryVerticalEnd,
-  SquareArrowOutUpRight,
+  Broom,
   Sun,
   Moon,
   Users,
@@ -30,7 +30,7 @@ const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
 /** Desktop top nav — right group */
 const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "following", label: "Following", icon: Users },
-  { id: "purge", label: "Purge", icon: SquareArrowOutUpRight },
+  { id: "purge", label: "Purge", icon: Broom },
   { id: "reports", label: "Insights", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: UserRound },
 ];

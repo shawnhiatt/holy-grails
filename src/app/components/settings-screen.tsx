@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, SquareArrowOutUpRight, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil } from "./icons";
+import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil } from "./icons";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -513,7 +513,7 @@ export function SettingsScreen() {
                 border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.3)"}`,
               }}
             >
-              <SquareArrowOutUpRight size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
+              <Broom size={20} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
               <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
                 Purge
               </p>
@@ -591,7 +591,7 @@ export function SettingsScreen() {
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Hide purge indicators</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Remove Keep/Maybe/Purge dots from collection views</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Remove Keep/Maybe/Cut dots from collection views</p>
               </div>
               <button
                 onClick={() => setHidePurgeIndicators(!hidePurgeIndicators)}
