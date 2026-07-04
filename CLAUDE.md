@@ -197,6 +197,7 @@ src/
       oauth-helpers.ts   # OAuth 1.0a initiation — kicks off Discogs redirect (no signing, just calls convex/oauth.ts)
       purge-colors.ts
       purge-tracker.tsx
+      purge-verdict-buttons.tsx  # Shared Keep/Maybe/Cut verdict button row — solid fill = selected verdict, tag-colored outline = unselected, icons Check/HelpCircle/StackMinus (weight bold). Used by the feed evaluator and album detail Rate for Purge; any new verdict UI must use this component, never bespoke buttons.
       reports-screen.tsx
       stack-picker-sheet.tsx
       stacks.tsx

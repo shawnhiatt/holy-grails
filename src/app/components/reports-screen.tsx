@@ -1160,7 +1160,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 
   const statCards: { label: string; tag: string; count: number }[] = [
     { label: "Keep", tag: "keep", count: stats.keep },
-    { label: "Purge", tag: "cut", count: stats.cut },
+    { label: "Cut", tag: "cut", count: stats.cut },
     { label: "Maybe", tag: "maybe", count: stats.maybe },
     { label: "Unrated", tag: "unrated", count: stats.unrated },
   ];
@@ -1274,7 +1274,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
       <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
         {stats.rated > 0
           ? `You've evaluated ${Math.round(stats.pct)}% of your collection`
-          : "Start evaluating albums in the Purge tab"}
+          : "No verdicts yet. Open Purge to start."}
       </p>
     </div>
   );

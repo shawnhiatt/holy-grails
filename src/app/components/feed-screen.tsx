@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
-  StackMinus,
+  Broom,
   Disc3,
   ChevronRight,
   ChevronDown,
@@ -20,7 +20,8 @@ import type { FollowingFeedEntry } from "./app-context";
 import type { Screen } from "./app-context";
 import { getCachedCollectionValue, type Album } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
-import { purgeIndicatorColor, purgeTagColor, purgeButtonBg, purgeButtonText, purgeToast } from "./purge-colors";
+import { purgeIndicatorColor, purgeTagColor, purgeToast } from "./purge-colors";
+import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { useSafeTap } from "../lib/use-safe-tap";
 import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
@@ -1568,7 +1569,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       {/* Unrated + No play recorded — side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
         <InsightRow
-          icon={<StackMinus size={16} style={{ color: "var(--c-text-muted)" }} />}
+          icon={<Broom size={16} style={{ color: "var(--c-text-muted)" }} />}
           label={`${unratedCount} record${unratedCount !== 1 ? "s" : ""} still unrated`}
           isDarkMode={isDarkMode}
           onTap={() => {
@@ -1594,21 +1595,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   );
 
   /* ─────────────── PURGE TRACKER card content ─────────────── */
-
-  const purgeButtonStyle = (variant: "keep" | "cut" | "maybe"): React.CSSProperties => {
-    return {
-      flex: 1,
-      height: "36px",
-      borderRadius: "10px",
-      border: "none",
-      fontSize: "13px",
-      fontWeight: 600,
-      fontFamily: "'DM Sans', system-ui, sans-serif",
-      backgroundColor: purgeButtonBg(variant, isDarkMode),
-      color: purgeButtonText(variant, isDarkMode),
-      cursor: "pointer",
-    };
-  };
 
   const PurgeTrackerCard = (
     <div
@@ -1821,10 +1807,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 </p>
               </div>
               {/* Buttons */}
-              <div style={{ display: "flex", flexDirection: "row", gap: "8px", marginTop: "12px" }}>
-                <button onClick={() => handlePurgeDecision("keep")} className="tappable" style={purgeButtonStyle("keep")}>Keep</button>
-                <button onClick={() => handlePurgeDecision("maybe")} className="tappable" style={purgeButtonStyle("maybe")}>Maybe</button>
-                <button onClick={() => handlePurgeDecision("cut")} className="tappable" style={purgeButtonStyle("cut")}>Cut</button>
+              <div style={{ marginTop: "12px" }}>
+                <PurgeVerdictButtons activeTag={purgeEvalAlbum.purgeTag} onSelect={handlePurgeDecision} isDark={isDarkMode} />
               </div>
             </div>
 
@@ -1921,10 +1905,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     </p>
                   </div>
                   {/* Button row */}
-                  <div style={{ display: "flex", flexDirection: "row", gap: "8px", width: "100%", marginTop: "12px" }}>
-                    <button onClick={() => handlePurgeDecision("keep")} className="tappable" style={purgeButtonStyle("keep")}>Keep</button>
-                    <button onClick={() => handlePurgeDecision("maybe")} className="tappable" style={purgeButtonStyle("maybe")}>Maybe</button>
-                    <button onClick={() => handlePurgeDecision("cut")} className="tappable" style={purgeButtonStyle("cut")}>Cut</button>
+                  <div style={{ width: "100%", marginTop: "12px" }}>
+                    <PurgeVerdictButtons activeTag={purgeEvalAlbum.purgeTag} onSelect={handlePurgeDecision} isDark={isDarkMode} />
                   </div>
                 </div>
               </div>

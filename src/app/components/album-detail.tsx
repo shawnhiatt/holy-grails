@@ -6,7 +6,8 @@ import { SlideOutPanel } from "./slide-out-panel";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
 
-import { purgeTagColor as getPurgeColor, purgeTagTint, purgeButtonBg, purgeButtonText, purgeToast, purgeClearToast } from "./purge-colors";
+import { purgeTagColor as getPurgeColor, purgeToast, purgeClearToast } from "./purge-colors";
+import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
@@ -96,7 +97,7 @@ const releaseDataCache = new Map<number, ReleaseData>();
 
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
-    selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken,
+    selectedAlbum, setShowAlbumDetail, setSelectedAlbumId, setPurgeTag, sessionToken, setScreen,
     lastPlayed, playCounts, markPlayed, markPlayedAt, removePlay, isDarkMode,
     // Stack picker
     isAlbumInAnyStack, mostRecentStackId,
@@ -1261,43 +1262,42 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
                     {/* ═══ Rate for Purge (inside Your Copy) ═══ */}
                     <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
-                      <p className="mb-2" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        Rate for Purge
-                      </p>
-                      <div style={{ display: "flex", flexDirection: "row", gap: "8px" }}>
-                        {(["keep", "maybe", "cut"] as const).map((tag) => {
-                          const isActive = selectedAlbum.purgeTag === tag;
-                          const label = tag.charAt(0).toUpperCase() + tag.slice(1);
-                          return (
-                            <button
-                              key={tag}
-                              className="tappable"
-                              onClick={() => {
-                                const t = selectedAlbum.purgeTag === tag ? null : tag;
-                                setPurgeTag(selectedAlbum.id, t);
-                                if (t) purgeToast(t, isDarkMode, selectedAlbum.title);
-                                else purgeClearToast();
-                              }}
-                              style={{
-                                flex: 1,
-                                height: "36px",
-                                borderRadius: "10px",
-                                border: isActive ? `2px solid ${purgeButtonText(tag, isDarkMode)}` : "none",
-                                fontSize: "13px",
-                                fontWeight: 600,
-                                fontFamily: "'DM Sans', system-ui, sans-serif",
-                                backgroundColor: purgeButtonBg(tag, isDarkMode),
-                                color: purgeButtonText(tag, isDarkMode),
-                                cursor: "pointer",
-                                opacity: isActive ? 1 : 0.55,
-                                transition: "opacity 0.15s ease",
-                              }}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
+                      <div className="flex items-center justify-between mb-2">
+                        <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          Rate for Purge
+                        </p>
+                        <button
+                          onClick={() => {
+                            setShowAlbumDetail(false);
+                            setSelectedAlbumId(null);
+                            setSelectedWantItem(null);
+                            setSelectedFeedAlbum(null);
+                            setScreen("purge");
+                          }}
+                          className="cursor-pointer"
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            color: "var(--c-link)",
+                            fontFamily: "'DM Sans', system-ui, sans-serif",
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                          }}
+                        >
+                          Open Purge
+                        </button>
                       </div>
+                      <PurgeVerdictButtons
+                        activeTag={selectedAlbum.purgeTag}
+                        isDark={isDarkMode}
+                        onSelect={(tag) => {
+                          const t = selectedAlbum.purgeTag === tag ? null : tag;
+                          setPurgeTag(selectedAlbum.id, t);
+                          if (t) purgeToast(t, isDarkMode, selectedAlbum.title);
+                          else purgeClearToast();
+                        }}
+                      />
                     </div>
 
                     {/* ═══ Play History (inside Your Copy) ═══ */}

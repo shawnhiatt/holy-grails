@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { Check, StackMinus, HelpCircle, Disc3, Trash2 } from "./icons";
+import { Check, StackMinus, HelpCircle, Disc3, Trash2, X } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./app-context";
 import type { Album, PurgeTag } from "./discogs-api";
-import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeIndicatorColor, purgeButtonBg, purgeButtonText, purgeToast } from "./purge-colors";
+import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel, purgeIndicatorColor, purgeButtonBg, purgeButtonText, purgeOutlineBorder, purgeToast } from "./purge-colors";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 
@@ -248,7 +248,7 @@ export function PurgeCutDialog({
             className="w-8 h-8 rounded-full flex items-center justify-center"
             style={{ border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
           >
-            <StackMinus size={16} />
+            <X size={16} />
           </button>
         </div>
 
@@ -474,21 +474,24 @@ function SwipeableAlbumRow({ album, onTag, onTap, isDark }: {
             <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{album.artist}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "keep" ? null : "keep"); }}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-              style={{ backgroundColor: album.purgeTag === "keep" ? purgeTagBg("keep", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "keep" ? keepClr : "var(--c-text-faint)" }}>
-              <Check size={14} />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "maybe" ? null : "maybe"); }}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-              style={{ backgroundColor: album.purgeTag === "maybe" ? purgeTagBg("maybe", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "maybe" ? maybeClr : "var(--c-text-faint)" }}>
-              <HelpCircle size={14} />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); onTag(album.id, album.purgeTag === "cut" ? null : "cut"); }}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-              style={{ backgroundColor: album.purgeTag === "cut" ? purgeTagBg("cut", isDark) : "var(--c-chip-bg)", color: album.purgeTag === "cut" ? cutClr : "var(--c-text-faint)" }}>
-              <StackMinus size={14} />
-            </button>
+            {([
+              { tag: "keep" as const, Icon: Check, clr: keepClr },
+              { tag: "maybe" as const, Icon: HelpCircle, clr: maybeClr },
+              { tag: "cut" as const, Icon: StackMinus, clr: cutClr },
+            ]).map(({ tag, Icon, clr }) => {
+              const isActive = album.purgeTag === tag;
+              return (
+                <button key={tag} onClick={(e) => { e.stopPropagation(); onTag(album.id, isActive ? null : tag); }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                  style={{
+                    backgroundColor: isActive ? purgeButtonBg(tag, isDark) : "transparent",
+                    border: `1.5px solid ${isActive ? "transparent" : purgeOutlineBorder(tag, isDark)}`,
+                    color: isActive ? purgeButtonText(tag, isDark) : clr,
+                  }}>
+                  <Icon size={14} weight="bold" />
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

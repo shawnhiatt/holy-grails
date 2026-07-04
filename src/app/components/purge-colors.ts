@@ -86,6 +86,16 @@ export function purgeButtonBg(tag: string, isDark: boolean): string {
   }
 }
 
+/* ── outline border for unselected verdict buttons (solid = selected, outline = unselected) ── */
+export function purgeOutlineBorder(tag: string, isDark: boolean): string {
+  switch (tag) {
+    case "keep":  return isDark ? "rgba(62,152,66,0.55)"   : "rgba(62,152,66,0.55)";
+    case "cut":   return isDark ? "rgba(255,152,218,0.5)"  : "rgba(154,32,124,0.45)";
+    case "maybe": return isDark ? "rgba(172,222,242,0.5)"  : "rgba(0,71,108,0.45)";
+    default:      return isDark ? "#2D4A66" : "#D2D8DE";
+  }
+}
+
 /* ── text color on solid purge buttons ── */
 export function purgeButtonText(tag: string, isDark: boolean): string {
   switch (tag) {

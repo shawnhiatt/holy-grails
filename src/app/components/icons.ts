@@ -53,8 +53,8 @@ export {
   ShuffleIcon as Shuffle,
   SlidersHorizontalIcon as SlidersHorizontal,
   SquareIcon as Square,
-  ArrowSquareOutIcon as SquareArrowOutUpRight,
   // Icons added post-migration under their Phosphor names (no Lucide predecessor):
+  BroomIcon as Broom, // the Purge feature identity — nav, Settings tile, unrated insight
   StackMinusIcon as StackMinus, // the "cut" purge verdict — remove from the stack
   ImageSquareIcon as ImageSquare, // sleeve/cover condition (Media uses the vinyl disc)
   StarIcon as Star,
