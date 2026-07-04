@@ -172,9 +172,19 @@ export function MobileHeader() {
   const isProfileView = screen === "following" && followedUserProfile !== null;
   const showSyncChip = isBackgroundSyncing || isSyncingFollowing;
 
-  // Shared right-side nav buttons (Look It Up + Following + Settings)
+  // Shared right-side nav buttons (Look It Up + Following + Settings).
+  // The sync chip leads the group so it never splits the button cluster.
   const navButtons = (
     <div className="flex items-center flex-shrink-0">
+      {showSyncChip && (
+        <div
+          className="flex items-center justify-center w-11 h-11"
+          title="Syncing"
+          aria-label="Syncing"
+        >
+          <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
+        </div>
+      )}
       <button
         onClick={() => { setShowDiscogsSearch(true); }}
         className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
@@ -188,15 +198,6 @@ export function MobileHeader() {
           <Search size={18} weight="light" />
         </div>
       </button>
-      {showSyncChip && (
-        <div
-          className="flex items-center justify-center w-11 h-11"
-          title="Syncing"
-          aria-label="Syncing"
-        >
-          <Disc3 size={18} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
-        </div>
-      )}
       <button
         onClick={() => { setScreen("following"); }}
         className="w-11 h-11 flex items-center justify-center tappable transition-colors cursor-pointer"
@@ -396,6 +397,9 @@ export function BottomTabBar() {
               if (isActive && (item.id === "crate" || item.id === "wants")) {
                 window.dispatchEvent(new CustomEvent("hg:focus-filter"));
               }
+              if (isActive && item.id === "feed") {
+                window.dispatchEvent(new CustomEvent("hg:feed-scroll-top"));
+              }
               setScreen(item.id);
             }}
             aria-current={isActive ? "page" : undefined}
@@ -445,7 +449,12 @@ export function DesktopTopNav() {
     return (
       <button
         key={item.id}
-        onClick={() => setScreen(item.id)}
+        onClick={() => {
+          if (isActive && item.id === "feed") {
+            window.dispatchEvent(new CustomEvent("hg:feed-scroll-top"));
+          }
+          setScreen(item.id);
+        }}
         aria-current={isActive ? "page" : undefined}
         className="flex items-center gap-[7px] px-[12px] py-[7px] rounded-[8px] tappable transition-all cursor-pointer"
         style={{
