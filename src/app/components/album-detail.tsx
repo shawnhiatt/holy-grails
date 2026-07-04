@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import type React from "react";
 import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw, Music } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
@@ -94,6 +95,133 @@ interface ReleaseData {
 
 // In-memory cache keyed by release_id — persists across panel open/close within the same app session
 const releaseDataCache = new Map<number, ReleaseData>();
+
+/* ─── Fullscreen image lightbox (shared by all three detail panels) ───
+   Rendered through a portal to document.body. The detail panels live inside
+   transform-animated containers (bottom sheet / side panel), which trap
+   position:fixed and z-index inside the sheet's stacking context — without
+   the portal, the sheet's own floating close button (sheetZIndex + 1) sits
+   on top of the lightbox's close button, so tapping X closed the whole
+   detail card instead of the lightbox. */
+function ImageLightbox({
+  images,
+  index,
+  setIndex,
+  onClose,
+}: {
+  images: NonNullable<ReleaseData["images"]>;
+  index: number;
+  setIndex: React.Dispatch<React.SetStateAction<number>>;
+  onClose: () => void;
+}) {
+  if (images.length === 0) return null;
+  return createPortal(
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0"
+        style={{ zIndex: 135, backgroundColor: "rgba(0,0,0,0.92)" }}
+        onClick={onClose}
+      />
+      {/* Overlay */}
+      <div
+        className="fixed inset-0 flex flex-col items-center justify-center"
+        style={{ zIndex: 140, pointerEvents: "none" }}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 flex items-center justify-center"
+          style={{
+            top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+            width: 40,
+            height: 40,
+            color: "white",
+            pointerEvents: "auto",
+          }}
+        >
+          <X size={24} />
+        </button>
+
+        {/* Image */}
+        <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto", paddingLeft: 16, paddingRight: 16 }}>
+          <motion.img
+            key={index}
+            src={images[index].uri}
+            alt={`Image ${index + 1} of ${images.length}`}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.1}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -50 && index < images.length - 1) {
+                setIndex(i => i + 1);
+              } else if (info.offset.x > 50 && index > 0) {
+                setIndex(i => i - 1);
+              }
+            }}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "85vh",
+              objectFit: "contain",
+              borderRadius: "8px",
+              cursor: "grab",
+              userSelect: "none",
+            }}
+          />
+        </div>
+
+        {/* Counter / Navigation row */}
+        {images.length > 1 ? (
+          <div
+            className="flex items-center justify-center gap-5 mt-3"
+            style={{ pointerEvents: "auto" }}
+          >
+            <button
+              onClick={() => setIndex(i => i - 1)}
+              disabled={index === 0}
+              className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                color: "rgba(255,255,255,0.8)",
+                opacity: index === 0 ? 0.3 : 1,
+              }}
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <p
+              style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", minWidth: "48px", textAlign: "center" }}
+            >
+              {index + 1} / {images.length}
+            </p>
+            <button
+              onClick={() => setIndex(i => i + 1)}
+              disabled={index === images.length - 1}
+              className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                color: "rgba(255,255,255,0.8)",
+                opacity: index === images.length - 1 ? 0.3 : 1,
+              }}
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        ) : (
+          <p
+            className="mt-3"
+            style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
+          >
+            {index + 1} / {images.length}
+          </p>
+        )}
+      </div>
+    </>,
+    document.body
+  );
+}
 
 export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hideHeader?: boolean; hideImage?: boolean }) {
   const {
@@ -1513,109 +1641,13 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     </div>
 
     {/* ═══ Fullscreen Image Lightbox ═══ */}
-    {lightboxOpen && releaseImages.length > 0 && (
-      <>
-        {/* Backdrop */}
-        <div
-          className="fixed inset-0"
-          style={{ zIndex: 135, backgroundColor: "rgba(0,0,0,0.92)" }}
-          onClick={() => setLightboxOpen(false)}
-        />
-        {/* Overlay */}
-        <div
-          className="fixed inset-0 flex flex-col items-center justify-center"
-          style={{ zIndex: 140, pointerEvents: "none" }}
-        >
-          {/* Close button */}
-          <button
-            onClick={() => setLightboxOpen(false)}
-            className="absolute right-4 flex items-center justify-center"
-            style={{
-              top: "calc(env(safe-area-inset-top, 0px) + 12px)",
-              width: 40,
-              height: 40,
-              color: "white",
-              pointerEvents: "auto",
-            }}
-          >
-            <X size={24} />
-          </button>
-
-          {/* Image */}
-          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto", paddingLeft: 16, paddingRight: 16 }}>
-            <motion.img
-              key={lightboxIndex}
-              src={releaseImages[lightboxIndex].uri}
-              alt={`Image ${lightboxIndex + 1} of ${releaseImages.length}`}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.1}
-              onDragEnd={(_, info) => {
-                if (info.offset.x < -50 && lightboxIndex < releaseImages.length - 1) {
-                  setLightboxIndex(i => i + 1);
-                } else if (info.offset.x > 50 && lightboxIndex > 0) {
-                  setLightboxIndex(i => i - 1);
-                }
-              }}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "85vh",
-                objectFit: "contain",
-                borderRadius: "8px",
-                cursor: "grab",
-                userSelect: "none",
-              }}
-            />
-          </div>
-
-          {/* Counter / Navigation row */}
-          {releaseImages.length > 1 ? (
-            <div
-              className="flex items-center justify-center gap-5 mt-3"
-              style={{ pointerEvents: "auto" }}
-            >
-              <button
-                onClick={() => setLightboxIndex(i => i - 1)}
-                disabled={lightboxIndex === 0}
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  color: "rgba(255,255,255,0.8)",
-                  opacity: lightboxIndex === 0 ? 0.3 : 1,
-                }}
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <p
-                style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", minWidth: "48px", textAlign: "center" }}
-              >
-                {lightboxIndex + 1} / {releaseImages.length}
-              </p>
-              <button
-                onClick={() => setLightboxIndex(i => i + 1)}
-                disabled={lightboxIndex === releaseImages.length - 1}
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  color: "rgba(255,255,255,0.8)",
-                  opacity: lightboxIndex === releaseImages.length - 1 ? 0.3 : 1,
-                }}
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          ) : (
-            <p
-              className="mt-3"
-              style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
-            >
-              {lightboxIndex + 1} / {releaseImages.length}
-            </p>
-          )}
-        </div>
-      </>
+    {lightboxOpen && (
+      <ImageLightbox
+        images={releaseImages}
+        index={lightboxIndex}
+        setIndex={setLightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+      />
     )}
     </>
   );
@@ -2499,100 +2531,13 @@ function WantItemDetailPanel({
     </div>
 
     {/* ═══ Fullscreen Image Lightbox ═══ */}
-    {lightboxOpen && releaseImages.length > 0 && (
-      <>
-        <div
-          className="fixed inset-0"
-          style={{ zIndex: 135, backgroundColor: "rgba(0,0,0,0.92)" }}
-          onClick={() => setLightboxOpen(false)}
-        />
-        <div
-          className="fixed inset-0 flex flex-col items-center justify-center"
-          style={{ zIndex: 140, pointerEvents: "none" }}
-        >
-          <button
-            onClick={() => setLightboxOpen(false)}
-            className="absolute right-4 flex items-center justify-center"
-            style={{
-              top: "calc(env(safe-area-inset-top, 0px) + 12px)",
-              width: 40,
-              height: 40,
-              color: "white",
-              pointerEvents: "auto",
-            }}
-          >
-            <X size={24} />
-          </button>
-          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto", paddingLeft: 16, paddingRight: 16 }}>
-            <motion.img
-              key={lightboxIndex}
-              src={releaseImages[lightboxIndex].uri}
-              alt={`Image ${lightboxIndex + 1} of ${releaseImages.length}`}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.1}
-              onDragEnd={(_, info) => {
-                if (info.offset.x < -50 && lightboxIndex < releaseImages.length - 1) {
-                  setLightboxIndex(i => i + 1);
-                } else if (info.offset.x > 50 && lightboxIndex > 0) {
-                  setLightboxIndex(i => i - 1);
-                }
-              }}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "85vh",
-                objectFit: "contain",
-                borderRadius: "8px",
-                cursor: "grab",
-                userSelect: "none",
-              }}
-            />
-          </div>
-          {releaseImages.length > 1 ? (
-            <div
-              className="flex items-center justify-center gap-5 mt-3"
-              style={{ pointerEvents: "auto" }}
-            >
-              <button
-                onClick={() => setLightboxIndex(i => i - 1)}
-                disabled={lightboxIndex === 0}
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  color: "rgba(255,255,255,0.8)",
-                  opacity: lightboxIndex === 0 ? 0.3 : 1,
-                }}
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <p style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", minWidth: "48px", textAlign: "center" }}>
-                {lightboxIndex + 1} / {releaseImages.length}
-              </p>
-              <button
-                onClick={() => setLightboxIndex(i => i + 1)}
-                disabled={lightboxIndex === releaseImages.length - 1}
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  color: "rgba(255,255,255,0.8)",
-                  opacity: lightboxIndex === releaseImages.length - 1 ? 0.3 : 1,
-                }}
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          ) : (
-            <p
-              className="mt-3"
-              style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
-            >
-              {lightboxIndex + 1} / {releaseImages.length}
-            </p>
-          )}
-        </div>
-      </>
+    {lightboxOpen && (
+      <ImageLightbox
+        images={releaseImages}
+        index={lightboxIndex}
+        setIndex={setLightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+      />
     )}
     </>
   );
@@ -2923,8 +2868,8 @@ function ReleaseDetailPanel({
           </div>
         ) : null}
 
-        {/* ═══ Action Buttons ═══ */}
-        <div className="px-4 pb-4 mt-4 flex flex-col gap-2">
+        {/* ═══ Action Buttons — side by side, leading icons ═══ */}
+        <div className="px-4 pb-4 mt-4 flex gap-2">
           {/* Collection button */}
           {alreadyInCollection ? (
             <button
@@ -2937,7 +2882,7 @@ function ReleaseDetailPanel({
                   setSelectedAlbumId(match.id);
                 }
               }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] tappable transition-colors"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 rounded-[10px] tappable transition-colors"
               style={{
                 fontSize: "14px",
                 fontWeight: 600,
@@ -2947,14 +2892,14 @@ function ReleaseDetailPanel({
                 border: "1px solid rgba(62, 152, 66, 0.2)",
               }}
             >
-              <GalleryVerticalEnd size={16} />
+              <GalleryVerticalEnd size={16} className="flex-shrink-0" />
               View Your Copy
             </button>
           ) : (
             <button
               onClick={handleAddToCollection}
               disabled={isAddingToCollection}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
               style={{
                 fontSize: "14px",
                 fontWeight: 600,
@@ -2967,32 +2912,37 @@ function ReleaseDetailPanel({
             >
               {isAddingToCollection ? (
                 <>
-                  <Disc3 size={15} className="disc-spinner" />
+                  <Disc3 size={15} className="disc-spinner flex-shrink-0" />
                   Adding...
                 </>
               ) : (
-                "Add to Collection"
+                <>
+                  <GalleryVerticalEnd size={16} className="flex-shrink-0" />
+                  Add to Collection
+                </>
               )}
             </button>
           )}
 
           {/* Wantlist button */}
           {alreadyOnWantlist ? (
-            <DestructiveButton
-              label={confirmRemoveWant ? "Confirm Remove" : "Remove from Wantlist"}
-              confirming={confirmRemoveWant}
-              loading={isRemovingWant}
-              variant="neutral"
-              onClick={() => {
-                if (!confirmRemoveWant) setConfirmRemoveWant(true);
-                else handleRemoveFromWantlist();
-              }}
-            />
+            <div className="flex-1 min-w-0">
+              <DestructiveButton
+                label={confirmRemoveWant ? "Confirm Remove" : "Remove from Wantlist"}
+                confirming={confirmRemoveWant}
+                loading={isRemovingWant}
+                variant="neutral"
+                onClick={() => {
+                  if (!confirmRemoveWant) setConfirmRemoveWant(true);
+                  else handleRemoveFromWantlist();
+                }}
+              />
+            </div>
           ) : (
             <button
               onClick={handleAddToWantlist}
               disabled={isAddingToWantlist}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 rounded-[10px] transition-colors tappable"
               style={{
                 fontSize: "14px",
                 fontWeight: 600,
@@ -3005,11 +2955,14 @@ function ReleaseDetailPanel({
             >
               {isAddingToWantlist ? (
                 <>
-                  <Disc3 size={15} className="disc-spinner" />
+                  <Disc3 size={15} className="disc-spinner flex-shrink-0" />
                   Adding...
                 </>
               ) : (
-                "Add to Wantlist"
+                <>
+                  <Heart size={16} className="flex-shrink-0" />
+                  Add to Wantlist
+                </>
               )}
             </button>
           )}
@@ -3149,104 +3102,13 @@ function ReleaseDetailPanel({
     </div>
 
     {/* ═══ Fullscreen Image Lightbox ═══ */}
-    {lightboxOpen && releaseImages.length > 0 && (
-      <>
-        <div
-          className="fixed inset-0"
-          style={{ zIndex: 135, backgroundColor: "rgba(0,0,0,0.92)" }}
-          onClick={() => setLightboxOpen(false)}
-        />
-        <div
-          className="fixed inset-0 flex flex-col items-center justify-center"
-          style={{ zIndex: 140, pointerEvents: "none" }}
-        >
-          <button
-            onClick={() => setLightboxOpen(false)}
-            className="absolute right-4 flex items-center justify-center"
-            style={{
-              top: "calc(env(safe-area-inset-top, 0px) + 12px)",
-              width: 40,
-              height: 40,
-              color: "white",
-              pointerEvents: "auto",
-            }}
-          >
-            <X size={24} />
-          </button>
-
-          <div className="relative flex items-center justify-center w-full" style={{ pointerEvents: "auto", paddingLeft: 16, paddingRight: 16 }}>
-            <motion.img
-              key={lightboxIndex}
-              src={releaseImages[lightboxIndex].uri}
-              alt={`Image ${lightboxIndex + 1} of ${releaseImages.length}`}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.1}
-              onDragEnd={(_, info) => {
-                if (info.offset.x < -50 && lightboxIndex < releaseImages.length - 1) {
-                  setLightboxIndex(i => i + 1);
-                } else if (info.offset.x > 50 && lightboxIndex > 0) {
-                  setLightboxIndex(i => i - 1);
-                }
-              }}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "85vh",
-                objectFit: "contain",
-                borderRadius: "8px",
-                cursor: "grab",
-                userSelect: "none",
-              }}
-            />
-          </div>
-
-          {releaseImages.length > 1 ? (
-            <div
-              className="flex items-center justify-center gap-5 mt-3"
-              style={{ pointerEvents: "auto" }}
-            >
-              <button
-                onClick={() => setLightboxIndex(i => i - 1)}
-                disabled={lightboxIndex === 0}
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  color: "rgba(255,255,255,0.8)",
-                  opacity: lightboxIndex === 0 ? 0.3 : 1,
-                }}
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <p
-                style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", minWidth: "48px", textAlign: "center" }}
-              >
-                {lightboxIndex + 1} / {releaseImages.length}
-              </p>
-              <button
-                onClick={() => setLightboxIndex(i => i + 1)}
-                disabled={lightboxIndex === releaseImages.length - 1}
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  color: "rgba(255,255,255,0.8)",
-                  opacity: lightboxIndex === releaseImages.length - 1 ? 0.3 : 1,
-                }}
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          ) : (
-            <p
-              className="mt-3"
-              style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.5)", pointerEvents: "none" }}
-            >
-              {lightboxIndex + 1} / {releaseImages.length}
-            </p>
-          )}
-        </div>
-      </>
+    {lightboxOpen && (
+      <ImageLightbox
+        images={releaseImages}
+        index={lightboxIndex}
+        setIndex={setLightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+      />
     )}
     </>
   );
