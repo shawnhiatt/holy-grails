@@ -156,6 +156,9 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  // Bumped by the failed-search "Try again" tap — re-runs the search effect
+  // without requiring the user to edit the query
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Pressing picker state
   const [pickerMaster, setPickerMaster] = useState<SearchResult | null>(null);
@@ -276,7 +279,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [query, sessionToken, searchAction]);
+  }, [query, sessionToken, searchAction, retryNonce]);
 
   const loadMore = useCallback(() => {
     if (!sessionToken || !effSearch || isLoadingMore || page >= totalPages) return;
@@ -725,7 +728,19 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
 
               {!isSearching && searchError && (
                 <p className="text-center py-10 px-4" style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>
-                  Search failed. Try again.
+                  Search failed.{" "}
+                  <button
+                    onClick={() => setRetryNonce((n) => n + 1)}
+                    className="tappable cursor-pointer"
+                    style={{
+                      fontSize: "inherit",
+                      fontWeight: 600,
+                      color: "var(--c-link)",
+                      touchAction: "manipulation",
+                    }}
+                  >
+                    Try again.
+                  </button>
                 </p>
               )}
 
