@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.5.6
+# CLAUDE.md — Holy Grails v0.6.0
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -47,7 +47,7 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - Collection cache (`collection` table — mirrors Discogs collection for offline/fast reads; local `albums`/`wants` state is reactively derived from these cache subscriptions)
 - Followed collections cache (`followed_items` table — slim rows of each followed user's collection + wantlist, written server-side by `discogs.syncFollowedUser`, read per-profile; sync metadata `is_private`/`collection_synced_at` lives on the `following` table)
 - Sync progress (`sync_status` table — one doc per user, written by the server-side sync loop, subscribed by the client for per-page progress)
-- User preferences (theme, hide purge indicators, hide gallery meta, shake to random, view mode, want view mode, default screen, recent Look It Up searches), keyed by `discogs_username`
+- User preferences (theme, hide purge indicators, shake to random, view mode, want view mode, default screen, recent Look It Up searches), keyed by `discogs_username`. The `hide_gallery_meta` field still exists in the schema but is legacy — its swiper view was removed and the Settings toggle deleted with it; do not resurface it.
 - OAuth tokens (access token + token secret), `session_token`, `session_created_at`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
 
 ### Vinyl-Only Filter
@@ -154,10 +154,10 @@ Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (
 
 ```bash
 npm install
-npm run dev
+npm run dev        # http://localhost:1234 (Vite, port set in vite.config.ts)
+npm run typecheck  # strict tsc --noEmit — must pass before committing
+npm run build      # production build (requires VITE_CONVEX_URL)
 ```
-
-The app runs on `http://localhost:5173` by default (Vite).
 
 ---
 
@@ -168,7 +168,6 @@ src/
   app/
     App.tsx              # Root layout, screen routing, splash flow, side panel. ReportsScreen and album-detail are React.lazy chunks (recharts stays off the critical path) prefetched at idle — keep them lazy.
     components/
-      accordion-section.tsx
       add-albums-drawer.tsx
       album-artwork-grid.tsx
       album-detail.tsx
@@ -198,33 +197,42 @@ src/
       purge-colors.ts
       purge-tracker.tsx
       purge-verdict-buttons.tsx  # Shared Keep/Maybe/Cut verdict button row — solid fill = selected verdict, tag-colored outline = unselected, icons Check/HelpCircle/StackMinus (weight bold). Used by the feed evaluator and album detail Rate for Purge; any new verdict UI must use this component, never bespoke buttons.
+      loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
       reports-screen.tsx
+      share-activity-prompt.tsx  # Full-screen, non-dismissable shareActivity opt-in prompt (see Cross-User Data Pattern)
       stack-picker-sheet.tsx
       stacks.tsx
       settings-screen.tsx
       splash-screen.tsx
+      sync-status-line.tsx  # "Synced Xm ago" / "Up to date." line under the Collection/Wantlist search row; tappable manual sync probe
       slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork. Blurs the active element on mount (`document.activeElement?.blur()`) to dismiss the iOS software keyboard whenever a panel opens over an active text input. App-wide — no individual tap handlers need to handle this.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in stacks.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD, v2.1.4). Scene loaded from local `/splash-screen.json` (scene ID `w7mlqmYVwPpRyrBLkt7m`). Falls back to `#01294D` if WebGL is unavailable.
       use-filtered-albums.ts  # Screen-local collection filtering/sorting hook (search lives in the screens, not context)
       use-shake.ts  # Shake-to-Random gesture hook. Detects lateral shake via DeviceMotion API (threshold: 25 m/s²), fires callback. Requires iOS DeviceMotionEvent.requestPermission() flow — toggle lives in Settings → Gestures. Preference persisted to Convex (`shake_to_random`). `App.tsx` performs a silent boot-time permission check: if `shakeToRandom` is `true` on load and `DeviceMotionEvent.requestPermission()` does not return `'granted'`, the preference is reset to `false` in Convex and a toast is shown. The check runs once per session via a `hasDonePermissionCheckRef` guard.
-    hooks/
-      use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
       wantlist.tsx
+      wantlist-add-icon.tsx  # Heart + "+" badge composite icon — "add to wantlist" affordance in social/activity contexts where a plain heart reads as "favorite this post". Used by Feed and Following activity rows.
       wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
       wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
-      loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
+    hooks/
+      use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
+    lib/
+      scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
+      use-safe-tap.ts    # Shared safe-tap helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards.
     utils/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
       shuffle.ts         # Fisher-Yates shuffle + pickRandom — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
       collection-facts.ts  # deriveCollectionFacts — threshold-gated stat lines (top decade/artist/label, oldest pressing, latest pickup with artist) for the feed identity-block ticker
-    imports/
-    styles/
-      fonts.css
-      index.css
-      tailwind.css
-      theme.css
+  imports/               # Logo SVG assets (splash, dark, light)
+  lib/
+    condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail (incl. the Value section), reports-screen.
+  styles/
+    fonts.css
+    index.css
+    tailwind.css
+    theme.css
+  main.tsx
 convex/                  # Convex backend functions and schema
   authHelper.ts        # Central session-token auth guard — used by all guarded queries/mutations
   collection.ts
@@ -243,10 +251,6 @@ convex/                  # Convex backend functions and schema
   following_feed.ts  # Following feed cache: getByFollower, upsert, deleteEntry
   wantlist.ts        # Wantlist cache: getByUsername, replaceAll, addItem, removeItem
   preferences.ts
-  lib/
-    condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail (incl. the Value section), reports-screen.
-src/
-  main.tsx
 ```
 
 ---
@@ -405,6 +409,11 @@ These are semantic colors tied to a specific meaning. Hardcoded because the hue 
 | `#0DB1F2` | Chart third accent (reports-screen chart constants) |
 | `#22C55E` | Success / confirmed state icon |
 | `#FF98DA` | Cut purge tag — dark mode (also used in progress gradient) |
+| `#B8C900` | Wantlist priority bolt — light mode (dark mode uses `#EBFD00`) |
+| `#1DB954` | Spotify brand green — Listen On button icon only (album-detail) |
+| `#FA243C` | Apple Music brand red — Listen On button icon only (album-detail) |
+| `#FF2D78` | DestructiveButton confirm-tap fill (album-detail) |
+| `#F276EC` / `#48FF91` / `#00CFFF` | Shuffle heading gradient stops (with `#EBFD00`) — feed-screen only |
 
 Chart constants in `reports-screen.tsx` (`CHART_GREEN`, `CHART_PINK`, `CHART_BLUE`) are hardcoded by design — they are data visualization colors, not UI surface colors.
 
@@ -901,6 +910,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - `FollowingSkeletonRows` and `FollowedUserRow` components deleted in Phase 7 QA — replaced by partial hydration pattern introduced in Phase 7 Prompt 2a. Do not recreate these components.
 
 ### Backlog
+- One-off gray text colors — `#9BA4B2`/`#3D5C77` (crate-browser) and `#6B7B8E` (purge-tracker) are undocumented hexes that should migrate to `--c-text-*` tokens during the next dedicated color audit pass. Do not change them ad hoc — the visual result must be verified.
 - Empty state standardization — icon sizes, vertical padding, and icon-to-text spacing are inconsistent across screens. Needs a dedicated design pass with visual references before normalizing.
 - Purge Cut confirmation icon — Minus vs X icon flagged during Phase 7 QA for visual review.
 - Startup Convex auth errors — `Unauthorized` errors appear briefly in terminal/logs during app startup (race condition between proxy actions firing and sessionToken populating). Cosmetic, non-blocking. Queued for investigation.

@@ -4,7 +4,7 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
-## [0.5.7] — 2025-05-10
+## [0.5.7] — 2026-05-10
 
 ### Added
 - **Holy Grails social layer** — followed Discogs users who also use Holy
