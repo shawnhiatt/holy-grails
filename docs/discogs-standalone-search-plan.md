@@ -163,7 +163,7 @@ label, dateAdded`. Search results map 1:1; `dateAdded: ""` is safe —
 ### Entry points (no new nav tab — the 5-tab bar stays)
 
 1. **Collection screen** — yellow Plus button in the MobileHeader, exactly the
-   Variant C (Stacks) pattern: `w-8 h-8 rounded-full bg-[#EBFD00]`, wired via
+   Variant C (Sessions) pattern: `w-8 h-8 rounded-full bg-[#EBFD00]`, wired via
    a context callback registered with the double-arrow pattern
    (`setOnAddRecord(() => () => setSearchOpen(true))`). Desktop: a button in
    the Collection screen's header area.
@@ -178,7 +178,7 @@ label, dateAdded`. Search results map 1:1; `dateAdded: ""` is safe —
   panel/sheet). Title: **"Look It Up"** — lookup-first framing (see §6);
   adding to collection/wantlist is an action inside the detail panel, not the
   frame of the feature. Desktop: same panel pattern as the
-  stack picker's desktop variant, or a modal — decide at build time by
+  session picker's desktop variant, or a modal — decide at build time by
   matching `add-albums-drawer.tsx`.
 - **Sticky search input** at top (mirrors add-albums-drawer): 16px font
   (iOS zoom rule), placeholder `"Artist, title, catalog #"`.
@@ -243,7 +243,7 @@ filterable versions table; the picker is the mobile-native mirror of that.
 
 ### Z-index
 
-Reuse the **z-[85] sheet / z-[80] backdrop** slot (stack picker and Add
+Reuse the **z-[85] sheet / z-[80] backdrop** slot (session picker and Add
 Albums drawer live there; all three are mutually exclusive). Album detail
 sheet (z-[120]) and its backdrop (z-[110]) correctly layer above. Add the new
 component to the Z-Index Hierarchy table in CLAUDE.md at rollout.

@@ -6,7 +6,7 @@ This file is read by Claude Code at the start of every session. Follow everythin
 
 ## What This App Is
 
-**Holy Grails** is a vinyl record collection management PWA that syncs with Discogs. It is not a Discogs clone. The core value is decision-making and curation — specifically the purge workflow (evaluating records as Keep / Cut / Maybe) and stack building. These are things Discogs does not do.
+**Holy Grails** is a vinyl record collection management PWA that syncs with Discogs. It is not a Discogs clone. The core value is decision-making and curation — specifically the purge workflow (evaluating records as Keep / Cut / Maybe) and session building. These are things Discogs does not do.
 
 The app is a passion project and portfolio piece built by a designer (Shawn) using vibe coding. Designed for a small circle of friends today with potential to scale. Code quality matters, but preserving the design integrity matters more. When in doubt, match the existing visual and interaction patterns exactly.
 
@@ -22,7 +22,7 @@ The app is a passion project and portfolio piece built by a designer (Shawn) usi
 - **Charts**: Recharts
 - **Barcode decoding**: zxing-wasm — used ONLY by the Look It Up barcode scanner. Lazy-loaded (dynamic import) with the .wasm bundled locally via `?url` so nothing fetches from a CDN; excluded from the SW precache. Do not import it anywhere else or statically.
 - **Fonts**: Bricolage Grotesque (display/headings) + DM Sans (body/UI) via Google Fonts
-- **Backend**: Convex (all Holy Grails-exclusive data — purge tags, stacks, following, preferences, last played, want priorities)
+- **Backend**: Convex (all Holy Grails-exclusive data — purge tags, sessions, following, preferences, last played, want priorities)
 - **Auth**: Discogs OAuth 1.0a — the Discogs username is the primary key for all Convex data. Session-token-based auth guards on all Convex functions (see Authentication Architecture). There is no separate Holy Grails account system.
 
 Do not introduce new dependencies without flagging it first. The existing stack is intentional.
@@ -38,7 +38,7 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 
 ### What lives in Convex (Holy Grails-exclusive)
 - Purge tags (keep / cut / maybe + timestamps), keyed by `discogs_username` + `release_id`
-- Stacks (name, album order, created/modified timestamps), keyed by `discogs_username`
+- Sessions (name, album order, created/modified timestamps), keyed by `discogs_username` — stored in the `stacks` table (see the Sessions naming note below)
 - Following list (other Discogs users being followed in-app + `avatar_url`), keyed by `discogs_username`
 - Following feed cache (`following_feed` table — 50 most recent albums per followed user, 24h TTL per user, up to 25 users)
 - Wantlist cache (`wantlist` table — mirrors Discogs wantlist for offline/fast reads, 24h TTL synced alongside collection)
@@ -49,6 +49,14 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - Sync progress (`sync_status` table — one doc per user, written by the server-side sync loop, subscribed by the client for per-page progress)
 - User preferences (theme, hide purge indicators, shake to random, view mode, want view mode, default screen, recent Look It Up searches), keyed by `discogs_username`. The `hide_gallery_meta` field still exists in the schema but is legacy — its swiper view was removed and the Settings toggle deleted with it; do not resurface it.
 - OAuth tokens (access token + token secret), `session_token`, `session_created_at`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
+
+### Sessions Naming Note (feature name vs. internal names)
+The listening-sessions feature is called **Sessions** in all user-facing copy and documentation. It was briefly renamed "Stacks" (June 2026) and then rolled back to Sessions — but ONLY the verbiage rolled back. Internal names keep the stack-era naming and must not be renamed:
+- Convex table: `stacks` (in `convex/stacks.ts`). It CANNOT be renamed to `sessions` — an undeclared legacy `sessions` table from before the rename still holds old rows in both deployments, and declaring that name fails Convex schema validation.
+- Files: `stacks.tsx`, `stack-picker-sheet.tsx`, `convex/stacks.ts`
+- Code identifiers: the `Stack` type, `stacks` state, `createStackDirect`, `deleteStack`, `renameStack`, `toggleAlbumInStack`, `isInStack`, `reorderStackAlbums`, `stackPickerAlbumId`, `onNewStack`, etc.
+- Screen route key and stored `default_screen` preference value: `"stacks"`
+Do not rename these identifiers to `session*` — besides the table constraint, they would collide with auth session naming (`sessionToken`, `auth_sessions`). When writing user-facing copy or docs, always say Sessions.
 
 ### Vinyl-Only Filter
 Holy Grails is intentionally vinyl-only. A global filter (`formats[].name === "Vinyl"`) is applied at the data layer during Convex collection sync and cache hydration in `app-context.tsx`. CDs, cassettes, and other formats are excluded before albums reach any UI component. This is a product decision, not a flag or user setting. No other formats should ever surface in the UI.
@@ -83,7 +91,7 @@ The `setSessionToken` wrapper in `app-context.tsx` syncs every token change to `
 - `upsert` — INTERNAL mutation, callable only from `oauth.completeLogin`. It must never be made public: a public variant would let any caller claim any username and receive that user's session token (full account takeover).
 
 **Schema change:**
-New `auth_sessions` table (`session_token`, `discogs_username`, `created_at`) with `by_token`/`by_username` indexes. The `session_token`/`session_created_at` fields on `users` are legacy, honored read-only. The table is deliberately NOT named `sessions` — an undeclared legacy `sessions` table from the pre-Stacks-rename era still holds old rows in the deployments, and declaring that name fails Convex schema validation.
+New `auth_sessions` table (`session_token`, `discogs_username`, `created_at`) with `by_token`/`by_username` indexes. The `session_token`/`session_created_at` fields on `users` are legacy, honored read-only. The table is deliberately NOT named `sessions` — an undeclared legacy `sessions` table from before the Sessions→Stacks rename still holds old rows in the deployments, and declaring that name fails Convex schema validation. (The same collision is why the Sessions feature's own table is still named `stacks` — see the Sessions naming note in Data Architecture.)
 
 **Exempt from auth guards:**
 `convex/oauth.ts` functions (`requestToken`, `completeLogin`) are intentionally public — they are the OAuth handshake and must remain unauthenticated. `completeLogin` is safe because the identity it mints a session for comes from the Discogs token exchange itself, not from the caller.
@@ -177,7 +185,7 @@ src/
       app-context.tsx    # Global state — do not refactor without discussion. albums/wants reactively derive from Convex cache subscriptions.
       auth-callback.tsx  # OAuth callback handler — processes Discogs redirect and exchanges tokens
       crate-browser.tsx
-      depths-album-card.tsx
+      shuffle-album-card.tsx
       dominant-color-card.tsx  # Reusable card wrapper — extracts dominant color from album artwork via canvas, sets CSS custom properties (--dc-bg, --dc-text, etc.) for children. Uses /img-proxy/ to avoid CORS canvas tainting.
       discogs-api.ts     # Types, constants, pure utilities (HTTP functions removed — see Discogs API Proxy)
       discogs-search-sheet.tsx  # "Look It Up" — standalone Discogs database search as a FULL-SCREEN panel (z-[85], no backdrop, Discogs-app style: fixed search bar at top, back arrow to dismiss — a bottom sheet put the iOS keyboard on top of the panel; do not convert it back to SlideOutPanel). Master-first results with a drill-in pressing picker; barcode-like queries route to release search; empty results auto-fall back master → release → normalized query (diacritics/dots stripped), with one silent retry on transient errors. Opened from the Search button in the mobile header and desktop top nav. Hands a chosen pressing to ReleaseDetailPanel via setSelectedFeedAlbum. Includes the camera barcode scanner (BarcodeScanner overlay, zxing-wasm EAN/UPC decode, ScanBarcode button right of the search bar — hidden when getUserMedia is unavailable; detected codes land in the search box and route to release search). Input focus happens in onAnimationComplete with focus({ preventScroll: true }) — NEVER autoFocus: focusing mid-slide makes iOS scroll the viewport to chase the off-screen input and shoves the whole app up. The bottom nav stays visible/tappable over this panel; a screen change dismisses it. The pre-search empty state is a centered intro line — 'Search the Discogs database or scan a barcode.' with the scan text tappable — plus recent queries (persisted per-user as preferences.recent_searches, capped 8, recorded when a result is tapped, Clear button empties). Loading states show 'Searching...' / 'Finding pressings...' with the sync-dot animated ellipsis. On open, the panel fires discogs.warm (a no-op action) so the first search doesn't pay the Node runtime cold start. The pressing picker header: nav row (back arrow left, Filter disclosure button right with active-count), a hero block (112px artwork, 22px Bricolage title line-clamp-2, artist, pressing count), a bottom divider; the country/year chips render only while the Filter disclosure is open. Filter-chip facet titles/values are decoded via decodeFacetValue — the versions endpoint returns URL-encoded values ('USA+%26+Canada').
@@ -200,8 +208,8 @@ src/
       loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
       reports-screen.tsx
       share-activity-prompt.tsx  # Full-screen, non-dismissable shareActivity opt-in prompt (see Cross-User Data Pattern)
-      stack-picker-sheet.tsx
-      stacks.tsx
+      stack-picker-sheet.tsx  # Session picker (file/identifier names keep stack* — see Sessions naming note)
+      stacks.tsx         # Sessions screen (file/identifier names keep stack* — see Sessions naming note)
       settings-screen.tsx
       splash-screen.tsx
       sync-status-line.tsx  # "Synced Xm ago" / "Up to date." line under the Collection/Wantlist search row; tappable manual sync probe
@@ -213,7 +221,7 @@ src/
       use-shake.ts  # Shake-to-Random gesture hook. Detects lateral shake via DeviceMotion API (threshold: 25 m/s²), fires callback. Requires iOS DeviceMotionEvent.requestPermission() flow — toggle lives in Settings → Gestures. Preference persisted to Convex (`shake_to_random`). `App.tsx` performs a silent boot-time permission check: if `shakeToRandom` is `true` on load and `DeviceMotionEvent.requestPermission()` does not return `'granted'`, the preference is reset to `false` in Convex and a toast is shown. The check runs once per session via a `hasDonePermissionCheckRef` guard.
       wantlist.tsx
       wantlist-add-icon.tsx  # Heart + "+" badge composite icon — "add to wantlist" affordance in social/activity contexts where a plain heart reads as "favorite this post". Used by Feed and Following activity rows.
-      wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Depths cards, Following Depths cards, Following grid/artwork/list views.
+      wantlist-heart-button.tsx  # Shared wantlist add/remove button. Two variants: "overlay" (absolute-positioned on artwork cards) and "inline" (for list rows). Handles wantlist state check, add/remove confirmation SlideOutPanel, API call, Disc3 loading state, and toasts. Used in Feed Shuffle cards, Following Shuffle cards, Following grid/artwork/list views.
       wantlist-crossover-prompt.tsx  # "Now in your collection" floating prompt — shows after sync when a wantlist item is also in the collection. Mounted from BottomTabBar in navigation.tsx.
     hooks/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
@@ -244,7 +252,7 @@ convex/                  # Convex backend functions and schema
   followed_items.ts    # Followed collections cache: getForUser, clearForUser/appendItems (internal)
   syncStatus.ts        # Sync progress doc: get (subscribed by client), set (internal)
   purge_tags.ts
-  stacks.ts
+  stacks.ts            # Sessions feature data (table named `stacks` — see Sessions naming note)
   last_played.ts
   want_priorities.ts
   following.ts
@@ -526,7 +534,7 @@ style={{
 }}
 ```
 
-`line-clamp-1` / `line-clamp-2` is fine for multi-line clamping (grid card titles, stack names).
+`line-clamp-1` / `line-clamp-2` is fine for multi-line clamping (grid card titles, session names).
 
 ### Disc3 Spinner
 All loading states use `Disc3` (Phosphor's `VinylRecord`, aliased in `icons.ts`) with the `disc-spinner` CSS class. This spins at 33 1/3 RPM (1.8s per revolution). Never use a generic spinner component.
@@ -537,7 +545,7 @@ import { Disc3 } from "./icons"
 ```
 
 ### CSS Variables on Detached Components
-Stack picker and other components that render outside the main `<main>` element must apply CSS variables inline on their container — they don't inherit from the main cascade.
+The session picker and other components that render outside the main `<main>` element must apply CSS variables inline on their container — they don't inherit from the main cascade.
 
 **Detached-component surface color pattern:** The following components use `isDarkMode ? "#091E34" : "#FFFFFF"` for their background color rather than `var(--c-surface)`. This is intentional — these components render in a context where CSS custom properties from the root are not inherited (detached from the main DOM tree or rendered via portals):
 
@@ -623,7 +631,7 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Thumbnail carousel**: `mt-3` spacing below the hero image.
 - **Purge tag**: Renders in its own `px-4 pb-2` row below the carousel (left-aligned), only when present and not in edit mode. No longer part of the title block.
 - **"Your Copy" card header**: On mobile, the metadata card has a "YOUR COPY" section label (16px, fontWeight 600, `var(--c-text)`) matching other section heading styles, with the edit pencil button right-aligned in the header row.
-- **Panel section order**: Hero → Thumbnail carousel → Purge tag → Your Copy (with section header, Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Mark as Played → Enriched Tabs (mobile) or accordion sections (desktop) → Community (compact row) → Stacks → Rate for Purge. (`AlbumDetailPanel` has no Value section — that lives only in `ReleaseDetailPanel`; see below.)
+- **Panel section order**: Hero → Thumbnail carousel → Purge tag → Your Copy (with section header, Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Mark as Played → Enriched Tabs (mobile) or accordion sections (desktop) → Community (compact row) → Sessions → Rate for Purge. (`AlbumDetailPanel` has no Value section — that lives only in `ReleaseDetailPanel`; see below.)
 - **Enriched content tabs (mobile)**: On mobile, Tracklist, Credits, Pressing Notes, and Identifiers render as a sticky horizontal tab bar instead of accordion sections. Tabs with no data are hidden after the enriched fetch resolves. During loading, all four tabs show at `opacity: 0.4` with a skeleton below. Active tab uses `2px solid #EBFD00` underline indicator. Tab bar uses `position: sticky; top: 0; z-index: 10` with a background matching the sheet's hardcoded background (`isDarkMode ? "#132B44" : "#FFFFFF"`). An IntersectionObserver sentinel pattern applies `paddingTop: 48px` only when the tab bar is stuck, clearing the close button. `tabBarStuck` state resets on album change. On desktop, the original accordion sections remain.
 - **Section component props**: `hideTitle` prop added to `TracklistSection`, `CreditsSection`, `PressingNotesSection` — suppresses section headings when rendered inside tab content on mobile. `hideToggle` prop added to `TracklistSection` — shows full tracklist without Show More truncation on mobile tabs.
 - **Inner scroll container**: The `div.flex-1.overflow-y-auto` inside `AlbumDetailPanel` conditionally applies `overflow-y-auto` only on desktop (`hideHeader === false`). On mobile, `overflow-y` is removed so `position: sticky` resolves against `scrollRef` in `SlideOutPanel`.
@@ -634,7 +642,7 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Sheet open gate (`App.tsx`):** The desktop side panel and mobile sheet open condition checks `selectedAlbum || selectedWantItem || selectedFeedAlbum`. Any new panel type added to `AlbumDetailPanel` routing must also be added to this gate or the sheet will silently refuse to open.
 - **DestructiveButton** — shared two-tap confirm button component, local to `album-detail.tsx`. Props: `label`, `confirming`, `loading`, `onClick`, `variant?: "destructive" | "neutral"` (default: `"destructive"`). Destructive variant: outlined white text (first tap) → solid `#FF2D78` fill (confirm tap) → `Disc3` spinner while async in flight. Neutral variant: `var(--c-surface)` bg + `var(--c-border-strong)` border + `var(--c-text)` color in all states, no pink. Used by `WantItemDetailPanel`, `AlbumDetailPanel` (remove from collection) with `destructive`; `ReleaseDetailPanel` (remove from wantlist) with `neutral`.
 
-`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following, and pressings chosen in "Look It Up"). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, the **Value section**, and action buttons. Does not include Mark as Played, Purge, Edit, or stack picker. Action buttons ("Add to Collection", "Add to Wantlist", "Remove from Wantlist") render side by side in one row (`flex gap-2`, each `flex-1 min-w-0`) and use neutral surface style — `var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color. Add buttons carry leading icons: `GalleryVerticalEnd` (collection) and `Heart` (wantlist), 16px. "View Your Copy" (shown when already in collection) retains its green surface style with the `GalleryVerticalEnd` icon. "Remove from Wantlist" uses `DestructiveButton` with `variant="neutral"` (no icon).
+`ReleaseDetailPanel` — detail panel for non-collection albums (feed/following, and pressings chosen in "Look It Up"). Takes a `FeedAlbum` prop. Loads enriched data via `proxyFetchRelease`. Shows hero image, thumbnail carousel, enriched tabs, community stats, the **Value section**, and action buttons. Does not include Mark as Played, Purge, Edit, or session picker. Action buttons ("Add to Collection", "Add to Wantlist", "Remove from Wantlist") render side by side in one row (`flex gap-2`, each `flex-1 min-w-0`) and use neutral surface style — `var(--c-surface)` bg, `var(--c-border-strong)` border, `var(--c-text)` color. Add buttons carry leading icons: `GalleryVerticalEnd` (collection) and `Heart` (wantlist), 16px. "View Your Copy" (shown when already in collection) retains its green surface style with the `GalleryVerticalEnd` icon. "Remove from Wantlist" uses `DestructiveButton` with `variant="neutral"` (no icon).
 
 **Value section (`ReleaseDetailPanel` only)** — the record-store price lookup. A prior full market-value attempt was abandoned as inaccurate/over-complicated; this is the deliberately minimal replacement. Presentation rules are load-bearing, not cosmetic:
 - **Unofficial releases show no Value section at all.** `proxyFetchRelease` returns `isUnofficial` (any format description equals "Unofficial Release"); when true, `ReleaseDetailPanel` skips the section entirely and never calls `proxyFetchMarketData`. Discogs bans selling bootlegs, so its price suggestions for them have no sales history behind them — showing them is made-up pricing. Accurate or nothing.
@@ -645,7 +653,7 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 
 **Outbound Discogs links: DO NOT ADD THEM.** Every strategy for linking to `discogs.com` from the installed iOS PWA has been tried and failed — the Discogs app's Universal Link intercepts the navigation and strands the user on its home screen. Attempt 1: raw href (bounced). Attempt 2: same-origin `go.html` with a client-side `location.replace()` (the in-app browser treats JS redirects as fresh navigations — bounced, and stranded a blank overlay). Attempt 3: `/api/go` Vercel function issuing a server-side HTTP 302 (in-app browser still app-switched — bounced). All redirector code has been deleted. The rule is now absolute: no `discogs.com` hrefs anywhere in the app, no exceptions, until Discogs fixes its deep-link handling. Marketplace data shown in-app (Value section) is the substitute.
 
-Stack picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper), and the `Music` icon button went away with the feed's Recommended card. The stack picker is now accessed solely via the inline Save for Later accordion in `album-detail.tsx` (a deliberate narrowing — do not add card-level stack buttons back without instruction).
+Session picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper), and the `Music` icon button went away with the feed's Recommended card. The session picker is now accessed solely via the inline Save for Later accordion in `album-detail.tsx` (a deliberate narrowing — do not add card-level session buttons back without instruction).
 
 ### Search/Filter Row
 
@@ -676,8 +684,8 @@ In card grid contexts, use `visibility: hasYear(year) ? "visible" : "hidden"` on
 
 ### Image Sizing Convention
 Two fields on every `Album`, `WantItem`, and `FeedAlbum` object:
-- `thumb` — 150x150px — use for small display contexts (list rows, artwork grid, stack thumbnails, feed compact cards, drawer thumbnails)
-- `cover` — 500x500px — use for large/focal displays (detail panels, depths cards, grid cards)
+- `thumb` — 150x150px — use for small display contexts (list rows, artwork grid, session thumbnails, feed compact cards, drawer thumbnails)
+- `cover` — 500x500px — use for large/focal displays (detail panels, shuffle cards, grid cards)
 
 Never use `cover` in contexts smaller than ~200px — always prefer `thumb || cover` for thumbnails. Loading a 500px image into a 40px element wastes bandwidth.
 
@@ -685,7 +693,7 @@ Never use `cover` in contexts smaller than ~200px — always prefer `thumb || co
 `master_id` is stored on `Album`, `WantItem`, and `FeedAlbum` objects. "In Collection" and heart filled state check both `release_id` and `master_id` to match across different pressings of the same recording. `master_id` of 0 means no master exists — skip matching on 0. The `isInWants` and `isInCollection` context helpers accept an optional `masterId` parameter. Feed and Following screens build `ownMasterIds` / `wantMasterIds` Sets for O(1) lookups.
 
 ### Following Feed Cache
-The `following_feed` Convex table caches the 50 most recent albums per followed user (up to 25 users, most recently followed first). 24h TTL per user — bypassed when cached data lacks `master_id` (one-time migration). Powers Feed Recent Activity and From the Depths without requiring Following screen hydration. Avatar URLs for followed users are stored in the `following` Convex table and exposed via the `followingAvatars` map in context.
+The `following_feed` Convex table caches the 50 most recent albums per followed user (up to 25 users, most recently followed first). 24h TTL per user — bypassed when cached data lacks `master_id` (one-time migration). Powers Feed Recent Activity and the Shuffle sections without requiring Following screen hydration. Avatar URLs for followed users are stored in the `following` Convex table and exposed via the `followingAvatars` map in context.
 
 **Manual sync (Sync Now)** bypasses the 24h TTL on the following feed — `syncFollowingFeed()` accepts a `forceRefresh` parameter that skips the cache freshness check. `syncFromDiscogs()` (the manual trigger) always passes `forceRefresh: true`. Startup sync uses the default (`false`) and respects the 24h cache.
 
@@ -697,7 +705,7 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 ### Home Feed (feed-screen.tsx)
 
-**Section order:** Identity block, From the Depths (Shuffle), Recently Added, Following Activity, Purge Tracker, Format Spotlight, On the Hunt, Decades, Insights. On desktop, Purge Tracker and Insights render together in a 2-column grid at the Purge Tracker slot (position 4) — the pairing is a deliberate desktop layout, so desktop has no standalone Insights end-cap. The three collection-random sections (Shuffle, Format Spotlight, Decades) are deliberately interleaved with other content — do not stack them adjacent.
+**Section order:** Identity block, Shuffle, Recently Added, Following Activity, Purge Tracker, Format Spotlight, On the Hunt, Decades, Insights. On desktop, Purge Tracker and Insights render together in a 2-column grid at the Purge Tracker slot (position 4) — the pairing is a deliberate desktop layout, so desktop has no standalone Insights end-cap. The three collection-random sections (Shuffle, Format Spotlight, Decades) are deliberately interleaved with other content — do not stack them adjacent.
 
 **Recommended section removed (v0.6.x):** The time-of-day-weighted "Give this one a spin." hero was cut — it read as redundant with Shuffle. Its `getTimeBucket`/mood-folder scoring code was deleted with it; do not resurrect it. The feed-header transparency behavior it introduced remains: the mobile feed header is transparent at scroll position 0 on the home feed and transitions to opaque on scroll, scoped via a prop on the header component (`onHeroVisibility` keys off scroll position, not any hero section). The identity block sits flush under the transparent header.
 
@@ -709,11 +717,11 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 **On the Hunt:** Wantlist showcase — horizontal scroll on mobile (145px cards), 6-col grid on desktop. Shows priority bolt icons on prioritized items. "See All" navigates to wantlist screen. Tapping a card opens `WantItemDetailPanel`. Shuffled on mount with priority items weighted 2x, deduped, max 6 items.
 
-**Decades:** Random eligible decade spotlight (requires 5+ albums in the decade). Header is a plain "The {decade}" (Rock Salt) under a DECADE HIGHLIGHT eyebrow — the old scripted flavor subtitles were removed. Uses `DepthsAlbumCard` with `dominantColor` for artwork-driven card backgrounds.
+**Decades:** Random eligible decade spotlight (requires 5+ albums in the decade). Header is a plain "The {decade}" (Rock Salt) under a DECADE HIGHLIGHT eyebrow — the old scripted flavor subtitles were removed. Uses `ShuffleAlbumCard` with `dominantColor` for artwork-driven card backgrounds.
 
-**From the Depths:** Leads the feed directly under the identity block — it reshuffles on every load, so it carries the "why did I open the app" slot. Introduced by the gradient "Shuffle" heading (Rock Salt 30px, pink→yellow→green→cyan) with a yellow refresh button on the right (`reshuffleDepths` — re-picks the 10-album pool, giving a fresh 4/9). 2x2 grid on mobile, 3x3 grid on desktop. Uses `DepthsAlbumCard` with `compact` and `dominantColor` props — shows only title, artist, and date (no year/label/folder meta line).
+**Shuffle** (formerly "From the Depths" — that name is retired; the Following screen has a sibling Shuffle section over followed users' collections)**:** Leads the feed directly under the identity block — it reshuffles on every load, so it carries the "why did I open the app" slot. Introduced by the gradient "Shuffle" heading (Rock Salt 30px, pink→yellow→green→cyan) with, on the right, a Square/Grid2x2 pill (screen-local toggle between one album and the 4/9 grid) and a yellow refresh button (`reshuffle` — re-picks the 10-album pool). Cards animate in with a staggered fade/rise (80ms, EASE_OUT, keyed on a shuffle counter; honors prefers-reduced-motion). 2x2 grid on mobile, 3x3 grid on desktop; single mode shows one full-width (mobile non-compact) card. Uses `ShuffleAlbumCard` (`shuffle-album-card.tsx`) with `compact` and `dominantColor` props — compact shows only title, artist, and date (no year/label/folder meta line).
 
-**Dominant color cards:** `DominantColorCard` (`dominant-color-card.tsx`) extracts the dominant color from album artwork via canvas sampling and uses it as the card background. Text contrast (light/dark) is determined by WCAG 2.1 relative luminance. Images are proxied through `/img-proxy/` (Vite dev proxy + Vercel rewrite) to avoid CORS canvas tainting. The component sets CSS custom properties (`--dc-bg`, `--dc-text`, `--dc-text-secondary`, `--dc-text-muted`) for children to consume. `DepthsAlbumCard` supports a `dominantColor` boolean prop that wraps the card in `DominantColorCard` and switches text colors to `--dc-*` vars with `--c-*` fallbacks. A `compact` boolean prop reduces font sizes and hides the year/label/folder meta line.
+**Dominant color cards:** `DominantColorCard` (`dominant-color-card.tsx`) extracts the dominant color from album artwork via canvas sampling and uses it as the card background. Text contrast (light/dark) is determined by WCAG 2.1 relative luminance. Images are proxied through `/img-proxy/` (Vite dev proxy + Vercel rewrite) to avoid CORS canvas tainting. The component sets CSS custom properties (`--dc-bg`, `--dc-text`, `--dc-text-secondary`, `--dc-text-muted`) for children to consume. `ShuffleAlbumCard` supports a `dominantColor` boolean prop that wraps the card in `DominantColorCard` and switches text colors to `--dc-*` vars with `--c-*` fallbacks. A `compact` boolean prop reduces font sizes and hides the year/label/folder meta line.
 
 ### Following Screen (following-screen.tsx)
 - **Avatar size**: 80px (with 28px fallback initials). Button container width: 92px.
@@ -766,7 +774,7 @@ Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 | 1 | Feed | Newspaper | `feed` |
 | 2 | Collection | GalleryVerticalEnd | `crate` |
 | 3 | Wantlist | Heart | `wants` |
-| 4 | Stacks | Music | `stacks` |
+| 4 | Sessions | Music | `stacks` |
 | 5 | Insights | BarChart3 | `reports` |
 
 **Purge is not in the mobile bottom bar** — Purge is accessed from the Feed screen card, Settings quick-access card, and Album Detail.
@@ -784,7 +792,7 @@ Wordmark is the only screen where the logo appears in the header.
 Screen title `<h1>` left (Bricolage Grotesque 700, 28px, truncating).
 Users icon + avatar right.
 
-**Variant C — Stacks**
+**Variant C — Sessions**
 Screen title left. Yellow Plus button (w-8 h-8 rounded-full bg-[#EBFD00]) +
 users icon + avatar right. Plus button calls `onNewStack` from context.
 
@@ -819,7 +827,7 @@ do not re-add them.
 ### Desktop (>= 1024px)
 Horizontal top nav with 9 items split left/center/right. Logo centered. Both groups are `flex-1`.
 
-**Left group:** Feed > Collection > Wantlist > Stacks
+**Left group:** Feed > Collection > Wantlist > Sessions
 **Right group:** Look It Up (Search) > Following > Purge > Insights > Settings > theme toggle
 
 Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor migration this alias renders `CardsThree` — records standing in a crate). Insights uses `BarChart3` (Phosphor `ChartBar`). Active state: `#EBFD00` icon + translucent background highlight; active nav items use `weight="fill"`, inactive use `weight="light"`.
@@ -841,19 +849,19 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor mig
 | Offline banner | `z-[115]` | offline-banner.tsx |
 | Album detail mobile backdrop | `z-[110]` | album-detail.tsx |
 | Desktop side panel | `z-[110]` | App.tsx |
-| New stack / Add user FABs (mobile) | `z-[105]` | stacks.tsx, following-screen.tsx |
+| New session / Add user FABs (mobile) | `z-[105]` | stacks.tsx, following-screen.tsx |
 | Scroll fade overlay | `z-100` | App.tsx |
 | Delete confirmation modals | `z-[90]` | stacks.tsx |
 | Purge tracker sheet | `z-[89]` | purge-tracker.tsx |
 | Purge tracker backdrop | `z-[88]` | purge-tracker.tsx |
-| Stack picker mobile sheet | `z-[85]` | stack-picker-sheet.tsx |
-| Stack picker mobile backdrop | `z-[80]` | stack-picker-sheet.tsx |
+| Session picker mobile sheet | `z-[85]` | stack-picker-sheet.tsx |
+| Session picker mobile backdrop | `z-[80]` | stack-picker-sheet.tsx |
 | Add Albums drawer sheet | `z-[85]` | add-albums-drawer.tsx |
 | Add Albums drawer backdrop | `z-[80]` | add-albums-drawer.tsx |
 | Look It Up search panel (full-screen, no backdrop) | `z-[85]` | discogs-search-sheet.tsx |
 | Filter drawer panel | `z-[70]` | filter-drawer.tsx |
 | Filter drawer backdrop | `z-[60]` | filter-drawer.tsx |
-| Desktop stack picker | `z-50` | stack-picker-sheet.tsx |
+| Desktop session picker | `z-50` | stack-picker-sheet.tsx |
 | Mobile feed header (transparent at feed top) | `zIndex: 50` | App.tsx |
 | Alphabet index sidebar | `z-40` | album-grid.tsx, album-list.tsx |
 | Wantlist card close button | `z-[2]` | wantlist.tsx |
@@ -875,7 +883,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Two view modes (Grid incl. compact grid3, List) — legacy crate/artwork stored prefs are mapped back to grid at preferences hydration
 - Discogs OAuth 1.0a authentication (real login via Discogs)
 - Live Discogs API sync via server-side Convex proxy actions (collection, folders, wantlist, collection value)
-- All Holy Grails-exclusive data persisted in Convex (purge tags, stacks, last played, want priorities, following, preferences)
+- All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
 - Album instance editing (media/sleeve condition, notes, folder) from album detail panel
 - Folder management (create, rename, delete) from Settings > Tools > Folders via `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`
 - Discogs profile personalization in Settings — enriched profile data (location, bio, buyer/seller ratings, member since, contributions) fetched from `/users/{username}`, editable profile text and location via `proxyUpdateProfile`
@@ -887,7 +895,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Header action callbacks — registered by screens on mount, cleaned up on unmount. All use the double-arrow pattern to prevent React functional update auto-invocation:
   - `setOnNewStack(() => () => fn())` ← correct
   - `setOnNewStack(() => fn())` ← WRONG — triggers fn() immediately on mount
-  - `onNewStack` / `setOnNewStack` — registered by the Stacks screen
+  - `onNewStack` / `setOnNewStack` — registered by the Sessions screen
   - `onAddFollowedUser` / `setOnAddFollowedUser` — registered by FollowingScreen
   - `followedUserProfile` / `setFollowedUserProfile` — `{ username, avatarUrl? } | null`, set by FollowingScreen when a user profile is open, null when closed
   - `onBackFromProfile` / `setOnBackFromProfile` — registered by FollowingScreen
@@ -953,7 +961,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Use vinyl vocabulary naturally: pressing, crate, grail, side A, VG+
 - No exclamation points, no emoji, no "Hey there!" energy
 - Avoid: "seamlessly," "powerful," "experience," "journey"
-- Toast notifications: under 4 words where possible, no punctuation except a period for emphasis. Album-specific toasts include the full title with no truncation: `"[Title]" kept.` / `"[Title]" added to Wantlist.` / `"[Title]" removed.` Error toasts, stack toasts, sync toasts, and settings toasts remain generic.
+- Toast notifications: under 4 words where possible, no punctuation except a period for emphasis. Album-specific toasts include the full title with no truncation: `"[Title]" kept.` / `"[Title]" added to Wantlist.` / `"[Title]" removed.` Error toasts, session toasts, sync toasts, and settings toasts remain generic.
 - The plural of vinyl is vinyl
 - "Wantlist" is one word — never "want list" or "want-list"
 

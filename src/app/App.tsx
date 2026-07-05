@@ -18,7 +18,7 @@ import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
 import { LoadingScreen } from "./components/loading-screen";
 import { StackPickerSheet } from "./components/stack-picker-sheet";
-import { EASE_OUT, DURATION_NORMAL } from "./components/motion-tokens";
+import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 import { InstallNudge } from "./components/install-nudge";
 import { OfflineBanner } from "./components/offline-banner";
@@ -469,12 +469,17 @@ function AppContent() {
             >
               <MobileHeader />
             </div>
-            <div
+            {/* Keyed on screen so each tab switch fades the incoming screen in */}
+            <motion.div
+              key={screen}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
               className="flex-1 flex flex-col overflow-hidden"
               style={{ "--nav-clearance": mobilePaddingBottom } as React.CSSProperties}
             >
               {renderScreen()}
-            </div>
+            </motion.div>
           </main>
         </div>
 

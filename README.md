@@ -2,7 +2,7 @@
 
 **A Discogs companion app.**
 
-Holy Grails is a vinyl collection management PWA synced with Discogs. It adds the tools Discogs doesn't have: stack curation, a following feature to track the activity of other collectors you admire, and a purge workflow for when you need to lighten your collection.
+Holy Grails is a vinyl collection management PWA synced with Discogs. It adds the tools Discogs doesn't have: listening-session curation, a following feature to track the activity of other collectors you admire, and a purge workflow for when you need to lighten your collection.
 
 Not a Discogs clone. Not a general-purpose music tracker. Just a decision-making toolset for managing your grails.
 
@@ -12,7 +12,7 @@ Not a Discogs clone. Not a general-purpose music tracker. Just a decision-making
 
 **Purge workflow** — Flip through your collection and tag each record Keep, Cut, or Maybe.
 
-**Stacks** — Build ordered playlists from your collection. Name them, reorder them, track what you've played.
+**Sessions** — Build ordered playlists from your collection. Name them, reorder them, track what you've played.
 
 **Browse your collection** — Grid and List views with search, filtering, and an alphabet index.
 
@@ -20,7 +20,7 @@ Not a Discogs clone. Not a general-purpose music tracker. Just a decision-making
 
 **Following** — Follow other Discogs users, browse their collections, and see their recent additions in your feed.
 
-**Discogs sync** — Real OAuth 1.0a auth. Pulls your full collection, folders, wantlist, and collection value. Purge tags, stacks, and wantlist priorities are Holy Grails-exclusive so your Discogs data stays clean.
+**Discogs sync** — Real OAuth 1.0a auth. Pulls your full collection, folders, wantlist, and collection value. Purge tags, sessions, and wantlist priorities are Holy Grails-exclusive so your Discogs data stays clean.
 
 ---
 

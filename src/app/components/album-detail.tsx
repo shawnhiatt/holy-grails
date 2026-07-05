@@ -1320,7 +1320,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   <>
                     <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
                       <p className="mb-2" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        {inAnyStack ? "Saved" : "Add to a Stack"}
+                        {inAnyStack ? "Saved" : "Add to a Session"}
                       </p>
                       <div style={{ border: "1px solid var(--c-border-strong)", borderRadius: "10px", padding: "4px 8px", maxHeight: "240px", overflowY: "auto" }}>
                         {[...stacks]
@@ -1347,7 +1347,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                             <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
                               <Plus size={14} />
                             </div>
-                            <span style={{ fontSize: "13px", fontWeight: 500 }}>New Stack</span>
+                            <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
                           </button>
                         ) : (
                           <div className="flex items-center gap-2 py-2 px-1">
@@ -1363,7 +1363,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                   setNewStackName("");
                                 }
                               }}
-                              placeholder="Stack name..."
+                              placeholder="Session name..."
                               maxLength={100}
                               className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
                               style={{
@@ -2215,7 +2215,9 @@ function WantItemDetailPanel({
                   className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
                   style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
                 >
-                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+                    <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  </motion.div>
                 </button>
                 <div
                   className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
@@ -2290,7 +2292,9 @@ function WantItemDetailPanel({
                   className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
                   style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
                 >
-                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+                    <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  </motion.div>
                 </button>
               </div>
             </div>
@@ -2336,7 +2340,9 @@ function WantItemDetailPanel({
                 onClick={() => toggleWantPriority(item.id)}
                 className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 mt-1"
               >
-                <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
+                <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
+                </motion.div>
               </button>
             </div>
           </div>
@@ -2688,13 +2694,16 @@ function ReleaseDetailPanel({
     try {
       await addToCollection(album.release_id);
       toast.info(`"${album.title}" added to collection.`);
-      onClose();
+      // Pivot the open panel to the new collection copy (same swap as View Your
+      // Copy) so details and custom fields are editable without re-finding it
+      setSelectedFeedAlbum(null);
+      setSelectedAlbumId(String(album.release_id));
     } catch (err: any) {
       console.error("[ReleaseDetail] Add to collection failed:", err);
       toast.error("Failed to add. Try again.");
       setIsAddingToCollection(false);
     }
-  }, [album.release_id, album.title, isAddingToCollection, alreadyInCollection, addToCollection, onClose]);
+  }, [album.release_id, album.title, isAddingToCollection, alreadyInCollection, addToCollection, setSelectedFeedAlbum, setSelectedAlbumId]);
 
   const handleAddToWantlist = useCallback(async () => {
     if (isAddingToWantlist || alreadyOnWantlist) return;

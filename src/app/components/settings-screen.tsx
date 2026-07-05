@@ -14,7 +14,7 @@ const DEFAULT_SCREEN_OPTIONS: { value: Screen; label: string }[] = [
   { value: "feed", label: "Feed" },
   { value: "crate", label: "Collection" },
   { value: "wants", label: "Wantlist" },
-  { value: "stacks", label: "Stacks" },
+  { value: "stacks", label: "Sessions" },
   { value: "reports", label: "Insights" },
 ];
 
@@ -189,11 +189,11 @@ export function SettingsScreen() {
         if (a.purgeTag) deletePurgeTag(a.release_id);
       }
       toast.success("Purge data cleared.");
-    } else if (confirmAction === "Stacks") {
+    } else if (confirmAction === "Sessions") {
       for (const s of stacks) {
         deleteStack(s.id);
       }
-      toast.success("Stacks cleared.");
+      toast.success("Sessions cleared.");
     } else if (confirmAction === "Play history") {
       try {
         await clearPlayHistory();
@@ -693,7 +693,7 @@ export function SettingsScreen() {
           <div className="rounded-[12px] p-4 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Data</h3>
             <button onClick={() => setConfirmAction("Purge data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Purge Data</button>
-            <button onClick={() => setConfirmAction("Stacks")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Stacks</button>
+            <button onClick={() => setConfirmAction("Sessions")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Sessions</button>
             <button onClick={() => setConfirmAction("Play history")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Play History</button>
             <button onClick={() => setConfirmAction("Followed users")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Followed Users</button>
             <button onClick={() => setConfirmAction("Wantlist priorities")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Wantlist Priorities</button>
@@ -740,15 +740,15 @@ export function SettingsScreen() {
                   <p className="mt-0.5" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>
                     {confirmAction === "Purge data"
                       ? "This removes all Keep, Cut, and Maybe tags from your collection. This cannot be undone."
-                      : confirmAction === "Stacks"
-                      ? "This deletes all saved stacks. This cannot be undone."
+                      : confirmAction === "Sessions"
+                      ? "This deletes all saved sessions. This cannot be undone."
                       : confirmAction === "Play history"
                       ? "This removes all last-played timestamps. This cannot be undone."
                       : confirmAction === "Followed users"
                       ? "This will also remove their cached collection data."
                       : confirmAction === "Wantlist priorities"
                       ? "This removes all custom priority rankings from your wantlist. This cannot be undone."
-                      : "This permanently deletes all Holy Grails data \u2014 purge tags, stacks, following, listening history, preferences, and cached data. Your Discogs account is not affected. You will be signed out."}
+                      : "This permanently deletes all Holy Grails data \u2014 purge tags, sessions, following, listening history, preferences, and cached data. Your Discogs account is not affected. You will be signed out."}
                   </p>
                 </div>
               </div>

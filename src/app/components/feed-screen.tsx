@@ -6,13 +6,15 @@ import {
   ChevronDown,
   TrendingUp,
   GalleryVerticalEnd,
+  Grid2x2,
+  Square,
   Zap,
   Play,
   RefreshCw,
   Shuffle,
 } from "./icons";
 import { WantlistAddIcon } from "./wantlist-add-icon";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
 import type { FollowingFeedEntry } from "./app-context";
@@ -22,9 +24,9 @@ import { NoDiscogsCard } from "./no-discogs-card";
 import { purgeIndicatorColor, purgeTagColor, purgeToast } from "./purge-colors";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { useSafeTap } from "../lib/use-safe-tap";
-import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { EASE_IN_OUT, EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
-import { DepthsAlbumCard } from "./depths-album-card";
+import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial, formatSyncedAgo } from "../utils/format";
 import { shuffle, pickRandom } from "../utils/shuffle";
@@ -361,14 +363,19 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     return { decade, header, albums: shuffled };
   });
 
-  // From the Depths — 10 random albums, reshuffled every mount
-  const [depthsAlbums, setDepthsAlbums] = useState(() => {
+  // Shuffle — 10 random albums, reshuffled every mount
+  const [shuffleAlbums, setShuffleAlbums] = useState(() => {
     if (albums.length === 0) return [];
     return shuffle(albums).slice(0, 10);
   });
-  const reshuffleDepths = useCallback(() => {
+  // Bumped on every reshuffle so the cards remount and replay their entrance
+  const [shuffleKey, setShuffleKey] = useState(0);
+  // Single mode shows one album per shuffle instead of the 4/9 grid
+  const [shuffleSingle, setShuffleSingle] = useState(false);
+  const reshuffle = useCallback(() => {
     if (albums.length === 0) return;
-    setDepthsAlbums(shuffle(albums).slice(0, 10));
+    setShuffleAlbums(shuffle(albums).slice(0, 10));
+    setShuffleKey((k) => k + 1);
   }, [albums]);
 
   // On the Hunt — shuffled wantlist items, weighted toward priority
@@ -540,13 +547,22 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     boxShadow: "var(--c-card-shadow)",
   };
 
-  /* ─────────────── FROM THE DEPTHS — carousel / grid ─────────────── */
-  const handleDepthsTap = useCallback((albumId: string) => {
+  /* ─────────────── SHUFFLE — carousel / grid ─────────────── */
+  const handleAlbumTap = useCallback((albumId: string) => {
     setSelectedAlbumId(albumId);
     setShowAlbumDetail(true);
   }, [setSelectedAlbumId, setShowAlbumDetail]);
 
-  const DepthsSection = depthsAlbums.length > 0 ? (
+  // Staggered entrance for shuffled cards — keyed on shuffleKey so each
+  // reshuffle remounts the cards and replays the sequence
+  const reduceMotion = useReducedMotion();
+  const shuffleCardMotion = (i: number) => ({
+    initial: reduceMotion ? false as const : { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: DURATION_NORMAL, ease: EASE_OUT, delay: reduceMotion ? 0 : i * 0.08 },
+  });
+
+  const ShuffleSection = shuffleAlbums.length > 0 ? (
     <div>
       {/* Section header */}
       <div className="px-[16px] lg:px-0 mb-[10px] flex items-center justify-between gap-2">
@@ -573,39 +589,74 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         >
           Shuffle
         </h2>
-        <button
-          onClick={reshuffleDepths}
-          className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
-          style={{ backgroundColor: "#EBFD00", color: "#0C284A", touchAction: "manipulation" }}
-          aria-label="Shuffle again"
-        >
-          <Shuffle size={16} weight="bold" />
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* One-vs-grid toggle (mirrors the Collection view mode pill) */}
+          <div
+            className="flex items-center gap-[2px] rounded-[10px] h-[34px] shrink-0 overflow-hidden"
+            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+          >
+            <button
+              onClick={() => setShuffleSingle(true)}
+              title="One at a time"
+              aria-label="Shuffle one album"
+              className="w-[34px] h-[34px] flex items-center justify-center transition-all"
+              style={{
+                backgroundColor: shuffleSingle ? "var(--c-surface-hover)" : undefined,
+                color: "var(--c-text-muted)",
+                touchAction: "manipulation",
+              }}
+            >
+              <Square size={18} />
+            </button>
+            <button
+              onClick={() => setShuffleSingle(false)}
+              title="Grid"
+              aria-label="Shuffle a grid of albums"
+              className="w-[34px] h-[34px] flex items-center justify-center transition-all"
+              style={{
+                backgroundColor: !shuffleSingle ? "var(--c-surface-hover)" : undefined,
+                color: "var(--c-text-muted)",
+                touchAction: "manipulation",
+              }}
+            >
+              <Grid2x2 size={18} />
+            </button>
+          </div>
+          <button
+            onClick={reshuffle}
+            className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
+            style={{ backgroundColor: "#EBFD00", color: "#0C284A", touchAction: "manipulation" }}
+            aria-label="Shuffle again"
+          >
+            <Shuffle size={16} weight="bold" />
+          </button>
+        </div>
       </div>
 
-      {/* Mobile: 2x2 grid */}
+      {/* Mobile: 2x2 grid, or one full-width card in single mode */}
       <div className="lg:hidden px-[16px]">
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
+            gridTemplateColumns: shuffleSingle ? "1fr" : "repeat(2, 1fr)",
             gap: "12px",
           }}
         >
-          {depthsAlbums.slice(0, 4).map((album) => (
-            <DepthsAlbumCard
-              key={`depths-feed-${album.id}`}
-              album={album}
-              onTap={handleDepthsTap}
-              compact
-              dominantColor
-              playCount={playCounts[String(album.release_id)] ?? 0}
-            />
+          {shuffleAlbums.slice(0, shuffleSingle ? 1 : 4).map((album, i) => (
+            <motion.div key={`shuffle-feed-${shuffleKey}-${album.id}`} {...shuffleCardMotion(i)}>
+              <ShuffleAlbumCard
+                album={album}
+                onTap={handleAlbumTap}
+                compact={!shuffleSingle}
+                dominantColor
+                playCount={playCounts[String(album.release_id)] ?? 0}
+              />
+            </motion.div>
           ))}
         </div>
       </div>
 
-      {/* Desktop: 3x3 grid */}
+      {/* Desktop: 3x3 grid, or one card in single mode */}
       <div className="hidden lg:block">
         <div
           style={{
@@ -614,14 +665,15 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             gap: "16px",
           }}
         >
-          {depthsAlbums.slice(0, 9).map((album) => (
-            <DepthsAlbumCard
-              key={`depths-desk-${album.id}`}
-              album={album}
-              onTap={handleDepthsTap}
-              dominantColor
-              playCount={playCounts[String(album.release_id)] ?? 0}
-            />
+          {shuffleAlbums.slice(0, shuffleSingle ? 1 : 9).map((album, i) => (
+            <motion.div key={`shuffle-desk-${shuffleKey}-${album.id}`} {...shuffleCardMotion(i)}>
+              <ShuffleAlbumCard
+                album={album}
+                onTap={handleAlbumTap}
+                dominantColor
+                playCount={playCounts[String(album.release_id)] ?? 0}
+              />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -689,9 +741,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 minWidth: 0,
               }}
             >
-              <DepthsAlbumCard
+              <ShuffleAlbumCard
                 album={album}
-                onTap={handleDepthsTap}
+                onTap={handleAlbumTap}
                 dominantColor
                 playCount={playCounts[String(album.release_id)] ?? 0}
               />
@@ -712,10 +764,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           }}
         >
           {decadesSpotlight.albums.slice(0, 4).map((album) => (
-            <DepthsAlbumCard
+            <ShuffleAlbumCard
               key={`decades-desk-${album.id}`}
               album={album}
-              onTap={handleDepthsTap}
+              onTap={handleAlbumTap}
               dominantColor
               playCount={playCounts[String(album.release_id)] ?? 0}
             />
@@ -1259,7 +1311,22 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
       {hasFollowing && activeList.length > 0 ? (
         <>
-          {(activityExpanded ? activeList : activeList.slice(0, ACTIVITY_COLLAPSED)).map((item) => renderActivityRow(item, followingActivityTab === "collection", activeVerb))}
+          {(activityExpanded ? activeList : activeList.slice(0, ACTIVITY_COLLAPSED)).map((item, i) =>
+            // Rows past the collapsed count only mount on "Show more" — stagger
+            // their reveal; the always-visible rows render unwrapped
+            i >= ACTIVITY_COLLAPSED ? (
+              <motion.div
+                key={`reveal-${item.id}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: DURATION_FAST, ease: EASE_OUT, delay: (i - ACTIVITY_COLLAPSED) * 0.04 }}
+              >
+                {renderActivityRow(item, followingActivityTab === "collection", activeVerb)}
+              </motion.div>
+            ) : (
+              renderActivityRow(item, followingActivityTab === "collection", activeVerb)
+            )
+          )}
           {activeList.length > ACTIVITY_COLLAPSED && (
             <button
               onClick={() => setActivityExpanded((v) => !v)}
@@ -1377,7 +1444,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       {/* Desktop: 6-column static grid */}
       <div className="hidden lg:grid grid-cols-6 gap-3">
         {recentlyAdded.slice(0, 6).map((album) => (
-          <RecentAlbumCard key={album.id} album={album} isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleDepthsTap} />
+          <RecentAlbumCard key={album.id} album={album} isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleAlbumTap} />
         ))}
       </div>
 
@@ -1398,7 +1465,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{ paddingRight: "16px" }}
         >
           {recentlyAdded.map((album) => (
-            <RecentAlbumCard key={album.id} album={album} width="145px" isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleDepthsTap} />
+            <RecentAlbumCard key={album.id} album={album} width="145px" isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleAlbumTap} />
           ))}
         </div>
       </div>
@@ -1882,10 +1949,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
     [collectionFacts]
   );
-  const reduceMotion = useMemo(
-    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-    []
-  );
   // Full-width band, no card container — rows separated by hairline
   // dividers. Cells are tappable shortcuts (Collection → crate,
   // Med. Value → reports, Wantlist → wants).
@@ -2152,7 +2215,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 <div style={{ paddingTop: "8px" }}>{identityBlock("desktop")}</div>
 
                 {/* 1. Shuffle */}
-                {DepthsSection}
+                {ShuffleSection}
 
                 {/* 2. Recently Added */}
                 {RecentlyAddedSection}
@@ -2167,7 +2230,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 </div>
 
                 {/* 5. Format Spotlight */}
-                <FormatSpotlight onAlbumTap={handleDepthsTap} />
+                <FormatSpotlight onAlbumTap={handleAlbumTap} />
 
                 {/* 6. On the Hunt */}
                 {OnTheHuntSection}
@@ -2192,7 +2255,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             )}
 
             {/* 1. Shuffle — leads the feed, fresh picks every load */}
-            {hasData && DepthsSection}
+            {hasData && ShuffleSection}
 
             <div className="flex flex-col gap-[48px] pt-[48px]">
               {/* 2. Recently Added */}
@@ -2211,7 +2274,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               )}
 
               {/* 5. Format Spotlight */}
-              {hasData && <FormatSpotlight onAlbumTap={handleDepthsTap} />}
+              {hasData && <FormatSpotlight onAlbumTap={handleAlbumTap} />}
 
               {/* 6. On the Hunt */}
               {hasData && OnTheHuntSection}

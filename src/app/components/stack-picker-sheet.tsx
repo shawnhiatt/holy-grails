@@ -236,7 +236,7 @@ function PickerContent({
               margin: 0,
             }}
           >
-            Add to Stack
+            Add to Session
           </h3>
           <p
             className="mt-0.5"
@@ -309,7 +309,7 @@ function PickerContent({
             >
               <Plus size={15} />
             </div>
-            <span style={{ fontSize: "14px", fontWeight: 500 }}>Add to New Stack</span>
+            <span style={{ fontSize: "14px", fontWeight: 500 }}>Add to New Session</span>
           </button>
         ) : (
           <div className="flex items-center gap-2.5 py-2 px-1" style={{ overflow: "visible" }}>
@@ -325,7 +325,7 @@ function PickerContent({
                   setNewStackName("");
                 }
               }}
-              placeholder="Stack name..."
+              placeholder="Session name..."
               maxLength={100}
               className="flex-1 min-w-0 rounded-lg px-3 py-2 outline-none"
               style={{
