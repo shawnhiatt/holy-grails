@@ -643,7 +643,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           }}
         >
           {shuffleAlbums.slice(0, shuffleSingle ? 1 : 4).map((album, i) => (
-            <motion.div key={`shuffle-feed-${shuffleKey}-${album.id}`} {...shuffleCardMotion(i)}>
+            // minWidth 0 keeps long nowrap titles from stretching a 1fr column
+            // (the card root's overflow-hidden used to do this as grid child)
+            <motion.div key={`shuffle-feed-${shuffleKey}-${album.id}`} style={{ minWidth: 0 }} {...shuffleCardMotion(i)}>
               <ShuffleAlbumCard
                 album={album}
                 onTap={handleAlbumTap}
@@ -666,7 +668,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           }}
         >
           {shuffleAlbums.slice(0, shuffleSingle ? 1 : 9).map((album, i) => (
-            <motion.div key={`shuffle-desk-${shuffleKey}-${album.id}`} {...shuffleCardMotion(i)}>
+            <motion.div key={`shuffle-desk-${shuffleKey}-${album.id}`} style={{ minWidth: 0 }} {...shuffleCardMotion(i)}>
               <ShuffleAlbumCard
                 album={album}
                 onTap={handleAlbumTap}
