@@ -193,7 +193,7 @@ function StackDetail({
   stack, albums, onBack, onDelete, onRename, onOpenDrawer, onAlbumTap, onRemoveAlbum, onReorderAlbums,
 }: {
   stack: { id: string; name: string; albumIds: string[]; createdAt: string };
-  albums: { id: string; title: string; artist: string; cover: string }[];
+  albums: { id: string; title: string; artist: string; thumb?: string; cover: string }[];
   onBack: () => void;
   onDelete: () => void;
   onRename: (name: string) => void;

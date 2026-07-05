@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, animate, type MotionStyle } from "motion/react";
 import { X, Search, Check } from "./icons";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
@@ -511,7 +511,7 @@ function MobileDrawerSheet({
           backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
-        } as React.CSSProperties}
+        } as MotionStyle}
       >
         {/* Grab handle */}
         <div className="flex justify-center py-3 flex-shrink-0 cursor-grab" style={{ touchAction: "none" }}>
