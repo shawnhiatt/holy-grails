@@ -2688,13 +2688,16 @@ function ReleaseDetailPanel({
     try {
       await addToCollection(album.release_id);
       toast.info(`"${album.title}" added to collection.`);
-      onClose();
+      // Pivot the open panel to the new collection copy (same swap as View Your
+      // Copy) so details and custom fields are editable without re-finding it
+      setSelectedFeedAlbum(null);
+      setSelectedAlbumId(String(album.release_id));
     } catch (err: any) {
       console.error("[ReleaseDetail] Add to collection failed:", err);
       toast.error("Failed to add. Try again.");
       setIsAddingToCollection(false);
     }
-  }, [album.release_id, album.title, isAddingToCollection, alreadyInCollection, addToCollection, onClose]);
+  }, [album.release_id, album.title, isAddingToCollection, alreadyInCollection, addToCollection, setSelectedFeedAlbum, setSelectedAlbumId]);
 
   const handleAddToWantlist = useCallback(async () => {
     if (isAddingToWantlist || alreadyOnWantlist) return;
