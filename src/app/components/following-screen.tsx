@@ -1256,12 +1256,12 @@ function PopulatedFollowingView({
     return s;
   }, [userWantsForHeart]);
 
-  // Shuffle — uses followingFeed cache (available immediately from Convex)
-  // rather than followedUsers[].collection which requires API hydration.
-  // Seeded shuffle: same selection persists for 12 hours, then rotates.
+  // From the Depths — uses followingFeed cache (available immediately from
+  // Convex) rather than followedUsers[].collection which requires API
+  // hydration. Seeded: same selection persists for 12 hours, then rotates.
   const MAX_CARDS_PER_USER = 4;
-  const shuffleBucket = useMemo(() => Math.floor(Date.now() / (12 * 60 * 60 * 1000)), []);
-  const shufflePicks = useMemo(() => {
+  const depthsBucket = useMemo(() => Math.floor(Date.now() / (12 * 60 * 60 * 1000)), []);
+  const depthsPicks = useMemo(() => {
     // Simple seeded PRNG (mulberry32)
     function seededRng(seed: number) {
       let s = seed | 0;
@@ -1279,7 +1279,7 @@ function PopulatedFollowingView({
       if (entry.recent_albums.length === 0) continue;
       // Seed per user + time bucket so each user gets a stable but unique shuffle
       const userSeed = entry.followed_username.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-      const rng = seededRng(shuffleBucket * 31 + userSeed);
+      const rng = seededRng(depthsBucket * 31 + userSeed);
       const shuffled = [...entry.recent_albums].sort(() => rng() - 0.5);
       const picks = shuffled.slice(0, MAX_CARDS_PER_USER);
       const avatar = followingAvatars.get(entry.followed_username) || "";
@@ -1320,7 +1320,7 @@ function PopulatedFollowingView({
       }
     }
     return results;
-  }, [followingFeed, followingAvatars, followedUsers, shuffleBucket]);
+  }, [followingFeed, followingAvatars, followedUsers, depthsBucket]);
 
   const handleHeartTap = useCallback(async (item: ActivityItem) => {
     // Already in collection or already in flight — no action
@@ -1398,8 +1398,8 @@ function PopulatedFollowingView({
         </div>
       </div>
 
-      {/* ── Shuffle ── */}
-      {shufflePicks.length > 0 && (
+      {/* ── From the Depths ── */}
+      {depthsPicks.length > 0 && (
         <div className="pb-[20px]">
           {/* Section header */}
           <div className="px-[16px] lg:px-[24px] mb-[12px]">
@@ -1412,7 +1412,7 @@ function PopulatedFollowingView({
                 fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
               }}
             >
-              Shuffle
+              From the Depths
             </p>
             <p
               style={{
@@ -1430,18 +1430,18 @@ function PopulatedFollowingView({
 
           {/* Horizontal scroll gallery */}
           <div
-            className="overflow-x-auto shuffle-scroll"
+            className="overflow-x-auto depths-scroll"
             style={{
               scrollbarWidth: "none",
               msOverflowStyle: "none",
               WebkitOverflowScrolling: "touch",
             }}
           >
-            <style>{`.shuffle-scroll::-webkit-scrollbar { display: none; }`}</style>
+            <style>{`.depths-scroll::-webkit-scrollbar { display: none; }`}</style>
             <div className="flex gap-[12px] px-[16px] lg:px-[24px]">
-              {shufflePicks.map(({ username, avatar, userId, album, cardKey }) => (
+              {depthsPicks.map(({ username, avatar, userId, album, cardKey }) => (
                 <motion.div
-                  key={`shuffle-${cardKey}`}
+                  key={`depths-${cardKey}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.45, ease: EASE_OUT }}
