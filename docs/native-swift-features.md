@@ -37,7 +37,7 @@ async gap. This made it brittle and prone to regressions when handlers were refa
 - Alphabet sidebar: light haptic fired on each letter change during scroll
 - Album grid / artwork grid / list cards: medium haptic on card tap
 - Crate flip (swiper view): medium haptic on card tap
-- Feed screen: medium haptic on Recent / Hunt / Depths / Following Activity / Purge Eval card taps
+- Feed screen: medium haptic on Recent / Hunt / Shuffle / Following Activity / Purge Eval card taps
 - Following screen: medium haptic on user list card tap and feed item taps
 - Wantlist: medium haptic on want item tap
 - Reports / Insights screen: medium haptic on album tap

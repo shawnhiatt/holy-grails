@@ -23,7 +23,7 @@ const truncStyle: React.CSSProperties = {
   maxWidth: "100%",
 };
 
-export interface DepthsAlbumCardProps {
+export interface ShuffleAlbumCardProps {
   album: Album;
   onTap: (albumId: string) => void;
   /** Optional content rendered above the artwork (e.g. avatar row for followed users) */
@@ -44,7 +44,7 @@ export interface DepthsAlbumCardProps {
   playCount?: number;
 }
 
-export function DepthsAlbumCard({
+export function ShuffleAlbumCard({
   album,
   onTap,
   eyebrow,
@@ -55,7 +55,7 @@ export function DepthsAlbumCard({
   compact = false,
   dominantColor = false,
   playCount,
-}: DepthsAlbumCardProps) {
+}: ShuffleAlbumCardProps) {
   const dateText = dateLine ?? formatAddedDate(album.dateAdded);
   const metaLine = [album.year, album.label, album.folder].filter(Boolean).join(" \u00B7 ");
 

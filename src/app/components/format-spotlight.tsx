@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useApp } from "./app-context";
 import { shuffle, pickRandom } from "../utils/shuffle";
 import type { Album } from "./discogs-api";
-import { DepthsAlbumCard } from "./depths-album-card";
+import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { WantlistHeartButton } from "./wantlist-heart-button";
 
 /* ─── Format category definitions ─── */
@@ -155,7 +155,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
                 minWidth: 0,
               }}
             >
-              <DepthsAlbumCard
+              <ShuffleAlbumCard
                 album={album}
                 onTap={handleTap}
                 dominantColor
@@ -191,7 +191,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
           }}
         >
           {spotlight.albums.map((album) => (
-            <DepthsAlbumCard
+            <ShuffleAlbumCard
               key={`format-spot-desk-${album.id}`}
               album={album}
               onTap={handleTap}
