@@ -557,7 +557,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
             fontFamily: "'Rock Salt', cursive",
-            fontSize: "38px",
+            fontSize: "30px",
             lineHeight: 1.4,
             fontWeight: 400,
             margin: 0,
