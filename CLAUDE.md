@@ -232,7 +232,7 @@ src/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
       shuffle.ts         # Fisher-Yates shuffle + pickRandom — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
       collection-facts.ts  # deriveCollectionFacts — threshold-gated stat lines (top decade/artist/label, oldest pressing, latest pickup with artist) for the feed identity-block ticker
-  imports/               # Logo SVG assets (splash, dark, light)
+  imports/               # Logo SVG assets (splash, dark, light — the light variant has navy #0C284A letters for light backgrounds; the dark variant has white letters. Both keep the yellow record-dot with navy spindle hole)
   lib/
     condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail (incl. the Value section), reports-screen.
   styles/
@@ -302,12 +302,14 @@ Background tokens are defined in `theme.ts` using Oklab relative color expressio
 
 | Token | Expression | Role |
 |---|---|---|
-| `--c-bg` | `oklab(from #0C1A2E calc(l - 0.06) a b)` | Main app canvas — lowest elevation |
-| `--c-surface-alt` | `oklab(from #0F2238 calc(l - 0.04) a b)` | Inset/recessed surfaces, input bg |
-| `--c-surface` | `#091E34` | Cards, panels, primary containers |
-| `--c-surface-hover` | `oklab(from #1A3350 calc(l - 0.03) a b)` | Hover state on surface elements |
-| `--c-chip-bg` | `oklab(from #1A3350 calc(l - 0.03) a b)` | Pill/chip backgrounds |
-| `--c-input-bg` | `oklab(from #0F2238 calc(l - 0.04) a b)` | Input field backgrounds |
+| `--c-bg` | `oklab(from #081A31 calc(l - 0.06) a b)` | Main app canvas — lowest elevation |
+| `--c-surface-alt` | `oklab(from #0C1F35 calc(l - 0.04) a b)` | Inset/recessed surfaces, input bg |
+| `--c-surface` | `#071B30` | Cards, panels, primary containers |
+| `--c-surface-hover` | `oklab(from #172E4C calc(l - 0.03) a b)` | Hover state on surface elements |
+| `--c-chip-bg` | `oklab(from #172E4C calc(l - 0.03) a b)` | Pill/chip backgrounds |
+| `--c-input-bg` | `oklab(from #0C1F35 calc(l - 0.04) a b)` | Input field backgrounds |
+
+(The dark surface family was deepened in v0.6.x from the original `#0C1A2E`/`#091E34`/`#1A3350` palette to the `#081A31`/`#071B30`/`#172E4C` family above. The old hexes survive in two intentional places: the mobile bottom bar gradient and the detached-component surface pattern — see those notes before "fixing" them.)
 
 When a new background token is needed, choose a source hex that sits in the correct position in the hierarchy and apply an appropriate Oklab L step. Do not invent hex values directly.
 
@@ -342,23 +344,28 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-sheet-shadow` | `0 -8px 32px rgba(12, 40, 74, 0.1)` |
 | `--c-shadow-sm` | `0 1px 3px rgba(0, 0, 0, 0.15)` |
 | `--c-shadow-modal` | `0 16px 48px rgba(12, 40, 74, 0.15)` |
+| `--c-accent-cyan` | `oklab(from #00CFFF 0.52 a b)` (≈ `#0078A5`) |
+| `--c-accent-pink` | `oklab(from #F276EC 0.52 a b)` (≈ `#A428A1`) |
+| `--c-accent-yellow` | `oklab(from #EBFD00 0.52 a b)` (≈ `#697200`) |
+
+The light-mode accents are the dark accents dropped to a uniform Oklab L=0.52 (hue and chroma preserved) so 11px eyebrow text clears WCAG 4.5:1 on `--c-bg`. Any new accent token must ship BOTH a dark value and a light value that passes 4.5:1 on the light background — never reuse a bright dark-mode accent directly in light mode.
 
 ##### Content Area — Dark Mode
 | Token | Value |
 |---|---|
-| `--c-bg` | `#0C1A2E` |
-| `--c-surface` | `#091E34` |
-| `--c-surface-hover` | `#1A3350` |
-| `--c-surface-alt` | `#0F2238` |
+| `--c-bg` | `oklab(from #081A31 calc(l - 0.06) a b)` |
+| `--c-surface` | `#071B30` |
+| `--c-surface-hover` | `oklab(from #172E4C calc(l - 0.03) a b)` |
+| `--c-surface-alt` | `oklab(from #0C1F35 calc(l - 0.04) a b)` |
 | `--c-text` | `#E2E8F0` |
 | `--c-text-secondary` | `#9EAFC2` |
 | `--c-text-tertiary` | `#8A9BB0` |
 | `--c-text-muted` | `#7D92A8` |
 | `--c-text-faint` | `#6A8099` |
-| `--c-border` | `#1A3350` |
-| `--c-border-strong` | `#2D4A66` |
-| `--c-chip-bg` | `oklab(from #1A3350 calc(l - 0.03) a b)` |
-| `--c-input-bg` | `oklab(from #0F2238 calc(l - 0.04) a b)` |
+| `--c-border` | `#172E4C` |
+| `--c-border-strong` | `#2A4762` |
+| `--c-chip-bg` | `oklab(from #172E4C calc(l - 0.03) a b)` |
+| `--c-input-bg` | `oklab(from #0C1F35 calc(l - 0.04) a b)` |
 | `--c-destructive` | `#FF33B6` |
 | `--c-destructive-hover` | `#E6009E` |
 | `--c-destructive-tint` | `rgba(255, 51, 182, 0.08)` |
@@ -368,6 +375,11 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-sheet-shadow` | `0 -8px 32px rgba(0, 0, 0, 0.3)` |
 | `--c-shadow-sm` | `0 1px 3px rgba(0, 0, 0, 0.15)` |
 | `--c-shadow-modal` | `0 16px 48px rgba(0, 0, 0, 0.4)` |
+| `--c-accent-cyan` | `#00CFFF` |
+| `--c-accent-pink` | `#F276EC` |
+| `--c-accent-yellow` | `#EBFD00` |
+
+The `--c-accent-*` tokens power the feed section eyebrows (Decade Highlight = cyan, Wantlist Spotlight = pink, Format Spotlight = yellow) and the #1 Top Artists rank / Insights golden-era callout (yellow). Use them — never raw `#EBFD00`/`#00CFFF`/`#F276EC` — for any accent-colored text sitting on themed surfaces.
 
 #### Fixed Brand Colors — Hardcoded, Do Not Tokenize
 
@@ -376,13 +388,12 @@ These never change with theme and are always hardcoded where used.
 | Value | Usage |
 |---|---|
 | `#EBFD00` | CTA buttons, logo accent, sync/action buttons, dark-mode active nav |
-| `#01294D` | Nav background (desktop top nav) |
-| `#214564` | Nav border (desktop top nav) |
+| `#01294D` | ThemeSwitch sidebar-variant track, UnicornScene WebGL fallback |
 | `#D1D8DF` | Dark-mode inactive nav icon + label |
 | `#d9e800` | CTA button hover state |
-| `#0C284A` | Text on yellow CTA buttons, light-mode active nav |
+| `#0C284A` | Text on yellow CTA buttons, light-mode active nav (bottom bar, desktop top nav icon, mobile header active buttons) |
 
-**Exception — the mobile bottom nav is theme-aware** (see Navigation Structure → Mobile). It does not use the fixed nav background/border above. Its surface, active, and inactive colors switch with `isDarkMode`.
+**Both navs are theme-aware.** The desktop top nav renders on a transparent header over the app gradient (no fixed `#01294D` bar anymore); its active icon is `#EBFD00` in dark mode and `#0C284A` in light mode, matching the mobile bottom nav convention — yellow does not read on a light surface. The mobile header's active Following/Settings buttons follow the same rule.
 
 ##### Yellow CTA Buttons
 ```tsx
@@ -413,15 +424,16 @@ These are semantic colors tied to a specific meaning. Hardcoded because the hue 
 | `rgba(172,222,242,0.5)` | Active filter chip bg — light mode |
 | `rgba(172,222,242,0.2)` | Active filter chip bg — dark mode |
 | `#009A32` | Collection value display, positive metrics |
-| `#EEFC0F` | Wantlist priority bolt icon |
+| `#EEFC0F` | Wantlist priority bolt icon (over artwork scrims only) |
 | `#0DB1F2` | Chart third accent (reports-screen chart constants) |
 | `#22C55E` | Success / confirmed state icon |
 | `#FF98DA` | Cut purge tag — dark mode (also used in progress gradient) |
 | `#B8C900` | Wantlist priority bolt — light mode (dark mode uses `#EBFD00`) |
+| `#859100` | Peak-decade chart bar — light mode (dark mode uses `#EBFD00`; Oklab L=0.62 of the brand yellow) |
 | `#1DB954` | Spotify brand green — Listen On button icon only (album-detail) |
 | `#FA243C` | Apple Music brand red — Listen On button icon only (album-detail) |
 | `#FF2D78` | DestructiveButton confirm-tap fill (album-detail) |
-| `#F276EC` / `#48FF91` / `#00CFFF` | Shuffle heading gradient stops (with `#EBFD00`) — feed-screen only |
+| `#F276EC` / `#48FF91` / `#00CFFF` | Shuffle heading gradient stops (with `#EBFD00`) — feed-screen only, dark mode; light mode uses the same four hues via `oklab(from <hex> 0.52 a b)` |
 
 Chart constants in `reports-screen.tsx` (`CHART_GREEN`, `CHART_PINK`, `CHART_BLUE`) are hardcoded by design — they are data visualization colors, not UI surface colors.
 
@@ -430,12 +442,13 @@ Condition grade colors (the pink-to-green spectrum) are defined in `src/lib/cond
 Purge colors are defined in `purge-colors.ts`. Always import from there.
 
 ##### Condition Grade Color Spectrum
-Maps vinyl condition grades to a pink-to-green spectrum:
+Maps vinyl condition grades to a pink-to-green spectrum (source of truth: `src/lib/condition-colors.ts`):
 - **M / NM**: Green (`#3E9842` dark, `#2D7A31` light)
-- **VG+**: Blue-green (`#2D8A6E` dark, `#1E7A5A` light)
-- **VG**: Blue (`#4A90C4` dark, `#2A6FA0` light)
-- **G+ / G**: Pink-blue (`#8A6AAE` dark, `#6B4D91` light)
-- **F / P**: Pink (`#C44A8A` dark, `#9A207C` light)
+- **VG+**: Blue-green (`#5FBFA0` dark, `#1A7A5A` light)
+- **VG**: Blue (`#ACDEF2` dark, `#00527A` light)
+- **G+**: Purple (`#C9A0E0` dark, `#7A3A9A` light)
+- **G**: Pink (`#E88CC4` dark, `#9A207C` light)
+- **F / P**: Pink (`#FF98DA` dark, `#9A207C` light)
 
 #### Gradients
 
@@ -561,7 +574,7 @@ The session picker and other components that render outside the main `<main>` el
 
 ### App-Level CSS Custom Properties
 
-- `--app-bg` — set dynamically in App.tsx as the scroll-fade gradient base color. Dark: `#0C1A2E`, Light: `#ACDEF2`. Used for the top-of-screen scroll fade overlay.
+- `--app-bg` — set dynamically in App.tsx as the scroll-fade gradient base color. Dark: `#081A31`, Light: `#ACDEF2`. Used for the top-of-screen scroll fade overlay. (The app root also paints a radial gradient — dark: `#091C33` → `#030C1C`, light: `#FFF` → `#ACDEF2` — and syncs the `<html>` background to `#030C1C`/`#F9F9FA`; these are the true outermost canvas colors.)
 - `--nav-clearance` — `calc(84px + env(safe-area-inset-bottom, 0px))` — bottom padding calc used across 16+ screen components to clear the fixed navigation bar. Set in App.tsx or navigation.tsx.
 - `--slide-panel-footer-pb` — `84px` (mobile) / `16px` (desktop) — bottom padding for pinned sheet footers.
 - WantlistCrossoverPrompt bottom offset: `calc(72px + env(safe-area-inset-bottom, 0px))`
@@ -764,7 +777,7 @@ Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 - Height: `calc(54px + env(safe-area-inset-bottom, 0px))`
 - `paddingBottom: env(safe-area-inset-bottom, 0px)` applied internally
 - **Theme-aware surface** (reads `isDarkMode`):
-  - Dark: background `linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)` (derived from `--c-surface-alt` → `--c-bg`), top border `rgba(172,222,242,0.08)`, active `#EBFD00`, inactive `#D1D8DF`
+  - Dark: background `linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)` (legacy dark surface hexes retained deliberately for the bar — they blend with the deepened v0.6.x background family), top border `rgba(172,222,242,0.08)`, active `#EBFD00`, inactive `#D1D8DF`
   - Light: background `linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)`, top border `#D2D8DE`, active `#0C284A` (navy, matching desktop nav — yellow does not read on a light bar), inactive `rgba(12,40,74,0.65)`
 - The nav itself needs no PWA-standalone override — it stays flush via the app-root height fix (see the `.app-viewport` note under "Full-Screen Viewport Height"). The `.bottom-tab-bar` class on the `<nav>` is a styling hook with no rules attached; keeping the nav flush is the app root's job, not the nav's.
 
@@ -919,7 +932,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - `FollowingSkeletonRows` and `FollowedUserRow` components deleted in Phase 7 QA — replaced by partial hydration pattern introduced in Phase 7 Prompt 2a. Do not recreate these components.
 
 ### Backlog
-- One-off gray text colors — `#9BA4B2`/`#3D5C77` (crate-browser) and `#6B7B8E` (purge-tracker) are undocumented hexes that should migrate to `--c-text-*` tokens during the next dedicated color audit pass. Do not change them ad hoc — the visual result must be verified.
+- ~~One-off gray text colors~~ — DONE (v0.6.x color audit): crate-browser's `#9BA4B2`/`#3D5C77` migrated to `var(--c-text-faint)`/`var(--c-text-secondary)`; purge-tracker's `#6B7B8E` corrected to the token value `#5E6E80`.
 - Empty state standardization — icon sizes, vertical padding, and icon-to-text spacing are inconsistent across screens. Needs a dedicated design pass with visual references before normalizing.
 - Purge Cut confirmation icon — Minus vs X icon flagged during Phase 7 QA for visual review.
 - Startup Convex auth errors — `Unauthorized` errors appear briefly in terminal/logs during app startup (race condition between proxy actions firing and sessionToken populating). Cosmetic, non-blocking. Queued for investigation.

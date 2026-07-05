@@ -168,6 +168,9 @@ export function MobileHeader() {
 
   const activeBg = "rgba(172,222,242,0.12)";
   const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
+  // Yellow does not read on the light transparent header — light mode uses
+  // navy for the active header buttons, matching the bottom bar convention
+  const activeAccent = isDarkMode ? "#EBFD00" : "#0C284A";
 
   const isProfileView = screen === "following" && followedUserProfile !== null;
   // On the feed, the identity block's SYNC control already shows the
@@ -211,9 +214,9 @@ export function MobileHeader() {
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center"
           style={{
-            color: screen === "following" ? "#EBFD00" : "var(--c-text-muted)",
+            color: screen === "following" ? activeAccent : "var(--c-text-muted)",
             backgroundColor: screen === "following" ? activeBg : inactiveBg,
-            border: screen === "following" ? "2px solid #EBFD00" : "2px solid transparent",
+            border: screen === "following" ? `2px solid ${activeAccent}` : "2px solid transparent",
           }}
         >
           <Users size={18} weight={screen === "following" ? "fill" : "light"} />
@@ -228,10 +231,10 @@ export function MobileHeader() {
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center"
           style={{
-            color: screen === "settings" ? "#EBFD00" : "var(--c-text-muted)",
+            color: screen === "settings" ? activeAccent : "var(--c-text-muted)",
             overflow: userAvatar ? "hidden" : undefined,
             backgroundColor: screen === "settings" ? activeBg : inactiveBg,
-            border: userAvatar ? (screen === "settings" ? "2px solid #EBFD00" : "2px solid transparent") : undefined,
+            border: userAvatar ? (screen === "settings" ? `2px solid ${activeAccent}` : "2px solid transparent") : undefined,
           }}
         >
           {userAvatar ? (
@@ -483,7 +486,9 @@ export function DesktopTopNav() {
           <Icon
             size={17}
             weight={isActive ? "fill" : "light"}
-            color={isActive ? "#EBFD00" : inactiveColor}
+            // Yellow does not read on the light transparent nav — light mode
+            // uses navy, matching the mobile bottom bar convention
+            color={isActive ? (isDarkMode ? "#EBFD00" : "#0C284A") : inactiveColor}
           />
         )}
         <span

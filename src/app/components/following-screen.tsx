@@ -1714,7 +1714,7 @@ function PopulatedFollowingView({
                   inCollection ? (
                     <span
                       className="flex-shrink-0 flex items-center gap-1.5"
-                      style={{ color: "#EBFD00", padding: "4px" }}
+                      style={{ color: "var(--c-link)", padding: "4px" }}
                     >
                       <GalleryVerticalEnd size={18} />
                       <span
@@ -1748,7 +1748,7 @@ function PopulatedFollowingView({
                             <WantlistAddIcon
                               filled={inWantList}
                               size={18}
-                              color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
+                              color={inWantList ? "var(--c-link)" : "var(--c-text-faint)"}
                             />
                           </motion.div>
                           {inWantList && (
@@ -1758,7 +1758,7 @@ function PopulatedFollowingView({
                                 fontSize: "11px",
                                 fontWeight: 500,
                                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                                color: "#EBFD00",
+                                color: "var(--c-link)",
                               }}
                             >
                               In Wantlist

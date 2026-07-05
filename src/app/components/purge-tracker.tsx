@@ -227,7 +227,7 @@ export function PurgeCutDialog({
           "--c-sheet-shadow": isDark ? "0 -8px 32px rgba(0, 0, 0, 0.3)" : "0 -8px 32px rgba(12, 40, 74, 0.1)",
           "--c-text": isDark ? "#E2E8F0" : "#0C284A",
           "--c-text-secondary": isDark ? "#9EAFC2" : "#455B75",
-          "--c-text-muted": isDark ? "#7D92A8" : "#6B7B8E",
+          "--c-text-muted": isDark ? "#7D92A8" : "#5E6E80",
           "--c-border-strong": isDark ? "#2D4A66" : "#74889C",
           "--c-surface": isDark ? "#091E34" : "#FFFFFF",
           "--c-chip-bg": isDark ? "#1A3350" : "#EFF1F3",
