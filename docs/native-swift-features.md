@@ -2,7 +2,8 @@
 
 This document tracks features that were intentionally removed from the Holy Grails PWA
 in preparation for a native Swift iOS app, where they will be re-implemented using
-native platform APIs.
+native platform APIs. The overall plan, architecture, and sequencing for that app live
+in `native-app-plan.md` — keep logging PWA platform walls here as they're hit.
 
 ---
 

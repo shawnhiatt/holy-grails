@@ -541,6 +541,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         title: selectedAlbum.title,
         artist: selectedAlbum.artist,
         year: selectedAlbum.year,
+        thumb: selectedAlbum.thumb,
         cover: selectedAlbum.cover,
         label: selectedAlbum.label,
         priority: false,

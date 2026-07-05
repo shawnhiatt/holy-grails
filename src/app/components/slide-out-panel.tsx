@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import type React from "react";
 import { X } from "./icons";
-import { motion, useMotionValue, animate } from "motion/react";
+import { motion, useMotionValue, animate, type MotionStyle } from "motion/react";
 import { useApp } from "./app-context";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { getContentTokens } from "./theme";
@@ -175,7 +175,7 @@ export function SlideOutPanel({
           backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
-        } as React.CSSProperties}
+        } as MotionStyle}
       >
         {/* Grab handle — mobile only; desktop panels don't use bottom-sheet chrome. */}
         <div

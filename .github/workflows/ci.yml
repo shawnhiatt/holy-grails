@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        # Placeholder URL: the build never contacts Convex, but building
+        # without VITE_CONVEX_URL set dead-code-eliminates the entire app
+        # into an empty shell (guarded in vite.config.ts).
+        env:
+          VITE_CONVEX_URL: https://placeholder.convex.cloud
+        run: npm run build

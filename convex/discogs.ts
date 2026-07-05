@@ -773,8 +773,8 @@ export const proxyFetchSyncSignals = action({
 // 4. Fetch wantlist (paginated)
 export const proxyFetchWantlist = action({
   args: { sessionToken: v.string(), username: v.string() },
-  handler: async (ctx, args) => {
-    const creds = await ctx.runQuery(
+  handler: async (ctx, args): Promise<ProxyWant[]> => {
+    const creds: Creds = await ctx.runQuery(
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
@@ -785,8 +785,17 @@ export const proxyFetchWantlist = action({
 // 5. Fetch collection value
 export const proxyFetchCollectionValue = action({
   args: { sessionToken: v.string(), username: v.string() },
-  handler: async (ctx, args) => {
-    const creds = await ctx.runQuery(
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    minimum: number;
+    median: number;
+    maximum: number;
+    currency: string;
+    fetchedAt: number;
+  }> => {
+    const creds: Creds = await ctx.runQuery(
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );

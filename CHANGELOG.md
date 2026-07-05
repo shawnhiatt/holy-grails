@@ -4,7 +4,51 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
-## [0.5.7] — 2025-05-10
+## [0.6.0] — 2026-07-05
+
+Beta-ready state. Not a public release — the milestone where the codebase is
+fit to put in front of invited testers, per `docs/BETA-PLAYBOOK.md`.
+
+### Fixed
+- **Discogs proxy actions failed for fresh logins** — `getUserCredentials`
+  resolved session tokens only via the legacy `users.by_session_token` index,
+  but logins since the per-device `auth_sessions` migration mint tokens only
+  into `auth_sessions`. Any new login (new user, new device, or after
+  sign-out) authenticated fine for Convex data but got `Unauthorized` from
+  every Discogs action — no sync, no search, no writes. Existing devices on
+  legacy tokens masked the bug. Now resolves through `resolveSession`, the
+  same path as `authenticateUser`, which also brings 90-day TTL enforcement
+  to the credentials path. **Requires `npx convex deploy`.**
+- CHANGELOG 0.5.7 entry was dated 2025 — corrected to 2026
+- Settings version line had drifted (hardcoded 0.5.7 while package.json said
+  0.5.6) — now reads the version from package.json
+
+### Added
+- **TypeScript, actually** — root `tsconfig.json` (strict), `typescript`
+  devDependency, `npm run typecheck` script. Zero errors. The codebase had
+  never been typechecked; Vite only strips types.
+- **CI** — GitHub Action running typecheck + production build on every push
+  and pull request
+- `docs/BETA-PLAYBOOK.md` — step-by-step runbook for the closed beta
+  (~20 users), open beta, and the road to 1.0
+
+### Removed
+- `guidelines/Guidelines.md` — described the pre-rework app (four view
+  modes, personal-access-token auth, CSV import) and contradicted CLAUDE.md
+- `accordion-section.tsx` and `svg-uhymsl4ur0.ts` — orphaned files
+- "Hide swiper gallery metadata" Settings toggle and its `hideGalleryMeta`
+  plumbing — the swiper view it controlled was removed releases ago; the
+  preference controlled nothing
+
+### Changed
+- README updated to the current product (view modes, Look It Up, typecheck/
+  build commands); CLAUDE.md file tree corrected to match the repo, permitted
+  one-off colors documented (Listen On brand colors, priority bolt light
+  mode, Shuffle gradient stops)
+
+---
+
+## [0.5.7] — 2026-05-10
 
 ### Added
 - **Holy Grails social layer** — followed Discogs users who also use Holy

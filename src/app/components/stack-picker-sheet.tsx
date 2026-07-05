@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue, animate } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, animate, type MotionStyle } from "motion/react";
 import { X, Plus, Check } from "./icons";
 import { useApp } from "./app-context";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
@@ -473,7 +473,7 @@ function MobileSheet({
           backgroundColor: "var(--c-surface)",
           boxShadow: "var(--c-card-shadow)",
           ...getContentTokens(isDarkMode),
-        } as React.CSSProperties}
+        } as MotionStyle}
       >
         {/* Grab handle */}
         <div
