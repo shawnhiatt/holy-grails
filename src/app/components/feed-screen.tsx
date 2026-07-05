@@ -6,13 +6,15 @@ import {
   ChevronDown,
   TrendingUp,
   GalleryVerticalEnd,
+  Grid2x2,
+  Square,
   Zap,
   Play,
   RefreshCw,
   Shuffle,
 } from "./icons";
 import { WantlistAddIcon } from "./wantlist-add-icon";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
 import type { FollowingFeedEntry } from "./app-context";
@@ -22,7 +24,7 @@ import { NoDiscogsCard } from "./no-discogs-card";
 import { purgeIndicatorColor, purgeTagColor, purgeToast } from "./purge-colors";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { useSafeTap } from "../lib/use-safe-tap";
-import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { EASE_IN_OUT, EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { DepthsAlbumCard } from "./depths-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -366,9 +368,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     if (albums.length === 0) return [];
     return shuffle(albums).slice(0, 10);
   });
+  // Bumped on every reshuffle so the cards remount and replay their entrance
+  const [depthsShuffleKey, setDepthsShuffleKey] = useState(0);
+  // Single mode shows one album per shuffle instead of the 4/9 grid
+  const [depthsSingle, setDepthsSingle] = useState(false);
   const reshuffleDepths = useCallback(() => {
     if (albums.length === 0) return;
     setDepthsAlbums(shuffle(albums).slice(0, 10));
+    setDepthsShuffleKey((k) => k + 1);
   }, [albums]);
 
   // On the Hunt — shuffled wantlist items, weighted toward priority
@@ -546,6 +553,15 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setShowAlbumDetail(true);
   }, [setSelectedAlbumId, setShowAlbumDetail]);
 
+  // Staggered entrance for shuffled cards — keyed on depthsShuffleKey so each
+  // reshuffle remounts the cards and replays the sequence
+  const reduceMotion = useReducedMotion();
+  const depthsCardMotion = (i: number) => ({
+    initial: reduceMotion ? false as const : { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: DURATION_NORMAL, ease: EASE_OUT, delay: reduceMotion ? 0 : i * 0.08 },
+  });
+
   const DepthsSection = depthsAlbums.length > 0 ? (
     <div>
       {/* Section header */}
@@ -573,39 +589,74 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         >
           Shuffle
         </h2>
-        <button
-          onClick={reshuffleDepths}
-          className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
-          style={{ backgroundColor: "#EBFD00", color: "#0C284A", touchAction: "manipulation" }}
-          aria-label="Shuffle again"
-        >
-          <Shuffle size={16} weight="bold" />
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* One-vs-grid toggle (mirrors the Collection view mode pill) */}
+          <div
+            className="flex items-center gap-[2px] rounded-[10px] h-[34px] shrink-0 overflow-hidden"
+            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+          >
+            <button
+              onClick={() => setDepthsSingle(true)}
+              title="One at a time"
+              aria-label="Shuffle one album"
+              className="w-[34px] h-[34px] flex items-center justify-center transition-all"
+              style={{
+                backgroundColor: depthsSingle ? "var(--c-surface-hover)" : undefined,
+                color: "var(--c-text-muted)",
+                touchAction: "manipulation",
+              }}
+            >
+              <Square size={18} />
+            </button>
+            <button
+              onClick={() => setDepthsSingle(false)}
+              title="Grid"
+              aria-label="Shuffle a grid of albums"
+              className="w-[34px] h-[34px] flex items-center justify-center transition-all"
+              style={{
+                backgroundColor: !depthsSingle ? "var(--c-surface-hover)" : undefined,
+                color: "var(--c-text-muted)",
+                touchAction: "manipulation",
+              }}
+            >
+              <Grid2x2 size={18} />
+            </button>
+          </div>
+          <button
+            onClick={reshuffleDepths}
+            className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
+            style={{ backgroundColor: "#EBFD00", color: "#0C284A", touchAction: "manipulation" }}
+            aria-label="Shuffle again"
+          >
+            <Shuffle size={16} weight="bold" />
+          </button>
+        </div>
       </div>
 
-      {/* Mobile: 2x2 grid */}
+      {/* Mobile: 2x2 grid, or one full-width card in single mode */}
       <div className="lg:hidden px-[16px]">
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
+            gridTemplateColumns: depthsSingle ? "1fr" : "repeat(2, 1fr)",
             gap: "12px",
           }}
         >
-          {depthsAlbums.slice(0, 4).map((album) => (
-            <DepthsAlbumCard
-              key={`depths-feed-${album.id}`}
-              album={album}
-              onTap={handleDepthsTap}
-              compact
-              dominantColor
-              playCount={playCounts[String(album.release_id)] ?? 0}
-            />
+          {depthsAlbums.slice(0, depthsSingle ? 1 : 4).map((album, i) => (
+            <motion.div key={`depths-feed-${depthsShuffleKey}-${album.id}`} {...depthsCardMotion(i)}>
+              <DepthsAlbumCard
+                album={album}
+                onTap={handleDepthsTap}
+                compact={!depthsSingle}
+                dominantColor
+                playCount={playCounts[String(album.release_id)] ?? 0}
+              />
+            </motion.div>
           ))}
         </div>
       </div>
 
-      {/* Desktop: 3x3 grid */}
+      {/* Desktop: 3x3 grid, or one card in single mode */}
       <div className="hidden lg:block">
         <div
           style={{
@@ -614,14 +665,15 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             gap: "16px",
           }}
         >
-          {depthsAlbums.slice(0, 9).map((album) => (
-            <DepthsAlbumCard
-              key={`depths-desk-${album.id}`}
-              album={album}
-              onTap={handleDepthsTap}
-              dominantColor
-              playCount={playCounts[String(album.release_id)] ?? 0}
-            />
+          {depthsAlbums.slice(0, depthsSingle ? 1 : 9).map((album, i) => (
+            <motion.div key={`depths-desk-${depthsShuffleKey}-${album.id}`} {...depthsCardMotion(i)}>
+              <DepthsAlbumCard
+                album={album}
+                onTap={handleDepthsTap}
+                dominantColor
+                playCount={playCounts[String(album.release_id)] ?? 0}
+              />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -1881,10 +1933,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const collectionFact = useMemo(
     () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
     [collectionFacts]
-  );
-  const reduceMotion = useMemo(
-    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-    []
   );
   // Full-width band, no card container — rows separated by hairline
   // dividers. Cells are tappable shortcuts (Collection → crate,
