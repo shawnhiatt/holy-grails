@@ -5,7 +5,6 @@ import {
   ChevronRight,
   ChevronDown,
   TrendingUp,
-  Music,
   GalleryVerticalEnd,
   Zap,
   Play,
@@ -31,7 +30,6 @@ import { formatActivityDate, getInitial, formatSyncedAgo } from "../utils/format
 import { shuffle, pickRandom } from "../utils/shuffle";
 import { deriveCollectionFacts, type CollectionFact } from "../utils/collection-facts";
 import { FormatSpotlight } from "./format-spotlight";
-import { DominantColorCard } from "./dominant-color-card";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -190,16 +188,6 @@ function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-/* ─── Helpers ─── */
-
-function getTimeBucket(): "morning" | "afternoon" | "evening" | "lateNight" {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 11) return "morning";
-  if (h >= 11 && h < 17) return "afternoon";
-  if (h >= 17 && h < 22) return "evening";
-  return "lateNight";
-}
-
 /* ── Decades section flavor headers ── */
 
 function getDecadeLabel(year: number): string | null {
@@ -301,8 +289,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setNeverPlayedFilter,
     isDarkMode,
     isAuthenticated,
-    openStackPicker,
-    isAlbumInAnyStack,
     hidePurgeIndicators,
     addToWantList,
     removeFromWantList,
@@ -431,56 +417,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     return albums.filter((a) => new Date(a.dateAdded) >= threeMonthsAgo).length;
   }, [albums]);
-
-  // Recommended album — pick based on time-of-day weighting
-  const recommendedAlbum = useMemo(() => {
-    if (albums.length === 0) return null;
-    const bucket = getTimeBucket();
-    const depthsIds = new Set(depthsAlbums.map((a) => a.id));
-
-    // Score albums by time-of-day relevance
-    const moodFolders: Record<string, string[]> = {
-      morning: ["Rock", "Pop", "Jazz", "Soul", "Funk"],
-      afternoon: [], // any folder
-      evening: ["Jazz", "Blues", "Electronic", "Hip Hop", "Hip-Hop/Rap", "Ambient", "R&B"],
-      lateNight: [], // favor never-played
-    };
-
-    const candidates = albums.filter((a) => !depthsIds.has(a.id));
-    if (candidates.length === 0) return null;
-
-    // Build scored list
-    const scored = candidates.map((a) => {
-      let score = 1;
-      const neverPlayed = !lastPlayed[a.id];
-      const addedDate = new Date(a.dateAdded);
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      const isOld = addedDate < sixMonthsAgo;
-
-      if (bucket === "lateNight" && neverPlayed) score += 5;
-      if (bucket === "evening" && neverPlayed) score += 2;
-
-      const folders = moodFolders[bucket];
-      if (folders.length > 0 && a.folder) {
-        const folderLower = a.folder.toLowerCase();
-        if (folders.some((f) => folderLower.includes(f.toLowerCase()))) score += 3;
-      }
-
-      if (neverPlayed && isOld) score += 2;
-      if (neverPlayed) score += 1;
-
-      return { album: a, score };
-    });
-
-    // Pick from top-scored candidates with randomness
-    scored.sort((a, b) => b.score - a.score);
-    const topScore = scored[0].score;
-    const topCandidates = scored.filter((s) => s.score >= topScore - 1);
-    const picked = pickRandom(topCandidates);
-
-    return picked.album;
-  }, [albums, lastPlayed, depthsAlbums]);
 
   // Purge evaluator — pick next album to rate
   const getNextPurgeAlbum = useCallback((excludeId?: string) => {
@@ -2196,145 +2132,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     );
   };
 
-  /* ─────────────── RECOMMENDED CARD ─────────────── */
-
-  /** Standard card for recommended album — uses dominant color extraction */
-  const RecommendedCard = recommendedAlbum ? (() => {
-    const album = recommendedAlbum;
-    const addedDateText = (() => {
-      if (!album.dateAdded) return null;
-      const d = new Date(album.dateAdded);
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      return `Added ${months[d.getMonth()]} ${d.getFullYear()}`;
-    })();
-
-    return (
-      <>
-        <h2
-          style={{
-            fontFamily: "'Rock Salt', cursive",
-            fontSize: "24px",
-            fontWeight: 400,
-            lineHeight: 1.4,
-            color: "white",
-            margin: 0,
-            marginBottom: "10px",
-            // Rock Salt glyphs overrun the text box (see Shuffle heading)
-            paddingTop: "0.15em",
-          }}
-        >
-          Give this one a spin.
-        </h2>
-        <DominantColorCard
-        imageUrl={album.cover}
-        className="cursor-pointer group"
-        {...useSafeTap(() => { setSelectedAlbumId(album.id); setShowAlbumDetail(true); })}
-        style={{ display: "flex", flexDirection: "column", touchAction: "manipulation" }}
-      >
-        {/* Cover art */}
-        <div className="relative aspect-square overflow-hidden" style={{ borderRadius: "12px 12px 0 0" }}>
-          <img
-            src={album.cover}
-            alt={`${album.artist} - ${album.title}`}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            draggable={false}
-          />
-          {(playCounts[String(album.release_id)] ?? 0) >= 1 && (
-            <div
-              className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"
-              style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", zIndex: 2 }}
-            >
-              <Play size={9} weight="fill" color="white" />
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "white", lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                {playCounts[String(album.release_id)]}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Metadata — uses dominant color CSS vars */}
-        <div className="px-3 pt-[10px] pb-3 flex items-end gap-2" style={{ minWidth: 0 }}>
-          <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-          <p
-            style={{
-              fontSize: "18px",
-              fontWeight: 700,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: "var(--dc-text, var(--c-text))",
-              lineHeight: 1.2,
-              letterSpacing: "-0.3px",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.title}
-          </p>
-          <p
-            className="mt-[3px]"
-            style={{
-              fontSize: "14px",
-              fontWeight: 400,
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              color: "var(--dc-text-secondary, var(--c-text-secondary))",
-              lineHeight: 1.3,
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {album.artist}{album.year ? ` \u00B7 ${album.year}` : ""}
-          </p>
-          {addedDateText && (
-            <p
-              className="mt-[2px]"
-              style={{
-                fontSize: "13px",
-                fontWeight: 400,
-                fontFamily: "'DM Sans', system-ui, sans-serif",
-                color: "var(--dc-text-muted, var(--c-text-muted))",
-                lineHeight: 1.35,
-              }}
-            >
-              {addedDateText}
-            </p>
-          )}
-          </div>
-          <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-            <button
-              onClick={() => openStackPicker(album.id)}
-              className="tappable"
-              aria-label="Add to stack"
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "rgba(0,0,0,0.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                border: "none",
-              }}
-            >
-              <Music
-                size={16}
-                color={isAlbumInAnyStack(album.id) ? "#EBFD00" : "var(--dc-text, var(--c-text))"}
-                {...(isAlbumInAnyStack(album.id) ? { fill: "currentColor" } : {})}
-              />
-            </button>
-          </div>
-        </div>
-      </DominantColorCard>
-      </>
-    );
-  })() : null;
-
   /* ═══════════════════════════════════════════════ RENDER ═══════════════════════════════════════════════ */
 
   return (
@@ -2354,32 +2151,29 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 {/* 0. Identity block */}
                 <div style={{ paddingTop: "8px" }}>{identityBlock("desktop")}</div>
 
-                {/* 1. Recommended */}
-                {RecommendedCard}
+                {/* 1. Shuffle */}
+                {DepthsSection}
 
                 {/* 2. Recently Added */}
                 {RecentlyAddedSection}
 
-                {/* 3. Format Spotlight */}
-                <FormatSpotlight onAlbumTap={handleDepthsTap} />
-
-                {/* 5. Following Activity */}
+                {/* 3. Following Activity */}
                 {FollowingActivityCard}
+
+                {/* 4. Purge Tracker + Insights */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div>{PurgeTrackerCard}</div>
+                  <div>{InsightsCard}</div>
+                </div>
+
+                {/* 5. Format Spotlight */}
+                <FormatSpotlight onAlbumTap={handleDepthsTap} />
 
                 {/* 6. On the Hunt */}
                 {OnTheHuntSection}
 
                 {/* 7. Decades */}
                 {DecadesSection}
-
-                {/* 8. From the Depths */}
-                {DepthsSection}
-
-                {/* 9. Purge Tracker + 10. Insights */}
-                <div className="grid grid-cols-2 gap-6">
-                  <div>{PurgeTrackerCard}</div>
-                  <div>{InsightsCard}</div>
-                </div>
               </div>
             )}
 
@@ -2397,10 +2191,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               </div>
             )}
 
-            {/* 1. Recommended — standard card */}
-            {hasData && (
-              <div className="px-[16px]">{RecommendedCard}</div>
-            )}
+            {/* 1. Shuffle — leads the feed, fresh picks every load */}
+            {hasData && DepthsSection}
 
             <div className="flex flex-col gap-[48px] pt-[48px]">
               {/* 2. Recently Added */}
@@ -2408,13 +2200,18 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 <div className="px-[16px]">{RecentlyAddedSection}</div>
               )}
 
-              {/* 3. Format Spotlight */}
-              {hasData && <FormatSpotlight onAlbumTap={handleDepthsTap} />}
-
-              {/* 5. Following Activity */}
+              {/* 3. Following Activity */}
               {hasData && (
                 <div className="px-[16px]">{FollowingActivityCard}</div>
               )}
+
+              {/* 4. Purge Tracker */}
+              {hasData && (
+                <div className="px-[16px]">{PurgeTrackerCard}</div>
+              )}
+
+              {/* 5. Format Spotlight */}
+              {hasData && <FormatSpotlight onAlbumTap={handleDepthsTap} />}
 
               {/* 6. On the Hunt */}
               {hasData && OnTheHuntSection}
@@ -2422,15 +2219,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               {/* 7. Decades */}
               {hasData && DecadesSection}
 
-              {/* 8. From the Depths */}
-              {hasData && DepthsSection}
-
-              {/* 9. Purge Tracker */}
-              {hasData && (
-                <div className="px-[16px]">{PurgeTrackerCard}</div>
-              )}
-
-              {/* 10. Insights */}
+              {/* 8. Insights */}
               {hasData && (
                 <div className="px-[16px]">{InsightsCard}</div>
               )}
