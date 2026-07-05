@@ -2215,7 +2215,9 @@ function WantItemDetailPanel({
                   className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
                   style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
                 >
-                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+                    <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  </motion.div>
                 </button>
                 <div
                   className="absolute inset-x-0 bottom-0 flex flex-col justify-end pb-4 px-4 gap-[3px]"
@@ -2290,7 +2292,9 @@ function WantItemDetailPanel({
                   className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center tappable transition-transform hover:scale-110"
                   style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
                 >
-                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+                    <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "rgba(255,255,255,0.85)"} />
+                  </motion.div>
                 </button>
               </div>
             </div>
@@ -2336,7 +2340,9 @@ function WantItemDetailPanel({
                 onClick={() => toggleWantPriority(item.id)}
                 className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 mt-1"
               >
-                <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
+                <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+                  <Zap size={18} weight={item.priority ? "fill" : "regular"} color={item.priority ? "#EBFD00" : "var(--c-text-tertiary)"} />
+                </motion.div>
               </button>
             </div>
           </div>

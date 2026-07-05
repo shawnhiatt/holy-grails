@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
 import { SlideOutPanel } from "./slide-out-panel";
-import { EASE_IN_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 
 
 const truncStyle: React.CSSProperties = {
@@ -134,11 +134,12 @@ export function WantlistHeartButton({
         {inFlight ? (
           <Disc3 size={size} className="disc-spinner" style={{ color: "var(--c-text-faint)" }} />
         ) : (
+          // initial={false} keeps mount static (no pop when a grid of hearts
+          // renders); the overshoot keyframes play only when the fill flips on
           <motion.div
-            key={inWantlist ? "filled" : "outline"}
-            initial={{ scale: 0.7 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: DURATION_NORMAL, ease: EASE_IN_OUT }}
+            initial={false}
+            animate={{ scale: inWantlist ? [1, 1.3, 1] : 1 }}
+            transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
           >
             <Heart
               size={size}

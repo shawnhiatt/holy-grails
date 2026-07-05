@@ -24,7 +24,7 @@ import { NoDiscogsCard } from "./no-discogs-card";
 import { purgeIndicatorColor, purgeTagColor, purgeToast } from "./purge-colors";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { useSafeTap } from "../lib/use-safe-tap";
-import { EASE_IN_OUT, EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { EASE_IN_OUT, EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { formatRelativeDate } from "./last-played-utils";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -1311,7 +1311,22 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
       {hasFollowing && activeList.length > 0 ? (
         <>
-          {(activityExpanded ? activeList : activeList.slice(0, ACTIVITY_COLLAPSED)).map((item) => renderActivityRow(item, followingActivityTab === "collection", activeVerb))}
+          {(activityExpanded ? activeList : activeList.slice(0, ACTIVITY_COLLAPSED)).map((item, i) =>
+            // Rows past the collapsed count only mount on "Show more" — stagger
+            // their reveal; the always-visible rows render unwrapped
+            i >= ACTIVITY_COLLAPSED ? (
+              <motion.div
+                key={`reveal-${item.id}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: DURATION_FAST, ease: EASE_OUT, delay: (i - ACTIVITY_COLLAPSED) * 0.04 }}
+              >
+                {renderActivityRow(item, followingActivityTab === "collection", activeVerb)}
+              </motion.div>
+            ) : (
+              renderActivityRow(item, followingActivityTab === "collection", activeVerb)
+            )
+          )}
           {activeList.length > ACTIVITY_COLLAPSED && (
             <button
               onClick={() => setActivityExpanded((v) => !v)}

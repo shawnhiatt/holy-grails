@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Search, Grid2x2, Grid3x3, List, Zap, X } from "./icons";
+import { motion } from "motion/react";
 import { toast } from "sonner";
+import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
@@ -469,17 +471,19 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 </div>
                 <span className="hidden sm:block flex-shrink-0" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{want.label}</span>
                 <button onClick={() => togglePriority(want.id)} className="flex-shrink-0 p-2 transition-transform hover:scale-110">
-                  {want.priority ? (
-                    <Zap size={18}
-                      weight="fill"
-                      color={isDarkMode ? "#EBFD00" : "#B8C900"}
-                    />
-                  ) : (
-                    <Zap size={18}
-                      weight="regular"
-                      color={isDarkMode ? "var(--c-text-faint)" : "var(--c-text-faint)"}
-                    />
-                  )}
+                  <motion.div initial={false} animate={{ scale: want.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+                    {want.priority ? (
+                      <Zap size={18}
+                        weight="fill"
+                        color={isDarkMode ? "#EBFD00" : "#B8C900"}
+                      />
+                    ) : (
+                      <Zap size={18}
+                        weight="regular"
+                        color={isDarkMode ? "var(--c-text-faint)" : "var(--c-text-faint)"}
+                      />
+                    )}
+                  </motion.div>
                 </button>
               </div>
             );
@@ -519,7 +523,9 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
           onClick={() => togglePriority(item.id)}
           className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform hover:scale-110 z-[2]"
         >
-          <Zap size={14} className={item.priority ? "text-[#EEFC0F]" : "text-white/50"} weight={item.priority ? "fill" : "regular"} />
+          <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
+            <Zap size={14} className={item.priority ? "text-[#EEFC0F]" : "text-white/50"} weight={item.priority ? "fill" : "regular"} />
+          </motion.div>
         </button>
       </div>
       <div className="px-2.5 pt-2 pb-2.5 min-w-0 overflow-hidden">
