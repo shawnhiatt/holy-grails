@@ -1320,7 +1320,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   <>
                     <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
                       <p className="mb-2" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        {inAnyStack ? "Saved" : "Add to a Stack"}
+                        {inAnyStack ? "Saved" : "Add to a Session"}
                       </p>
                       <div style={{ border: "1px solid var(--c-border-strong)", borderRadius: "10px", padding: "4px 8px", maxHeight: "240px", overflowY: "auto" }}>
                         {[...stacks]
@@ -1347,7 +1347,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                             <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
                               <Plus size={14} />
                             </div>
-                            <span style={{ fontSize: "13px", fontWeight: 500 }}>New Stack</span>
+                            <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
                           </button>
                         ) : (
                           <div className="flex items-center gap-2 py-2 px-1">
@@ -1363,7 +1363,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                   setNewStackName("");
                                 }
                               }}
-                              placeholder="Stack name..."
+                              placeholder="Session name..."
                               maxLength={100}
                               className="flex-1 min-w-0 rounded-lg px-3 py-1.5 outline-none"
                               style={{

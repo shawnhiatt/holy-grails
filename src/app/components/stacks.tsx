@@ -85,7 +85,7 @@ export function Stacks() {
       <button
         onClick={() => setShowNewStack(true)}
         className="lg:hidden fixed z-[105] flex items-center justify-center tappable"
-        aria-label="New stack"
+        aria-label="New session"
         style={{
           bottom: "calc(54px + env(safe-area-inset-bottom, 0px) + 12px)",
           right: "12px",
@@ -105,9 +105,9 @@ export function Stacks() {
         {showNewStack && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }} className="overflow-hidden px-[16px] pt-[16px] pb-[0px]">
             <div className="rounded-[12px] p-4 mb-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-              <p className="mb-2" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>New Stack</p>
+              <p className="mb-2" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>New Session</p>
               <input
-                type="text" placeholder="Name this stack..." value={newStackName} onChange={(e) => setNewStackName(e.target.value)}
+                type="text" placeholder="Name this session..." value={newStackName} onChange={(e) => setNewStackName(e.target.value)}
                 maxLength={100}
                 className="w-full rounded-[8px] px-3 py-2 outline-none transition-colors"
                 style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-input-bg)", color: "var(--c-text)", border: "1px solid var(--c-border-strong)" }}
@@ -125,16 +125,16 @@ export function Stacks() {
       {/* Stack list or empty state */}
       {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
-          heading="No stacks yet."
-          subtext="Connect your Discogs collection to start building stacks."
+          heading="No sessions yet."
+          subtext="Connect your Discogs collection to start building sessions."
         />
       ) : (
         <div className="flex-1 overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
           {stacks.length === 0 && !showNewStack ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
-              <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>Create your first Stack</p>
-              <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Save albums into Stacks for different listening occasions, moods, or themes.</p>
+              <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>Create your first Session</p>
+              <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Save albums into Sessions for different listening occasions, moods, or themes.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -308,7 +308,7 @@ function StackDetail({
               className="mt-4 tappable transition-colors"
               style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}
             >
-              Delete Stack
+              Delete Session
             </button>
           </div>
         ) : (
@@ -365,7 +365,7 @@ function StackDetail({
                 className="tappable transition-colors"
                 style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}
               >
-                Delete Stack
+                Delete Session
               </button>
             </div>
           </div>
@@ -397,7 +397,7 @@ function StackDetail({
                   <AlertTriangle size={22} style={{ color: "var(--c-destructive)" }} />
                 </div>
                 <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", marginBottom: "6px" }}>
-                  Delete this stack?
+                  Delete this session?
                 </p>
                 <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
                   This cannot be undone.

@@ -22,7 +22,7 @@ Everything in this list is a documented PWA wall, not speculation:
 
 This is why the project is weeks, not a year:
 
-1. **The entire backend.** Every Convex function — auth sessions, the 25 Discogs proxy actions, server-side sync loops, purge tags, stacks, following, preferences — is client-agnostic. The native app is *another subscriber*, via Convex's official Swift client ([convex-swift](https://github.com/get-convex/convex-swift)). **Zero Discogs API code gets written in Swift.** No OAuth signing, no rate limiting, no pagination — all of it stays server-side where it already lives.
+1. **The entire backend.** Every Convex function — auth sessions, the 25 Discogs proxy actions, server-side sync loops, purge tags, listening sessions, following, preferences — is client-agnostic. The native app is *another subscriber*, via Convex's official Swift client ([convex-swift](https://github.com/get-convex/convex-swift)). **Zero Discogs API code gets written in Swift.** No OAuth signing, no rate limiting, no pagination — all of it stays server-side where it already lives.
 2. **The per-device session model.** `auth_sessions` was built for exactly this: the iPhone app is just another device row. Logging in on native never disturbs the PWA session, and all auth guards work unchanged.
 3. **The design.** Screens, hierarchy, tokens, type scale, motion values, UX copy, product decisions — all settled. This is a port, not a redesign.
 4. **The product judgment.** Vinyl-only filter, purge workflow semantics, wantlist conventions, the out-of-scope list — every decision transfers.
@@ -59,7 +59,7 @@ Ship the decision-making core, not the whole app:
 | Collection: grid + list, search, filter, alphabet index | Insights/Reports (charts) |
 | Album detail: read-only + purge verdict + mark played | Instance editing, folder management |
 | Purge tracker | Feed screen (identity block, spotlights) |
-| Stacks: create, add/remove, reorder | Profile editing |
+| Sessions: create, add/remove, reorder | Profile editing |
 | Look It Up: search + native barcode scan + add to collection/wantlist | Widgets, App Intents, Live Activities |
 | Sync (trigger `syncSelf`, subscribe to `sync_status`) | iPad/macOS layouts |
 | Haptics per the map in `native-swift-features.md` | |
@@ -102,7 +102,7 @@ The instruction-file discipline is the real asset — port it on day one:
 0. **Setup** — project scaffold, fonts, color assets, ConvexClient wired, CLAUDE.md written.
 1. **Auth + boot** — OAuth round trip, Keychain session, collection subscription rendering a raw list. *The milestone that proves the whole architecture.*
 2. **Collection** — grid/list, search/filter, alphabet index, detail view (read-only).
-3. **Purge + Stacks** — verdict buttons with haptics, purge tracker, stack CRUD + reorder.
+3. **Purge + Sessions** — verdict buttons with haptics, purge tracker, session CRUD + reorder.
 4. **Look It Up** — search, VisionKit barcode scan, pressing picker, add flows.
 5. **Polish** — full haptic map, empty states, Disc3 spinner everywhere, app icon, launch screen.
 6. **TestFlight** — internal build, then the beta circle.

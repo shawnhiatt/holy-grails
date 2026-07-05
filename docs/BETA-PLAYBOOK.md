@@ -20,7 +20,7 @@ Work through these in order. Each is one focused session or less.
 
 3. **Privacy note.** Testers hand over OAuth access to their Discogs accounts. Before asking, say plainly what the app does with it. Two placements, both in the app's voice (short, direct, no legalese):
    - One line on the login screen under the CTA, linking to the fuller note.
-   - A "Your data" section in Settings covering: what's stored (Discogs OAuth tokens server-side, a cached copy of your collection/wantlist, Holy Grails data like purge tags and stacks), what's never done (no writes to Discogs you didn't tap, no sharing — listening activity is opt-in via the existing prompt), and how to leave (Delete All My Data in Settings removes everything, and you can revoke the app at discogs.com/settings/applications).
+   - A "Your data" section in Settings covering: what's stored (Discogs OAuth tokens server-side, a cached copy of your collection/wantlist, Holy Grails data like purge tags and sessions), what's never done (no writes to Discogs you didn't tap, no sharing — listening activity is opt-in via the existing prompt), and how to leave (Delete All My Data in Settings removes everything, and you can revoke the app at discogs.com/settings/applications).
    A draft is in the appendix. A formal privacy policy page can wait for Stage 2.
 
 4. **Fresh-account walkthroughs.** Run first-run end to end on: iPhone Safari (browser + installed PWA), Android Chrome, desktop. Use at least one Discogs account that is not yours, including the edge cases a stranger will hit — empty collection, no vinyl (CDs only), huge collection (1,000+). The zero-vinyl case has a fix; verify it held.
@@ -91,11 +91,11 @@ Per VERSIONING.md, 1.0 is "genuinely complete for daily use." Concretely:
 
 ### Draft privacy note (Settings → "Your data")
 
-> **Your data.** Holy Grails connects to your Discogs account with OAuth — we store the access token and a cached copy of your collection and wantlist so the app loads fast. Purge tags, stacks, plays, and follows exist only in Holy Grails. We never change anything on Discogs unless you tap the button that does it. Listening activity is private unless you opt in to sharing. Want out? Settings → Delete All My Data removes everything on our side, and you can revoke access anytime at discogs.com → Settings → Applications.
+> **Your data.** Holy Grails connects to your Discogs account with OAuth — we store the access token and a cached copy of your collection and wantlist so the app loads fast. Purge tags, sessions, plays, and follows exist only in Holy Grails. We never change anything on Discogs unless you tap the button that does it. Listening activity is private unless you opt in to sharing. Want out? Settings → Delete All My Data removes everything on our side, and you can revoke access anytime at discogs.com → Settings → Applications.
 
 ### Invite message template (Stage 1)
 
-> Hey — I built a vinyl collection app that syncs with Discogs. It does the stuff Discogs doesn't: purge your collection (Keep/Cut/Maybe), build stacks, follow other collectors, look up pressings and prices in a record store. I designed it; AI helped me write the code; I've been daily-driving it for months.
+> Hey — I built a vinyl collection app that syncs with Discogs. It does the stuff Discogs doesn't: purge your collection (Keep/Cut/Maybe), build listening sessions, follow other collectors, look up pressings and prices in a record store. I designed it; AI helped me write the code; I've been daily-driving it for months.
 >
 > It logs in with your Discogs account (OAuth — I never see your password) and keeps a synced copy of your collection. There's a Delete All My Data button if you want out, no hard feelings.
 >
