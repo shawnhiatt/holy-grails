@@ -904,7 +904,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Listening logs — do not add any listen tracking beyond last-played timestamp
 - Seller/marketplace tools
 - Full Discogs database *browsing* — artist pages, label discographies (link out instead). Database **search-to-add and price lookup** ("Look It Up") ARE in scope.
-- Native iOS app — this is a PWA only
+- Native iOS app — this codebase is a PWA only. A native SwiftUI app is a planned post-1.0 *separate* project (see `docs/native-app-plan.md` and `docs/native-swift-features.md`); never add native-app scaffolding, Capacitor, or wrapper tooling here.
 
 ### Known Issues (do not fix without explicit instruction)
 - `FollowingSkeletonRows` and `FollowedUserRow` components deleted in Phase 7 QA — replaced by partial hydration pattern introduced in Phase 7 Prompt 2a. Do not recreate these components.
