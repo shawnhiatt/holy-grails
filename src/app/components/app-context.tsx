@@ -111,8 +111,6 @@ interface AppState {
   // Display preferences
   hidePurgeIndicators: boolean;
   setHidePurgeIndicators: (v: boolean) => void;
-  hideGalleryMeta: boolean;
-  setHideGalleryMeta: (v: boolean) => void;
   // Shake gesture
   shakeToRandom: boolean;
   setShakeToRandom: (v: boolean) => void;
@@ -317,7 +315,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
   const [playsRecordedFilter, setPlaysRecordedFilter] = useState(false);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
-  const [hideGalleryMeta, setHideGalleryMetaRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
   const [defaultCollectionSort, setDefaultCollectionSortRaw] = useState<SortOption>("added-new");
@@ -758,7 +755,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hydratedRef.current.preferences = true;
       if (convexPreferences.theme) setColorModeRaw(convexPreferences.theme);
       setHidePurgeIndicatorsRaw(convexPreferences.hide_purge_indicators);
-      setHideGalleryMetaRaw(convexPreferences.hide_gallery_meta);
       setShakeToRandomRaw(convexPreferences.shake_to_random ?? false);
       // Legacy stored view modes (crate/artwork were removed from the product)
       // are mapped back to grid so removed modes can't resurface via prefs.
@@ -893,13 +889,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHidePurgeIndicatorsRaw(v);
     if (sessionToken) {
       upsertPreferencesMut({ sessionToken, hide_purge_indicators: v });
-    }
-  }, [sessionToken, upsertPreferencesMut]);
-
-  const setHideGalleryMeta = useCallback((v: boolean) => {
-    setHideGalleryMetaRaw(v);
-    if (sessionToken) {
-      upsertPreferencesMut({ sessionToken, hide_gallery_meta: v });
     }
   }, [sessionToken, upsertPreferencesMut]);
 
@@ -2172,8 +2161,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Display preferences
       hidePurgeIndicators,
       setHidePurgeIndicators,
-      hideGalleryMeta,
-      setHideGalleryMeta,
       // Shake gesture
       shakeToRandom,
       setShakeToRandom,
@@ -2282,7 +2269,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       neverPlayedFilter,
       playsRecordedFilter,
       hidePurgeIndicators, setHidePurgeIndicators,
-      hideGalleryMeta, setHideGalleryMeta,
       shakeToRandom, setShakeToRandom,
       defaultScreen, setDefaultScreen,
       defaultCollectionSort, setDefaultCollectionSort,

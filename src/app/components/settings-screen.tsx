@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useApp } from "./app-context";
 import type { Screen, SortOption } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
+import { version as APP_VERSION } from "../../../package.json";
 
 const DEFAULT_SCREEN_OPTIONS: { value: Screen; label: string }[] = [
   { value: "feed", label: "Feed" },
@@ -45,8 +46,6 @@ export function SettingsScreen() {
     setColorMode,
     hidePurgeIndicators,
     setHidePurgeIndicators,
-    hideGalleryMeta,
-    setHideGalleryMeta,
     signOut,
     isAuthenticated,
     userAvatar,
@@ -617,35 +616,6 @@ export function SettingsScreen() {
                 />
               </button>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Hide swiper gallery metadata</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Remove metadata from the swiper gallery view</p>
-              </div>
-              <button
-                onClick={() => setHideGalleryMeta(!hideGalleryMeta)}
-                className="relative flex items-center rounded-full cursor-pointer transition-colors flex-shrink-0 ml-3"
-                style={{
-                  width: "44px",
-                  height: "24px",
-                  backgroundColor: hideGalleryMeta ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(12,40,74,0.12)"),
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "2px",
-                    left: hideGalleryMeta ? "22px" : "2px",
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    backgroundColor: hideGalleryMeta ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
-                    transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
-                    boxShadow: "var(--c-shadow-sm)",
-                  }}
-                />
-              </button>
-            </div>
              <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Default screen</p>
@@ -736,7 +706,7 @@ export function SettingsScreen() {
         <section className="mt-6 mb-4">
           <div className="flex items-center gap-2" style={{ color: "var(--c-text-muted)" }}>
             <Info size={14} />
-            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v0.5.7. A Discogs companion app.</span>
+            <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v{APP_VERSION}. A Discogs companion app.</span>
           </div>
         </section>
       </div>
