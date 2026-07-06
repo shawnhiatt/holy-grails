@@ -346,9 +346,9 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-shadow-modal` | `0 16px 48px rgba(12, 40, 74, 0.15)` |
 | `--c-accent-cyan` | `oklab(from #00CFFF 0.52 a b)` (≈ `#0078A5`) |
 | `--c-accent-pink` | `oklab(from #F276EC 0.52 a b)` (≈ `#A428A1`) |
-| `--c-accent-yellow` | `oklab(from #EBFD00 0.52 a b)` (≈ `#697200`) |
+| `--c-accent-yellow` | `#8C6800` (brass gold — oklch(0.54 0.115 86°)) |
 
-The light-mode accents are the dark accents dropped to a uniform Oklab L=0.52 (hue and chroma preserved) so 11px eyebrow text clears WCAG 4.5:1 on `--c-bg`. Any new accent token must ship BOTH a dark value and a light value that passes 4.5:1 on the light background — never reuse a bright dark-mode accent directly in light mode.
+The light-mode cyan/pink accents are the dark accents dropped to Oklab L=0.52 with hue preserved, so 11px eyebrow text clears WCAG 4.5:1 on `--c-bg`. **Yellow is the exception:** hue-preserved darkening of `#EBFD00` (h≈115°, on the green side) can only produce olive/mud, so the light yellow hue-shifts to the brass gold `#8C6800` (h≈86°) — darkened gold still reads as the yellow family; darkened yellow does not. Any new accent token must ship BOTH a dark value and a light value that passes 4.5:1 on the light background — never reuse a bright dark-mode accent directly in light mode, and never darken a green-side yellow without shifting its hue toward gold. Where yellow appears as a **fill** in light mode, prefer keeping the true `#EBFD00` edged/paired with `#8C6800` or navy (peak-decade bar, golden-era pill, CTA buttons) over substituting a darker swatch.
 
 ##### Content Area — Dark Mode
 | Token | Value |
@@ -429,7 +429,7 @@ These are semantic colors tied to a specific meaning. Hardcoded because the hue 
 | `#22C55E` | Success / confirmed state icon |
 | `#FF98DA` | Cut purge tag — dark mode (also used in progress gradient) |
 | `#B8C900` | Wantlist priority bolt — light mode (dark mode uses `#EBFD00`) |
-| `#859100` | Peak-decade chart bar — light mode (dark mode uses `#EBFD00`; Oklab L=0.62 of the brand yellow) |
+| `#8C6800` | Brass gold — light-mode `--c-accent-yellow` value; also the light-mode stroke edging the `#EBFD00` peak-decade bar and the light stop of the Shuffle gradient |
 | `#1DB954` | Spotify brand green — Listen On button icon only (album-detail) |
 | `#FA243C` | Apple Music brand red — Listen On button icon only (album-detail) |
 | `#FF2D78` | DestructiveButton confirm-tap fill (album-detail) |

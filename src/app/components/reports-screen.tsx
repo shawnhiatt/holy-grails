@@ -434,10 +434,16 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
             />
             <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} albums`} />} />
             <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36}>
-              {/* Peak bar light mode: #EBFD00 is invisible on a white card —
-                  olive-gold (Oklab L=0.62 of the brand yellow) keeps it legible */}
+              {/* Peak bar light mode: keep the true brand yellow as the fill and
+                  edge it with the brass gold accent so it holds on a white card —
+                  a solid dark-yellow bar reads olive/muddy */}
               {data.map((entry, i) => (
-                <Cell key={i} fill={goldenEra && entry.decade === goldenEra ? (isDark ? "#EBFD00" : "#859100") : CHART_BLUE} />
+                <Cell
+                  key={i}
+                  fill={goldenEra && entry.decade === goldenEra ? "#EBFD00" : CHART_BLUE}
+                  stroke={goldenEra && entry.decade === goldenEra && !isDark ? "#8C6800" : undefined}
+                  strokeWidth={goldenEra && entry.decade === goldenEra && !isDark ? 1.5 : undefined}
+                />
               ))}
             </Bar>
           </BarChart>
@@ -447,8 +453,8 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
         <div
           className="mt-3 rounded-[10px] px-4 py-3 flex items-center gap-3"
           style={{
-            backgroundColor: isDark ? "rgba(235, 253, 0, 0.08)" : "rgba(235, 253, 0, 0.18)",
-            border: isDark ? "1px solid rgba(235, 253, 0, 0.2)" : "1px solid rgba(105, 114, 0, 0.35)",
+            backgroundColor: isDark ? "rgba(235, 253, 0, 0.08)" : "rgba(235, 253, 0, 0.28)",
+            border: isDark ? "1px solid rgba(235, 253, 0, 0.2)" : "1px solid rgba(140, 104, 0, 0.4)",
           }}
         >
           <span
