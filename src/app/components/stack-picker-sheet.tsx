@@ -217,7 +217,7 @@ function PickerContent({
   setShowNewStack: (v: boolean) => void;
   newStackName: string;
   setNewStackName: (v: string) => void;
-  newStackInputRef: React.RefObject<HTMLInputElement | null>;
+  newStackInputRef: React.RefObject<HTMLInputElement>;
   handleCreateStack: () => void;
   firstStackJustCreated: boolean;
 }) {
@@ -366,7 +366,6 @@ function StackRow({
   count,
   checked,
   onToggle,
-  isDarkMode,
 }: {
   label: string;
   count: number;

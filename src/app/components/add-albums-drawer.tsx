@@ -193,15 +193,8 @@ function DrawerContent({
   isDarkMode: boolean;
   onConfirm: () => void;
   onDiscard: () => void;
-  searchRef: React.RefObject<HTMLInputElement | null>;
+  searchRef: React.RefObject<HTMLInputElement>;
 }) {
-  const title =
-    newlyAddedCount === 0
-      ? `Add to ${stackName}`
-      : newlyAddedCount === 1
-        ? `1 album added to ${stackName}`
-        : `${newlyAddedCount} albums added to ${stackName}`;
-
   return (
     <>
       {/* Header */}
@@ -405,7 +398,7 @@ function DrawerContent({
 /* ═══════════════════════════════════════════
    Thumbnail Card (horizontal scroll row)
    ═══════════════════════════════════════════ */
-function ThumbnailCard({ album, isAdded, onToggle, isDarkMode }: {
+function ThumbnailCard({ album, isAdded, onToggle }: {
   album: Album; isAdded: boolean; onToggle: () => void; isDarkMode: boolean;
 }) {
   return (
