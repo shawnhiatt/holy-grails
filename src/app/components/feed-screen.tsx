@@ -568,11 +568,13 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div className="px-[16px] lg:px-0 mb-[10px] flex items-center justify-between gap-2">
         <h2
           style={{
-            // Light mode drops the same four hues to a uniform Oklab L=0.52 so
-            // the heading clears 3:1 on the light gradient bg (see theme.ts accents)
+            // Light mode drops the same hues to Oklab L=0.52 so the heading
+            // clears 3:1 on the light gradient bg — except the yellow stop,
+            // which hue-shifts to the brass gold #8C6800 (see theme.ts accents:
+            // hue-preserved dark yellow is olive/mud)
             background: isDarkMode
               ? "linear-gradient(to right, #F276EC, #EBFD00, #48FF91, #00CFFF)"
-              : "linear-gradient(to right in oklab, oklab(from #F276EC 0.52 a b), oklab(from #EBFD00 0.52 a b), oklab(from #48FF91 0.52 a b), oklab(from #00CFFF 0.52 a b))",
+              : "linear-gradient(to right in oklab, oklab(from #F276EC 0.52 a b), #8C6800, oklab(from #48FF91 0.52 a b), oklab(from #00CFFF 0.52 a b))",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
