@@ -48,7 +48,7 @@ export function WantlistHeartButton({
 
   const inCollection = isInCollection(releaseId, masterId);
   const inWantlist = isInWants(releaseId, masterId);
-  const [inFlight, setInFlight] = useState(false);
+  const [inFlight] = useState(false);
   const [showAddConfirm, setShowAddConfirm] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);

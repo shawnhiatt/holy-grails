@@ -10,7 +10,6 @@ interface SplashScreenProps {
 }
 
 export function SplashScreen({
-  isDarkMode,
   onLoginWithDiscogs,
 }: SplashScreenProps) {
   const mutedColor = "#7D92A8";

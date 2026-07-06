@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Play } from "./icons";
 import type { Album } from "./discogs-api";
 import { DominantColorCard } from "./dominant-color-card";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 
 function formatAddedDate(iso: string): string {
   const d = new Date(iso);
@@ -177,7 +177,7 @@ export function ShuffleAlbumCard({
       <DominantColorCard
         imageUrl={album.cover}
         className="cursor-pointer"
-        {...useSafeTap(() => onTap(album.id))}
+        {...safeTap(() => onTap(album.id))}
         style={{ boxShadow: "var(--c-card-shadow)", touchAction: "manipulation" }}
       >
         {cardContent}
@@ -194,7 +194,7 @@ export function ShuffleAlbumCard({
         boxShadow: "var(--c-card-shadow)",
         touchAction: "manipulation",
       }}
-      {...useSafeTap(() => onTap(album.id))}
+      {...safeTap(() => onTap(album.id))}
     >
       {cardContent}
     </div>

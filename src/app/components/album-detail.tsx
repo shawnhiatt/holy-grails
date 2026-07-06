@@ -235,14 +235,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     stacks,
     isInStack, toggleAlbumInStack, createStackDirect,
     // Edit
-    albums, isSyncing, discogsUsername, updateAlbum, removeFromCollection,
+    isSyncing, discogsUsername, updateAlbum, removeFromCollection,
     folders,
     // Wantlist detail
     selectedWantItem, setSelectedWantItem,
     // Feed album detail
     selectedFeedAlbum, setSelectedFeedAlbum,
-    // Wantlist add
-    isInWants, isInCollection, addToWantList, addToCollection,
   } = useApp();
   const proxyUpdateInstance = useAction(api.discogs.proxyUpdateCollectionInstance);
   const proxyMoveToFolder = useAction(api.discogs.proxyMoveToFolder);
@@ -279,7 +277,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const [isSaving, setIsSaving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
-  const [isAddingToWantlist, setIsAddingToWantlist] = useState(false);
 
   // Enriched release data state
   const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
@@ -528,32 +525,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setNewStackName("");
     setShowNewStack(false);
   }, [newStackName, selectedAlbum, createStackDirect]);
-
-  const alreadyOnWantlist = selectedAlbum ? isInWants(selectedAlbum.release_id) : false;
-
-  const handleAddToWantlist = useCallback(async () => {
-    if (!selectedAlbum || alreadyOnWantlist || isAddingToWantlist) return;
-    setIsAddingToWantlist(true);
-    try {
-      await addToWantList({
-        id: `w-${selectedAlbum.release_id}`,
-        release_id: selectedAlbum.release_id,
-        title: selectedAlbum.title,
-        artist: selectedAlbum.artist,
-        year: selectedAlbum.year,
-        thumb: selectedAlbum.thumb,
-        cover: selectedAlbum.cover,
-        label: selectedAlbum.label,
-        priority: false,
-      });
-      toast.info(`"${selectedAlbum.title}" added to Wantlist.`);
-    } catch (err: any) {
-      console.error("[AlbumDetail] Add to wantlist failed:", err);
-      toast.error("Failed to add. Try again.");
-    } finally {
-      setIsAddingToWantlist(false);
-    }
-  }, [selectedAlbum, alreadyOnWantlist, isAddingToWantlist, addToWantList]);
 
   // Group credits by role — must be above early returns to maintain hook order
   const groupedCredits = useMemo(() => {
@@ -1974,7 +1945,6 @@ function InlineStackRow({
   count,
   checked,
   onToggle,
-  isDarkMode,
 }: {
   label: string;
   count: number;

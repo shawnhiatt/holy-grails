@@ -446,7 +446,6 @@ export function DesktopTopNav() {
   const showSyncChip =
     (isBackgroundSyncing && screen !== "feed") || isSyncingFollowing;
 
-  const logoFill = isDarkMode ? "#E2E8F0" : "#0C284A";
   const activeColor = isDarkMode ? "#E2E8F0" : "#0C284A";
   const inactiveColor = isDarkMode ? "rgba(226,232,240,0.45)" : "rgba(12,40,74,0.4)";
   const activeBg = isDarkMode ? "rgba(226,232,240,0.1)" : "rgba(12,40,74,0.08)";

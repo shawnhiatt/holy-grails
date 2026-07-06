@@ -3,7 +3,7 @@ import { X, Disc3 } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import { EASE_OUT, DURATION_NORMAL, DURATION_FAST } from "./motion-tokens";
+import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { getContentTokens } from "./theme";
 
 

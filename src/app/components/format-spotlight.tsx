@@ -43,18 +43,6 @@ function albumMatchesCategory(album: Album, category: FormatCategory): boolean {
   return category.patterns.some((p) => fmt.includes(p.toLowerCase()));
 }
 
-/* ─── Section title style (matches feed-screen.tsx) ─── */
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: "24px",
-  fontWeight: 600,
-  letterSpacing: "-0.3px",
-  lineHeight: 1.2,
-  color: "var(--c-text)",
-  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-  margin: 0,
-};
-
 /* ─── Component ─── */
 
 interface FormatSpotlightProps {

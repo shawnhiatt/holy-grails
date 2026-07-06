@@ -6,7 +6,7 @@ import { purgeIndicatorColor } from "./purge-colors";
 import { formatRelativeDate } from "./last-played-utils";
 import { DIVIDER_SORT_OPTS, getAlbumGroupLabel } from "./album-grid";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -32,7 +32,7 @@ interface ListRowProps {
 const ListRow = memo(function ListRow({ album, isDarkMode, showDot, lastPlayedIso, playCount, onOpen }: ListRowProps) {
   return (
     <button
-      {...useSafeTap(() => onOpen(album.id))}
+      {...safeTap(() => onOpen(album.id))}
       className="flex items-center gap-[12px] tappable transition-colors text-left group relative"
       style={{
         padding: "12px 0",

@@ -4,7 +4,7 @@ import { useApp, type SortOption } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -62,7 +62,7 @@ const GridCard = memo(function GridCard({ album, isDarkMode, purgeColor, playCou
     <div
       role="button"
       tabIndex={0}
-      {...useSafeTap(() => onOpen(album.id))}
+      {...safeTap(() => onOpen(album.id))}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(album.id); } }}
       className="relative w-full min-w-0 rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
       style={{

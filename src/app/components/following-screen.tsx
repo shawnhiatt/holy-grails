@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
-  UserPlus, ArrowLeft, Search, UserMinus, Lock,
+  UserPlus, Search, Lock,
   Disc3, Users, Grid2x2, Grid3x3, List, SlidersHorizontal,
-  X, GalleryVerticalEnd, RotateCcw,
+  GalleryVerticalEnd, RotateCcw,
 } from "./icons";
 import { WantlistAddIcon } from "./wantlist-add-icon";
 import { motion, AnimatePresence } from "motion/react";
@@ -19,7 +19,7 @@ import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/
 import { formatRelativeDate } from "./last-played-utils";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -84,7 +84,7 @@ function slimToWant(r: FollowedItemRow): WantItem {
 const FOLLOWED_STALE_MS = 24 * 60 * 60 * 1000;
 
 export function FollowingScreen() {
-  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, discogsUsername, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setSelectedFeedAlbum, setShowAlbumDetail, setOnAddFollowedUser, setFollowedUserProfile, setOnBackFromProfile, setOnUnfollowUser } = useApp();
+  const { followedUsers, addFollowedUser, removeFollowedUser, albums, wants, isAuthenticated, sessionToken, isDarkMode, addToWantList, removeFromWantList, setScreen: setAppScreen, followingFeed, followingAvatars, isSyncingFollowing, setOnAddFollowedUser, setFollowedUserProfile, setOnBackFromProfile, setOnUnfollowUser } = useApp();
   const proxyFetchUserProfile = useAction(api.discogs.proxyFetchUserProfile);
   const syncFollowedUserAction = useAction(api.discogs.syncFollowedUser);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -365,7 +365,6 @@ export function FollowingScreen() {
 
 function FollowedUserProfile({
   user,
-  onBack,
   onRemove,
   userAlbums,
   userWants,
@@ -1003,7 +1002,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
           <div key={item.id} className="relative rounded-[10px] overflow-hidden group cursor-pointer"
-            {...useSafeTap(() => onOpenAlbum(item))}
+            {...safeTap(() => onOpenAlbum(item))}
             style={{
               backgroundColor: "var(--c-surface)",
               border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
@@ -1042,7 +1041,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds,
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
           <div key={item.id} className="flex items-center gap-3 px-[16px] lg:px-[24px] py-2.5 cursor-pointer tappable"
-            {...useSafeTap(() => onOpenAlbum(item))}
+            {...safeTap(() => onOpenAlbum(item))}
             style={{ borderColor: "var(--c-border)", borderBottomWidth: "1px", borderBottomStyle: "solid", borderLeft: badge ? "3px solid " + badge.color : "3px solid transparent", touchAction: "manipulation" }}>
             <img loading="lazy" decoding="async" src={item.thumb || item.cover} alt={item.title} className="w-11 h-11 rounded-[6px] object-cover flex-shrink-0" />
             <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
@@ -1177,7 +1176,6 @@ function PopulatedFollowingView({
   wants: userWantsForHeart,
   addToWantList,
   removeFromWantList,
-  setAppScreen,
   followingFeed,
   followingAvatars,
   isSyncingFollowing,
@@ -1238,7 +1236,7 @@ function PopulatedFollowingView({
   const [removeWantConfirm, setRemoveWantConfirm] = useState<ActivityItem | null>(null);
   const [addWantConfirm, setAddWantConfirm] = useState<ActivityItem | null>(null);
   // Per-item in-flight tracking for API calls
-  const [inFlightIds, setInFlightIds] = useState<Set<number>>(() => new Set());
+  const [inFlightIds] = useState<Set<number>>(() => new Set());
   const [isRemovingWant, setIsRemovingWant] = useState(false);
   const [isAddingWant, setIsAddingWant] = useState(false);
 
@@ -1439,7 +1437,7 @@ function PopulatedFollowingView({
           >
             <style>{`.depths-scroll::-webkit-scrollbar { display: none; }`}</style>
             <div className="flex gap-[12px] px-[16px] lg:px-[24px]">
-              {depthsPicks.map(({ username, avatar, userId, album, cardKey }) => (
+              {depthsPicks.map(({ username, avatar, album, cardKey }) => (
                 <motion.div
                   key={`depths-${cardKey}`}
                   initial={{ opacity: 0 }}
@@ -1595,7 +1593,7 @@ function PopulatedFollowingView({
                 <div
                   className="relative flex-shrink-0 cursor-pointer"
                   style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
-                  {...useSafeTap(() => {
+                  {...safeTap(() => {
                     if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
                       const rid = Number(item.albumReleaseId);
                       const match = albums.find((a) => Number(a.release_id) === rid) ||

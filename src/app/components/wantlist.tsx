@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Grid2x2, Grid3x3, List, Zap, X } from "./icons";
+import { Search, Grid2x2, Grid3x3, List, Zap } from "./icons";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
@@ -7,7 +7,7 @@ import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 import { SyncStatusLine } from "./sync-status-line";
 
 /* ─── Alphabet Index Sidebar (mobile only, wantlist) ─── */
@@ -460,7 +460,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 key={want.id}
                 className="flex items-center gap-[12px] tappable transition-colors cursor-pointer"
                 style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
-                {...useSafeTap(() => onSelect(want))}
+                {...safeTap(() => onSelect(want))}
               >
                 <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
                   <img loading="lazy" decoding="async" src={want.thumb || want.cover} alt={want.title} className="w-full h-full object-cover" />
@@ -508,7 +508,7 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
   return (
     <div
       className="relative w-full min-w-0 rounded-[10px] overflow-hidden group cursor-pointer"
-      {...useSafeTap(() => onSelect(item))}
+      {...safeTap(() => onSelect(item))}
       style={{
         backgroundColor: "var(--c-surface)",
         border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,

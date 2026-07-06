@@ -164,9 +164,20 @@ Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (
 npm install
 npm run dev        # http://localhost:1234 (Vite, port set in vite.config.ts)
 npm run typecheck  # strict tsc --noEmit — must pass before committing
+npm run lint       # ESLint — must pass before committing (CI runs it)
 npm test           # Vitest — must pass before committing (CI runs it)
 npm run build      # production build (requires VITE_CONVEX_URL)
 ```
+
+---
+
+## Linting
+
+ESLint (flat config, `eslint.config.js`) runs in CI between typecheck and test. Beyond baseline correctness (typescript-eslint recommended + `react-hooks/rules-of-hooks` as errors, `exhaustive-deps` as warnings), the config mechanically enforces several of this file's guardrails — direct `@phosphor-icons/react` imports (outside `icons.ts`), `lucide-react`, static `zxing-wasm` imports, web storage outside the whitelisted files, `discogs.com` hrefs, `Math.random()` sort-shuffles, and `h-screen` are all lint **errors**. If a rule fires, fix the code to follow the guardrail — never add an `eslint-disable`; a genuine exception is a CLAUDE.md discussion first, then a scoped file override in `eslint.config.js` with a comment.
+
+Two grandfathered exceptions are encoded as overrides: the splash screen's pre-auth "Sign up" link to discogs.com/register (users need a Discogs account to log in at all — the post-auth ban stands), and `app-context.tsx`'s defensive `sessionStorage.removeItem("hg_oauth_token_secret")` clears on sign-out/data-wipe (same key as the oauth-helpers whitelist).
+
+The react-hooks v6 compiler-era rules (`refs`, `set-state-in-effect`, `purity`, …) are deliberately off — they flag ~80 long-standing intentional patterns; enabling them is a dedicated refactor pass. `@typescript-eslint/no-explicit-any` is off for the same reason (46 pre-existing `any`s, backlog).
 
 ---
 
@@ -242,7 +253,7 @@ src/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
     lib/
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
-      use-safe-tap.ts    # Shared safe-tap helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards.
+      safe-tap.ts        # Shared safeTap() helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards. NOT a hook (module-level touch state, no use* prefix) — it is deliberately callable inside .map() loops.
     utils/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
       shuffle.ts         # Fisher-Yates shuffle + pickRandom — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
@@ -679,7 +690,7 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - Session-scoped `marketDataCache` (module-level `Map`), mirroring `releaseDataCache`.
 - **"N for sale" is plain text — NOT a link.** Outbound Discogs listing links were removed after every redirect strategy failed (see below). Reach to `AlbumDetailPanel`/`WantItemDetailPanel` is a deliberate future decision, not shipped.
 
-**Outbound Discogs links: DO NOT ADD THEM.** Every strategy for linking to `discogs.com` from the installed iOS PWA has been tried and failed — the Discogs app's Universal Link intercepts the navigation and strands the user on its home screen. Attempt 1: raw href (bounced). Attempt 2: same-origin `go.html` with a client-side `location.replace()` (the in-app browser treats JS redirects as fresh navigations — bounced, and stranded a blank overlay). Attempt 3: `/api/go` Vercel function issuing a server-side HTTP 302 (in-app browser still app-switched — bounced). All redirector code has been deleted. The rule is now absolute: no `discogs.com` hrefs anywhere in the app, no exceptions, until Discogs fixes its deep-link handling. Marketplace data shown in-app (Value section) is the substitute.
+**Outbound Discogs links: DO NOT ADD THEM.** Every strategy for linking to `discogs.com` from the installed iOS PWA has been tried and failed — the Discogs app's Universal Link intercepts the navigation and strands the user on its home screen. Attempt 1: raw href (bounced). Attempt 2: same-origin `go.html` with a client-side `location.replace()` (the in-app browser treats JS redirects as fresh navigations — bounced, and stranded a blank overlay). Attempt 3: `/api/go` Vercel function issuing a server-side HTTP 302 (in-app browser still app-switched — bounced). All redirector code has been deleted. The rule is now absolute and lint-enforced: no `discogs.com` hrefs anywhere in the app until Discogs fixes its deep-link handling. Marketplace data shown in-app (Value section) is the substitute. The single grandfathered exception is the pre-auth "Sign up" register link on the splash screen (a user without a Discogs account cannot log in at all; pre-auth, the Universal Link bounce risk is acceptable) — it has a scoped lint override and must stay the only one.
 
 Session picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper), and the `Music` icon button went away with the feed's Recommended card. The session picker is now accessed solely via the inline Save for Later accordion in `album-detail.tsx` (a deliberate narrowing — do not add card-level session buttons back without instruction).
 
@@ -1021,7 +1032,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Discogs fetch calls in client code.
 
-**sessionStorage** is permitted in one place only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`. No other sessionStorage usage is permitted anywhere in the codebase.
+**sessionStorage** is permitted for one key only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`, and cleared defensively (removeItem only) in `app-context.tsx` on sign-out and data-wipe. No other sessionStorage usage is permitted anywhere in the codebase (lint-enforced).
 
 **localStorage** is permitted in two places:
 - `hg_session_token` in `app-context.tsx` — persists the session token for cold load restore (see Session token persistence above)

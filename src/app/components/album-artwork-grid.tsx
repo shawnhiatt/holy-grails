@@ -2,7 +2,7 @@ import React from "react";
 import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 
 /** Minimal shape every artwork grid item must satisfy */
 export interface ArtworkGridItem {
@@ -89,7 +89,7 @@ export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtw
           key={item.id}
           role="button"
           tabIndex={0}
-          {...useSafeTap(() => handleClick(item))}
+          {...safeTap(() => handleClick(item))}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(item); } }}
           className="relative overflow-hidden group focus:outline-none cursor-pointer"
           style={{
