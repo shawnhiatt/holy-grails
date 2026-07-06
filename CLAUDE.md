@@ -164,8 +164,23 @@ Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (
 npm install
 npm run dev        # http://localhost:1234 (Vite, port set in vite.config.ts)
 npm run typecheck  # strict tsc --noEmit — must pass before committing
+npm test           # Vitest — must pass before committing (CI runs it)
 npm run build      # production build (requires VITE_CONVEX_URL)
 ```
+
+---
+
+## Testing
+
+Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config lives in `vitest.config.ts` — deliberately separate from `vite.config.ts` so tests run without plugins or `VITE_CONVEX_URL`. No component/DOM testing layer (no jsdom, no testing-library) — tests cover Convex functions and pure logic only. Do not add DOM testing dependencies without flagging first.
+
+**Convex function tests** (`convex/*.test.ts`, via `convex-test`): run in the `edge-runtime` environment — each file opts in with a `// @vitest-environment edge-runtime` docblock as its FIRST line (it must precede the `/// <reference types="vite/client" />` line that types `import.meta.glob`). The Convex CLI ignores `*.test.ts` when deploying. These tests protect the security invariants and must never be weakened or deleted to make a change pass:
+- `authHelper.test.ts` — session-token guard: valid/unknown/empty/expired tokens, the 90-day TTL boundary, legacy single-token fallback, per-device sign-out isolation, and that `getMe`/`getLatestUser` never return `access_token`/`token_secret`/`session_token`.
+- `shareActivity.test.ts` — the Cross-User Data Pattern gate: unauthenticated viewers rejected, only `shareActivity === true` exposed, "not found" indistinguishable from "not opted in", no token leakage, and that viewers authenticated via the `auth_sessions` table (every fresh login) can read opted-in targets.
+
+**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating, `format.ts` relative-time ladder, `buildFieldMap`/`isVinylFormat`, and the Fisher–Yates `shuffle`. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
+
+When adding a new guarded Convex function or a new cross-user query, add tests for its auth guard / shareActivity gate in the same session.
 
 ---
 

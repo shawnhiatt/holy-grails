@@ -22,6 +22,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Test
+        run: npm test
+
       - name: Build
         # Placeholder URL: the build never contacts Convex, but building
         # without VITE_CONVEX_URL set dead-code-eliminates the entire app
