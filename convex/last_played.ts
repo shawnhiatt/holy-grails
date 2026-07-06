@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { authenticateUser } from "./authHelper";
+import { authenticateUser, resolveSession } from "./authHelper";
 
 export const getByUsername = query({
   args: { sessionToken: v.string() },
@@ -64,12 +64,11 @@ export const getPublicActivitySummary = query({
   handler: async (ctx, args) => {
     try {
       if (!args.sessionToken) return null;
-      const viewer = await ctx.db
-        .query("users")
-        .withIndex("by_session_token", (q) =>
-          q.eq("session_token", args.sessionToken)
-        )
-        .first();
+      // resolveSession covers both the sessions-table path (all logins since
+      // the per-device sessions migration) and the legacy single-token
+      // fallback — a direct by_session_token lookup would reject every
+      // fresh login's token.
+      const viewer = await resolveSession(ctx, args.sessionToken);
       if (!viewer) return null;
       const target = await ctx.db
         .query("users")
