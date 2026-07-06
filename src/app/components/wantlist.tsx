@@ -222,7 +222,7 @@ export function Wantlist() {
           <input type="text" placeholder="Search wants..." value={wantSearchQuery} onChange={(e) => setWantSearchQuery(e.target.value)}
             className="flex-1 bg-transparent outline-none border-none min-w-0"
             style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
-          {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
+          {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} aria-label="Clear search" className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
         </div>
         {/* Filter chips — flex-1 */}
         <div className="flex-1 flex items-center gap-[16px] min-w-0">
@@ -266,6 +266,8 @@ export function Wantlist() {
             className={`w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors shrink-0 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#0C284A]" : ""}`}
             style={wantFilter !== "priority" ? { backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" } : undefined}
             title={wantFilter === "priority" ? "Show all" : "Priorities"}
+            aria-label={wantFilter === "priority" ? "Show all wants" : "Show priorities only"}
+            aria-pressed={wantFilter === "priority"}
           >
             <Zap size={16} weight={wantFilter === "priority" ? "fill" : "regular"} />
           </button>
@@ -521,6 +523,8 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
 
         <button
           onClick={() => togglePriority(item.id)}
+          aria-label={item.priority ? "Remove priority" : "Mark as priority"}
+          aria-pressed={item.priority}
           className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform hover:scale-110 z-[2]"
         >
           <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useApp } from "./app-context";
 
 import { purgeTagColor as getPurgeColor, purgeToast, purgeClearToast } from "./purge-colors";
+import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
@@ -116,6 +117,21 @@ function ImageLightbox({
   setIndex: React.Dispatch<React.SetStateAction<number>>;
   onClose: () => void;
 }) {
+  // Escape closes the lightbox (before the early return — hook order).
+  // Registered on the dialog stack so it wins over the sheet beneath it.
+  useEffect(() => {
+    if (images.length === 0) return;
+    const token = pushDialog();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isTopDialog(token)) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      popDialog(token);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [images.length, onClose]);
+
   if (images.length === 0) return null;
   return createPortal(
     <>
@@ -127,6 +143,9 @@ function ImageLightbox({
       />
       {/* Overlay */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Album images"
         className="fixed inset-0 flex flex-col items-center justify-center"
         style={{ zIndex: 140, pointerEvents: "none" }}
       >
@@ -3115,6 +3134,7 @@ export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: bo
         backdropZIndex={110}
         sheetZIndex={120}
         shakeEntrance={shakeEntrance}
+        ariaLabel="Album details"
       >
         <AlbumDetailPanel hideHeader />
       </SlideOutPanel>

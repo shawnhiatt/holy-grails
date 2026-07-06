@@ -453,6 +453,9 @@ function MobileSheet({
         animate={{ y: 0 }}
         exit={{ y: "100%", pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Save to session"
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.6 }}

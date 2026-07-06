@@ -253,6 +253,7 @@ src/
     hooks/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
     lib/
+      dialog-stack.ts    # Module-level stack of open dialogs — Escape-closable overlays push/pop a token; only the TOPMOST responds to Escape (see Dialog Accessibility)
       monitoring.ts      # Sentry init (errors only) — lazy-loaded from main.tsx ONLY when VITE_SENTRY_DSN is set; registers itself as the reportError reporter
       report-error.ts    # reportError() indirection — no-op until monitoring registers; call sites (App.tsx ErrorBoundary) report unconditionally
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
@@ -557,6 +558,14 @@ derived reactively in `app-context.tsx` and clears automatically once
 ---
 
 ## Cross-Cutting Patterns
+
+### Dialog Accessibility (sheets, drawers, lightbox)
+
+Every modal overlay must carry `role="dialog"`, `aria-modal="true"`, and an accessible name (`aria-label`, or the title header). `SlideOutPanel` is the reference implementation and also provides: Escape-to-close, a lightweight Tab focus trap, initial focus into the sheet, and focus return to the opener on close. Its `ariaLabel` prop names title-less sheets — pass it at every new call site.
+
+**Escape handling uses the dialog stack** (`src/app/lib/dialog-stack.ts`): each Escape-closable overlay pushes a token on mount, pops on unmount, and only acts on Escape when its token is topmost — so a lightbox over a sheet closes one layer per keypress. The desktop album side panel (non-modal, `role="complementary"`) closes on Escape only when `hasOpenDialogs()` is false. Any new sheet or overlay with Escape handling MUST register with the stack — a bare `document.addEventListener("keydown", …)` will double-close stacked layers.
+
+Icon-only buttons always get an `aria-label`; toggle buttons (view modes, priority bolt, filter chips acting as toggles) also get `aria-pressed`.
 
 ### Touch Handling on Interactive Cards
 

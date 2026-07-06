@@ -5,6 +5,7 @@ import { motion, useMotionValue, animate, type MotionStyle } from "motion/react"
 import { useApp } from "./app-context";
 import { EASE_OUT, EASE_IN, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { getContentTokens } from "./theme";
+import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 
 /* SlideOutPanel — shared bottom sheet with swipe-to-dismiss.
    Provides: backdrop, grab handle, optional title header, scrollable children
@@ -33,6 +34,8 @@ interface SlideOutPanelProps {
   sheetZIndex?: number;
   /** Applies a subtle x-offset to the entrance animation (used by shake-to-random). */
   shakeEntrance?: boolean;
+  /** Accessible name for the dialog when there is no title header (e.g. "Album details"). */
+  ariaLabel?: string;
 }
 
 export function SlideOutPanel({
@@ -45,19 +48,62 @@ export function SlideOutPanel({
   backdropZIndex = 110,
   sheetZIndex = 120,
   shakeEntrance = false,
+  ariaLabel,
 }: SlideOutPanelProps) {
   const { isDarkMode } = useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const sheetY = useMotionValue(0);
   const backdropOpacity = useMotionValue(1);
   const pullingRef = useRef(false);
   const startYRef = useRef(0);
   const [dismissed, setDismissed] = useState(false);
 
-  // Dismiss software keyboard on panel open (iOS PWA)
+  // Dismiss software keyboard on panel open (iOS PWA), move focus into the
+  // dialog, and return it to the opener on close.
   useEffect(() => {
-    (document.activeElement as HTMLElement | null)?.blur();
+    const opener = document.activeElement as HTMLElement | null;
+    opener?.blur();
+    sheetRef.current?.focus({ preventScroll: true });
+    return () => {
+      // Only restore if focus is still inside the (now unmounting) dialog —
+      // don't steal it if the user has already moved on.
+      if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
+    };
   }, []);
+
+  // Escape closes; Tab cycles within the dialog (lightweight focus trap).
+  // The dialog stack makes only the TOPMOST overlay respond to Escape.
+  useEffect(() => {
+    const token = pushDialog();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isTopDialog(token)) return;
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !sheetRef.current) return;
+      const focusables = sheetRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === sheetRef.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      popDialog(token);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
 
   // Attach non-passive touch listeners on the scroll container so we can
   // preventDefault during a pull-to-dismiss gesture (scrollTop === 0 + drag down).
@@ -155,6 +201,11 @@ export function SlideOutPanel({
 
       {/* Sheet */}
       <motion.div
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title ?? ariaLabel ?? "Details"}
+        tabIndex={-1}
         initial={{ y: "100%", x: shakeEntrance ? 20 : 0 }}
         animate={dismissed ? undefined : { y: 0, x: 0 }}
         exit={{ y: "100%", pointerEvents: "none" as const }}
@@ -165,7 +216,7 @@ export function SlideOutPanel({
         onDragEnd={(_, info) => {
           if (info.offset.y > 70 || info.velocity.y > 300) onClose();
         }}
-        className={`fixed left-0 right-0 bottom-0 rounded-t-[20px] overflow-hidden flex flex-col ${className}`}
+        className={`fixed left-0 right-0 bottom-0 rounded-t-[20px] overflow-hidden flex flex-col focus:outline-none ${className}`}
         style={{
           y: sheetY,
           zIndex: sheetZIndex,

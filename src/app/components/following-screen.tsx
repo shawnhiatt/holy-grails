@@ -1808,6 +1808,7 @@ function PopulatedFollowingView({
             onClose={() => { setRemoveWantConfirm(null); setIsRemovingWant(false); }}
             backdropZIndex={110}
             sheetZIndex={120}
+            ariaLabel="Remove from Wantlist"
           >
             <div className="flex flex-col items-center px-6 pt-2 pb-4 gap-4">
               <img
@@ -1891,6 +1892,7 @@ function PopulatedFollowingView({
             onClose={() => { setAddWantConfirm(null); setIsAddingWant(false); }}
             backdropZIndex={110}
             sheetZIndex={120}
+            ariaLabel="Add to Wantlist"
           >
             <div className="flex flex-col items-center px-6 pt-2 pb-4 gap-4">
               <img
