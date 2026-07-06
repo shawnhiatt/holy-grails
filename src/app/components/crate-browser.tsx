@@ -171,7 +171,7 @@ export function CrateBrowser() {
         className="hidden lg:flex flex-shrink-0"
       >
         <div className="flex items-center gap-[30px] px-[24px] pt-[8px] pb-[20px] w-full">
-          <div className="flex-1 flex flex-col items-end justify-center gap-[4px]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: "18px", textAlign: "right", color: isDarkMode ? "#9EAFC2" : "#3D5C77" }}>
+          <div className="flex-1 flex flex-col items-end justify-center gap-[4px]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: "18px", textAlign: "right", color: "var(--c-text-secondary)" }}>
             {albums.length > 0 ? (
             <>
             <p>
@@ -182,17 +182,17 @@ export function CrateBrowser() {
                 </>
               ) : recentCount < 0 ? (
                 <>
-                  <span style={{ fontWeight: 600, color: isDarkMode ? "#617489" : "#9BA4B2" }}>{recentCount}</span>
+                  <span style={{ fontWeight: 600, color: "var(--c-text-faint)" }}>{recentCount}</span>
                   {" "}albums in the last 30 days
                 </>
               ) : (
                 <>
-                  <span style={{ fontWeight: 600, color: isDarkMode ? "#617489" : "#9BA4B2" }}>0</span>
+                  <span style={{ fontWeight: 600, color: "var(--c-text-faint)" }}>0</span>
                   {" "}new albums in the last 30 days
                 </>
               )}
             </p>
-            <p style={{ fontSize: "14px", fontWeight: 400, color: isDarkMode ? "#9EAFC2" : "#3D5C77" }}>
+            <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}>
               Est. value{" "}
               <span style={{ fontWeight: 600, color: "#009A32" }}>{fmtVal(valueEstimate.median)}</span>
               {" "}
@@ -200,7 +200,7 @@ export function CrateBrowser() {
             </p>
             </>
             ) : (
-              <p style={{ fontSize: "13px", fontWeight: 400, color: isDarkMode ? "#617489" : "#9BA4B2" }}>No collection synced</p>
+              <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-faint)" }}>No collection synced</p>
             )}
           </div>
         </div>

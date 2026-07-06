@@ -23,8 +23,12 @@ export const lightTokens: Record<string, string> = {
   "--c-sheet-shadow": "0 -8px 32px rgba(12, 40, 74, 0.1)",
   "--c-shadow-sm": "0 1px 3px rgba(0, 0, 0, 0.15)",
   "--c-shadow-modal": "0 16px 48px rgba(12, 40, 74, 0.15)",
-  "--c-accent-cyan": "#00CFFF",
-  "--c-accent-pink": "#F276EC",
+  // Light-mode accents: same hue/chroma as the dark accents, dropped to a
+  // uniform Oklab L=0.52 so 11px eyebrow text clears WCAG 4.5:1 on --c-bg.
+  // Resolved values: cyan #0078A5, pink #A428A1, yellow #697200.
+  "--c-accent-cyan": "oklab(from #00CFFF 0.52 a b)",
+  "--c-accent-pink": "oklab(from #F276EC 0.52 a b)",
+  "--c-accent-yellow": "oklab(from #EBFD00 0.52 a b)",
 };
 
 export const darkTokens: Record<string, string> = {
@@ -52,6 +56,7 @@ export const darkTokens: Record<string, string> = {
   "--c-shadow-modal": "0 16px 48px rgba(0, 0, 0, 0.4)",
   "--c-accent-cyan": "#00CFFF",
   "--c-accent-pink": "#F276EC",
+  "--c-accent-yellow": "#EBFD00",
 };
 
 export function getContentTokens(isDark: boolean) {

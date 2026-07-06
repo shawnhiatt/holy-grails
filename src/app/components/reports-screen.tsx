@@ -434,8 +434,10 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
             />
             <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} albums`} />} />
             <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36}>
+              {/* Peak bar light mode: #EBFD00 is invisible on a white card —
+                  olive-gold (Oklab L=0.62 of the brand yellow) keeps it legible */}
               {data.map((entry, i) => (
-                <Cell key={i} fill={goldenEra && entry.decade === goldenEra ? "#EBFD00" : CHART_BLUE} />
+                <Cell key={i} fill={goldenEra && entry.decade === goldenEra ? (isDark ? "#EBFD00" : "#859100") : CHART_BLUE} />
               ))}
             </Bar>
           </BarChart>
@@ -445,8 +447,8 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
         <div
           className="mt-3 rounded-[10px] px-4 py-3 flex items-center gap-3"
           style={{
-            backgroundColor: "rgba(235, 253, 0, 0.08)",
-            border: "1px solid rgba(235, 253, 0, 0.2)",
+            backgroundColor: isDark ? "rgba(235, 253, 0, 0.08)" : "rgba(235, 253, 0, 0.18)",
+            border: isDark ? "1px solid rgba(235, 253, 0, 0.2)" : "1px solid rgba(105, 114, 0, 0.35)",
           }}
         >
           <span
@@ -454,7 +456,7 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
               fontSize: "28px",
               fontWeight: 700,
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: "#EBFD00",
+              color: "var(--c-accent-yellow)",
               letterSpacing: "-1px",
               lineHeight: 1,
             }}
@@ -506,7 +508,7 @@ function ArtistsSection({ albums }: { albums: Album[] }) {
       <p style={sectionHeaderStyle}>Top Artists</p>
       <div className="flex flex-col mt-4">
         {visible.map((d, i) => {
-          const rankColor = i === 0 ? "#EBFD00" : i < 3 ? "var(--c-text-muted)" : "var(--c-text-faint)";
+          const rankColor = i === 0 ? "var(--c-accent-yellow)" : i < 3 ? "var(--c-text-muted)" : "var(--c-text-faint)";
           return (
             <div
               key={d.artist}

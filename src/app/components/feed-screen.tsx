@@ -568,7 +568,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div className="px-[16px] lg:px-0 mb-[10px] flex items-center justify-between gap-2">
         <h2
           style={{
-            background: "linear-gradient(to right, #F276EC, #EBFD00, #48FF91, #00CFFF)",
+            // Light mode drops the same four hues to a uniform Oklab L=0.52 so
+            // the heading clears 3:1 on the light gradient bg (see theme.ts accents)
+            background: isDarkMode
+              ? "linear-gradient(to right, #F276EC, #EBFD00, #48FF91, #00CFFF)"
+              : "linear-gradient(to right in oklab, oklab(from #F276EC 0.52 a b), oklab(from #EBFD00 0.52 a b), oklab(from #48FF91 0.52 a b), oklab(from #00CFFF 0.52 a b))",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
@@ -706,7 +710,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             fontSize: "28px",
             fontWeight: 400,
             lineHeight: 1.4,
-            color: "white",
+            color: "var(--c-text)",
             fontFamily: "'Rock Salt', cursive",
             margin: 0,
             marginBottom: "4px",
@@ -808,7 +812,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               fontSize: "28px",
               fontWeight: 400,
               lineHeight: 1.1,
-              color: "white",
+              color: "var(--c-text)",
               fontFamily: "'Rock Salt', cursive",
               margin: 0,
               marginBottom: "4px",
@@ -1181,7 +1185,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           inCollection ? (
             <span
               className="flex-shrink-0 flex items-center gap-1.5"
-              style={{ color: "#EBFD00", padding: "4px" }}
+              style={{ color: "var(--c-link)", padding: "4px" }}
             >
               <GalleryVerticalEnd size={18} />
               <span
@@ -1216,7 +1220,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     <WantlistAddIcon
                       filled={inWantList}
                       size={18}
-                      color={inWantList ? "#EBFD00" : "var(--c-text-faint)"}
+                      color={inWantList ? "var(--c-link)" : "var(--c-text-faint)"}
                     />
                   </motion.div>
                   {inWantList && (
@@ -1226,7 +1230,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                         fontSize: "11px",
                         fontWeight: 500,
                         fontFamily: "'DM Sans', system-ui, sans-serif",
-                        color: "#EBFD00",
+                        color: "var(--c-link)",
                       }}
                     >
                       In Wantlist
@@ -1419,7 +1423,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{
             fontSize: "32px",
             fontWeight: 400,
-            color: "white",
+            color: "var(--c-text)",
             fontFamily: "'Manufacturing Consent', system-ui, sans-serif",
             margin: 0,
           }}
@@ -1483,7 +1487,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{
             fontSize: "32px",
             fontWeight: 400,
-            color: "white",
+            color: "var(--c-text)",
             fontFamily: "'Manufacturing Consent', serif",
             margin: 0,
           }}
@@ -1632,7 +1636,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             style={{
               fontSize: "32px",
               fontWeight: 400,
-              color: "white",
+              color: "var(--c-text)",
               fontFamily: "'Manufacturing Consent', serif",
               margin: 0,
             }}
