@@ -193,15 +193,8 @@ function DrawerContent({
   isDarkMode: boolean;
   onConfirm: () => void;
   onDiscard: () => void;
-  searchRef: React.RefObject<HTMLInputElement | null>;
+  searchRef: React.RefObject<HTMLInputElement>;
 }) {
-  const title =
-    newlyAddedCount === 0
-      ? `Add to ${stackName}`
-      : newlyAddedCount === 1
-        ? `1 album added to ${stackName}`
-        : `${newlyAddedCount} albums added to ${stackName}`;
-
   return (
     <>
       {/* Header */}
@@ -228,6 +221,7 @@ function DrawerContent({
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={onDiscard}
+            aria-label="Discard changes"
             className="tappable rounded-full flex items-center justify-center"
             style={{
               width: 32,
@@ -240,6 +234,7 @@ function DrawerContent({
           </button>
           <button
             onClick={onConfirm}
+            aria-label="Confirm changes"
             className="tappable rounded-full flex items-center justify-center"
             style={{
               width: 32,
@@ -405,7 +400,7 @@ function DrawerContent({
 /* ═══════════════════════════════════════════
    Thumbnail Card (horizontal scroll row)
    ═══════════════════════════════════════════ */
-function ThumbnailCard({ album, isAdded, onToggle, isDarkMode }: {
+function ThumbnailCard({ album, isAdded, onToggle }: {
   album: Album; isAdded: boolean; onToggle: () => void; isDarkMode: boolean;
 }) {
   return (
@@ -492,6 +487,9 @@ function MobileDrawerSheet({
         animate={{ y: 0 }}
         exit={{ y: "100%", pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add albums"
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.6 }}

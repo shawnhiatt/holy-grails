@@ -217,7 +217,7 @@ function PickerContent({
   setShowNewStack: (v: boolean) => void;
   newStackName: string;
   setNewStackName: (v: string) => void;
-  newStackInputRef: React.RefObject<HTMLInputElement | null>;
+  newStackInputRef: React.RefObject<HTMLInputElement>;
   handleCreateStack: () => void;
   firstStackJustCreated: boolean;
 }) {
@@ -366,7 +366,6 @@ function StackRow({
   count,
   checked,
   onToggle,
-  isDarkMode,
 }: {
   label: string;
   count: number;
@@ -454,6 +453,9 @@ function MobileSheet({
         animate={{ y: 0 }}
         exit={{ y: "100%", pointerEvents: "none" as const }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Save to session"
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.6 }}

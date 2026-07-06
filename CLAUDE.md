@@ -148,6 +148,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 
 **Client-side (`.env.local`):**
 - `VITE_CONVEX_URL` — Convex deployment URL (safe to expose)
+- `VITE_SENTRY_DSN` — optional. Sentry error monitoring DSN (safe to expose). When unset — all local dev, any deploy without it — the Sentry SDK is never loaded or initialized; `main.tsx` gates a dynamic import of `src/app/lib/monitoring.ts` on it, so the SDK lives in its own lazy chunk off the critical path. Errors-only config (no tracing, no replay — do not add them without discussion). The app reports through the `reportError()` indirection in `src/app/lib/report-error.ts`, which is a silent no-op until monitoring registers itself.
 - `VITE_DISCOGS_CONSUMER_KEY` and `VITE_DISCOGS_CONSUMER_SECRET` have been removed. These now live exclusively in Convex environment variables.
 
 **Convex environment variables (set via Convex dashboard):**
@@ -164,8 +165,34 @@ Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (
 npm install
 npm run dev        # http://localhost:1234 (Vite, port set in vite.config.ts)
 npm run typecheck  # strict tsc --noEmit — must pass before committing
+npm run lint       # ESLint — must pass before committing (CI runs it)
+npm test           # Vitest — must pass before committing (CI runs it)
 npm run build      # production build (requires VITE_CONVEX_URL)
 ```
+
+---
+
+## Linting
+
+ESLint (flat config, `eslint.config.js`) runs in CI between typecheck and test. Beyond baseline correctness (typescript-eslint recommended + `react-hooks/rules-of-hooks` as errors, `exhaustive-deps` as warnings), the config mechanically enforces several of this file's guardrails — direct `@phosphor-icons/react` imports (outside `icons.ts`), `lucide-react`, static `zxing-wasm` imports, web storage outside the whitelisted files, `discogs.com` hrefs, `Math.random()` sort-shuffles, and `h-screen` are all lint **errors**. If a rule fires, fix the code to follow the guardrail — never add an `eslint-disable`; a genuine exception is a CLAUDE.md discussion first, then a scoped file override in `eslint.config.js` with a comment.
+
+Two grandfathered exceptions are encoded as overrides: the splash screen's pre-auth "Sign up" link to discogs.com/register (users need a Discogs account to log in at all — the post-auth ban stands), and `app-context.tsx`'s defensive `sessionStorage.removeItem("hg_oauth_token_secret")` clears on sign-out/data-wipe (same key as the oauth-helpers whitelist).
+
+The react-hooks v6 compiler-era rules (`refs`, `set-state-in-effect`, `purity`, …) are deliberately off — they flag ~80 long-standing intentional patterns; enabling them is a dedicated refactor pass. `@typescript-eslint/no-explicit-any` is off for the same reason (46 pre-existing `any`s, backlog).
+
+---
+
+## Testing
+
+Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config lives in `vitest.config.ts` — deliberately separate from `vite.config.ts` so tests run without plugins or `VITE_CONVEX_URL`. No component/DOM testing layer (no jsdom, no testing-library) — tests cover Convex functions and pure logic only. Do not add DOM testing dependencies without flagging first.
+
+**Convex function tests** (`convex/*.test.ts`, via `convex-test`): run in the `edge-runtime` environment — each file opts in with a `// @vitest-environment edge-runtime` docblock as its FIRST line (it must precede the `/// <reference types="vite/client" />` line that types `import.meta.glob`). The Convex CLI ignores `*.test.ts` when deploying. These tests protect the security invariants and must never be weakened or deleted to make a change pass:
+- `authHelper.test.ts` — session-token guard: valid/unknown/empty/expired tokens, the 90-day TTL boundary, legacy single-token fallback, per-device sign-out isolation, and that `getMe`/`getLatestUser` never return `access_token`/`token_secret`/`session_token`.
+- `shareActivity.test.ts` — the Cross-User Data Pattern gate: unauthenticated viewers rejected, only `shareActivity === true` exposed, "not found" indistinguishable from "not opted in", no token leakage, and that viewers authenticated via the `auth_sessions` table (every fresh login) can read opted-in targets.
+
+**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating, `format.ts` relative-time ladder, `buildFieldMap`/`isVinylFormat`, and the Fisher–Yates `shuffle`. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
+
+When adding a new guarded Convex function or a new cross-user query, add tests for its auth guard / shareActivity gate in the same session.
 
 ---
 
@@ -226,8 +253,11 @@ src/
     hooks/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
     lib/
+      dialog-stack.ts    # Module-level stack of open dialogs — Escape-closable overlays push/pop a token; only the TOPMOST responds to Escape (see Dialog Accessibility)
+      monitoring.ts      # Sentry init (errors only) — lazy-loaded from main.tsx ONLY when VITE_SENTRY_DSN is set; registers itself as the reportError reporter
+      report-error.ts    # reportError() indirection — no-op until monitoring registers; call sites (App.tsx ErrorBoundary) report unconditionally
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
-      use-safe-tap.ts    # Shared safe-tap helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards.
+      safe-tap.ts        # Shared safeTap() helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards. NOT a hook (module-level touch state, no use* prefix) — it is deliberately callable inside .map() loops.
     utils/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
       shuffle.ts         # Fisher-Yates shuffle + pickRandom — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
@@ -529,6 +559,14 @@ derived reactively in `app-context.tsx` and clears automatically once
 
 ## Cross-Cutting Patterns
 
+### Dialog Accessibility (sheets, drawers, lightbox)
+
+Every modal overlay must carry `role="dialog"`, `aria-modal="true"`, and an accessible name (`aria-label`, or the title header). `SlideOutPanel` is the reference implementation and also provides: Escape-to-close, a lightweight Tab focus trap, initial focus into the sheet, and focus return to the opener on close. Its `ariaLabel` prop names title-less sheets — pass it at every new call site.
+
+**Escape handling uses the dialog stack** (`src/app/lib/dialog-stack.ts`): each Escape-closable overlay pushes a token on mount, pops on unmount, and only acts on Escape when its token is topmost — so a lightbox over a sheet closes one layer per keypress. The desktop album side panel (non-modal, `role="complementary"`) closes on Escape only when `hasOpenDialogs()` is false. Any new sheet or overlay with Escape handling MUST register with the stack — a bare `document.addEventListener("keydown", …)` will double-close stacked layers.
+
+Icon-only buttons always get an `aria-label`; toggle buttons (view modes, priority bolt, filter chips acting as toggles) also get `aria-pressed`.
+
 ### Touch Handling on Interactive Cards
 
 All interactive card and row elements must include `touchAction: "manipulation"` in their inline style. This eliminates the 300ms double-tap delay and lets the browser handle vertical pan natively. Cards with explicit `onTouchStart`/`onTouchMove`/`onTouchEnd` handlers must use a Y-axis-only threshold of 10px in `onTouchMove` — check `clientY` delta only, never `clientX`. X-axis movement during a vertical scroll is noise and must not suppress a tap. Any new card type added to the app must follow both rules.
@@ -664,7 +702,7 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - Session-scoped `marketDataCache` (module-level `Map`), mirroring `releaseDataCache`.
 - **"N for sale" is plain text — NOT a link.** Outbound Discogs listing links were removed after every redirect strategy failed (see below). Reach to `AlbumDetailPanel`/`WantItemDetailPanel` is a deliberate future decision, not shipped.
 
-**Outbound Discogs links: DO NOT ADD THEM.** Every strategy for linking to `discogs.com` from the installed iOS PWA has been tried and failed — the Discogs app's Universal Link intercepts the navigation and strands the user on its home screen. Attempt 1: raw href (bounced). Attempt 2: same-origin `go.html` with a client-side `location.replace()` (the in-app browser treats JS redirects as fresh navigations — bounced, and stranded a blank overlay). Attempt 3: `/api/go` Vercel function issuing a server-side HTTP 302 (in-app browser still app-switched — bounced). All redirector code has been deleted. The rule is now absolute: no `discogs.com` hrefs anywhere in the app, no exceptions, until Discogs fixes its deep-link handling. Marketplace data shown in-app (Value section) is the substitute.
+**Outbound Discogs links: DO NOT ADD THEM.** Every strategy for linking to `discogs.com` from the installed iOS PWA has been tried and failed — the Discogs app's Universal Link intercepts the navigation and strands the user on its home screen. Attempt 1: raw href (bounced). Attempt 2: same-origin `go.html` with a client-side `location.replace()` (the in-app browser treats JS redirects as fresh navigations — bounced, and stranded a blank overlay). Attempt 3: `/api/go` Vercel function issuing a server-side HTTP 302 (in-app browser still app-switched — bounced). All redirector code has been deleted. The rule is now absolute and lint-enforced: no `discogs.com` hrefs anywhere in the app until Discogs fixes its deep-link handling. Marketplace data shown in-app (Value section) is the substitute. The single grandfathered exception is the pre-auth "Sign up" register link on the splash screen (a user without a Discogs account cannot log in at all; pre-auth, the Universal Link bounce risk is acceptable) — it has a scoped lint override and must stay the only one.
 
 Session picker entry points: Bookmark buttons have been removed from all card views (Grid, Artwork, List, Swiper), and the `Music` icon button went away with the feed's Recommended card. The session picker is now accessed solely via the inline Save for Later accordion in `album-detail.tsx` (a deliberate narrowing — do not add card-level session buttons back without instruction).
 
@@ -1006,7 +1044,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 All Discogs API calls go through `convex/discogs.ts` proxy actions. No direct Discogs fetch calls in client code.
 
-**sessionStorage** is permitted in one place only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`. No other sessionStorage usage is permitted anywhere in the codebase.
+**sessionStorage** is permitted for one key only: `hg_oauth_token_secret` in `oauth-helpers.ts`, storing the temporary OAuth token secret during the Discogs redirect. It is cleared immediately after the callback completes in `auth-callback.tsx`, and cleared defensively (removeItem only) in `app-context.tsx` on sign-out and data-wipe. No other sessionStorage usage is permitted anywhere in the codebase (lint-enforced).
 
 **localStorage** is permitted in two places:
 - `hg_session_token` in `app-context.tsx` — persists the session token for cold load restore (see Session token persistence above)

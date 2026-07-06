@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useApp } from "./app-context";
 
 import { purgeTagColor as getPurgeColor, purgeToast, purgeClearToast } from "./purge-colors";
+import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { formatDateShort, isToday } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
@@ -116,6 +117,21 @@ function ImageLightbox({
   setIndex: React.Dispatch<React.SetStateAction<number>>;
   onClose: () => void;
 }) {
+  // Escape closes the lightbox (before the early return — hook order).
+  // Registered on the dialog stack so it wins over the sheet beneath it.
+  useEffect(() => {
+    if (images.length === 0) return;
+    const token = pushDialog();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isTopDialog(token)) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      popDialog(token);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [images.length, onClose]);
+
   if (images.length === 0) return null;
   return createPortal(
     <>
@@ -127,6 +143,9 @@ function ImageLightbox({
       />
       {/* Overlay */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Album images"
         className="fixed inset-0 flex flex-col items-center justify-center"
         style={{ zIndex: 140, pointerEvents: "none" }}
       >
@@ -235,14 +254,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     stacks,
     isInStack, toggleAlbumInStack, createStackDirect,
     // Edit
-    albums, isSyncing, discogsUsername, updateAlbum, removeFromCollection,
+    isSyncing, discogsUsername, updateAlbum, removeFromCollection,
     folders,
     // Wantlist detail
     selectedWantItem, setSelectedWantItem,
     // Feed album detail
     selectedFeedAlbum, setSelectedFeedAlbum,
-    // Wantlist add
-    isInWants, isInCollection, addToWantList, addToCollection,
   } = useApp();
   const proxyUpdateInstance = useAction(api.discogs.proxyUpdateCollectionInstance);
   const proxyMoveToFolder = useAction(api.discogs.proxyMoveToFolder);
@@ -279,7 +296,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const [isSaving, setIsSaving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
-  const [isAddingToWantlist, setIsAddingToWantlist] = useState(false);
 
   // Enriched release data state
   const [releaseData, setReleaseData] = useState<ReleaseData | null>(null);
@@ -528,32 +544,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setNewStackName("");
     setShowNewStack(false);
   }, [newStackName, selectedAlbum, createStackDirect]);
-
-  const alreadyOnWantlist = selectedAlbum ? isInWants(selectedAlbum.release_id) : false;
-
-  const handleAddToWantlist = useCallback(async () => {
-    if (!selectedAlbum || alreadyOnWantlist || isAddingToWantlist) return;
-    setIsAddingToWantlist(true);
-    try {
-      await addToWantList({
-        id: `w-${selectedAlbum.release_id}`,
-        release_id: selectedAlbum.release_id,
-        title: selectedAlbum.title,
-        artist: selectedAlbum.artist,
-        year: selectedAlbum.year,
-        thumb: selectedAlbum.thumb,
-        cover: selectedAlbum.cover,
-        label: selectedAlbum.label,
-        priority: false,
-      });
-      toast.info(`"${selectedAlbum.title}" added to Wantlist.`);
-    } catch (err: any) {
-      console.error("[AlbumDetail] Add to wantlist failed:", err);
-      toast.error("Failed to add. Try again.");
-    } finally {
-      setIsAddingToWantlist(false);
-    }
-  }, [selectedAlbum, alreadyOnWantlist, isAddingToWantlist, addToWantList]);
 
   // Group credits by role — must be above early returns to maintain hook order
   const groupedCredits = useMemo(() => {
@@ -1974,7 +1964,6 @@ function InlineStackRow({
   count,
   checked,
   onToggle,
-  isDarkMode,
 }: {
   label: string;
   count: number;
@@ -3145,6 +3134,7 @@ export function AlbumDetailSheet({ shakeEntrance = false }: { shakeEntrance?: bo
         backdropZIndex={110}
         sheetZIndex={120}
         shakeEntrance={shakeEntrance}
+        ariaLabel="Album details"
       >
         <AlbumDetailPanel hideHeader />
       </SlideOutPanel>

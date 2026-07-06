@@ -4,6 +4,13 @@ import { IconContext } from "./app/components/icons";
 import App from "./app/App.tsx";
 import "./styles/index.css";
 
+// Error monitoring boots lazily and only when a DSN is configured — the
+// Sentry SDK stays out of the main bundle and out of DSN-less environments.
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
+if (sentryDsn) {
+  import("./app/lib/monitoring").then((m) => m.initMonitoring(sentryDsn));
+}
+
 const convexUrl = import.meta.env.VITE_CONVEX_URL;
 
 if (!convexUrl) {

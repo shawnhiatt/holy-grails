@@ -10,7 +10,7 @@ interface FoldersScreenProps {
 }
 
 export function FoldersScreen({ onBack }: FoldersScreenProps) {
-  const { folders, createFolder, renameFolder, deleteFolder, fetchFolders, isDarkMode } = useApp();
+  const { folders, createFolder, renameFolder, deleteFolder, fetchFolders } = useApp();
 
   // ── Local state ──
   const [showNewFolder, setShowNewFolder] = useState(false);

@@ -12,7 +12,6 @@ import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
-import { toast } from "sonner";
 import { NoDiscogsCard } from "./no-discogs-card";
 
 /* ─── Daily rotation utilities ─── */
@@ -87,7 +86,6 @@ const CHART_BLUE = "#0DB1F2";
 
 /* ─── Custom Tooltip ─── */
 function ChartTooltip({ active, payload, label, formatter }: any) {
-  const { isDarkMode } = useApp();
   if (!active || !payload?.length) return null;
   return (
     <div
@@ -113,8 +111,7 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
 
 /* ─────────────────── SECTION 1: Collection Value ─────────────────── */
 
-function CollectionValueSection({ albums }: { albums: Album[] }) {
-  const { isDarkMode } = useApp();
+function CollectionValueSection(_props: { albums: Album[] }) {
 
   // Use the API-fetched collection value — null means unavailable (no sync or API failure)
   const collectionValue = getCachedCollectionValue();
@@ -345,7 +342,7 @@ function CollectionBreakdownSection({ albums }: { albums: Album[] }) {
   );
 }
 
-function ByFolderChart({ albums, isDark }: { albums: Album[]; isDark: boolean }) {
+function ByFolderChart({ albums }: { albums: Album[]; isDark: boolean }) {
   const data = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of albums) {
@@ -402,8 +399,6 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([decade, count]) => ({ decade, count }));
   }, [albums]);
-
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
 
   const goldenEra = useMemo(() => {
     if (data.length < 3) return null;
@@ -664,7 +659,7 @@ function LabelsSection({ albums }: { albums: Album[] }) {
   );
 }
 
-function ByFormatChart({ albums, isDark }: { albums: Album[]; isDark: boolean }) {
+function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
   const strip = new Set(["Vinyl", "Album", "All Media", "Record Store Day", "Reissue", "Compilation", "Stereo", "Mono", "Promo", "Limited Edition", "Deluxe Edition", "Remaster", "Special Edition", "Club Edition", "Transcription", "Unofficial Release", "White Label"]);
 
   const data = useMemo(() => {
@@ -726,7 +721,6 @@ function ListeningActivitySection({
   allPlayTimestamps,
   playCounts,
   isDarkMode,
-  markPlayed,
   onNeverPlayedTap,
   onAlbumTap,
 }: {
@@ -765,7 +759,6 @@ function ListeningActivitySection({
 
     // Walk backward from today for current streak
     const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const dayMs = 86400000;
 
     let current = 0;

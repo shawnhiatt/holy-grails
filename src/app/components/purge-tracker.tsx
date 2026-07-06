@@ -218,6 +218,9 @@ export function PurgeCutDialog({
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Purge Cut"
         className="fixed left-0 right-0 bottom-0 rounded-t-[20px] flex flex-col"
         style={{
           zIndex: 89,
@@ -245,6 +248,7 @@ export function PurgeCutDialog({
           </h3>
           <button
             onClick={onCancel}
+            aria-label="Close"
             className="w-8 h-8 rounded-full flex items-center justify-center"
             style={{ border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
           >

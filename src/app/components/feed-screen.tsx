@@ -23,9 +23,8 @@ import { getCachedCollectionValue, type Album } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { purgeIndicatorColor, purgeTagColor, purgeToast } from "./purge-colors";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 import { EASE_IN_OUT, EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
-import { formatRelativeDate } from "./last-played-utils";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial, formatSyncedAgo } from "../utils/format";
@@ -54,7 +53,7 @@ const RecentAlbumCard = memo(function RecentAlbumCard({ album, width, isDarkMode
     <div
       role="button"
       tabIndex={0}
-      {...useSafeTap(() => onOpen(album.id))}
+      {...safeTap(() => onOpen(album.id))}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -266,16 +265,6 @@ function buildFeedWantActivity(feedEntries: FollowingFeedEntry[], max: number, a
 
 /* ─── Section Header ─── */
 
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: "24px",
-  fontWeight: 600,
-  letterSpacing: "-0.3px",
-  lineHeight: 1.2,
-  color: "var(--c-text)",
-  fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-  margin: 0,
-};
-
 /* ─── Feed Screen ─── */
 
 export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: boolean) => void }) {
@@ -303,7 +292,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     syncFromDiscogs,
     followingAvatars,
     setSelectedWantItem,
-    toggleWantPriority,
     setSelectedFeedAlbum,
     isInCollection,
     playCounts,
@@ -311,7 +299,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   } = useApp();
 
   // Per-item in-flight tracking for wantlist API calls
-  const [inFlightIds, setInFlightIds] = useState<Set<number>>(() => new Set());
+  const [inFlightIds] = useState<Set<number>>(() => new Set());
   // Confirmation prompts for wantlist add/remove
   const [addWantConfirm, setAddWantConfirm] = useState<FeedActivity | null>(null);
   const [isAddingWant, setIsAddingWant] = useState(false);
@@ -863,7 +851,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               key={`hunt-${item.id}`}
               role="button"
               tabIndex={0}
-              {...useSafeTap(() => { setSelectedWantItem(item); setShowAlbumDetail(true); })}
+              {...safeTap(() => { setSelectedWantItem(item); setShowAlbumDetail(true); })}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -962,7 +950,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             key={`hunt-d-${item.id}`}
             role="button"
             tabIndex={0}
-            {...useSafeTap(() => { setSelectedWantItem(item); setShowAlbumDetail(true); })}
+            {...safeTap(() => { setSelectedWantItem(item); setShowAlbumDetail(true); })}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -1068,7 +1056,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         <div
           className="relative flex-shrink-0 cursor-pointer"
           style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
-          {...useSafeTap(() => {
+          {...safeTap(() => {
             if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
               const rid = Number(item.albumReleaseId);
               const match = albums.find((a) => Number(a.release_id) === rid) ||
@@ -1779,7 +1767,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 src={purgeEvalAlbum.cover}
                 alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                 className="w-full aspect-square rounded-[8px] object-cover cursor-pointer"
-                {...useSafeTap(() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
+                {...safeTap(() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
               />
               {/* Metadata */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingTop: "12px" }}>
@@ -1869,7 +1857,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                     objectFit: "cover",
                     flexShrink: 0,
                   }}
-                  {...useSafeTap(() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
+                  {...safeTap(() => { setSelectedAlbumId(purgeEvalAlbum.id); setShowAlbumDetail(true); })}
                 />
                 {/* Metadata panel */}
                 <div
@@ -2310,6 +2298,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             onClose={() => { setRemoveWantConfirm(null); setIsRemovingWant(false); }}
             backdropZIndex={110}
             sheetZIndex={120}
+            ariaLabel="Remove from Wantlist"
           >
             <div className="flex flex-col items-center px-6 pt-2 pb-4 gap-4">
               <img
@@ -2393,6 +2382,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             onClose={() => { setAddWantConfirm(null); setIsAddingWant(false); }}
             backdropZIndex={110}
             sheetZIndex={120}
+            ariaLabel="Add to Wantlist"
           >
             <div className="flex flex-col items-center px-6 pt-2 pb-4 gap-4">
               <img
@@ -2532,7 +2522,6 @@ function EmptyState({ setScreen, isDarkMode }: { setScreen: (s: Screen) => void;
 function InsightRow({
   icon,
   label,
-  isDarkMode,
   onTap,
   showDivider,
 }: {

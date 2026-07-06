@@ -108,6 +108,9 @@ export function InstallNudge() {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Install Holy Grails"
             className="lg:hidden"
             style={{
               position: "fixed",

@@ -58,12 +58,10 @@ export function SettingsScreen() {
     defaultCollectionSort,
     setDefaultCollectionSort,
     executePurgeCut,
-    purgeProgress,
     stacks,
     deleteStack,
     deletePurgeTag,
     wipeAllData,
-    sessionToken,
     clearPlayHistory,
     clearFollowedUsers,
     clearWantlistPriorities,
@@ -699,6 +697,26 @@ export function SettingsScreen() {
             <button onClick={() => setConfirmAction("Wantlist priorities")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Wantlist Priorities</button>
             <div className="mt-1 pt-1" style={{ borderTop: "1px solid var(--c-border)" }}>
               <button onClick={() => setConfirmAction("All data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive)" }}><Trash2 size={15} />Delete All My Data</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <div className="rounded-[12px] p-4 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Your data</h3>
+            <div className="flex flex-col gap-2.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.6 }}>
+              <p style={{ margin: 0 }}>
+                Holy Grails connects to your Discogs account with OAuth — we store the access token and a cached copy of your collection and wantlist so the app loads fast. Purge tags, sessions, plays, and follows exist only in Holy Grails.
+              </p>
+              <p style={{ margin: 0 }}>
+                We never change anything on Discogs unless you tap the button that does it. Listening activity is private unless you opt in to sharing.
+              </p>
+              <p style={{ margin: 0 }}>
+                If the app crashes, a technical error report reaches the developer so it can get fixed. It never includes your collection.
+              </p>
+              <p style={{ margin: 0 }}>
+                Want out? Delete All My Data above removes everything on our side, and you can revoke access anytime at discogs.com → Settings → Applications.
+              </p>
             </div>
           </div>
         </section>

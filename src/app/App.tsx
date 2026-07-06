@@ -20,6 +20,8 @@ import { LoadingScreen } from "./components/loading-screen";
 import { StackPickerSheet } from "./components/stack-picker-sheet";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
+import { reportError } from "./lib/report-error";
+import { hasOpenDialogs } from "./lib/dialog-stack";
 import { InstallNudge } from "./components/install-nudge";
 import { OfflineBanner } from "./components/offline-banner";
 import { ShareActivityPrompt } from "./components/share-activity-prompt";
@@ -63,6 +65,9 @@ class ErrorBoundary extends Component<
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    reportError(error, { componentStack: errorInfo.componentStack });
+  }
   render() {
     if (this.state.hasError) {
       return (
@@ -82,6 +87,7 @@ function AppContent() {
     screen, showAlbumDetail, selectedAlbum, selectedWantItem, selectedFeedAlbum, showFilterDrawer,
     showDiscogsSearch, setShowDiscogsSearch,
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail, cachedSyncStats,
+    setSelectedWantItem, setSelectedFeedAlbum,
     setScreen,
     connectDiscogsRequested, clearConnectDiscogsRequest,
     stackPickerAlbumId,
@@ -108,6 +114,24 @@ function AppContent() {
   const hasSeenSyncingRef = useRef(false);
   // Guards the iOS motion permission check so it only fires once per session.
   const hasDonePermissionCheckRef = useRef(false);
+
+  // Desktop: Escape closes the album detail side panel — but only when no
+  // overlay (filter drawer, session picker, Look It Up) is stacked above it;
+  // those own Escape themselves.
+  useEffect(() => {
+    if (!isDesktop || !showAlbumDetail) return;
+    if (showFilterDrawer || stackPickerAlbumId || showDiscogsSearch) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (hasOpenDialogs()) return; // a sheet/lightbox above the panel owns Escape
+      setShowAlbumDetail(false);
+      setSelectedAlbumId(null);
+      setSelectedWantItem(null);
+      setSelectedFeedAlbum(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isDesktop, showAlbumDetail, showFilterDrawer, stackPickerAlbumId, showDiscogsSearch, setShowAlbumDetail, setSelectedAlbumId, setSelectedWantItem, setSelectedFeedAlbum]);
 
   // On boot, silently verify iOS motion permission is still valid when the
   // shake preference is enabled. iOS can revoke DeviceMotion permission after
@@ -490,6 +514,8 @@ function AppContent() {
               animate={{ width: 380, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+              role="complementary"
+              aria-label="Album details"
               className="hidden lg:flex flex-col flex-shrink-0 border-l overflow-hidden relative z-[110]"
               style={{
                 ...contentTokens,

@@ -6,10 +6,13 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "lint": "eslint src convex vite.config.ts vitest.config.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
+    "@sentry/react": "^10.63.0",
     "convex": "^1.42.1",
     "motion": "12.23.24",
     "react": "18.3.1",
@@ -20,15 +23,22 @@
     "zxing-wasm": "^3.1.0"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "4.1.12",
     "@types/node": "^22.20.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "4.7.0",
+    "convex-test": "^0.0.54",
+    "eslint": "^10.6.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "4.1.12",
     "typescript": "~5.6.3",
+    "typescript-eslint": "^8.62.1",
     "vite": "^6.4.1",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.9"
   },
   "pnpm": {
     "overrides": {

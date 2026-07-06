@@ -42,6 +42,8 @@ export function ViewModeToggle({
             key={mode.id}
             onClick={() => setViewMode(mode.id)}
             title={mode.label}
+            aria-label={`${mode.label} view`}
+            aria-pressed={viewMode === mode.id}
             className={`${btnSize} flex items-center justify-center transition-all`}
             style={{
               backgroundColor: viewMode === mode.id ? "var(--c-surface-hover)" : undefined,
@@ -220,7 +222,7 @@ export function CrateBrowser() {
             style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>
+            <button onClick={() => setSearchQuery("")} aria-label="Clear search" className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>
           )}
         </div>
         {/* Active filter chips */}
@@ -237,6 +239,7 @@ export function CrateBrowser() {
         {/* Filter button */}
         <button
           onClick={() => setShowFilterDrawer(true)}
+          aria-label="Filter collection"
           className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
           style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
         >
@@ -262,12 +265,13 @@ export function CrateBrowser() {
               style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }}
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>
+              <button onClick={() => setSearchQuery("")} aria-label="Clear search" className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>
             )}
           </div>
           <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={gridModes} compact />
           <button
             onClick={() => setShowFilterDrawer(true)}
+            aria-label="Filter collection"
             className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
             style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
           >

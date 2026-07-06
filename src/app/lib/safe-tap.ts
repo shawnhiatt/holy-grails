@@ -8,7 +8,7 @@ const SLOP_PX = 10;
 // be called inside .map() loops without violating the Rules of Hooks.
 let activeTouch: { startX: number; startY: number; moved: boolean } | null = null;
 
-export function useSafeTap(handler: () => void): {
+export function safeTap(handler: () => void): {
   onTouchStart: TouchEventHandler;
   onTouchMove: TouchEventHandler;
   onTouchEnd: TouchEventHandler;

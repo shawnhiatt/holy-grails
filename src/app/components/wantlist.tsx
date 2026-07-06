@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, Grid2x2, Grid3x3, List, Zap, X } from "./icons";
+import { Search, Grid2x2, Grid3x3, List, Zap } from "./icons";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
@@ -7,7 +7,7 @@ import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
-import { useSafeTap } from "../lib/use-safe-tap";
+import { safeTap } from "../lib/safe-tap";
 import { SyncStatusLine } from "./sync-status-line";
 
 /* ─── Alphabet Index Sidebar (mobile only, wantlist) ─── */
@@ -222,7 +222,7 @@ export function Wantlist() {
           <input type="text" placeholder="Search wants..." value={wantSearchQuery} onChange={(e) => setWantSearchQuery(e.target.value)}
             className="flex-1 bg-transparent outline-none border-none min-w-0"
             style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
-          {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
+          {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} aria-label="Clear search" className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
         </div>
         {/* Filter chips — flex-1 */}
         <div className="flex-1 flex items-center gap-[16px] min-w-0">
@@ -266,6 +266,8 @@ export function Wantlist() {
             className={`w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors shrink-0 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#0C284A]" : ""}`}
             style={wantFilter !== "priority" ? { backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" } : undefined}
             title={wantFilter === "priority" ? "Show all" : "Priorities"}
+            aria-label={wantFilter === "priority" ? "Show all wants" : "Show priorities only"}
+            aria-pressed={wantFilter === "priority"}
           >
             <Zap size={16} weight={wantFilter === "priority" ? "fill" : "regular"} />
           </button>
@@ -460,7 +462,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                 key={want.id}
                 className="flex items-center gap-[12px] tappable transition-colors cursor-pointer"
                 style={{ padding: "12px 0", borderBottom: "1px solid var(--c-border)", touchAction: "manipulation" }}
-                {...useSafeTap(() => onSelect(want))}
+                {...safeTap(() => onSelect(want))}
               >
                 <div className="rounded-[8px] overflow-hidden flex-shrink-0" style={{ width: "60px", height: "60px" }}>
                   <img loading="lazy" decoding="async" src={want.thumb || want.cover} alt={want.title} className="w-full h-full object-cover" />
@@ -508,7 +510,7 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
   return (
     <div
       className="relative w-full min-w-0 rounded-[10px] overflow-hidden group cursor-pointer"
-      {...useSafeTap(() => onSelect(item))}
+      {...safeTap(() => onSelect(item))}
       style={{
         backgroundColor: "var(--c-surface)",
         border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
@@ -521,6 +523,8 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
 
         <button
           onClick={() => togglePriority(item.id)}
+          aria-label={item.priority ? "Remove priority" : "Mark as priority"}
+          aria-pressed={item.priority}
           className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform hover:scale-110 z-[2]"
         >
           <motion.div initial={false} animate={{ scale: item.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
