@@ -148,6 +148,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 
 **Client-side (`.env.local`):**
 - `VITE_CONVEX_URL` — Convex deployment URL (safe to expose)
+- `VITE_SENTRY_DSN` — optional. Sentry error monitoring DSN (safe to expose). When unset — all local dev, any deploy without it — the Sentry SDK is never loaded or initialized; `main.tsx` gates a dynamic import of `src/app/lib/monitoring.ts` on it, so the SDK lives in its own lazy chunk off the critical path. Errors-only config (no tracing, no replay — do not add them without discussion). The app reports through the `reportError()` indirection in `src/app/lib/report-error.ts`, which is a silent no-op until monitoring registers itself.
 - `VITE_DISCOGS_CONSUMER_KEY` and `VITE_DISCOGS_CONSUMER_SECRET` have been removed. These now live exclusively in Convex environment variables.
 
 **Convex environment variables (set via Convex dashboard):**
@@ -252,6 +253,8 @@ src/
     hooks/
       use-online-status.ts  # Hook that powers OfflineBanner via navigator.onLine and online/offline events
     lib/
+      monitoring.ts      # Sentry init (errors only) — lazy-loaded from main.tsx ONLY when VITE_SENTRY_DSN is set; registers itself as the reportError reporter
+      report-error.ts    # reportError() indirection — no-op until monitoring registers; call sites (App.tsx ErrorBoundary) report unconditionally
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
       safe-tap.ts        # Shared safeTap() helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards. NOT a hook (module-level touch state, no use* prefix) — it is deliberately callable inside .map() loops.
     utils/

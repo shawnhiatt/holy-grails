@@ -20,6 +20,7 @@ import { LoadingScreen } from "./components/loading-screen";
 import { StackPickerSheet } from "./components/stack-picker-sheet";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
+import { reportError } from "./lib/report-error";
 import { InstallNudge } from "./components/install-nudge";
 import { OfflineBanner } from "./components/offline-banner";
 import { ShareActivityPrompt } from "./components/share-activity-prompt";
@@ -62,6 +63,9 @@ class ErrorBoundary extends Component<
   }
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    reportError(error, { componentStack: errorInfo.componentStack });
   }
   render() {
     if (this.state.hasError) {

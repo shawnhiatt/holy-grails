@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { Disc3, AlertTriangle } from "./icons";
+import { DURATION_FAST } from "./motion-tokens";
 import { UnicornScene } from "./unicorn-scene";
 import logoSplash from "../../imports/logo-holy-grails-splash.svg";
 
@@ -16,6 +17,7 @@ export function SplashScreen({
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [showDataNote, setShowDataNote] = useState(false);
 
   const handleLoginClick = async () => {
     setLoginLoading(true);
@@ -128,6 +130,59 @@ export function SplashScreen({
             >
               Create a Discogs account
             </a>
+
+            {/* Privacy note — one line, tappable for the fuller version */}
+            <p
+              style={{
+                fontSize: "12px",
+                fontWeight: 400,
+                color: mutedColor,
+                textAlign: "center",
+                lineHeight: 1.5,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                marginTop: "16px",
+              }}
+            >
+              Logs in with Discogs — we never see your password.{" "}
+              <button
+                onClick={() => setShowDataNote((v) => !v)}
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 400,
+                  color: "#D1D8DF",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  textDecoration: "underline",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
+                What we store
+              </button>
+            </p>
+            <AnimatePresence>
+              {showDataNote && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: DURATION_FAST }}
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 400,
+                    color: mutedColor,
+                    textAlign: "center",
+                    lineHeight: 1.6,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    marginTop: "8px",
+                    maxWidth: "340px",
+                  }}
+                >
+                  Your OAuth token and a cached copy of your collection and wantlist, so the app loads fast. Purge tags, sessions, and follows live only here. Nothing changes on Discogs unless you tap the button that does it. Delete All My Data in Settings removes everything.
+                </motion.p>
+              )}
+            </AnimatePresence>
 
             {/* Login error */}
             {loginError && (
