@@ -1403,11 +1403,11 @@ function PopulatedFollowingView({
           <div className="px-[16px] lg:px-[24px] mb-[12px]">
             <p
               style={{
-                fontSize: "20px",
-                fontWeight: 600,
-                letterSpacing: "-0.3px",
+                fontSize: "32px",
+                fontWeight: 400,
                 color: "var(--c-text)",
-                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                fontFamily: "'Manufacturing Consent', system-ui, sans-serif",
+                margin: 0,
               }}
             >
               From the Depths

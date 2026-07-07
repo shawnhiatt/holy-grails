@@ -499,7 +499,7 @@ Image card overlays using `rgba(0,0,0,...)` for photo readability are intentiona
 ### Typography
 
 - **Display / Headings**: `Bricolage Grotesque` (weights 300–700)
-- **Decorative display accents**: `Rock Salt` (Shuffle heading, Format Spotlight, Decades heading) and `Manufacturing Consent` (Insights and Purge Tracker headings on the feed) — loaded in `fonts.css`, used only for these named feed moments. Do not use them anywhere else.
+- **Decorative display accents**: `Rock Salt` (Shuffle heading, Format Spotlight, Decades heading) and `Manufacturing Consent` (Insights and Purge Tracker headings on the feed, plus the Following screen's From the Depths heading) — loaded in `fonts.css`, used only for these named moments. Do not use them anywhere else.
 - **Body / UI labels**: `DM Sans` (weights 300–700)
 - Loaded via a `<link>` (with preconnect) in `index.html` — not an `@import` in CSS, so the font fetch starts before CSS parse. Only weights 400/500/600/700 are requested; weight 300 is intentionally not loaded (unused)
 - Never use system fonts for headings — Bricolage Grotesque is part of the brand
@@ -777,7 +777,7 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 ### Following Screen (following-screen.tsx)
 - **Avatar size**: 80px (with 28px fallback initials). Button container width: 92px.
 - **Avatar row sort order**: Sorted by most recent `followingFeed` entry per user (descending). Users with no feed entries fall to end, tiebroken alphabetically. Sort is derived via `useMemo` and applied only to the avatar row display order — does not affect the main user list.
-- **From the Depths**: A horizontal-scroll peek into followed users' collections, built from the `following_feed` cache (seeded per user + 12h time bucket, up to 4 cards each). This section keeps the **From the Depths** name — the home feed's equivalent collection-random section is called **Shuffle**, but the followed-users version deliberately does not. Uses the shared `ShuffleAlbumCard` (the component name is generic; it does not imply the section name).
+- **From the Depths**: A horizontal-scroll peek into followed users' collections, built from the `following_feed` cache (seeded per user + 12h time bucket, up to 4 cards each). This section keeps the **From the Depths** name — the home feed's equivalent collection-random section is called **Shuffle**, but the followed-users version deliberately does not. Uses the shared `ShuffleAlbumCard` (the component name is generic; it does not imply the section name). The heading renders in `Manufacturing Consent` blackletter (32px/400, matching the feed's Recently Added/Insights headings) — not Bricolage Grotesque.
 
 ### Reports & Insights (reports-screen.tsx)
 
