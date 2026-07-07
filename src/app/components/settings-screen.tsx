@@ -467,36 +467,6 @@ export function SettingsScreen() {
               </>
             )}
 
-            {/* Divider before sync section */}
-            <div style={{ borderTop: "1px solid var(--c-border)" }} />
-
-            {/* Collection stats row */}
-            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
-              {syncStats
-                ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
-                : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
-              }
-            </p>
-
-            <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
-              style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(12,40,74,0.25)" }}>
-              <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
-              {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
-            </button>
-            {syncError && (
-              <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
-                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive)" }} />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive)", wordBreak: "break-word" }}>{syncError}</p>
-              </div>
-            )}
-            {lastSynced && (
-              <div className="flex items-center justify-center gap-1.5">
-                <CheckCircle2 size={13} className="text-[#22C55E]" />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
-              </div>
-            )}
-
             {/* Accounts accordion — switch between signed-in Discogs accounts, or add one */}
             {isAuthenticated && (
               <>
@@ -579,6 +549,36 @@ export function SettingsScreen() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Divider before sync section */}
+            <div style={{ borderTop: "1px solid var(--c-border)" }} />
+
+            {/* Collection stats row */}
+            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
+              {syncStats
+                ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
+                : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
+              }
+            </p>
+
+            <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
+              style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(12,40,74,0.25)" }}>
+              <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
+              {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
+            </button>
+            {syncError && (
+              <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
+                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive)" }} />
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive)", wordBreak: "break-word" }}>{syncError}</p>
+              </div>
+            )}
+            {lastSynced && (
+              <div className="flex items-center justify-center gap-1.5">
+                <CheckCircle2 size={13} className="text-[#22C55E]" />
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
+              </div>
             )}
 
             {/* Sign out — visible when authenticated */}
