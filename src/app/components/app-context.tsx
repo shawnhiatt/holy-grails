@@ -1811,11 +1811,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     sessionToken: string;
     is_new: boolean;
   }) => {
-    // Set session token and username
-    setSessionToken(user.sessionToken);
-    setDiscogsUsername(user.username);
-    setUserAvatar(user.avatarUrl || "");
-    setIsNewUser(user.is_new);
+    // Capture the account that was active before this login (auth-callback has
+    // already reset the URL to "/", so a reload here is safe).
+    let previousToken: string | null = null;
+    try {
+      previousToken = localStorage.getItem("hg_session_token");
+    } catch { /* ignore */ }
 
     // Record this account (also seeds the list on the very first login).
     // Dedupes by username, so re-adding an account just refreshes its token.
@@ -1827,6 +1828,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addedAt: Date.now(),
       }),
     );
+
+    // Adding/switching to a DIFFERENT account than the one already loaded:
+    // reload into the new token rather than swapping identity in place. An
+    // in-place swap leaves the previous account's derived albums/wants on
+    // screen — the collection derive's empty-cache guard refuses to clear
+    // them while the new account's cache is still empty. The clean cold-load
+    // hydrates the new account and triggers its first sync (see the initial
+    // -sync effect's empty-cache branch). Mirrors switchAccount.
+    if (previousToken && previousToken !== user.sessionToken) {
+      try {
+        localStorage.setItem("hg_session_token", user.sessionToken);
+      } catch { /* ignore */ }
+      window.location.reload();
+      return;
+    }
+
+    // First login on this device — no stale state to clear, hydrate in place.
+    setSessionToken(user.sessionToken);
+    setDiscogsUsername(user.username);
+    setUserAvatar(user.avatarUrl || "");
+    setIsNewUser(user.is_new);
 
     // Mark initial sync as done (we're about to trigger it explicitly)
     initialSyncDoneRef.current = true;
