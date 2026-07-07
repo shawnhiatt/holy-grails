@@ -78,4 +78,21 @@ describe("deriveCollectionFacts", () => {
     const albums = [makeAlbum({ dateAdded: "" })];
     expect(fact(deriveCollectionFacts(albums), "Latest pickup")).toBeUndefined();
   });
+
+  it("leads with Most rotated when a record has 2+ plays", () => {
+    const a = makeAlbum({ id: "r1", artist: "Low (2)", title: "Hey What" });
+    const b = makeAlbum({ id: "r2", artist: "Broadcast", title: "Tender Buttons" });
+    const facts = deriveCollectionFacts([a, b], { r1: 3, r2: 1 });
+    expect(facts[0]).toEqual({ label: "Most rotated", value: "Low – Hey What" });
+  });
+
+  it("gates Most rotated behind the 2-play minimum", () => {
+    const a = makeAlbum({ id: "r1" });
+    expect(fact(deriveCollectionFacts([a], { r1: 1 }), "Most rotated")).toBeUndefined();
+  });
+
+  it("omits Most rotated when playCounts is not supplied", () => {
+    const a = makeAlbum({ id: "r1" });
+    expect(fact(deriveCollectionFacts([a]), "Most rotated")).toBeUndefined();
+  });
 });

@@ -1939,8 +1939,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const [collectionFacts, setCollectionFacts] = useState<CollectionFact[]>([]);
   useEffect(() => {
     if (collectionFacts.length > 0 || albums.length === 0) return;
-    setCollectionFacts(deriveCollectionFacts(albums));
-  }, [albums, collectionFacts]);
+    setCollectionFacts(deriveCollectionFacts(albums, playCounts));
+  }, [albums, collectionFacts, playCounts]);
   const collectionFact = useMemo(
     () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
     [collectionFacts]

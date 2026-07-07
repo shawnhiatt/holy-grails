@@ -20,9 +20,32 @@ const EXCLUDED_ARTISTS = new Set([
   "unknown",
 ]);
 
-export function deriveCollectionFacts(albums: Album[]): CollectionFact[] {
+export function deriveCollectionFacts(
+  albums: Album[],
+  playCounts?: Record<string, number>,
+): CollectionFact[] {
   const facts: CollectionFact[] = [];
   if (albums.length === 0) return facts;
+
+  // Most rotated — highest play count, presented first. 2+ plays required
+  // (a single play isn't a rotation pattern). Derived from existing
+  // last_played rows via the context playCounts map (keyed by album id) —
+  // no new tracking. First-wins on ties.
+  if (playCounts) {
+    let mostRotated: Album | null = null;
+    let mostRotatedN = 0;
+    for (const a of albums) {
+      const n = playCounts[a.id] ?? 0;
+      if (n > mostRotatedN) { mostRotated = a; mostRotatedN = n; }
+    }
+    if (mostRotated && mostRotatedN >= 2) {
+      const artist = mostRotated.artist.replace(/\s*\(\d+\)\s*$/, "").trim();
+      facts.push({
+        label: "Most rotated",
+        value: artist ? `${artist} – ${mostRotated.title}` : mostRotated.title,
+      });
+    }
+  }
 
   // Most collected decade — 5+ records, matching the Decades section minimum
   const byDecade = new Map<string, number>();
