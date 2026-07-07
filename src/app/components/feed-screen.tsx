@@ -1933,15 +1933,30 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
   const syncedAgo = formatSyncedAgo(lastSyncedAt);
 
-  // Collection facts — real data doing the personality work. Set once when
-  // albums hydrate, stable afterwards. Order is shuffled per app load so the
-  // ticker leads with a different fact each open. Rendered as a horizontal
-  // ticker, or a single centered line under reduced-motion / sparse data.
+  // Collection facts — real data doing the personality work. Derived once
+  // when albums hydrate; the derivation itself is stable. Order is shuffled
+  // for the ticker so it leads with a different fact each open. Rendered as
+  // a horizontal ticker, or a single centered line under reduced-motion /
+  // sparse data.
   const [collectionFacts, setCollectionFacts] = useState<CollectionFact[]>([]);
   useEffect(() => {
     if (collectionFacts.length > 0 || albums.length === 0) return;
     setCollectionFacts(shuffle(deriveCollectionFacts(albums, playCounts)));
   }, [albums, collectionFacts, playCounts]);
+  // Re-lead on each app open. A mount-time shuffle alone freezes the order
+  // for the life of the mount — and an installed PWA resumed from the
+  // background never remounts, so the same fact would lead every time the
+  // user reopens the app. Reshuffle whenever the tab returns to the
+  // foreground so each open feels fresh. (No reorder mid-view: the app is
+  // backgrounded when this fires.)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      setCollectionFacts((prev) => (prev.length > 1 ? shuffle(prev) : prev));
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
   const collectionFact = useMemo(
     () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
     [collectionFacts]
