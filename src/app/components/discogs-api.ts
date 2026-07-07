@@ -58,6 +58,8 @@ export interface Stack {
   albumIds: string[];
   createdAt: string;
   lastModified: string;
+  /** Capability-token share id when the session is shared; undefined otherwise. */
+  shareId?: string;
 }
 
 export interface FollowedUser {

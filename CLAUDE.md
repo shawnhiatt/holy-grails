@@ -38,7 +38,7 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 
 ### What lives in Convex (Holy Grails-exclusive)
 - Purge tags (keep / cut / maybe + timestamps), keyed by `discogs_username` + `release_id`
-- Sessions (name, album order, created/modified timestamps), keyed by `discogs_username` — stored in the `stacks` table (see the Sessions naming note below)
+- Sessions (name, album order, created/modified timestamps, optional `share_id`), keyed by `discogs_username` — stored in the `stacks` table (see the Sessions naming note below). A session can be shared via a **capability-token link**: `stacks.enableShare` mints an unguessable `share_id` (128-bit) indexed by `by_share_id`; `stacks.getShared` is **deliberately unauthenticated** (the `share_id` IS the capability) and returns only whitelisted display fields (`name`, `last_modified`, and per-album `title`/`artist`/`year`/`cover`/`thumb` joined from the sharer's `collection` cache) — never usernames, tokens, notes, conditions, price paid, or release ids. Unknown and revoked (`disableShare`) share ids are both `null`, following the Cross-User Data Pattern.
 - Following list (other Discogs users being followed in-app + `avatar_url`), keyed by `discogs_username`
 - Following feed cache (`following_feed` table — 50 most recent albums per followed user, 24h TTL per user, up to 25 users)
 - Wantlist cache (`wantlist` table — mirrors Discogs wantlist for offline/fast reads, 24h TTL synced alongside collection)
@@ -54,7 +54,7 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 The listening-sessions feature is called **Sessions** in all user-facing copy and documentation. It was briefly renamed "Stacks" (June 2026) and then rolled back to Sessions — but ONLY the verbiage rolled back. Internal names keep the stack-era naming and must not be renamed:
 - Convex table: `stacks` (in `convex/stacks.ts`). It CANNOT be renamed to `sessions` — an undeclared legacy `sessions` table from before the rename still holds old rows in both deployments, and declaring that name fails Convex schema validation.
 - Files: `stacks.tsx`, `stack-picker-sheet.tsx`, `convex/stacks.ts`
-- Code identifiers: the `Stack` type, `stacks` state, `createStackDirect`, `deleteStack`, `renameStack`, `toggleAlbumInStack`, `isInStack`, `reorderStackAlbums`, `stackPickerAlbumId`, `onNewStack`, etc.
+- Code identifiers: the `Stack` type, `stacks` state, `createStackDirect`, `deleteStack`, `renameStack`, `toggleAlbumInStack`, `isInStack`, `reorderStackAlbums`, `stackPickerAlbumId`, `onNewStack`, `shareStack`/`unshareStack` (context), `enableShare`/`disableShare`/`getShared` (Convex), `share_id`/`shareId`, etc. The share feature uses `stack*`/`share*` names, never `session*`.
 - Screen route key and stored `default_screen` preference value: `"stacks"`
 Do not rename these identifiers to `session*` — besides the table constraint, they would collide with auth session naming (`sessionToken`, `auth_sessions`). When writing user-facing copy or docs, always say Sessions.
 
@@ -189,6 +189,7 @@ Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config
 **Convex function tests** (`convex/*.test.ts`, via `convex-test`): run in the `edge-runtime` environment — each file opts in with a `// @vitest-environment edge-runtime` docblock as its FIRST line (it must precede the `/// <reference types="vite/client" />` line that types `import.meta.glob`). The Convex CLI ignores `*.test.ts` when deploying. These tests protect the security invariants and must never be weakened or deleted to make a change pass:
 - `authHelper.test.ts` — session-token guard: valid/unknown/empty/expired tokens, the 90-day TTL boundary, legacy single-token fallback, per-device sign-out isolation, and that `getMe`/`getLatestUser` never return `access_token`/`token_secret`/`session_token`.
 - `shareActivity.test.ts` — the Cross-User Data Pattern gate: unauthenticated viewers rejected, only `shareActivity === true` exposed, "not found" indistinguishable from "not opted in", no token leakage, and that viewers authenticated via the `auth_sessions` table (every fresh login) can read opted-in targets.
+- `stacks.test.ts` — the session-share capability gate: `getShared` returns only whitelisted display fields for a valid `share_id`, preserves album order, silently skips albums no longer in the collection, returns `null` for unknown/empty/revoked ids (revoked indistinguishable from unknown), `enableShare`/`disableShare` reject bad session tokens, `enableShare` is idempotent, and the payload never leaks username/tokens/notes/conditions/ids.
 
 **Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`/`isVinylFormat`, and the Fisher–Yates `shuffle`. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
 
@@ -235,8 +236,9 @@ src/
       loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
       reports-screen.tsx
       share-activity-prompt.tsx  # Full-screen, non-dismissable shareActivity opt-in prompt (see Cross-User Data Pattern)
+      shared-session-page.tsx  # Public, logged-out read-only view of a shared session (route /s/{shareId}). Rendered by App.tsx INSTEAD of the app for /s/ paths, outside AppProvider (no auth/sync). System-theme only (prefers-color-scheme). Reads convex/stacks.getShared (unauthenticated). No nav, no discogs.com links.
       stack-picker-sheet.tsx  # Session picker (file/identifier names keep stack* — see Sessions naming note)
-      stacks.tsx         # Sessions screen (file/identifier names keep stack* — see Sessions naming note)
+      stacks.tsx         # Sessions screen (file/identifier names keep stack* — see Sessions naming note). Per-session Share affordance (header icon → modal: Create/Share link via navigator.share or clipboard, Copy as text, Stop sharing) calls the context shareStack/unshareStack helpers.
       settings-screen.tsx
       splash-screen.tsx
       sync-status-line.tsx  # "Synced Xm ago" / "Up to date." line under the Collection/Wantlist search row; tappable manual sync probe
@@ -282,7 +284,7 @@ convex/                  # Convex backend functions and schema
   followed_items.ts    # Followed collections cache: getForUser, clearForUser/appendItems (internal)
   syncStatus.ts        # Sync progress doc: get (subscribed by client), set (internal)
   purge_tags.ts
-  stacks.ts            # Sessions feature data (table named `stacks` — see Sessions naming note)
+  stacks.ts            # Sessions feature data (table named `stacks` — see Sessions naming note). Includes capability-token share: enableShare/disableShare (authed) + getShared (unauthenticated public read)
   last_played.ts
   want_priorities.ts
   following.ts
