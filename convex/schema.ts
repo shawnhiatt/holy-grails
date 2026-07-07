@@ -40,6 +40,10 @@ export default defineSchema({
     // the num_collection / num_wantlist returned by the profile endpoint.
     last_collection_count: v.optional(v.number()),
     last_wantlist_count: v.optional(v.number()),
+    // Resumable releaseId watermark for the market-value drip (Spec 6). The
+    // daily cron processes up to a batch of stale rows above this releaseId,
+    // then advances it (wrapping to 0 at the end of the collection).
+    market_cursor: v.optional(v.number()),
   })
     .index("by_username", ["discogs_username"])
     .index("by_session_token", ["session_token"]),
@@ -140,6 +144,12 @@ export default defineSchema({
       options: v.optional(v.array(v.string())),
     }))),
     dateAdded: v.string(),
+    // Per-album market value (Spec 6), filled by the daily marketValueDrip
+    // cron. v.union(number, null) so "fetched, no listings" (null) is
+    // distinguishable from "never fetched" (undefined) — the latter is what
+    // rankings exclude and the drip re-visits.
+    marketValue: v.optional(v.union(v.number(), v.null())),
+    marketValueFetchedAt: v.optional(v.number()),
   })
     .index("by_username", ["discogsUsername"])
     .index("by_username_and_release", ["discogsUsername", "releaseId"]),

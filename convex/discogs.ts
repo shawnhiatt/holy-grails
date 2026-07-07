@@ -1,9 +1,10 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import crypto from "crypto";
+import { MARKET_STALE_MS, MARKET_BATCH_SIZE, nextMarketCursor } from "./marketValue";
 
 // ─── Config ───
 
@@ -1987,5 +1988,68 @@ export const proxyFetchMarketData = action({
       }
     }
     return suggestions.length ? suggestions : null;
+  },
+});
+
+// ── Per-album market value drip (Spec 6, Session A) ──
+// Daily cron (see convex/crons.ts). Walks each user's collection a batch at a
+// time, fetching lowest-ask prices from /marketplace/stats and storing them on
+// the collection rows. A slow drip by design — MARKET_BATCH_SIZE releases per
+// user per day — so it never competes with a user's own 60/min sync budget.
+export const marketValueDrip = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.runQuery(internal.discogsHelpers.listUsersForMarketDrip, {});
+    const staleBefore = Date.now() - MARKET_STALE_MS;
+
+    for (const user of users) {
+      try {
+        const batch = await ctx.runQuery(internal.collection.getMarketDripBatch, {
+          discogsUsername: user.username,
+          cursor: user.marketCursor,
+          staleBefore,
+          limit: MARKET_BATCH_SIZE,
+        });
+
+        let lastReleaseId: number | undefined;
+        for (const { releaseId } of batch) {
+          // Advance the cursor past every row we attempt, so a persistently
+          // failing release isn't re-hit every day — it retries on wraparound.
+          lastReleaseId = releaseId;
+          try {
+            const res = await discogsFetch(
+              "GET",
+              `${BASE}/marketplace/stats/${releaseId}`,
+              user.accessToken,
+              user.tokenSecret
+            );
+            if (!res.ok) continue; // transient/non-200 — leave unfetched, retry later
+            const data = await res.json();
+            // Stats returns lowest_price as { value, currency } | null. Store the
+            // value; null means no active listings.
+            const lp = data?.lowest_price;
+            const marketValue =
+              lp && typeof lp.value === "number" ? lp.value : null;
+            await ctx.runMutation(internal.collection.setMarketValue, {
+              discogsUsername: user.username,
+              releaseId,
+              marketValue,
+              fetchedAt: Date.now(),
+            });
+          } catch (e) {
+            console.warn(`[marketDrip] stats fetch failed for ${releaseId}:`, e);
+            // Leave this release unfetched; the next cycle retries it.
+          }
+        }
+
+        await ctx.runMutation(internal.users.setMarketCursor, {
+          discogsUsername: user.username,
+          cursor: nextMarketCursor(batch.length, lastReleaseId, MARKET_BATCH_SIZE),
+        });
+      } catch (e) {
+        // One user's revoked token or error must not kill the whole run.
+        console.warn(`[marketDrip] user ${user.username} skipped:`, e);
+      }
+    }
   },
 });

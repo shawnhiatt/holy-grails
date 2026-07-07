@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
 
 export const getByUsername = query({
@@ -360,6 +360,69 @@ export const addItem = mutation({
       notes: args.notes,
       customFields: args.customFields,
       dateAdded: args.dateAdded,
+    });
+  },
+});
+
+// ── Per-album market value drip (Spec 6, Session A) ──
+// Internal-only: driven by the daily marketValueDrip cron in convex/discogs.ts,
+// never exposed to clients.
+
+/**
+ * A batch of releases due for a market-value fetch: rows for `discogsUsername`
+ * with releaseId > cursor whose value is missing or older than `staleBefore`,
+ * ordered ascending by releaseId, capped at `limit`. The indexed range skips
+ * rows at/below the cursor; the filter skips fresh rows so the batch is up to
+ * `limit` genuinely-stale releases.
+ */
+export const getMarketDripBatch = internalQuery({
+  args: {
+    discogsUsername: v.string(),
+    cursor: v.number(),
+    staleBefore: v.number(),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("collection")
+      .withIndex("by_username_and_release", (q) =>
+        q.eq("discogsUsername", args.discogsUsername).gt("releaseId", args.cursor)
+      )
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("marketValueFetchedAt"), undefined),
+          q.lt(q.field("marketValueFetchedAt"), args.staleBefore)
+        )
+      )
+      .take(args.limit);
+    return rows.map((r) => ({ releaseId: r.releaseId }));
+  },
+});
+
+/**
+ * Write a fetched market value onto a collection row (releaseId + username
+ * keyed). `marketValue` is null when the release has no listings — stored with
+ * a timestamp so the drip doesn't hammer no-listing releases daily. No-op if
+ * the row has since left the collection.
+ */
+export const setMarketValue = internalMutation({
+  args: {
+    discogsUsername: v.string(),
+    releaseId: v.number(),
+    marketValue: v.union(v.number(), v.null()),
+    fetchedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("collection")
+      .withIndex("by_username_and_release", (q) =>
+        q.eq("discogsUsername", args.discogsUsername).eq("releaseId", args.releaseId)
+      )
+      .first();
+    if (!row) return;
+    await ctx.db.patch(row._id, {
+      marketValue: args.marketValue,
+      marketValueFetchedAt: args.fetchedAt,
     });
   },
 });
