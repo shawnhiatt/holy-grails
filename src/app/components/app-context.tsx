@@ -634,6 +634,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notes: row.notes,
         customFields: row.customFields,
         dateAdded: row.dateAdded,
+        marketValue: (row as any).marketValue,
+        marketValueFetchedAt: (row as any).marketValueFetchedAt,
         discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
         purgeTag: tagMap.get(row.releaseId) || null,
       }));

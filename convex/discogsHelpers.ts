@@ -24,3 +24,23 @@ export const getUserCredentials = internalQuery({
     };
   },
 });
+
+/**
+ * List every user that has usable OAuth credentials, with their market-drip
+ * cursor. Internal-only — feeds the daily marketValueDrip cron, which signs
+ * Discogs requests server-side with these tokens (they never reach a client).
+ */
+export const listUsersForMarketDrip = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((u) => u.access_token && u.token_secret)
+      .map((u) => ({
+        username: u.discogs_username,
+        accessToken: u.access_token,
+        tokenSecret: u.token_secret,
+        marketCursor: u.market_cursor ?? 0,
+      }));
+  },
+});

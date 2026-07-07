@@ -334,3 +334,19 @@ export const deleteAllUserData = mutation({
     await ctx.db.delete(user._id);
   },
 });
+
+/**
+ * Advance a user's market-value drip cursor (Spec 6). Internal-only — written
+ * by the daily marketValueDrip cron after processing a batch.
+ */
+export const setMarketCursor = internalMutation({
+  args: { discogsUsername: v.string(), cursor: v.number() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("discogs_username", args.discogsUsername))
+      .first();
+    if (!user) return;
+    await ctx.db.patch(user._id, { market_cursor: args.cursor });
+  },
+});
