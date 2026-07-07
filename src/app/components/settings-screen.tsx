@@ -89,6 +89,7 @@ export function SettingsScreen() {
   const [editLocation, setEditLocation] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [showContributions, setShowContributions] = useState(false);
+  const [showAccounts, setShowAccounts] = useState(false);
 
   const startEditProfile = useCallback(() => {
     setEditProfile(userProfile?.profile || "");
@@ -496,12 +497,26 @@ export function SettingsScreen() {
               </div>
             )}
 
-            {/* Accounts — switch between signed-in Discogs accounts, or add one */}
+            {/* Accounts accordion — switch between signed-in Discogs accounts, or add one */}
             {isAuthenticated && (
-              <div className="flex flex-col gap-1 pt-3" style={{ borderTop: "1px solid var(--c-border)" }}>
-                <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--c-text-muted)", marginBottom: "2px" }}>
-                  Accounts
-                </p>
+              <>
+                <div style={{ borderTop: "1px solid var(--c-border)" }} />
+                <button
+                  onClick={() => setShowAccounts(!showAccounts)}
+                  className="flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
+                >
+                  <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Accounts</span>
+                  <ChevronDown
+                    size={16}
+                    style={{
+                      color: "var(--c-text-muted)",
+                      transform: showAccounts ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 200ms ease-out",
+                    }}
+                  />
+                </button>
+                {showAccounts && (
+                  <div className="flex flex-col gap-1">
                 {accounts.map((a) => {
                   const active = a.username === discogsUsername;
                   const switching = switchingTo === a.username;
@@ -561,10 +576,9 @@ export function SettingsScreen() {
                   </div>
                   <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Add account</span>
                 </button>
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: "2px", paddingLeft: "2px" }}>
-                  You'll sign in on Discogs — use the account you want to add.
-                </p>
-              </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Sign out — visible when authenticated */}
