@@ -1934,12 +1934,13 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const syncedAgo = formatSyncedAgo(lastSyncedAt);
 
   // Collection facts — real data doing the personality work. Set once when
-  // albums hydrate, stable afterwards. Rendered as a horizontal ticker, or a
-  // single centered line under reduced-motion / sparse data.
+  // albums hydrate, stable afterwards. Order is shuffled per app load so the
+  // ticker leads with a different fact each open. Rendered as a horizontal
+  // ticker, or a single centered line under reduced-motion / sparse data.
   const [collectionFacts, setCollectionFacts] = useState<CollectionFact[]>([]);
   useEffect(() => {
     if (collectionFacts.length > 0 || albums.length === 0) return;
-    setCollectionFacts(deriveCollectionFacts(albums, playCounts));
+    setCollectionFacts(shuffle(deriveCollectionFacts(albums, playCounts)));
   }, [albums, collectionFacts, playCounts]);
   const collectionFact = useMemo(
     () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
