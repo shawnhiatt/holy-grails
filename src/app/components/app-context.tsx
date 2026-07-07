@@ -16,6 +16,14 @@ import {
   type UserProfile,
   isVinylFormat,
 } from "./discogs-api";
+import { initiateDiscogsOAuth, oauthInFlight } from "./oauth-helpers";
+import {
+  type StoredAccount,
+  parseAccounts,
+  upsertAccount,
+  removeAccount,
+  nextAccount,
+} from "../utils/accounts";
 
 // --- HMR-safe context singleton ---
 // During HMR, this module can be re-evaluated, creating a new context object.
@@ -186,6 +194,10 @@ interface AppState {
   // OAuth / session management
   loginWithOAuth: (user: { username: string; avatarUrl: string; sessionToken: string; is_new: boolean }) => Promise<void>;
   signOut: () => void;
+  // Multi-account (Spec 5) — client-side account switcher
+  accounts: StoredAccount[];
+  switchAccount: (username: string) => void;
+  addAccount: () => Promise<void>;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   isNewUser: boolean;
@@ -290,6 +302,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         localStorage.removeItem("hg_session_token");
       }
+    } catch { /* ignore — localStorage may be unavailable in some contexts */ }
+  }, []);
+
+  // ── Multi-account (Spec 5) ──
+  // All account state is client-side: an "account" is a stored session token.
+  // hg_session_token stays the ACTIVE token; hg_accounts holds every signed-in
+  // account. Switching = swap the active token + full reload (see switchAccount).
+  // localStorage I/O lives here (the only file permitted web storage); the pure
+  // list logic lives in utils/accounts.ts.
+  const readAccounts = useCallback((): StoredAccount[] => {
+    try {
+      return parseAccounts(localStorage.getItem("hg_accounts"));
+    } catch {
+      return [];
+    }
+  }, []);
+  const [accounts, setAccounts] = useState<StoredAccount[]>(() => readAccounts());
+  const persistAccounts = useCallback((next: StoredAccount[]) => {
+    setAccounts(next);
+    try {
+      localStorage.setItem("hg_accounts", JSON.stringify(next));
     } catch { /* ignore — localStorage may be unavailable in some contexts */ }
   }, []);
 
@@ -501,13 +534,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (hasSignedOutRef.current) return;
     if (!discogsUsername && sessionToken && convexLatestUser === null) {
-      // Stored token is invalid — clear it so the user sees the login screen
+      // Stored token is invalid/expired. Drop this account from the list.
+      // If another account remains, promote it (swap the active token + full
+      // reload) instead of dumping to login; otherwise clear → login screen.
+      const remaining = readAccounts().filter((a) => a.sessionToken !== sessionToken);
+      persistAccounts(remaining);
+      const promote = remaining[0];
+      if (promote) {
+        try {
+          localStorage.setItem("hg_session_token", promote.sessionToken);
+        } catch { /* ignore */ }
+        window.location.reload();
+        return;
+      }
       setSessionToken(null);
     }
     if (!discogsUsername && convexLatestUser) {
       setDiscogsUsernameRaw(convexLatestUser.discogs_username);
     }
-  }, [convexLatestUser, discogsUsername, sessionToken, setSessionToken]);
+  }, [convexLatestUser, discogsUsername, sessionToken, setSessionToken, readAccounts, persistAccounts]);
+
+  // Seed / refresh the active account in hg_accounts. Covers pre-existing
+  // signed-in users (who restore from hg_session_token and never call
+  // loginWithOAuth) and keeps the active account's stored token/avatar current.
+  useEffect(() => {
+    if (!discogsUsername || !sessionToken) return;
+    const current = readAccounts();
+    const existing = current.find((a) => a.username === discogsUsername);
+    if (
+      !existing ||
+      existing.sessionToken !== sessionToken ||
+      (userAvatar && existing.avatarUrl !== userAvatar)
+    ) {
+      persistAccounts(
+        upsertAccount(current, {
+          username: discogsUsername,
+          avatarUrl: userAvatar || existing?.avatarUrl || "",
+          sessionToken,
+          addedAt: existing?.addedAt ?? Date.now(),
+        }),
+      );
+    }
+  }, [discogsUsername, sessionToken, userAvatar, readAccounts, persistAccounts]);
 
   // Load user info (avatar, last synced) from Convex user record
   useEffect(() => {
@@ -1749,6 +1817,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserAvatar(user.avatarUrl || "");
     setIsNewUser(user.is_new);
 
+    // Record this account (also seeds the list on the very first login).
+    // Dedupes by username, so re-adding an account just refreshes its token.
+    persistAccounts(
+      upsertAccount(readAccounts(), {
+        username: user.username,
+        avatarUrl: user.avatarUrl || "",
+        sessionToken: user.sessionToken,
+        addedAt: Date.now(),
+      }),
+    );
+
     // Mark initial sync as done (we're about to trigger it explicitly)
     initialSyncDoneRef.current = true;
 
@@ -1758,7 +1837,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setInitialLoadDone(true);
     }
-  }, [setDiscogsUsername, performSync, setSessionToken]);
+  }, [setDiscogsUsername, performSync, setSessionToken, readAccounts, persistAccounts]);
+
+  // Switch to another stored account: swap the active token + full reload.
+  // The reload boots cleanly from Convex cache subscriptions (~1s) rather than
+  // replicating every hydration/reset in this file for an in-place swap.
+  const switchAccount = useCallback((username: string) => {
+    if (username === discogsUsername) return;
+    const target = readAccounts().find((a) => a.username === username);
+    if (!target) return;
+    try {
+      localStorage.setItem("hg_session_token", target.sessionToken);
+    } catch { /* ignore */ }
+    window.location.reload();
+  }, [discogsUsername, readAccounts]);
+
+  // Add another account: kick off the normal OAuth redirect. The user picks
+  // the account on Discogs' side; loginWithOAuth upserts it into the list on
+  // return. Same handshake as the splash login.
+  const addAccount = useCallback(async () => {
+    oauthInFlight.current = true;
+    try {
+      await initiateDiscogsOAuth();
+    } catch (err) {
+      oauthInFlight.current = false;
+      throw err;
+    }
+  }, []);
 
   // ── Share Activity opt-in ──
   // shareActivity reads from whichever user record query has resolved.
@@ -1783,6 +1888,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Clear auth session from Convex (keep purge tags, stacks, etc.)
     if (sessionToken) {
       clearSessionMut({ sessionToken });
+    }
+
+    // Drop the active account from the list. If another account remains,
+    // promote it (swap active token + reload) instead of returning to login.
+    const current = readAccounts();
+    const promote = nextAccount(current, discogsUsername);
+    persistAccounts(removeAccount(current, discogsUsername));
+    if (promote) {
+      try {
+        localStorage.setItem("hg_session_token", promote.sessionToken);
+        sessionStorage.removeItem("hg_oauth_token_secret");
+      } catch { /* ignore */ }
+      window.location.reload();
+      return;
     }
 
     // Clear local auth state
@@ -1839,7 +1958,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       preferences: false,
     };
     initialSyncDoneRef.current = false;
-  }, [sessionToken, clearSessionMut, setDiscogsUsername]);
+  }, [sessionToken, clearSessionMut, setDiscogsUsername, discogsUsername, readAccounts, persistAccounts]);
 
   // ── Clear actions (Settings > Data) ──
 
@@ -1866,6 +1985,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (sessionToken) {
       await deleteAllUserDataMut({ sessionToken });
     }
+
+    // Drop this account from the multi-account list too.
+    persistAccounts(removeAccount(readAccounts(), discogsUsername));
 
     // Then reset all client state
     setAlbums([]);
@@ -1911,7 +2033,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       preferences: false,
     };
     initialSyncDoneRef.current = false;
-  }, [sessionToken, deleteAllUserDataMut, setDiscogsUsername]);
+  }, [sessionToken, deleteAllUserDataMut, setDiscogsUsername, discogsUsername, readAccounts, persistAccounts]);
 
   // ── Connect Discogs flow trigger ──
 
@@ -2258,6 +2380,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // OAuth / session management
       loginWithOAuth,
       signOut,
+      accounts,
+      switchAccount,
+      addAccount,
       isAuthenticated,
       isAuthLoading,
       isNewUser,
@@ -2315,7 +2440,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateAlbum, removeFromCollection,
       selectedWantItem, selectedFeedAlbum, followingActivityTabIntent, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
-      loginWithOAuth, signOut, isAuthenticated, isAuthLoading, isNewUser,
+      loginWithOAuth, signOut, accounts, switchAccount, addAccount, isAuthenticated, isAuthLoading, isNewUser,
       shareActivity, showSharePrompt, setShareActivity,
       followingFeed, followingAvatars, cachedSyncStats,
       onNewStack, onAddFollowedUser, followedUserProfile, onBackFromProfile, onUnfollowUser,
