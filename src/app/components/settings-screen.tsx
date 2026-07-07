@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil } from "./icons";
+import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus } from "./icons";
+import { getInitial } from "../utils/format";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
 import { SlideOutPanel } from "./slide-out-panel";
@@ -47,6 +48,9 @@ export function SettingsScreen() {
     hidePurgeIndicators,
     setHidePurgeIndicators,
     signOut,
+    accounts,
+    switchAccount,
+    addAccount,
     isAuthenticated,
     userAvatar,
     userProfile,
@@ -69,6 +73,7 @@ export function SettingsScreen() {
 
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const [motionDenied, setMotionDenied] = useState(false);
   const [showFolders, setShowFolders] = useState(false);
   const motionDeniedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,6 +183,20 @@ export function SettingsScreen() {
   const handleSignOut = () => {
     signOut();
     toast.success("Signed out.");
+  };
+
+  const handleSwitchAccount = (username: string) => {
+    if (username === discogsUsername || switchingTo) return;
+    setSwitchingTo(username); // brief pressed state before the reload
+    switchAccount(username);
+  };
+
+  const handleAddAccount = async () => {
+    try {
+      await addAccount(); // page redirects to Discogs
+    } catch {
+      toast.error("Couldn't start sign-in.");
+    }
   };
 
   const handleConfirmClear = async () => {
@@ -474,6 +493,77 @@ export function SettingsScreen() {
               <div className="flex items-center justify-center gap-1.5">
                 <CheckCircle2 size={13} className="text-[#22C55E]" />
                 <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
+              </div>
+            )}
+
+            {/* Accounts — switch between signed-in Discogs accounts, or add one */}
+            {isAuthenticated && (
+              <div className="flex flex-col gap-1 pt-3" style={{ borderTop: "1px solid var(--c-border)" }}>
+                <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--c-text-muted)", marginBottom: "2px" }}>
+                  Accounts
+                </p>
+                {accounts.map((a) => {
+                  const active = a.username === discogsUsername;
+                  const switching = switchingTo === a.username;
+                  return (
+                    <button
+                      key={a.username}
+                      onClick={() => handleSwitchAccount(a.username)}
+                      disabled={active || !!switchingTo}
+                      aria-label={active ? `${a.username}, current account` : `Switch to ${a.username}`}
+                      aria-pressed={active}
+                      className="w-full flex items-center gap-2.5 py-2 px-2 rounded-[8px] tappable transition-colors"
+                      style={{ cursor: active ? "default" : "pointer" }}
+                    >
+                      {a.avatarUrl ? (
+                        <img src={a.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div
+                          className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center"
+                          style={{ backgroundColor: "var(--c-chip-bg)", fontSize: "12px", fontWeight: 600, color: "var(--c-text-secondary)" }}
+                        >
+                          {getInitial(a.username)}
+                        </div>
+                      )}
+                      <span
+                        className="flex-1 text-left"
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          color: "var(--c-text)",
+                          display: "block",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          WebkitTextOverflow: "ellipsis",
+                          maxWidth: "100%",
+                        } as React.CSSProperties}
+                      >
+                        {a.username}
+                      </span>
+                      {switching ? (
+                        <Disc3 size={16} className="disc-spinner flex-shrink-0" style={{ color: "var(--c-text-muted)" }} />
+                      ) : active ? (
+                        <Check size={16} className="flex-shrink-0" style={{ color: "var(--c-link)" }} />
+                      ) : null}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={handleAddAccount}
+                  disabled={!!switchingTo}
+                  aria-label="Add account"
+                  className="w-full flex items-center gap-2.5 py-2 px-2 rounded-[8px] tappable transition-colors"
+                  style={{ cursor: "pointer" }}
+                >
+                  <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center" style={{ border: "1px solid var(--c-border-strong)" }}>
+                    <UserPlus size={15} style={{ color: "var(--c-text-secondary)" }} />
+                  </div>
+                  <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Add account</span>
+                </button>
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: "2px", paddingLeft: "2px" }}>
+                  You'll sign in on Discogs — use the account you want to add.
+                </p>
               </div>
             )}
 

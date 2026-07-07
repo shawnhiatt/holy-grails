@@ -69,13 +69,13 @@ export default tseslint.config(
         },
       ],
 
-      // Data Architecture: no localStorage/sessionStorage outside the three
+      // Data Architecture: no localStorage/sessionStorage outside the
       // whitelisted uses (overrides below).
       "no-restricted-globals": [
         "error",
         {
           name: "localStorage",
-          message: "localStorage is only permitted for hg_session_token (app-context) and hg_install_nudge_dismissed (install-nudge). See CLAUDE.md.",
+          message: "localStorage is only permitted for hg_session_token + hg_accounts (app-context) and hg_install_nudge_dismissed (install-nudge). See CLAUDE.md.",
         },
         {
           name: "sessionStorage",
@@ -116,9 +116,10 @@ export default tseslint.config(
       "no-restricted-imports": "off",
     },
   },
-  // localStorage whitelist (see CLAUDE.md "localStorage is permitted in two
-  // places"). app-context also defensively clears the OAuth sessionStorage
-  // key on sign-out/data-wipe, so both storages are allowed there.
+  // localStorage whitelist (see CLAUDE.md "localStorage is permitted in three
+  // places" — hg_session_token + hg_accounts here, hg_install_nudge_dismissed
+  // in install-nudge). app-context also defensively clears the OAuth
+  // sessionStorage key on sign-out/data-wipe, so both storages are allowed here.
   {
     files: ["src/app/components/app-context.tsx"],
     rules: {
