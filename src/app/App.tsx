@@ -16,6 +16,7 @@ import { useShake } from "./components/use-shake";
 import { FeedScreen } from "./components/feed-screen";
 import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
+import { SharedSessionPage } from "./components/shared-session-page";
 import { LoadingScreen } from "./components/loading-screen";
 import { StackPickerSheet } from "./components/stack-picker-sheet";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./components/motion-tokens";
@@ -583,6 +584,16 @@ function AppContent() {
 }
 
 export default function App() {
+  // Public shared-session route — rendered logged-out, outside AppProvider so
+  // an anonymous viewer never mounts the auth/sync machinery. The unguessable
+  // shareId in the path is the capability (see convex/stacks.ts getShared).
+  if (window.location.pathname.startsWith("/s/")) {
+    return (
+      <ErrorBoundary>
+        <SharedSessionPage />
+      </ErrorBoundary>
+    );
+  }
   return (
     <ErrorBoundary>
       <AppProvider>

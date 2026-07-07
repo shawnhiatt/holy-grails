@@ -60,7 +60,12 @@ export default defineSchema({
     album_ids: v.array(v.number()),
     created_at: v.number(),
     last_modified: v.number(),
-  }).index("by_username", ["discogs_username"]),
+    // Capability-token share link. Unset = not shared. The unguessable
+    // share_id IS the capability — getShared is intentionally unauthenticated.
+    share_id: v.optional(v.string()),
+  })
+    .index("by_username", ["discogs_username"])
+    .index("by_share_id", ["share_id"]),
 
   last_played: defineTable({
     discogs_username: v.string(),

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Headphones, Calendar, Disc3, Trash2, ChevronLeft, ChevronRight, GripVertical, Pencil, AlertTriangle } from "./icons";
+import { Plus, Headphones, Calendar, Disc3, Trash2, ChevronLeft, ChevronRight, GripVertical, Pencil, AlertTriangle, Share } from "./icons";
 import { motion, AnimatePresence, Reorder } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
@@ -12,7 +12,7 @@ export function Stacks() {
   const {
     stacks, albums, deleteStack, renameStack, createStackDirect, isAuthenticated,
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInStack, reorderStackAlbums,
-    setOnNewStack,
+    setOnNewStack, shareStack, unshareStack,
   } = useApp();
 
   const [showNewStack, setShowNewStack] = useState(false);
@@ -69,6 +69,9 @@ export function Stacks() {
           onAlbumTap={(albumId) => { setSelectedAlbumId(albumId); setShowAlbumDetail(true); }}
           onRemoveAlbum={(albumId) => toggleAlbumInStack(albumId, activeStack.id)}
           onReorderAlbums={reorderStackAlbums}
+          isShared={!!activeStack.shareId}
+          onShare={() => shareStack(activeStack.id)}
+          onUnshare={() => unshareStack(activeStack.id)}
         />
         <AnimatePresence>
           {showAddDrawer && (
@@ -191,6 +194,7 @@ export function Stacks() {
    ═══════════════════════════════════════════════════════════ */
 function StackDetail({
   stack, albums, onBack, onDelete, onRename, onOpenDrawer, onAlbumTap, onRemoveAlbum, onReorderAlbums,
+  isShared, onShare, onUnshare,
 }: {
   stack: { id: string; name: string; albumIds: string[]; createdAt: string };
   albums: { id: string; title: string; artist: string; thumb?: string; cover: string }[];
@@ -201,10 +205,15 @@ function StackDetail({
   onAlbumTap: (albumId: string) => void;
   onRemoveAlbum: (albumId: string) => void;
   onReorderAlbums: (stackId: string, newOrder: string[]) => void;
+  isShared: boolean;
+  onShare: () => Promise<string>;
+  onUnshare: () => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(stack.name);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const stackAlbums = stack.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
@@ -226,6 +235,57 @@ function StackDetail({
   const handleConfirmDelete = () => {
     setShowDeleteConfirm(false);
     onDelete();
+  };
+
+  const handleShareLink = async () => {
+    if (shareBusy) return;
+    setShareBusy(true);
+    try {
+      const url = await onShare();
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: stack.name, url });
+        } catch {
+          // User dismissed the share sheet — no-op.
+        }
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied.", { duration: 1500 });
+      }
+      setShowShare(false);
+    } catch {
+      toast.error("Couldn't share. Try again.", { duration: 1500 });
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleCopyText = async () => {
+    const text = [
+      stack.name,
+      ...stackAlbums.map((a, i) => `${i + 1}. ${a!.artist} – ${a!.title}`),
+    ].join("\n");
+    try {
+      await navigator.clipboard?.writeText(text);
+      toast.success("Copied.", { duration: 1500 });
+      setShowShare(false);
+    } catch {
+      toast.error("Couldn't copy. Try again.", { duration: 1500 });
+    }
+  };
+
+  const handleStopSharing = async () => {
+    if (shareBusy) return;
+    setShareBusy(true);
+    try {
+      await onUnshare();
+      toast("Sharing stopped.", { duration: 1500 });
+      setShowShare(false);
+    } catch {
+      toast.error("Couldn't stop sharing. Try again.", { duration: 1500 });
+    } finally {
+      setShareBusy(false);
+    }
   };
 
   return (
@@ -277,6 +337,17 @@ function StackDetail({
               </button>
             )}
           </div>
+          <button
+            onClick={() => setShowShare(true)}
+            aria-label="Share session"
+            className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors flex-shrink-0"
+            style={{
+              color: isShared ? "var(--c-link)" : "var(--c-text-muted)",
+              border: `1px solid ${isShared ? "var(--c-link)" : "var(--c-border-strong)"}`,
+            }}
+          >
+            <Share size={16} weight={isShared ? "fill" : "regular"} />
+          </button>
         </div>
         <p className="pl-10" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
           {stack.albumIds.length} album{stack.albumIds.length !== 1 ? "s" : ""} &middot; Created {new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -419,6 +490,80 @@ function StackDetail({
                   Delete
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Share modal */}
+      <AnimatePresence>
+        {showShare && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, pointerEvents: "none" as const }}
+              transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setShowShare(false)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Share session"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+              className="relative z-10 mx-6 w-full max-w-[340px] rounded-[16px] p-6"
+              style={{ backgroundColor: "var(--c-surface)", boxShadow: "var(--c-card-shadow)" }}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: "var(--c-chip-bg)" }}>
+                  <Share size={22} style={{ color: "var(--c-text-secondary)" }} />
+                </div>
+                <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", marginBottom: "6px" }}>
+                  Share this session
+                </p>
+                <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  Anyone with the link can view it. No login needed.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5 mt-5">
+                <button
+                  onClick={handleShareLink}
+                  disabled={shareBusy}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-50"
+                  style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                >
+                  {shareBusy ? <Disc3 size={16} className="disc-spinner" /> : <Share size={16} />}
+                  {isShared ? "Share link" : "Create link"}
+                </button>
+                <button
+                  onClick={handleCopyText}
+                  className="w-full py-2.5 rounded-[10px] tappable transition-colors"
+                  style={{ fontSize: "14px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}
+                >
+                  Copy as text
+                </button>
+                {isShared && (
+                  <button
+                    onClick={handleStopSharing}
+                    disabled={shareBusy}
+                    className="w-full py-2 tappable transition-colors disabled:opacity-50"
+                    style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}
+                  >
+                    Stop sharing
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setShowShare(false)}
+                className="w-full mt-2 py-2 tappable transition-colors"
+                style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-faint)" }}
+              >
+                Cancel
+              </button>
             </motion.div>
           </div>
         )}

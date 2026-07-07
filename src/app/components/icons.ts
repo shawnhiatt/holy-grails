@@ -50,6 +50,7 @@ export {
   BarcodeIcon as ScanBarcode,
   ScissorsIcon as Scissors,
   MagnifyingGlassIcon as Search,
+  ShareFatIcon as Share,
   ShuffleIcon as Shuffle,
   SlidersHorizontalIcon as SlidersHorizontal,
   SquareIcon as Square,

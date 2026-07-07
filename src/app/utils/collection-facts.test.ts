@@ -79,7 +79,9 @@ describe("deriveCollectionFacts", () => {
     expect(fact(deriveCollectionFacts(albums), "Latest pickup")).toBeUndefined();
   });
 
-  it("leads with Most rotated when a record has 2+ plays", () => {
+  it("derives Most rotated for the highest-play record with 2+ plays", () => {
+    // The feed shuffles fact order for the ticker; the derivation itself
+    // returns Most rotated as the first fact.
     const a = makeAlbum({ id: "r1", artist: "Low (2)", title: "Hey What" });
     const b = makeAlbum({ id: "r2", artist: "Broadcast", title: "Tender Buttons" });
     const facts = deriveCollectionFacts([a, b], { r1: 3, r2: 1 });

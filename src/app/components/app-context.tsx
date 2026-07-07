@@ -85,6 +85,8 @@ interface AppState {
   deleteStack: (stackId: string) => void;
   renameStack: (stackId: string, name: string) => void;
   reorderStackAlbums: (stackId: string, albumIds: string[]) => void;
+  shareStack: (stackId: string) => Promise<string>;
+  unshareStack: (stackId: string) => Promise<void>;
   showFilterDrawer: boolean;
   setShowFilterDrawer: (v: boolean) => void;
   showAlbumDetail: boolean;
@@ -397,6 +399,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createStackMut = useMutation(api.stacks.create);
   const updateStackMut = useMutation(api.stacks.update);
   const removeStackMut = useMutation(api.stacks.remove);
+  const enableShareMut = useMutation(api.stacks.enableShare);
+  const disableShareMut = useMutation(api.stacks.disableShare);
   const logPlayMut = useMutation(api.last_played.logPlay);
   const deletePlayMut = useMutation(api.last_played.deletePlay);
   const clearLastPlayedMut = useMutation(api.last_played.clearAll);
@@ -731,6 +735,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           albumIds: s.album_ids.map(String),
           createdAt: new Date(s.created_at).toISOString().split("T")[0],
           lastModified: new Date(s.last_modified).toISOString(),
+          shareId: s.share_id,
         })));
       }
     }
@@ -1302,6 +1307,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }).catch(console.error);
     }
   }, [sessionToken, updateStackMut]);
+
+  // Turn on sharing — returns the share URL. Idempotent server-side, so a
+  // re-share of an already-shared session returns the same link.
+  const shareStack = useCallback(async (stackId: string): Promise<string> => {
+    if (!sessionToken) throw new Error("Not authenticated");
+    const shareId = await enableShareMut({ sessionToken, stack_id: stackId });
+    setStacks((prev) =>
+      prev.map((s) => (s.id === stackId ? { ...s, shareId } : s))
+    );
+    return `${window.location.origin}/s/${shareId}`;
+  }, [sessionToken, enableShareMut]);
+
+  // Revoke a session's share link.
+  const unshareStack = useCallback(async (stackId: string): Promise<void> => {
+    if (!sessionToken) return;
+    await disableShareMut({ sessionToken, stack_id: stackId });
+    setStacks((prev) =>
+      prev.map((s) => (s.id === stackId ? { ...s, shareId: undefined } : s))
+    );
+  }, [sessionToken, disableShareMut]);
 
   // ── Following ──
 
@@ -2133,6 +2158,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteStack,
       renameStack,
       reorderStackAlbums,
+      shareStack,
+      unshareStack,
       showFilterDrawer,
       showDiscogsSearch,
       setShowDiscogsSearch,
@@ -2261,7 +2288,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
       toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,
-      deleteStack, renameStack, reorderStackAlbums,
+      deleteStack, renameStack, reorderStackAlbums, shareStack, unshareStack,
       showFilterDrawer, showAlbumDetail, showDiscogsSearch,
       purgeFilter, wantFilter,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,

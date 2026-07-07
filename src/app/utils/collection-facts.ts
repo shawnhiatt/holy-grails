@@ -27,10 +27,11 @@ export function deriveCollectionFacts(
   const facts: CollectionFact[] = [];
   if (albums.length === 0) return facts;
 
-  // Most rotated — highest play count, presented first. 2+ plays required
-  // (a single play isn't a rotation pattern). Derived from existing
-  // last_played rows via the context playCounts map (keyed by album id) —
-  // no new tracking. First-wins on ties.
+  // Most rotated — highest play count. 2+ plays required (a single play
+  // isn't a rotation pattern). Derived from existing last_played rows via
+  // the context playCounts map (keyed by album id) — no new tracking.
+  // First-wins on ties. Facts are returned in a stable derivation order;
+  // the feed shuffles them per load, so ticker position is not fixed here.
   if (playCounts) {
     let mostRotated: Album | null = null;
     let mostRotatedN = 0;
