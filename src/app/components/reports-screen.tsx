@@ -10,6 +10,7 @@ import { useApp, type Screen } from "./app-context";
 import type { Album } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
+import { bucketAddsByYear, deriveSpending } from "../utils/insights";
 import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
 import { NoDiscogsCard } from "./no-discogs-card";
@@ -1140,6 +1141,7 @@ function ListeningActivitySection({
 
 function PurgeProgressSection({ albums }: { albums: Album[] }) {
   const { isDarkMode, setScreen } = useApp();
+  const hasCollectionValue = getCachedCollectionValue() !== null;
 
   const stats = useMemo(() => {
     const keep = albums.filter((a) => a.purgeTag === "keep").length;
@@ -1276,6 +1278,178 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         {stats.rated > 0
           ? `You've evaluated ${Math.round(stats.pct)}% of your collection`
           : "No verdicts yet. Open Purge to start."}
+      </p>
+
+      {/* Cut-pile callout — count only for now. Upgrades to a dollar figure
+          once per-album market values land (Spec 6). */}
+      {hasCollectionValue && stats.cut >= 3 && (
+        <p
+          className="mt-3 text-center"
+          style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}
+        >
+          Cutting deadweight: {stats.cut} records tagged Cut.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────── SECTION: Collection Growth ─────────────────── */
+
+function CollectionGrowthSection({ albums }: { albums: Album[] }) {
+  const { isDarkMode } = useApp();
+
+  const data = useMemo(() => bucketAddsByYear(albums), [albums]);
+  const total = useMemo(() => data.reduce((sum, d) => sum + d.count, 0), [data]);
+  const peak = useMemo(() => {
+    if (data.length === 0) return null;
+    let p = data[0];
+    for (const d of data) if (d.count > p.count) p = d;
+    return p;
+  }, [data]);
+
+  // Gate: needs a couple of years and enough records to read as a trend.
+  if (data.length < 2 || total < 10 || !peak) return null;
+
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Collection Growth</p>
+      <div className="mt-4" style={{ height: 180 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
+            <XAxis
+              dataKey="year"
+              tickLine={false}
+              axisLine={false}
+              interval={0}
+              tick={{ fontSize: 10, fill: "var(--c-text-faint)" }}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
+              allowDecimals={false}
+            />
+            <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} added`} />} />
+            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36}>
+              {/* Current-year bar in the brand yellow, edged with brass gold in
+                  light mode so it holds on a white card (matches the peak-decade
+                  convention in ByDecadeChart). */}
+              {data.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={entry.year === currentYear ? "#EBFD00" : CHART_BLUE}
+                  stroke={entry.year === currentYear && !isDarkMode ? "#8C6800" : undefined}
+                  strokeWidth={entry.year === currentYear && !isDarkMode ? 1.5 : undefined}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div
+        className="mt-3 rounded-[10px] px-4 py-3"
+        style={{
+          backgroundColor: isDarkMode ? "rgba(235, 253, 0, 0.08)" : "rgba(235, 253, 0, 0.28)",
+          border: isDarkMode ? "1px solid rgba(235, 253, 0, 0.2)" : "1px solid rgba(140, 104, 0, 0.4)",
+        }}
+      >
+        <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)", lineHeight: 1.4, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+          {peak.year === currentYear
+            ? "Your biggest year yet"
+            : `${peak.count} records added in ${peak.year}`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── SECTION: Spending ─────────────────── */
+
+function SpendingSection({ albums }: { albums: Album[] }) {
+  const summary = useMemo(() => deriveSpending(albums), [albums]);
+
+  // Gate: needs a handful of priced records before a spend picture is honest.
+  if (summary.count < 5 || !summary.priciest) return null;
+
+  const stats = [
+    { label: "Total spent", value: formatCurrency(summary.total) },
+    { label: "Avg. per record", value: formatCurrency(summary.average) },
+  ];
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Spending</p>
+      <div className="grid grid-cols-2 gap-2 mt-4">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="rounded-[10px] py-3 px-3 text-center"
+            style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
+          >
+            <span
+              style={{
+                fontSize: "22px",
+                fontWeight: 700,
+                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                color: "var(--c-text)",
+                lineHeight: 1.2,
+              }}
+            >
+              {s.value}
+            </span>
+            <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", marginTop: 2 }}>{s.label}</p>
+          </div>
+        ))}
+      </div>
+      <div
+        className="mt-2 rounded-[10px] py-2.5 px-3 flex items-center justify-between gap-3"
+        style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Most expensive</p>
+          <p
+            style={{
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "var(--c-text)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              display: "block",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              WebkitTextOverflow: "ellipsis",
+              maxWidth: "100%",
+            } as React.CSSProperties}
+          >
+            {summary.priciest.title}
+          </p>
+        </div>
+        <span
+          className="shrink-0"
+          style={{ fontSize: "15px", fontWeight: 700, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}
+        >
+          {formatCurrency(summary.priciest.price)}
+        </span>
+      </div>
+      <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+        Based on {summary.count} of {albums.length} records with a price on file.
       </p>
     </div>
   );
@@ -1425,6 +1599,11 @@ export function ReportsScreen() {
             <CollectionValueSection albums={albums} />
           </div>
 
+          {/* Spending */}
+          <div className="lg:col-span-2">
+            <SpendingSection albums={albums} />
+          </div>
+
           {/* Listening Activity */}
           <div className="lg:col-span-2">
             <ListeningActivitySection
@@ -1460,6 +1639,11 @@ export function ReportsScreen() {
               albums={albums}
               onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
             />
+          </div>
+
+          {/* Collection Growth — after Breakdown, before Top Artists */}
+          <div className="lg:col-span-2">
+            <CollectionGrowthSection albums={albums} />
           </div>
 
           {/* Artists */}
