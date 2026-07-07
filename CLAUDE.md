@@ -191,7 +191,7 @@ Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config
 - `shareActivity.test.ts` — the Cross-User Data Pattern gate: unauthenticated viewers rejected, only `shareActivity === true` exposed, "not found" indistinguishable from "not opted in", no token leakage, and that viewers authenticated via the `auth_sessions` table (every fresh login) can read opted-in targets.
 - `stacks.test.ts` — the session-share capability gate: `getShared` returns only whitelisted display fields for a valid `share_id`, preserves album order, silently skips albums no longer in the collection, returns `null` for unknown/empty/revoked ids (revoked indistinguishable from unknown), `enableShare`/`disableShare` reject bad session tokens, `enableShare` is idempotent, and the payload never leaks username/tokens/notes/conditions/ids.
 
-**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`/`isVinylFormat`, and the Fisher–Yates `shuffle`. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
+**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`/`isVinylFormat`, the Fisher–Yates `shuffle`, and `insights.ts` (price parsing, add-year bucketing, spend aggregation — including euro/junk/zero price rejection). Shared `makeAlbum` factory lives in `src/test/factories.ts`.
 
 When adding a new guarded Convex function or a new cross-user query, add tests for its auth guard / shareActivity gate in the same session.
 
@@ -264,6 +264,7 @@ src/
       format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
       shuffle.ts         # Fisher-Yates shuffle + pickRandom — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
       collection-facts.ts  # deriveCollectionFacts(albums, playCounts?) — threshold-gated stat lines (most rotated [2+ plays; derived from the optional playCounts map, no new tracking], top decade/artist/label, oldest pressing, latest pickup with artist) for the feed identity-block ticker. Returns a stable derivation order; the feed shuffles the facts per load for ticker display.
+      insights.ts        # Pure derivations for the Insights phase-1 sections (Spec 4): parsePricePaid (defensive free-text price parse), parseAddedYear, bucketAddsByYear (Collection Growth), deriveSpending. No React/recharts — testable in node env.
   imports/               # Logo SVG assets (splash, dark, light — the light variant has navy #0C284A letters for light backgrounds; the dark variant has white letters. Both keep the yellow record-dot with navy spindle hole)
   lib/
     condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail (incl. the Value section), reports-screen.
@@ -794,13 +795,18 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 5. **Top Artists**: Ranked list (#1–#10). Filters to artists with 2+ albums. Hidden if fewer than 3 qualify. Excludes "Various", "Various Artists", "Unknown Artist", "Unknown". #1 rank in #EBFD00, #2–3 in var(--c-text-muted), #4+ in var(--c-text-faint). Disambig suffixes (e.g. " (2)") stripped before grouping.
 6. **Top Labels**: Lollipop chart (thin stem + dot). Filters to labels with 2+ albums, cap 10. Hidden if fewer than 3 qualify. Dot color: CHART_BLUE (#0DB1F2).
 7. **Listening Activity**: Stats grid (played this month in green Keep styling, days since last played, no plays recorded count), "No Spins on File" neglected album list, "Recently Played" list (max 5, hidden entirely if no plays logged).
-8. **Purge Progress**: Donut ring, 2×2 stat grid (Keep/Cut/Maybe/Unrated).
+8. **Purge Progress**: Donut ring, 2×2 stat grid (Keep/Cut/Maybe/Unrated). When a cached collection value exists and 3+ albums are tagged Cut, a "Cutting deadweight: {N} records tagged Cut." callout line (count-only; upgrades to a dollar figure once per-album market values land in Spec 6).
+9. **Spending**: Stat grid (total spent, avg. per record) + a "Most expensive" row (title + price), under the "Based on {N} of {total} records with a price on file." microcopy. Aggregates `pricePaid` (free text) via `parsePricePaid` in `utils/insights.ts` — accepts US formatting, skips empty/junk/euro-decimal-comma/zero/negative. Neutral (not green) — money out. Rendered after Collection Value.
+10. **Collection Growth**: recharts BarChart of records added per year (from `dateAdded`), capped to the last 10 years, current-year bar in #EBFD00 (edged brass gold in light mode, matching the peak-decade convention). Yellow callout pill: "{N} records added in {year}" for the biggest year, or "Your biggest year yet" when the biggest year is the current one. Derived via `bucketAddsByYear` in `utils/insights.ts`. Rendered after Breakdown, before Top Artists.
 
 **Minimum data thresholds** (sections render null if not met — no empty states):
 - Top Artists: 3+ artists with 2+ albums
 - Top Labels: 3+ labels with 2+ albums
 - By Decade golden era callout: 3+ distinct decades
 - By Format tab: 2+ distinct format types
+- Spending: 5+ albums with a parseable `pricePaid`
+- Collection Growth: 2+ distinct add-years and 10+ total records
+- Purge × value callout: cached collection value present and 3+ Cut
 
 ### Convex View Mode Fields
 
