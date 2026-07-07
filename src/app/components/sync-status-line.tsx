@@ -4,13 +4,13 @@ import { useApp } from "./app-context";
 import { formatSyncedAgo } from "../utils/format";
 
 /**
- * Compact "Last synced 3h ago" line that doubles as a manual refresh trigger.
- * Tapping runs the cheap change probe (refreshFromDiscogs) — a real sync only
- * happens if Discogs actually changed. Shows a spinning Disc3 while syncing.
- * Placed under the search/filter row on Collection and Wantlist.
+ * Compact "Last synced 3h ago" metadata line under the search/filter row on
+ * Collection and Wantlist. Read-only — it reports when the collection was last
+ * fetched, not a control. Shows a spinning Disc3 while a sync is in flight.
+ * Renders nothing until a sync has happened (nothing to report yet).
  */
 export function SyncStatusLine({ className = "" }: { className?: string }) {
-  const { lastSyncedAt, refreshFromDiscogs, isBackgroundSyncing, isSyncing, isAuthenticated } = useApp();
+  const { lastSyncedAt, isBackgroundSyncing, isSyncing, isAuthenticated } = useApp();
   const syncing = isBackgroundSyncing || isSyncing;
 
   // Tick once a minute so the relative time stays current without a sync.
@@ -23,31 +23,25 @@ export function SyncStatusLine({ className = "" }: { className?: string }) {
   if (!isAuthenticated) return null;
 
   const ago = formatSyncedAgo(lastSyncedAt);
-  const label = syncing ? "Syncing" : ago ? `Last synced ${ago}` : "Sync now";
+
+  // Nothing to report until the first fetch completes.
+  if (!syncing && !ago) return null;
 
   return (
-    <button
-      onClick={() => { if (!syncing) refreshFromDiscogs(); }}
-      disabled={syncing}
-      className={`flex items-center gap-1.5 tappable ${className}`}
+    <div
+      className={`flex items-center gap-1.5 ${className}`}
       style={{
         fontSize: "12px",
         fontWeight: 500,
         fontFamily: "'DM Sans', system-ui, sans-serif",
         color: "var(--c-text-muted)",
-        background: "none",
-        border: "none",
         padding: "2px 0",
-        cursor: syncing ? "default" : "pointer",
-        touchAction: "manipulation",
       }}
     >
-      <Disc3
-        size={12}
-        className={syncing ? "disc-spinner" : ""}
-        style={{ color: "var(--c-text-muted)" }}
-      />
-      {label}
-    </button>
+      {syncing && (
+        <Disc3 size={12} className="disc-spinner" style={{ color: "var(--c-text-muted)" }} />
+      )}
+      {syncing ? "Syncing" : `Last synced ${ago}`}
+    </div>
   );
 }

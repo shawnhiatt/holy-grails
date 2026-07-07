@@ -287,7 +287,7 @@ export function Wantlist() {
             <p style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-muted)" }}>No albums found</p>
             <p className="mt-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: 1.6 }}>
               {wants.length === 0
-                ? "Your wantlist is empty. Either you have everything you need, or you haven't been to a record fair lately."
+                ? "Your wantlist is empty. Sync your Discogs account to get started."
                 : wantFilter === "priority"
                 ? "No priority wants marked. Tap the heart on any record to flag it."
                 : "No items found"}
