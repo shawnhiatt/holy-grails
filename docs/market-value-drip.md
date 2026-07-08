@@ -1,46 +1,52 @@
-# Holy Grails — Per-Album Market Value Drip
+# Holy Grails — Per-Release Market Value Drip
 
-**Status:** shipped (Spec 6, Session A — backend only). The daily cron collects
+**Status:** shipped (Spec 6A → **6A.1**, backend only). The daily cron collects
 prices; nothing user-facing reads them yet. Surfacing the values in Insights is
 **Session B** (Top Shelf, value-by-folder, value-vs-paid, the purge×value dollar
 upgrade, a freshness line) — deferred until the drip has had ~2 weeks to fill
 real data.
 
-**One-line summary:** a nightly Convex cron walks each user's collection ~40
-records at a time, asks Discogs the lowest asking price for each, and stamps it
-onto the collection row — cycling through the whole collection about once a
-month. Nothing happens at app-open time; the app just reads whatever the drip
-has already collected.
+**One-line summary:** a nightly Convex cron collects the lowest asking price for
+each **Discogs release** any user owns and stores it **once per release** in a
+shared `market_values` table — cycling through the set about once a month.
+Nothing happens at app-open time; the app just reads what the drip has already
+collected.
+
+> **6A.1 change (why this doc was rewritten):** market value was originally
+> stored *per user* on each collection row. But a release's lowest ask is the
+> same for everyone who owns it — so two users owning the same record meant two
+> identical fetches and two copies of the same number. It's now keyed on the
+> Discogs `releaseId` and shared. That deduplicates the API work, removes a
+> fragile sync-preservation invariant, and standardizes the currency.
 
 ---
 
 ## Why it exists (and why it's a "drip")
 
 Collectors want to know what their records are worth. Discogs exposes a
-collection *median* value (one number, already shown on the Insights hero), but
-**not** per-album value. To get per-album value you have to ask Discogs about
-each release individually — one HTTP request per record.
+collection *median* value (one number, on the Insights hero) but **not**
+per-album value. To get per-album value you ask Discogs about each release
+individually — one HTTP request per release.
 
-A full collection can be hundreds of records. Fetching all of them on demand
-(when the user opens Insights) would be slow, would blow through the user's
-60-requests/minute Discogs budget, and would compete with their own
-collection sync. An earlier, more ambitious "fetch everything, live" attempt was
-abandoned as inaccurate and over-complicated.
+Fetching a whole collection on demand (when the user opens Insights) would be
+slow, would blow through the 60-requests/minute Discogs budget, and would
+compete with the user's own sync. So the value is collected **ahead of time,
+slowly, in the background**, and just sits waiting to be read. That's the drip:
+a small batch per day, so the ~monthly refresh never contends with anything a
+user is doing.
 
-So the value is collected **ahead of time, slowly, in the background**, and just
-sits on the row waiting to be read. That's the drip: a small batch per user per
-day, so the ~monthly refresh never contends with anything the user is doing.
+Storing it **per release rather than per user** means each unique record is
+fetched once no matter how many members own it — the more the collection overlaps
+(popular pressings), the more fetches this saves.
 
 ---
 
 ## Mental model
 
-The single most important thing to understand:
-
 > **Market value is not fetched when you open the app or view an album.** It is
-> collected by a scheduled server job, a little at a time, and persisted onto
-> your collection rows. The app only ever *reads* what the job has already
-> written.
+> collected by a scheduled server job, a little at a time, and persisted in a
+> shared table keyed by Discogs release ID. The app only ever *reads* what the
+> job has already written.
 
 There is no client involvement, no user request, no "loading price…" spinner.
 The trigger is a clock.
@@ -52,291 +58,244 @@ The trigger is a clock.
 | Piece | File | Role |
 |---|---|---|
 | Daily cron | `convex/crons.ts` | Fires `marketValueDrip` once a day at 09:00 UTC. |
-| Drip orchestrator | `convex/discogs.ts` → `marketValueDrip` (internalAction, `"use node"`) | Loops users, fetches prices, writes them, advances the cursor. |
-| User list | `convex/discogsHelpers.ts` → `listUsersForMarketDrip` (internalQuery) | Every user with OAuth creds + their `market_cursor`. |
-| Batch selector | `convex/collection.ts` → `getMarketDripBatch` (internalQuery) | Up to N stale rows above the cursor. |
-| Price writer | `convex/collection.ts` → `setMarketValue` (internalMutation) | Patches `marketValue` + `marketValueFetchedAt` onto a row. |
-| Cursor writer | `convex/users.ts` → `setMarketCursor` (internalMutation) | Saves the resumable watermark. |
-| Pure helpers | `convex/marketValue.ts` | `nextMarketCursor` (advance/wrap) + `MARKET_STALE_MS`, `MARKET_BATCH_SIZE`. |
+| Drip orchestrator | `convex/discogs.ts` → `marketValueDrip` (internalAction, `"use node"`) | Seeds the set, fetches a batch of prices round-robin across tokens. |
+| Token pool | `convex/discogsHelpers.ts` → `listUsersForMarketDrip` (internalQuery) | Every user with OAuth creds — used only for their tokens. |
+| Seed / migrate | `convex/market_values.ts` → `seedFromCollection` (internalMutation) | One shared row per owned release; migrates legacy per-user values. |
+| Batch selector | `convex/market_values.ts` → `getDripBatch` (internalQuery) | The stalest / never-fetched releases, ordered by `fetchedAt`. |
+| Price writer | `convex/market_values.ts` → `setValue` (internalMutation) | Advances `fetchedAt`; writes `value` on success. |
+| Client read | `convex/market_values.ts` → `getForUser` (public query) | The caller's priced releases — for the Session B Insights UI. |
+| Constants | `convex/marketValue.ts` | `MARKET_STALE_MS`, `MARKET_BATCH_SIZE`, `MARKET_CURRENCY`. |
 | Shared fetch | `convex/discogs.ts` → `discogsFetch` | Rate-limited, OAuth-signed Discogs request (same one the sync uses). |
 
-All of these except the cron are **internal** functions — they are never exposed
-to a client. The drip runs entirely server-side and signs Discogs requests with
-each user's stored OAuth tokens.
+Everything except the cron and `getForUser` is **internal** — never exposed to a
+client. The drip runs entirely server-side.
 
-### Schema additions
+### Schema
 
-- `collection.marketValue: v.optional(v.union(v.number(), v.null()))`
-- `collection.marketValueFetchedAt: v.optional(v.number())`
-- `users.market_cursor: v.optional(v.number())`
+- **`market_values`** (new, shared): `{ releaseId, value?, fetchedAt? }` with
+  indexes `by_release` (point lookups / upserts) and `by_fetchedAt` (the drip's
+  stalest-first ordering). `value` is `v.union(number, null)`; both `value` and
+  `fetchedAt` are optional so a row can exist ("in the set") before it's priced.
+- **Legacy, kept only for the migration:** `collection.marketValue` /
+  `collection.marketValueFetchedAt` (the old per-user fields) and
+  `users.market_cursor` (the old per-user watermark). Nothing reads or writes
+  them anymore; the seed copies the collection fields into `market_values` once,
+  then they can be dropped in a future clear-then-redeploy pass.
 
 ---
 
 ## What one run does
 
-Every day at 09:00 UTC, Convex's scheduler calls `marketValueDrip` — no user, no
-request, just the clock. The action then:
+Every day at 09:00 UTC, Convex's scheduler calls `marketValueDrip`. It then:
 
-1. **Lists users to process.** `listUsersForMarketDrip` returns everyone with
-   Discogs OAuth tokens, along with their `market_cursor` (a `releaseId`
-   bookmark, `0` if never run).
+1. **Gets the token pool.** `listUsersForMarketDrip` returns every user with
+   Discogs OAuth tokens. If nobody has tokens, it bails. These are used *only*
+   as request credentials — the price fetched is the same regardless of whose
+   token asks.
 
-2. **For each user, grabs a small batch of stale records.**
-   `getMarketDripBatch` asks, using the `by_username_and_release` index:
-   > *give me up to `MARKET_BATCH_SIZE` (40) rows for this user whose `releaseId`
-   > is above the cursor, and whose price is missing or older than 30 days*,
-   ordered ascending by `releaseId`.
-   Fresh rows (priced within 30 days) are skipped; the index range skips
-   everything at or below the cursor.
+2. **Seeds the shared set from collections.** `seedFromCollection` walks every
+   collection row and inserts a `market_values` row for any `releaseId` that
+   doesn't have one yet — carrying over a value already sitting on the legacy
+   per-user field (the one-time migration). This is how new releases (from
+   syncs) enter the set, with no changes to the sync write path.
 
-3. **For each record in the batch, asks Discogs the price.**
-   `GET /marketplace/stats/{releaseId}` through `discogsFetch`. The stats
-   endpoint returns `lowest_price` as `{ value, currency }` (or `null` if nobody
-   is selling one). The value is the current lowest **ask**.
+3. **Selects the stalest batch.** `getDripBatch` returns up to
+   `MARKET_BATCH_SIZE` (40) releases whose value is missing or older than 30
+   days, ordered by `fetchedAt` ascending (never-fetched sort first, then
+   oldest).
 
-4. **Writes the price onto the row.** `setMarketValue` patches `marketValue`
-   (the number, or `null`) and `marketValueFetchedAt` (a timestamp) onto that
-   collection row.
+4. **Fetches each release's price, round-robin across tokens.**
+   `GET /marketplace/stats/{releaseId}?curr_abbr=USD` through `discogsFetch`. The
+   request is signed with `tokens[i % tokens.length]` so the work spreads across
+   every user's independent 60/min budget instead of funnelling through one.
+   The stats endpoint returns `lowest_price` as `{ value, currency }` (or `null`
+   if nobody's selling one).
 
-5. **Moves the bookmark.** After the batch, `nextMarketCursor` computes the new
-   `market_cursor` and `setMarketCursor` saves it.
-
-Per-user work is wrapped in a `try/catch`: one user's revoked token or error
-must not kill the whole run — it's logged and the loop moves on.
-
----
-
-## The cursor and staleness (drip mechanics)
-
-`users.market_cursor` is just a **bookmark**: the `releaseId` the job stopped at
-last time.
-
-- Each run does **`MARKET_BATCH_SIZE` (40) records per user**. A 500-record
-  collection therefore takes ~13 days to price the first time.
-- The next day's run continues from the bookmark.
-- When the job reaches the end of a user's collection — i.e. `getMarketDripBatch`
-  returns **fewer than the limit** — `nextMarketCursor` **wraps the bookmark
-  back to `0`** (`convex/marketValue.ts`). The cycle restarts.
-- On the next pass from `0`, the 30-day staleness filter means only records
-  whose price has aged past `MARKET_STALE_MS` get re-fetched.
-
-Net effect: **every record's price is refreshed roughly once a month,
-continuously, in tiny background batches.**
-
-The cursor also advances past a record even if *that* record's fetch failed
-(step 3 errored) — so a single persistently-failing release isn't re-hit every
-day; it simply gets another chance on the next wraparound. Its
-`marketValueFetchedAt` stays unset, so it's still counted as "needs fetching."
+5. **Writes the outcome.** `setValue` **always advances `fetchedAt`** (so a
+   release just handled moves to the back of the queue), and writes `value` only
+   on success — so a transient failure preserves any prior value while still
+   preventing the release from clogging the batch.
 
 ---
 
-## The three states of a value (this trips people up)
+## Staleness and ordering (no cursor)
 
-`marketValue` is deliberately a three-state field:
+The old per-user design used a `releaseId` watermark to march through a
+collection. The shared design doesn't need one: `getDripBatch` orders by
+`fetchedAt` ascending, so the **stalest work is always at the front**.
+
+- Never-fetched rows have `fetchedAt === undefined`, which sorts first — so a
+  freshly-seeded release is priced promptly.
+- After a release is priced (or attempted), `fetchedAt` becomes "now," moving it
+  to the back. Nothing is re-fetched until it ages past `MARKET_STALE_MS` (30
+  days).
+
+Net effect: every release's price is refreshed roughly once a month,
+continuously, in small batches — and the ordering self-manages, with no cursor
+or wraparound bookkeeping.
+
+Because `fetchedAt` advances even on a failed fetch, a persistently-failing
+release (e.g. a 404) is not re-hit every day; it simply gets another attempt on
+its next 30-day rotation.
+
+---
+
+## The three states of a value
+
+`market_values.value` is deliberately three-state:
 
 | Value | Meaning | Ranking treatment |
 |---|---|---|
-| `undefined` | Never fetched — the drip hasn't reached this row yet. | Excluded. |
-| `null` | Fetched, but **no active listings** right now. | Excluded (no number to rank). |
-| a number | The lowest ask (in whatever currency Discogs returned). | Included. |
+| `undefined` | In the set but never priced yet. | Excluded. |
+| `null` | Priced, but **no active listings** right now. | Excluded (no number). |
+| a number | The lowest ask, in `MARKET_CURRENCY` (USD). | Included. |
 
-Storing `null` **with a timestamp** is intentional: it marks the record as
-"priced" for 30 days like any other, so the drip doesn't hammer a no-listings
-release every single day. The `v.union(v.number(), v.null())` schema type is what
-lets "fetched, no listings" (`null`) be distinguished from "never fetched"
-(`undefined`).
+Storing `null` **with a `fetchedAt`** marks the release as priced for 30 days
+like any other, so the drip doesn't re-hit a no-listings release daily.
+
+---
+
+## Currency
+
+A shared value can only be **one** currency. Discogs otherwise localizes
+marketplace prices to the *requesting token owner's* currency — which, with
+round-robin tokens, would make the same release flip currencies run to run. So
+the drip forces `curr_abbr=USD` (`MARKET_CURRENCY` in `convex/marketValue.ts`).
+Everyone sees USD regardless of their Discogs locale. If the audience shifts,
+change the one constant. (This is the deliberate simplification the original
+spec flagged as an acceptable fast-follow — the shared table just makes the
+choice explicit.)
 
 ---
 
 ## How the app reads it
 
-The price is just another column on the collection row. When `app-context.tsx`
-derives local `albums` from the Convex `collection` cache subscription, it
-carries `marketValue` / `marketValueFetchedAt` onto each `Album` (the fields are
-on the `Album` type in `discogs-api.ts`).
+`market_values.getForUser(sessionToken)` returns the priced releases for the
+caller's own collection: `{ releaseId, value, fetchedAt }[]`. The Insights value
+sections (Session B) subscribe to it and merge by `release_id` onto the `Album`
+objects (the `Album` type already carries the optional `marketValue` /
+`marketValueFetchedAt` fields — see `discogs-api.ts`).
 
-In **Session A (this backend), nothing in the UI reads them** — they ride along
-typed-but-unused so that **Session B is UI-only** (no further schema or sync
-changes needed to surface them).
+Session A/6A.1 ships **no UI** — nothing calls `getForUser` yet; the field rides
+along typed-but-unused so Session B is a focused read-and-render change.
 
 ---
 
-## The one genuinely fiddly invariant: `applyDiff` must not clobber the value
+## Migration of already-collected values
 
-The collection cache is kept current by the sync's `applyDiff`
-(`convex/collection.ts`), which reconciles the cached collection against a fresh
-fetch from Discogs. The fresh fetch does **not** include market value (Discogs'
-collection endpoint doesn't return it) — so a naive "replace the row" would wipe
-the price the drip worked to collect.
+Because the original per-user drip may have run before this change, some values
+live on the legacy `collection.marketValue` fields. `seedFromCollection` copies
+them into the matching `market_values` row on the first run — so nothing already
+collected is re-fetched. Deleting the legacy fields would just cost one extra
+drip cycle to re-collect, so migration is a convenience, not a requirement.
 
-It's safe because `applyDiff` uses **`ctx.db.patch`** (a shallow merge), not
-`ctx.db.replace`, and the album payload it patches with doesn't contain the
-market fields — so those fields are left untouched on rows it rewrites. The
-`albumSignature` used to decide whether a row changed also excludes the market
-fields, so a drip-only update never triggers sync write churn, and a real change
-(e.g. a condition edit) patches without touching the price.
-
-There are no `replaceAll` callers on the collection table. **A test locks this
-invariant** (`convex/marketValue.test.ts`) for both the unchanged-row and
-changed-row paths — if anyone ever switches `applyDiff` to `replace`, or folds a
-market field into the album payload, that test fails.
+To migrate immediately after deploy instead of waiting for 09:00 UTC, run
+`marketValueDrip` (or just `seedFromCollection`) once from the Convex dashboard.
 
 ---
 
 ## Tests
 
-`convex/marketValue.test.ts` (edge-runtime, `convex-test`):
+`convex/market_values.test.ts` (edge-runtime, `convex-test`):
 
-- `nextMarketCursor` — advance on a full batch, wrap-to-0 on a short/empty batch.
-- `getMarketDripBatch` — returns never-fetched + stale rows above the cursor,
-  ascending; honors the cursor watermark; caps at the limit.
-- `setMarketValue` — writes value + timestamp; stores `null` distinctly from
-  never-fetched; no-ops when the row has left the collection.
-- **`applyDiff` preserves `marketValue`** on rows it patches (unchanged and
-  changed) — the critical invariant above.
+- `seedFromCollection` — one shared row per release across owners (deduped),
+  migrates a legacy per-user value, idempotent on re-run.
+- `getDripBatch` — never-fetched + stale releases, stalest first, capped.
+- `setValue` — writes value + timestamp (incl. `null`); advances `fetchedAt`
+  while preserving value on the failure path; no-ops for an unknown release.
+- `getForUser` — returns priced releases for the caller's collection only;
+  rejects an unauthenticated caller.
 
-The pure `nextMarketCursor` is unit-tested directly because the cursor advance
-lives in the `"use node"` action, which the test harness can't drive; the query
-and mutation are driven directly through `convex-test`.
+(There is no longer an `applyDiff`-preservation test — see below.)
+
+---
+
+## What this design removed
+
+- **The `applyDiff` clobber invariant is gone.** Market value used to live on
+  the collection row, so the sync's `applyDiff` had to be careful never to
+  overwrite it. Now the value lives in a separate table the sync never touches,
+  so the whole concern (and its test) disappeared.
+- **The per-user cursor is gone** — replaced by `fetchedAt` ordering.
 
 ---
 
 ## Deploy
 
-Because this adds a **cron** plus schema fields and functions, it does not exist
-on production until `npx convex deploy` runs (the Convex CLI ignores `*.test.ts`
-and deploys crons alongside functions). No client behavior changes, so deploy
-order isn't load-bearing relative to the Vercel frontend — but **the drip won't
-start until the deploy lands**, at which point it begins on the next 09:00 UTC
-tick.
+Because this adds a **table + indexes**, a **cron**, and new functions, it does
+not exist on production until `npx convex deploy` runs. The old per-user fields
+are kept in the schema as legacy-optional, so this is a **single clean deploy**
+with no field-removal ordering hazard. No client behavior changes.
 
-To verify it's working: Convex dashboard → `collection` table → confirm
-`marketValue` / `marketValueFetchedAt` are populating over successive days; and
-the Crons/Logs view shows `marketValueDrip` firing daily.
+To verify: Convex dashboard → `market_values` table → confirm rows appear
+(seeded) and `value`/`fetchedAt` populate over successive days; the Crons/Logs
+view shows `marketValueDrip` firing daily.
 
 ---
 
 ## Scaling — the honest analysis
 
-This is a deliberate small-scale v1 (the spec scoped it to the current user's own
-collection, with an explicit "revisit only if the ~2-week fill proves
-annoying"). It will hit a wall as the user count grows, but at a **predictable
-point**, and the fix is a well-worn Convex pattern rather than a rethink.
+The shared model is a strictly better scaling story than the per-user one,
+because it attacks total *work* (fetch each release once) rather than just
+parallelizing duplicated work. But it's still a single daily action, so there
+are ceilings.
 
-### What does *not* get worse with scale
+### What got better
 
-- **Discogs rate limits.** The 60-requests/minute limit is **per authenticated
-  user token**, not per app. Every user's drip spends *their own* budget, and 40
-  requests fits comfortably in one user's minute. Adding users does not shrink
-  anyone's budget — the work is embarrassingly parallel.
-- **Per-user cost.** `getMarketDripBatch` is indexed (`by_username_and_release`),
-  the cursor/staleness math is O(batch), and the two extra columns are
-  negligible storage. A single user's cost is constant regardless of how many
-  other users exist.
+- **Deduplicated fetches.** Total Discogs requests scale with the number of
+  *unique* releases across all users, not the sum of collection sizes. With
+  overlap, that grows sub-linearly in user count.
+- **Parallel budget preserved.** Fetching through **one** token would have
+  collapsed everything onto a single 60/min budget. The round-robin across all
+  users' tokens keeps the aggregate budget ≈ N × 60/min while still fetching
+  each release once.
+- **Simpler correctness.** No per-row invariant with the sync; no cursor.
 
-### What *does* get worse: it's a single sequential job
+### What still has ceilings
 
-The cron fires **one** `marketValueDrip` action, and inside it a
-`for (const user of users)` loop processes users **one after another**. Total
-runtime therefore grows linearly with the user count:
+1. **The seed is O(collection + market_values) in one mutation each run.**
+   `seedFromCollection` collects all collection rows and all `market_values`
+   rows to diff them. Fine at the current scale; at large scale it can exceed a
+   mutation's document/byte limits. It's wrapped in `try/catch` so a failed seed
+   degrades gracefully (that run just prices whatever's already seeded). The
+   scale-up is to paginate the seed, or move seeding into the sync write path
+   (`applyDiff`/`addItem` upsert a `market_values` row per new release) so no
+   full scan is needed.
 
-| Users | Rough runtime of the daily run | Status |
-|---|---|---|
-| 1–2 | seconds | fine |
-| 10 | ~2–5 min | fine |
-| 20 | ~7–10 min | approaching the edge |
-| 100 | ~40+ min | broken |
-| 1000 | many hours | very broken |
+2. **The fetch loop is a single sequential action.** Same shape as before — one
+   action prices `MARKET_BATCH_SIZE` releases sequentially. At 40/run it's well
+   within Convex's per-action time limit, and because the set is now *shared*,
+   40/run drains the global backlog faster than 40/user/day did. If the unique-
+   release backlog ever needs more throughput, fan the fetch out into
+   per-chunk scheduled actions (the same pattern the old doc described), still
+   round-robining tokens.
 
-(Each user ≈ up to 40 Discogs calls at a few hundred ms each ≈ 10–20s.)
+3. **`getForUser` does O(collection) point lookups per call.** Fine for one
+   Insights screen render; if it becomes hot, scope differently (e.g. return the
+   whole small `market_values` table and filter client-side, or cache).
 
-The wall is **Convex's per-action execution-time limit** — a single action is
-capped (on the order of several minutes; confirm the current figure against
-Convex's limits docs). A sequential loop over all users is *one* action, so
-somewhere around **20–50 users it starts timing out mid-run**, and the users
-late in the loop simply don't get processed that day. It fails *gracefully*
-(late users skipped, no data corruption), but it fails.
+### Bottom line
 
-### The fix when you outgrow it: fan-out with the scheduler
-
-Instead of one action looping all users, the cron becomes a **dispatcher** that
-enqueues one scheduled action **per user**:
-
-```ts
-// cron handler:
-const users = await ctx.runQuery(internal.discogsHelpers.listUsersForMarketDrip, {});
-for (let i = 0; i < users.length; i++) {
-  // stagger to smear load across the day and avoid a synchronized burst
-  await ctx.scheduler.runAfter(i * 3000, internal.discogs.marketValueDripForUser, {
-    username: users[i].username,
-  });
-}
-```
-
-Each user's 40-request batch becomes its own short (~15s) action with its own
-time budget, run concurrently by Convex. This scales to thousands because **no
-single invocation ever does more than one user's work.** The per-user body
-already exists — you're lifting it into `marketValueDripForUser`, not rewriting
-it.
-
-Two things to fix at the same time:
-
-1. **The shared throttle variable.** `discogsFetch` tracks `rateLimitRemaining`
-   in a *module-level* variable (fine for one user at a time; it was built for
-   the single-user sync). Under parallel per-user actions, different users'
-   rate-limit headers would clobber each other. Either make throttle state
-   per-invocation, or lean on the existing 429-retry backstop (which already
-   handles it correctly). Because each user has an independent Discogs budget,
-   the shared variable is only an efficiency wrinkle, not a correctness bug — but
-   worth cleaning up when parallelizing.
-2. **Smear the load.** At 1000 users you don't want all of them firing at
-   09:00 UTC. It's a *daily* drip with 24 hours of runway, so stagger
-   (`runAfter(i * Nms)`) or shard users into hourly buckets. Convex's scheduler
-   concurrency also naturally spreads them.
-
-### Things to watch in the 100 → 1000 range
-
-- **Discogs fair-use / IP limits.** 1000 users × 40/day ≈ 40k requests/day from
-  Convex's egress IPs. Per-*token* you're fine, but if Discogs ever throttles by
-  IP or consumer key, a synchronized burst could trip it. Staggering (which you
-  want anyway) mostly solves this, and the 30-day staleness already prevents
-  redundant fetches.
-- **Convex cost.** 1000 short actions/day is trivial for Convex's pricing — not
-  where cost shows up.
-- **Batch size is a per-user lever, not a scaling lever.** `MARKET_BATCH_SIZE`
-  controls how fast one user's collection fills (~monthly refresh at 40/day); it
-  has nothing to do with user count. Don't reach for it to solve a scaling
-  problem.
-
-### Bottom line thresholds
-
-- **Up to ~15–20 users:** ship exactly what's there, zero changes.
-- **~20–50 users:** convert the sequential loop to per-user fan-out. A
-  half-day change, no schema impact.
-- **100–1000+:** fan-out + stagger + per-invocation throttle. Same pattern, just
-  add the smearing.
-
-The design doesn't scale *itself*, but it degrades predictably and the upgrade
-path is contained. Do the fan-out refactor when the daily run's wall-clock time
-starts creeping toward a couple of minutes — that's the early-warning signal,
-well before the hard timeout.
+- **Small scale (friend group):** ship as-is.
+- **When the daily seed/fetch wall-clock creeps toward a couple of minutes, or
+  the seed starts brushing mutation limits:** move seeding into the sync write
+  path (kills the full-collection scan) and, if needed, fan the fetch out. Both
+  are contained changes on top of this shared model — not a rethink.
 
 ---
 
 ## Future — Session B (surfacing)
 
-Once the drip has filled real values (~2 weeks, or test against a small
-collection), Session B adds the Insights UI, all threshold-gated and excluding
-`null`/`undefined`:
+Once the drip has filled real values, Session B adds the Insights UI — all
+threshold-gated, excluding `null`/`undefined` — reading `market_values.getForUser`
+and merging onto `Album.marketValue`:
 
 - **Top Shelf** — top 5 most valuable records (gate: 10+ valued).
-- **Value by folder** — a value column/toggle on the existing By Folder tab
-  (once ≥70% of the collection has values).
-- **Value vs. paid** — "worth ~$X, paid $Y" when both sides have enough data
-  (5+ albums with both `pricePaid` and `marketValue`).
+- **Value by folder** — a value column/toggle on By Folder (≥70% valued).
+- **Value vs. paid** — "worth ~$X, paid $Y" (5+ albums with both).
 - **Purge × value** — upgrade Spec 4's count-only "Cutting deadweight" callout to
-  a dollar figure ("{N} Cut records worth ~${X}").
-- **Freshness line** — "Values updated {Xd ago}" from `max(marketValueFetchedAt)`.
+  a dollar figure.
+- **Freshness line** — "Values updated {Xd ago}" from `max(fetchedAt)`.
 
-All of this is UI-only — the backend and the `Album.marketValue` type are
-already in place.
+The backend and the `Album.marketValue` type are already in place; Session B is
+the read query wiring + UI.

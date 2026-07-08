@@ -44,7 +44,8 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - Wantlist cache (`wantlist` table — mirrors Discogs wantlist for offline/fast reads, 24h TTL synced alongside collection)
 - Want list priority bolts, keyed by `discogs_username` + `release_id`
 - Last-played timestamps, keyed by `discogs_username` + `release_id`
-- Collection cache (`collection` table — mirrors Discogs collection for offline/fast reads; local `albums`/`wants` state is reactively derived from these cache subscriptions). Rows also carry a per-album market value (`marketValue`/`marketValueFetchedAt`) filled by a **daily market-value drip** (Spec 6): the `marketValueDrip` cron (`convex/crons.ts` → internal action in `convex/discogs.ts`) fetches lowest-ask prices from `/marketplace/stats` a small batch at a time per user (`MARKET_BATCH_SIZE`, resumable via `users.market_cursor`, 30-day staleness), so the ~monthly refresh never competes with a user's own sync. `marketValue` is `v.union(number, null)` — `null` = fetched-but-no-listings, `undefined` = never fetched (excluded from rankings, revisited by the drip). The sync's `applyDiff` uses `ctx.db.patch` (shallow merge) so it never clobbers these fields; a test locks that invariant. Full write-up (mechanics, the three value states, and the scaling analysis / fan-out refactor path) in `docs/market-value-drip.md`.
+- Collection cache (`collection` table — mirrors Discogs collection for offline/fast reads; local `albums`/`wants` state is reactively derived from these cache subscriptions).
+- Market values (`market_values` table — Spec 6A.1). Lowest-ask price stored **once per Discogs release**, shared across every user who owns it (a release's ask is the same for everyone, so per-user storage was duplicated data + duplicated fetches). Filled by a **daily drip**: the `marketValueDrip` cron (`convex/crons.ts` → internal action in `convex/discogs.ts`) seeds the set from all collections (`market_values.seedFromCollection`, which also migrates the legacy per-user values), then prices a `MARKET_BATCH_SIZE` batch of the stalest releases (`market_values.getDripBatch`, ordered by `fetchedAt` — no cursor) from `/marketplace/stats?curr_abbr=USD`, **round-robin across users' tokens** so each user's 60/min budget stays intact. `value` is `v.union(number, null)` — `null` = fetched-but-no-listings, `undefined` = never fetched (excluded from rankings). Client reads via `market_values.getForUser` (Session B, Insights). The legacy `collection.marketValue`/`marketValueFetchedAt` + `users.market_cursor` fields are kept only for the one-time migration and are otherwise dead. Full write-up (mechanics, currency, migration, scaling) in `docs/market-value-drip.md`.
 - Followed collections cache (`followed_items` table — slim rows of each followed user's collection + wantlist, written server-side by `discogs.syncFollowedUser`, read per-profile; sync metadata `is_private`/`collection_synced_at` lives on the `following` table)
 - Sync progress (`sync_status` table — one doc per user, written by the server-side sync loop, subscribed by the client for per-page progress)
 - User preferences (theme, hide purge indicators, shake to random, view mode, want view mode, default screen, recent Look It Up searches), keyed by `discogs_username`. The `hide_gallery_meta` field still exists in the schema but is legacy — its swiper view was removed and the Settings toggle deleted with it; do not resurface it.
@@ -193,7 +194,7 @@ Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config
 - `authHelper.test.ts` — session-token guard: valid/unknown/empty/expired tokens, the 90-day TTL boundary, legacy single-token fallback, per-device sign-out isolation, and that `getMe`/`getLatestUser` never return `access_token`/`token_secret`/`session_token`.
 - `shareActivity.test.ts` — the Cross-User Data Pattern gate: unauthenticated viewers rejected, only `shareActivity === true` exposed, "not found" indistinguishable from "not opted in", no token leakage, and that viewers authenticated via the `auth_sessions` table (every fresh login) can read opted-in targets.
 - `stacks.test.ts` — the session-share capability gate: `getShared` returns only whitelisted display fields for a valid `share_id`, preserves album order, silently skips albums no longer in the collection, returns `null` for unknown/empty/revoked ids (revoked indistinguishable from unknown), `enableShare`/`disableShare` reject bad session tokens, `enableShare` is idempotent, and the payload never leaks username/tokens/notes/conditions/ids.
-- `marketValue.test.ts` — the market-value drip (Spec 6): `nextMarketCursor` advance/wraparound, `getMarketDripBatch` staleness + cursor-range + limit selection, `setMarketValue` writes (incl. `null` vs never-fetched) and no-ops for a missing row, and — critically — that the sync's `applyDiff` preserves `marketValue` on rows it patches (unchanged and changed).
+- `market_values.test.ts` — the shared per-release market-value drip (Spec 6A.1): `seedFromCollection` dedupes across owners + migrates legacy per-user values + is idempotent, `getDripBatch` returns never-fetched/stalest-first capped, `setValue` advances `fetchedAt` always and writes `value` only on success (preserving prior value on failure) + no-ops for a missing row, and `getForUser` scopes to the caller's own priced releases + rejects unauthenticated callers.
 
 **Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`/`isVinylFormat`, the Fisher–Yates `shuffle`, `insights.ts` (price parsing, add-year bucketing, spend aggregation — including euro/junk/zero price rejection), and `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse). Shared `makeAlbum` factory lives in `src/test/factories.ts`.
 
@@ -281,14 +282,15 @@ src/
   main.tsx
 convex/                  # Convex backend functions and schema
   authHelper.ts        # Central session-token auth guard — used by all guarded queries/mutations
-  collection.ts        # Collection cache CRUD + diff sync (applyDiff). Also the market-drip internals: getMarketDripBatch (internalQuery), setMarketValue (internalMutation)
-  crons.ts             # Convex cron registry — daily marketValueDrip (Spec 6)
-  marketValue.ts       # Pure market-drip helpers (nextMarketCursor cursor advance/wrap, MARKET_STALE_MS/MARKET_BATCH_SIZE consts) — no Convex deps, unit-tested
+  collection.ts        # Collection cache CRUD + diff sync (applyDiff)
+  market_values.ts     # Shared per-release market value (Spec 6A.1): seedFromCollection/getDripBatch/setValue (internal, drip) + getForUser (public read for Insights)
+  crons.ts             # Convex cron registry — daily marketValueDrip (Spec 6A.1)
+  marketValue.ts       # Market-drip constants (MARKET_STALE_MS/MARKET_BATCH_SIZE/MARKET_CURRENCY) — no Convex deps
   schema.ts
-  users.ts             # getLatestUser (public bootstrap), getMe, upsert (INTERNAL — see Authentication Architecture), updateLastSynced, updateCollectionValue, clearSession, setMarketCursor (INTERNAL, market drip)
+  users.ts             # getLatestUser (public bootstrap), getMe, upsert (INTERNAL — see Authentication Architecture), updateLastSynced, updateCollectionValue, clearSession
   oauth.ts             # Public OAuth handshake — reads credentials from process.env, intentionally unauthenticated
-  discogs.ts           # "use node" — server-side sync loops (syncSelf, syncFollowedUser) + Discogs API proxy actions (see Discogs API Proxy) + marketValueDrip (internal cron action, Spec 6)
-  discogsHelpers.ts    # getUserCredentials + listUsersForMarketDrip internalQueries — separated from discogs.ts due to "use node" constraint
+  discogs.ts           # "use node" — server-side sync loops (syncSelf, syncFollowedUser) + Discogs API proxy actions (see Discogs API Proxy) + marketValueDrip (internal cron action, Spec 6A.1: seeds market_values, prices a batch round-robin across tokens)
+  discogsHelpers.ts    # getUserCredentials + listUsersForMarketDrip (token pool for the drip) internalQueries — separated from discogs.ts due to "use node" constraint
   followed_items.ts    # Followed collections cache: getForUser, clearForUser/appendItems (internal)
   syncStatus.ts        # Sync progress doc: get (subscribed by client), set (internal)
   purge_tags.ts
@@ -1053,7 +1055,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Remove from wantlist: `DELETE /users/{username}/wants/{release_id}`
 - Collection value: `GET /users/{username}/collection/value`
 - Price suggestions: `GET /marketplace/price_suggestions/{release_id}`
-- Market stats: `GET /marketplace/stats/{release_id}` — used by the daily `marketValueDrip` (Spec 6) to read per-album lowest ask (`lowest_price.value`; the stats endpoint returns it as `{ value, currency }`, unlike the plain number on `/releases/{id}`)
+- Market stats: `GET /marketplace/stats/{release_id}?curr_abbr=USD` — used by the daily `marketValueDrip` (Spec 6A.1) to read a release's lowest ask (`lowest_price.value`; the stats endpoint returns it as `{ value, currency }`, unlike the plain number on `/releases/{id}`). `curr_abbr` forces one currency for the shared value regardless of which user's token fetched it (Discogs otherwise localizes to the token owner)
 - User profile: `GET /users/{username}`
 - Update profile: `POST /users/{username}` (supports `profile`, `location`, `name`, `home_page`, `curr_abbr`)
 
