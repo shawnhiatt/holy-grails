@@ -35,8 +35,9 @@ export interface Album {
   /** Arbitrary user-defined Discogs custom fields (e.g. "Acquired From", "Last Cleaned") */
   customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
   dateAdded: string;
-  /** Per-album lowest ask from the market-value drip (Spec 6). `null` = fetched,
-   *  no listings; `undefined` = not yet fetched. Surfaced in Insights in Session B. */
+  /** Lowest ask from the shared market-value drip (Spec 6A.1), merged in by the
+   *  Insights value sections (Session B) from `market_values` keyed on
+   *  `release_id`. `null` = fetched, no listings; `undefined` = not yet fetched. */
   marketValue?: number | null;
   marketValueFetchedAt?: number;
   discogsUrl: string;
