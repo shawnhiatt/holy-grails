@@ -267,7 +267,7 @@ export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", 
           <p style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-muted)" }}>No albums found</p>
           <p className="mt-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
             {collectionEmpty
-              ? "Head to Settings and sync your Discogs collection to get started."
+              ? "Your collection is empty. Sync your Discogs account to get started."
               : hasFilters
               ? "Try adjusting your filters or clearing your search."
               : "Try adjusting your filters"}

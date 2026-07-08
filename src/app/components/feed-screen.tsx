@@ -2214,6 +2214,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       {/* ─── NO DISCOGS CONNECTED STATE ─── */}
       {!hasData && !isAuthenticated ? (
         <NoDiscogsCard />
+      ) : !hasData && isAuthenticated ? (
+        /* Signed in, nothing synced yet — centered in the viewport */
+        <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />
       ) : (
       /* Scrollable content */
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={handleFeedScroll}>
@@ -2251,9 +2254,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 {DecadesSection}
               </div>
             )}
-
-            {/* Empty state (has token but no albums) */}
-            {!hasData && isAuthenticated && <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />}
           </div>
 
           {/* ═══ MOBILE STACKED LAYOUT ═══ */}
@@ -2299,9 +2299,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 <div className="px-[16px]">{InsightsCard}</div>
               )}
             </div>
-
-            {/* Empty state (has token but no albums) */}
-            {!hasData && isAuthenticated && <EmptyState setScreen={setScreen} isDarkMode={isDarkMode} />}
           </div>
         </div>
       </div>
@@ -2492,7 +2489,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
 function EmptyState({ setScreen, isDarkMode }: { setScreen: (s: Screen) => void; isDarkMode: boolean }) {
   return (
-    <div className="flex flex-col items-center justify-center px-8 py-16">
+    <div className="flex-1 flex flex-col items-center justify-center px-8 py-16">
       <p
         style={{
           fontSize: "15px",

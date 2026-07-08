@@ -167,7 +167,7 @@ export function AlbumList({ albums, showPurgeIndicator = true, sortOption = "art
           <p style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-muted)" }}>No albums found</p>
           <p className="mt-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
             {collectionEmpty
-              ? "Head to Settings and sync your Discogs collection to get started."
+              ? "Your collection is empty. Sync your Discogs account to get started."
               : "Try adjusting your filters"}
           </p>
           {collectionEmpty && (
