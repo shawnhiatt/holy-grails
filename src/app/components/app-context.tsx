@@ -748,15 +748,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // Restore collection value from Convex cache, or fetch from Discogs
+      // Collection value: show the last-known number immediately, then refresh
+      // in the background if it's stale. The refresh is best-effort — a flaky
+      // Discogs response or a transient auth hiccup (the `/collection/value`
+      // endpoint 403s more readily than the collection itself) must NOT blank a
+      // value the user just had. So we seed from cache first and keep it on
+      // failure, rather than showing "unavailable" the moment a refresh fails.
       const cachedValue = convexUser?.collection_value ?? convexLatestUser?.collection_value;
       const valueSyncedAt = convexUser?.collection_value_synced_at ?? convexLatestUser?.collection_value_synced_at;
-      if (cachedValue && valueSyncedAt && (Date.now() - valueSyncedAt) < TWENTY_FOUR_HOURS) {
+      if (cachedValue) {
         try {
-          const parsed: CollectionValue = JSON.parse(cachedValue);
-          setCollectionValueCache(parsed);
-        } catch { /* invalid JSON — fall through to Discogs fetch */ }
-      } else {
+          setCollectionValueCache(JSON.parse(cachedValue) as CollectionValue);
+        } catch { /* invalid JSON — the refresh below repopulates it */ }
+      }
+      const valueIsFresh = !!cachedValue && !!valueSyncedAt && (Date.now() - valueSyncedAt) < TWENTY_FOUR_HOURS;
+      if (!valueIsFresh) {
         proxyFetchCollectionValue({ sessionToken, username: discogsUsername }).then((val) => {
           setCollectionValueCache(val);
           updateCollectionValueMut({
@@ -764,7 +770,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             collection_value: JSON.stringify(val),
           }).catch((e) => console.warn("[Convex] Collection value cache write failed:", e));
         }).catch((e) => {
-          console.warn("[Cache load] Collection value fetch failed:", e);
+          // Keep the last-known value on screen — don't blank it.
+          console.warn("[Cache load] Collection value refresh failed (keeping last-known):", e);
         });
       }
 
