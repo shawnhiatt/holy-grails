@@ -634,8 +634,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notes: row.notes,
         customFields: row.customFields,
         dateAdded: row.dateAdded,
-        marketValue: (row as any).marketValue,
-        marketValueFetchedAt: (row as any).marketValueFetchedAt,
+        // marketValue is no longer on the collection row — it lives once per
+        // release in `market_values` (Spec 6A.1) and is merged in by the
+        // Insights value sections (Session B) via market_values.getForUser.
         discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
         purgeTag: tagMap.get(row.releaseId) || null,
       }));

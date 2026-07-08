@@ -252,6 +252,8 @@ export function CrateBrowser() {
 
       {/* ===== MOBILE search/filter/view controls (gray content area) ===== */}
       <div className="lg:hidden flex-shrink-0 px-[16px] pt-[2px] pb-[8px]" style={{ borderTop: "none" }}>
+        {/* Nothing to search or filter until the collection has records */}
+        {albums.length > 0 && (
         <div className="flex items-center gap-[10px]">
           <div className="flex items-center gap-[8px] rounded-full px-[14.5px] min-w-0 flex-1" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "34px" }}>
             <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
@@ -278,6 +280,7 @@ export function CrateBrowser() {
             <SlidersHorizontal size={18} />
           </button>
         </div>
+        )}
 
         {/* Active filter chips (mobile) */}
         {hasActiveFilters && (

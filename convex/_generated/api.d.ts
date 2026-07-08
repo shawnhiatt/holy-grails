@@ -18,6 +18,7 @@ import type * as following from "../following.js";
 import type * as following_feed from "../following_feed.js";
 import type * as last_played from "../last_played.js";
 import type * as marketValue from "../marketValue.js";
+import type * as market_values from "../market_values.js";
 import type * as oauth from "../oauth.js";
 import type * as preferences from "../preferences.js";
 import type * as purge_tags from "../purge_tags.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   following_feed: typeof following_feed;
   last_played: typeof last_played;
   marketValue: typeof marketValue;
+  market_values: typeof market_values;
   oauth: typeof oauth;
   preferences: typeof preferences;
   purge_tags: typeof purge_tags;

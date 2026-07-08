@@ -40,9 +40,9 @@ export default defineSchema({
     // the num_collection / num_wantlist returned by the profile endpoint.
     last_collection_count: v.optional(v.number()),
     last_wantlist_count: v.optional(v.number()),
-    // Resumable releaseId watermark for the market-value drip (Spec 6). The
-    // daily cron processes up to a batch of stale rows above this releaseId,
-    // then advances it (wrapping to 0 at the end of the collection).
+    // LEGACY (Spec 6A → 6A.1): per-user drip watermark. The drip is now keyed
+    // on the shared `market_values` table and orders by staleness, so there's
+    // no per-user cursor. Unused; kept to avoid a schema-removal deploy dance.
     market_cursor: v.optional(v.number()),
   })
     .index("by_username", ["discogs_username"])
@@ -144,15 +144,32 @@ export default defineSchema({
       options: v.optional(v.array(v.string())),
     }))),
     dateAdded: v.string(),
-    // Per-album market value (Spec 6), filled by the daily marketValueDrip
-    // cron. v.union(number, null) so "fetched, no listings" (null) is
-    // distinguishable from "never fetched" (undefined) — the latter is what
-    // rankings exclude and the drip re-visits.
+    // LEGACY (Spec 6A → 6A.1): market value used to live per-user on the
+    // collection row. It now lives once per release in the `market_values`
+    // table (see below) — a release's lowest ask is the same for everyone who
+    // owns it, so storing it per-user was duplicated data + duplicated fetches.
+    // These two fields are kept only so the one-time seed can migrate the
+    // values already collected; nothing reads or writes them anymore. Safe to
+    // drop in a future clear-then-redeploy pass.
     marketValue: v.optional(v.union(v.number(), v.null())),
     marketValueFetchedAt: v.optional(v.number()),
   })
     .index("by_username", ["discogsUsername"])
     .index("by_username_and_release", ["discogsUsername", "releaseId"]),
+
+  // Shared per-release market value (Spec 6A.1). Keyed by Discogs `releaseId`
+  // and shared across every user who owns that release — one row, one fetch.
+  // `value`/`fetchedAt` are optional so a row can exist ("in the drip set")
+  // before it has been priced. `value` union(number, null): null = fetched,
+  // no active listings; undefined = not yet fetched. The drip orders by
+  // `by_fetchedAt` (never-fetched sort first, then stalest) — no cursor needed.
+  market_values: defineTable({
+    releaseId: v.number(),
+    value: v.optional(v.union(v.number(), v.null())),
+    fetchedAt: v.optional(v.number()),
+  })
+    .index("by_release", ["releaseId"])
+    .index("by_fetchedAt", ["fetchedAt"]),
 
   wantlist: defineTable({
     discogs_username: v.string(),

@@ -132,9 +132,9 @@ export function Stacks() {
           subtext="Connect your Discogs collection to start building sessions."
         />
       ) : (
-        <div className="flex-1 overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+        <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
           {stacks.length === 0 && !showNewStack ? (
-            <div className="flex flex-col items-center justify-center py-20">
+            <div className="flex-1 flex flex-col items-center justify-center">
               <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
               <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>Create your first Session</p>
               <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>Save albums into Sessions for different listening occasions, moods, or themes.</p>

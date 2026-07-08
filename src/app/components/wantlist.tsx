@@ -253,6 +253,8 @@ export function Wantlist() {
 
       {/* ===== MOBILE search/filter/view controls ===== */}
       <div className="lg:hidden flex-shrink-0 px-[16px] pt-[2px] pb-[8px]">
+        {/* Nothing to search or filter until the wantlist has records */}
+        {wants.length > 0 && (
         <div className="flex items-center gap-[10px]">
           <div className="flex items-center gap-[8px] rounded-full px-[14.5px] min-w-0 flex-1" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "34px" }}>
             <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
@@ -272,6 +274,7 @@ export function Wantlist() {
             <Zap size={16} weight={wantFilter === "priority" ? "fill" : "regular"} />
           </button>
         </div>
+        )}
         <SyncStatusLine className="mt-[8px]" />
       </div>
 
@@ -282,12 +285,15 @@ export function Wantlist() {
           subtext="Connect your Discogs account to sync your wantlist."
         />
       ) : filteredWants.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center px-8">
+        <div
+          className="flex-1 flex flex-col items-center justify-center px-8"
+          style={{ paddingBottom: "var(--nav-clearance, 0px)" }}
+        >
           <div className="text-center">
             <p style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-muted)" }}>No albums found</p>
             <p className="mt-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: 1.6 }}>
               {wants.length === 0
-                ? "Your wantlist is empty. Either you have everything you need, or you haven't been to a record fair lately."
+                ? "Your wantlist is empty. Sync your Discogs account to get started."
                 : wantFilter === "priority"
                 ? "No priority wants marked. Tap the heart on any record to flag it."
                 : "No items found"}
