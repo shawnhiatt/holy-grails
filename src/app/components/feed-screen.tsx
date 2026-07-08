@@ -2489,7 +2489,16 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
 function EmptyState({ setScreen, isDarkMode }: { setScreen: (s: Screen) => void; isDarkMode: boolean }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-8 py-16">
+    // Feed's header is absolute (transparent), so it reserves no flex space.
+    // Match the other screens by clearing the header height at the top and the
+    // nav at the bottom, so the block centers in the same below-header band.
+    <div
+      className="flex-1 flex flex-col items-center justify-center px-8"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 58px)",
+        paddingBottom: "var(--nav-clearance, 0px)",
+      }}
+    >
       <p
         style={{
           fontSize: "15px",
