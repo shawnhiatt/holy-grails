@@ -212,9 +212,9 @@ src/
       add-albums-drawer.tsx
       album-artwork-grid.tsx
       album-detail.tsx
-      album-grid.tsx
+      album-grid.tsx     # Collection grid. Windowed render: only the first ~60 items are in the DOM, growing on scroll via an IntersectionObserver sentinel (reset to the initial window on filter/search change). Keeps node count bounded on large collections so the iOS keyboard-open relayout on search doesn't freeze — content-visibility alone left all cards in the DOM. The alphabet A–Z jump reveals the full grid on strip touch (AlphabetSidebar's onActivate) so any anchor exists to scroll to.
       album-list.tsx
-      alphabet-sidebar.tsx # Shared useAlphabetIndex hook + AlphabetSidebar component for album-grid and album-list
+      alphabet-sidebar.tsx # Shared useAlphabetIndex hook + AlphabetSidebar component for album-grid and album-list. Optional onActivate fires when the user engages the A–Z strip — album-grid uses it to un-window the grid before jumping.
       app-context.tsx    # Global state — do not refactor without discussion. albums/wants reactively derive from Convex cache subscriptions.
       auth-callback.tsx  # OAuth callback handler — processes Discogs redirect and exchanges tokens
       crate-browser.tsx

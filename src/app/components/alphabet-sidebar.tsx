@@ -49,9 +49,12 @@ interface AlphabetSidebarProps {
   entries: LetterEntry[];
   anchorRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  /** Called the moment the user engages the strip. A windowed grid (AlbumGrid)
+   *  uses this to render all cards so any letter's anchor exists to scroll to. */
+  onActivate?: () => void;
 }
 
-export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSidebarProps) {
+export function AlphabetSidebar({ entries, anchorRefs, scrollRef, onActivate }: AlphabetSidebarProps) {
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,6 +88,7 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
+    onActivate?.(); // reveal the full grid before we try to scroll to an anchor
     if (fadeTimer.current) clearTimeout(fadeTimer.current);
     const touch = e.touches[0];
     const entry = getEntryFromY(touch.clientY);
@@ -95,7 +99,7 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
       setActiveLetter(entry.letter);
       scrollToLetter(entry, true);
     }
-  }, [getEntryFromY, scrollToLetter]);
+  }, [getEntryFromY, scrollToLetter, onActivate]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
@@ -118,6 +122,7 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
   }, []);
 
   const handleLetterTap = useCallback((entry: LetterEntry) => {
+    onActivate?.(); // reveal the full grid so the target anchor exists
     if (entry.letter !== activeLetterRef.current) {
       activeLetterRef.current = entry.letter;
     }
@@ -128,7 +133,7 @@ export function AlphabetSidebar({ entries, anchorRefs, scrollRef }: AlphabetSide
       setActiveLetter(null);
       activeLetterRef.current = null;
     }, 600);
-  }, [scrollToLetter]);
+  }, [scrollToLetter, onActivate]);
 
   return (
     <>

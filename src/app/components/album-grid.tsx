@@ -1,10 +1,15 @@
-import { memo, useCallback, useRef, useMemo, useEffect } from "react";
+import { memo, useCallback, useRef, useMemo, useEffect, useState } from "react";
 import { Play } from "./icons";
 import { useApp, type SortOption } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { safeTap } from "../lib/safe-tap";
+
+// Windowed render (see AlbumGrid): start with a few screens of cards and append
+// as the user scrolls, so the DOM node count stays bounded on large collections.
+const INITIAL_WINDOW = 60;
+const WINDOW_STEP = 60;
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -216,11 +221,22 @@ export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", 
   const indexVisible = !!(alphabetEntries && alphabetEntries.length > 1);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Jump back to the top when the filter context changes (replaces the old
-  // key-based remount, which rebuilt the whole grid on every search keystroke)
+  // Windowed render: only the first `visibleCount` items are in the DOM, growing
+  // as the user scrolls near the end. A large collection (hundreds of cards) is
+  // otherwise all in the DOM at once, which makes iOS relayout the whole grid
+  // when the keyboard opens on search — a visible freeze. `content-visibility`
+  // skips painting off-screen cards but they still cost layout; windowing keeps
+  // the node count bounded regardless of collection size.
+  const [visibleCount, setVisibleCount] = useState(INITIAL_WINDOW);
+
+  // Jump back to the top and shrink the window when the filter context changes
+  // (replaces the old key-based remount, which rebuilt the whole grid on every
+  // search keystroke).
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    setVisibleCount(INITIAL_WINDOW);
   }, [resetKey]);
 
   // Keep refs array in sync with album count
@@ -260,6 +276,35 @@ export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", 
     setShowAlbumDetail(true);
   }, [setSelectedAlbumId, setShowAlbumDetail]);
 
+  const totalItems = renderItems.length;
+
+  // Grow the window as the sentinel (a marker after the last rendered card)
+  // approaches the viewport. rootMargin pre-loads before the user hits the end;
+  // one step adds several screens of height, so the sentinel leaves the margin
+  // after each append rather than cascading to render everything at once.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((c) => (c < totalItems ? Math.min(totalItems, c + WINDOW_STEP) : c));
+        }
+      },
+      { root, rootMargin: "800px" }
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [totalItems]);
+
+  // The A–Z sidebar jumps by scrolling to an anchor, which must be rendered.
+  // Revealing the whole grid the moment the user touches the strip (a deliberate
+  // power action) keeps the passive path — open, search, scroll — windowed.
+  const revealAll = useCallback(() => {
+    setVisibleCount(totalItems);
+  }, [totalItems]);
+
   if (albums.length === 0) {
     return (
       <div
@@ -295,11 +340,13 @@ export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", 
     maybe: purgeIndicatorColor("maybe", isDarkMode),
   };
 
+  const visibleItems = renderItems.slice(0, visibleCount);
+
   return (
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
         <div className={`grid ${viewMode === "grid3" ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
-          {renderItems.map((item) => {
+          {visibleItems.map((item) => {
             if (item.kind === "divider") {
               return (
                 <div
@@ -346,12 +393,15 @@ export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", 
             </div>
             );
           })}
+          {/* Sentinel — grows the window as it nears the viewport */}
+          <div ref={sentinelRef} className="col-span-full" style={{ height: 1 }} aria-hidden="true" />
         </div>
       </div>
 
-      {/* Alphabet index sidebar — mobile only */}
+      {/* Alphabet index sidebar — mobile only. onActivate reveals the full grid
+          so a letter jump can scroll to any anchor. */}
       {indexVisible && (
-        <AlphabetSidebar entries={alphabetEntries!} anchorRefs={anchorRefs} scrollRef={scrollRef} />
+        <AlphabetSidebar entries={alphabetEntries!} anchorRefs={anchorRefs} scrollRef={scrollRef} onActivate={revealAll} />
       )}
     </>
   );
