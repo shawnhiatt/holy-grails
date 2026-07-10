@@ -17,8 +17,8 @@ export function purgeTagColor(tag: string, isDark: boolean): string {
     case "keep":    return "#3E9842";
     case "cut":     return isDark ? "#FF98DA" : "#9A207C";
     case "maybe":   return isDark ? "#ACDEF2" : "#00476C";
-    case "unrated": return isDark ? "#9EAFC2" : "#01294D";
-    default:        return isDark ? "#9EAFC2" : "#455B75";
+    case "unrated": return isDark ? "#AAB0BA" : "#16181C";
+    default:        return isDark ? "#AAB0BA" : "#565A61";
   }
 }
 
@@ -28,30 +28,30 @@ export function purgeTagBg(tag: string, isDark: boolean): string {
     case "keep":    return isDark ? "rgba(62,152,66,0.15)"   : "#DAF8DF";
     case "cut":     return isDark ? "rgba(255,152,218,0.15)" : "#FFF0FA";
     case "maybe":   return isDark ? "rgba(172,222,242,0.15)" : "#E2F4FB";
-    case "unrated": return isDark ? "#0F2238"                : "#F5F5F6";
-    default:        return isDark ? "#0F2238"                : "#F5F5F6";
+    case "unrated": return isDark ? "#191C22"                : "#F5F5F6";
+    default:        return isDark ? "#191C22"                : "#F5F5F6";
   }
 }
 
 /* ── subtle border for stat cards ── */
 export function purgeTagBorder(tag: string, isDark: boolean): string {
   switch (tag) {
-    case "keep":    return isDark ? "rgba(62,152,66,0.3)"    : "rgba(12,40,74,0.2)";
-    case "cut":     return isDark ? "rgba(255,152,218,0.3)"  : "rgba(12,40,74,0.2)";
-    case "maybe":   return isDark ? "rgba(172,222,242,0.3)"  : "rgba(12,40,74,0.2)";
-    case "unrated": return isDark ? "#2D4A66"                : "rgba(12,40,74,0.2)";
-    default:        return isDark ? "#2D4A66"                : "rgba(12,40,74,0.2)";
+    case "keep":    return isDark ? "rgba(62,152,66,0.3)"    : "rgba(22,24,28,0.2)";
+    case "cut":     return isDark ? "rgba(255,152,218,0.3)"  : "rgba(22,24,28,0.2)";
+    case "maybe":   return isDark ? "rgba(172,222,242,0.3)"  : "rgba(22,24,28,0.2)";
+    case "unrated": return isDark ? "#333941"                : "rgba(22,24,28,0.2)";
+    default:        return isDark ? "#333941"                : "rgba(22,24,28,0.2)";
   }
 }
 
 /* ── label color inside stat cards (slightly different from the number) ── */
 export function purgeTagLabel(tag: string, isDark: boolean): string {
   switch (tag) {
-    case "keep":    return isDark ? "#E2E8F0" : "#0C284A";
-    case "cut":     return isDark ? "#9EAFC2" : "#9BA4B2";
-    case "maybe":   return isDark ? "#E2E8F0" : "#0C284A";
-    case "unrated": return isDark ? "#E2E8F0" : "#0C284A";
-    default:        return isDark ? "#E2E8F0" : "#0C284A";
+    case "keep":    return isDark ? "#E2E8F0" : "#16181C";
+    case "cut":     return isDark ? "#AAB0BA" : "#9BA4B2";
+    case "maybe":   return isDark ? "#E2E8F0" : "#16181C";
+    case "unrated": return isDark ? "#E2E8F0" : "#16181C";
+    default:        return isDark ? "#E2E8F0" : "#16181C";
   }
 }
 
@@ -82,7 +82,7 @@ export function purgeButtonBg(tag: string, isDark: boolean): string {
     case "keep":  return "#3E9842";
     case "cut":   return isDark ? "#FF98DA" : "#9A207C";
     case "maybe": return isDark ? "#ACDEF2" : "#00476C";
-    default:      return isDark ? "#9EAFC2" : "#455B75";
+    default:      return isDark ? "#AAB0BA" : "#565A61";
   }
 }
 
@@ -92,7 +92,7 @@ export function purgeOutlineBorder(tag: string, isDark: boolean): string {
     case "keep":  return isDark ? "rgba(62,152,66,0.55)"   : "rgba(62,152,66,0.55)";
     case "cut":   return isDark ? "rgba(255,152,218,0.5)"  : "rgba(154,32,124,0.45)";
     case "maybe": return isDark ? "rgba(172,222,242,0.5)"  : "rgba(0,71,108,0.45)";
-    default:      return isDark ? "#2D4A66" : "#D2D8DE";
+    default:      return isDark ? "#333941" : "#D7DADE";
   }
 }
 
@@ -100,8 +100,8 @@ export function purgeOutlineBorder(tag: string, isDark: boolean): string {
 export function purgeButtonText(tag: string, isDark: boolean): string {
   switch (tag) {
     case "keep":  return "#FFFFFF";
-    case "cut":   return isDark ? "#0C284A" : "#FFFFFF";
-    case "maybe": return isDark ? "#0C284A" : "#FFFFFF";
+    case "cut":   return isDark ? "#16181C" : "#FFFFFF";
+    case "maybe": return isDark ? "#16181C" : "#FFFFFF";
     default:      return "#FFFFFF";
   }
 }

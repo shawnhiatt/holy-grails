@@ -96,7 +96,7 @@ export function Stacks() {
           height: "44px",
           borderRadius: "50%",
           backgroundColor: "#EBFD00",
-          color: "#0C284A",
+          color: "#16181C",
           boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
         }}
       >
@@ -118,7 +118,7 @@ export function Stacks() {
               />
               <div className="flex gap-2 mt-3">
                 <button onClick={() => { setShowNewStack(false); setNewStackName(""); }} className="flex-1 py-2 rounded-[8px] tappable transition-colors" style={{ fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>Cancel</button>
-                <button onClick={handleCreateStack} disabled={!newStackName.trim()} className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-40" style={{ fontSize: "13px", fontWeight: 600 }}>Create</button>
+                <button onClick={handleCreateStack} disabled={!newStackName.trim()} className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-40" style={{ fontSize: "13px", fontWeight: 600 }}>Create</button>
               </div>
             </div>
           </motion.div>
@@ -368,7 +368,7 @@ function StackDetail({
             </p>
             <button
               onClick={onOpenDrawer}
-              className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors"
+              className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors"
               style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
             >
               <Plus size={16} />
@@ -425,7 +425,7 @@ function StackDetail({
             <div className="mt-6 flex flex-col items-center gap-3">
               <button
                 onClick={onOpenDrawer}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors"
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors"
                 style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
               >
                 <Plus size={16} />
@@ -533,7 +533,7 @@ function StackDetail({
                 <button
                   onClick={handleShareLink}
                   disabled={shareBusy}
-                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-50"
                   style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
                 >
                   {shareBusy ? <Disc3 size={16} className="disc-spinner" /> : <Share size={16} />}

@@ -58,20 +58,20 @@ function ThemeSwitch({
   const isHeader = variant === "header";
   const isTopnav = variant === "topnav";
   const trackBg = isTopnav
-    ? (isDark ? "rgba(235,253,0,0.08)" : "rgba(12,40,74,0.1)")
+    ? (isDark ? "rgba(235,253,0,0.08)" : "rgba(22,24,28,0.1)")
     : isHeader
-      ? (isDark ? "rgba(226,232,240,0.12)" : "rgba(12,40,74,0.12)")
-      : "#01294D";
+      ? (isDark ? "rgba(226,232,240,0.12)" : "rgba(22,24,28,0.12)")
+      : "#16181C";
   const thumbBg = isTopnav
-    ? (isDark ? "rgba(235,253,0,0.2)" : "#0C284A")
+    ? (isDark ? "rgba(235,253,0,0.2)" : "#16181C")
     : isHeader
-      ? (isDark ? "rgba(226,232,240,0.25)" : "#0C284A")
+      ? (isDark ? "rgba(226,232,240,0.25)" : "#16181C")
       : "rgba(172,222,242,0.15)";
   const iconActiveColor = "#EBFD00";
   const iconInactiveColor = isTopnav
-    ? (isDark ? "rgba(235,253,0,0.2)" : "rgba(12,40,74,0.25)")
+    ? (isDark ? "rgba(235,253,0,0.2)" : "rgba(22,24,28,0.25)")
     : isHeader
-      ? (isDark ? "rgba(226,232,240,0.25)" : "rgba(12,40,74,0.35)")
+      ? (isDark ? "rgba(226,232,240,0.25)" : "rgba(22,24,28,0.35)")
       : "rgba(209,216,223,0.3)";
 
   return (
@@ -84,7 +84,7 @@ function ThemeSwitch({
         height: "28px",
         backgroundColor: trackBg,
         ...(variant === "sidebar" ? { border: "1px solid rgba(172,222,242,0.5)" } : {}),
-        ...(isTopnav ? { border: `1px solid ${isDark ? "rgba(235,253,0,0.15)" : "rgba(12,40,74,0.15)"}` } : {}),
+        ...(isTopnav ? { border: `1px solid ${isDark ? "rgba(235,253,0,0.15)" : "rgba(22,24,28,0.15)"}` } : {}),
         ...(isHeader ? { border: `1px solid ${isDark ? "rgba(226,232,240,0.2)" : "transparent"}` } : {}),
       }}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
@@ -170,7 +170,7 @@ export function MobileHeader() {
   const inactiveBg = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)";
   // Yellow does not read on the light transparent header — light mode uses
   // navy for the active header buttons, matching the bottom bar convention
-  const activeAccent = isDarkMode ? "#EBFD00" : "#0C284A";
+  const activeAccent = isDarkMode ? "#EBFD00" : "#16181C";
 
   const isProfileView = screen === "following" && followedUserProfile !== null;
   // On the feed, the identity block's SYNC control already shows the
@@ -359,21 +359,21 @@ export function BottomTabBar() {
   const { screen, setScreen, isDarkMode } = useApp();
 
   // Theme-aware bar surface. Dark gradient is derived from the dark app bg
-  // tokens (--c-surface-alt #0F2238 → --c-bg #0C1A2E) so the bar sits with the
+  // tokens (--c-surface-alt #191C22 → --c-bg #101318) so the bar sits with the
   // darkened backgrounds; light is a near-white surface bar.
   const barBackground = isDarkMode
-    ? "linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)"
+    ? "linear-gradient(to bottom in oklab, #191C22, #101318)"
     : "linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)";
   const barBorderTop = isDarkMode
-    ? "1px solid rgba(172,222,242,0.08)"
-    : "1px solid #D2D8DE";
+    ? "1px solid rgba(226,232,240,0.08)"
+    : "1px solid #D7DADE";
   const barShadow = isDarkMode
     ? "0 -2px 16px rgba(0,0,0,0.35)"
-    : "0 -2px 16px rgba(12,40,74,0.08)";
-  // Light mode uses navy active (matching the desktop top nav) since yellow
-  // does not read on a light bar. Dark mode keeps the signature brand yellow.
-  const activeColor = isDarkMode ? "#EBFD00" : "#0C284A";
-  const inactiveColor = isDarkMode ? "#D1D8DF" : "rgba(12,40,74,0.65)";
+    : "0 -2px 16px rgba(22,24,28,0.08)";
+  // Light mode uses a near-neutral black active (matching the desktop top nav)
+  // since yellow does not read on a light bar. Dark mode keeps the brand yellow.
+  const activeColor = isDarkMode ? "#EBFD00" : "#16181C";
+  const inactiveColor = isDarkMode ? "#D1D8DF" : "rgba(22,24,28,0.65)";
 
   return (
     <>
@@ -446,10 +446,10 @@ export function DesktopTopNav() {
   const showSyncChip =
     (isBackgroundSyncing && screen !== "feed") || isSyncingFollowing;
 
-  const activeColor = isDarkMode ? "#E2E8F0" : "#0C284A";
-  const inactiveColor = isDarkMode ? "rgba(226,232,240,0.45)" : "rgba(12,40,74,0.4)";
-  const activeBg = isDarkMode ? "rgba(226,232,240,0.1)" : "rgba(12,40,74,0.08)";
-  const avatarBorderColor = isDarkMode ? "#E2E8F0" : "#0C284A";
+  const activeColor = isDarkMode ? "#E2E8F0" : "#16181C";
+  const inactiveColor = isDarkMode ? "rgba(226,232,240,0.45)" : "rgba(22,24,28,0.4)";
+  const activeBg = isDarkMode ? "rgba(226,232,240,0.1)" : "rgba(22,24,28,0.08)";
+  const avatarBorderColor = isDarkMode ? "#E2E8F0" : "#16181C";
 
   const renderNavItem = (item: { id: Screen; label: string; icon: typeof Disc3 }) => {
     const isActive = screen === item.id;
@@ -487,7 +487,7 @@ export function DesktopTopNav() {
             weight={isActive ? "fill" : "light"}
             // Yellow does not read on the light transparent nav — light mode
             // uses navy, matching the mobile bottom bar convention
-            color={isActive ? (isDarkMode ? "#EBFD00" : "#0C284A") : inactiveColor}
+            color={isActive ? (isDarkMode ? "#EBFD00" : "#16181C") : inactiveColor}
           />
         )}
         <span

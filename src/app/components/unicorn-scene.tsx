@@ -55,7 +55,7 @@ const ELEMENT_ID = "us-splash";
 /**
  * Wrapper around the Unicorn Studio WebGL scene for use as a fullscreen
  * background. Loads from a self-hosted JSON export via addScene().
- * Falls back to a plain #01294D div if WebGL is unavailable or
+ * Falls back to a plain #0E1013 div if WebGL is unavailable or
  * the scene fails to load — the parent's gradient shows through underneath.
  *
  * Usage: <UnicornScene className="absolute inset-0 w-full h-full" />
@@ -140,7 +140,7 @@ export function UnicornScene({ className }: UnicornSceneProps) {
     return (
       <div
         className={className}
-        style={{ zIndex: 0, backgroundColor: "#01294D" }}
+        style={{ zIndex: 0, backgroundColor: "#0E1013" }}
       />
     );
   }

@@ -140,7 +140,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
           <div className="flex-1" />
           <button
             onClick={() => setShowNewFolder(true)}
-            className="w-10 h-10 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#0C284A] hover:bg-[#d9e800] transition-colors tappable"
+            className="w-10 h-10 rounded-full bg-[#EBFD00] flex items-center justify-center text-[#16181C] hover:bg-[#d9e800] transition-colors tappable"
           >
             <Plus size={20} />
           </button>
@@ -204,7 +204,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
                   <button
                     onClick={handleCreate}
                     disabled={!newFolderName.trim() || isCreating}
-                    className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5"
                     style={{ fontSize: "13px", fontWeight: 600 }}
                   >
                     {isCreating && <Disc3 size={13} className="disc-spinner" />}

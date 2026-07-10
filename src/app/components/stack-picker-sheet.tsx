@@ -167,10 +167,10 @@ export function StackPickerSheet() {
               style={{
                 pointerEvents: "auto",
                 width: 280,
-                backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
+                backgroundColor: isDarkMode ? "#181B21" : "#FFFFFF",
                 boxShadow: "var(--c-card-shadow)",
                 borderRadius: 12,
-                border: `1px solid ${isDarkMode ? "#1A3350" : "#D2D8DE"}`,
+                border: `1px solid ${isDarkMode ? "#2A2E36" : "#D7DADE"}`,
                 padding: 16,
                 ...getContentTokens(isDarkMode),
               } as React.CSSProperties}
@@ -346,7 +346,7 @@ function PickerContent({
                 height: 44,
                 minWidth: 44,
                 backgroundColor: newStackName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
-                color: newStackName.trim() ? "#0C284A" : "var(--c-text-faint)",
+                color: newStackName.trim() ? "#16181C" : "var(--c-text-faint)",
               }}
             >
               <Check size={18} />
@@ -412,7 +412,7 @@ function StackRow({
           border: checked ? "none" : "2px solid var(--c-border-strong)",
         }}
       >
-        {checked && <Check size={13} color="#0C284A" weight="bold" />}
+        {checked && <Check size={13} color="#16181C" weight="bold" />}
       </div>
     </button>
   );

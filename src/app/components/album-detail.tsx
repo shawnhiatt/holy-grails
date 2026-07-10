@@ -1057,7 +1057,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   fontSize: "14px",
                   fontWeight: 600,
                   fontFamily: "'DM Sans', system-ui, sans-serif",
-                  color: "#0C284A",
+                  color: "#16181C",
                   opacity: isSaving ? 0.7 : 1,
                 }}
               >
@@ -1085,7 +1085,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       backgroundColor: (playedToday || justPlayed)
                         ? (isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)")
                         : (isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)"),
-                      border: `1px solid ${(playedToday || justPlayed) ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#74889C") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
+                      border: `1px solid ${(playedToday || justPlayed) ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#868B93") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
                       color: isDarkMode ? "#ACDEF2" : "#00527A",
                     }}
                   >
@@ -1125,7 +1125,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       backgroundColor: pastPlayPickerOpen
                         ? (isDarkMode ? "rgba(172,222,242,0.12)" : "rgba(172,222,242,0.35)")
                         : (isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)"),
-                      border: `1px solid ${pastPlayPickerOpen ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#74889C") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
+                      border: `1px solid ${pastPlayPickerOpen ? (isDarkMode ? "rgba(172,222,242,0.3)" : "#868B93") : (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)")}`,
                       color: isDarkMode ? "#ACDEF2" : "#00527A",
                     }}
                   >
@@ -1226,7 +1226,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                               fontSize: "14px",
                               fontWeight: 600,
                               fontFamily: "'DM Sans', system-ui, sans-serif",
-                              color: "#0C284A",
+                              color: "#16181C",
                               opacity: isLoggingPastPlay ? 0.7 : 1,
                             }}
                             aria-label="Log play"
@@ -1371,7 +1371,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                               className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center tappable transition-colors"
                               style={{
                                 backgroundColor: newStackName.trim() ? "#EBFD00" : "var(--c-chip-bg)",
-                                color: newStackName.trim() ? "#0C284A" : "var(--c-text-faint)",
+                                color: newStackName.trim() ? "#16181C" : "var(--c-text-faint)",
                               }}
                             >
                               <Check size={14} />
@@ -1515,7 +1515,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         )}
 
         {!isEditMode && (
-          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : undefined }}>
+          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : undefined }}>
             {/* ═══ Community (enriched, 3-stat row) ═══ */}
             {isLoadingRelease ? (
               <div className="px-4 pb-6">
@@ -1562,7 +1562,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       position: "sticky",
                       top: 0,
                       zIndex: 10,
-                      backgroundColor: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : "var(--c-surface)",
+                      backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)",
                       borderBottom: "1px solid var(--c-border)",
                       paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                     }}
@@ -2010,7 +2010,7 @@ function InlineStackRow({
           border: checked ? "none" : "2px solid var(--c-border-strong)",
         }}
       >
-        {checked && <Check size={12} color="#0C284A" weight="bold" />}
+        {checked && <Check size={12} color="#16181C" weight="bold" />}
       </div>
     </button>
   );
@@ -2414,7 +2414,7 @@ function WantItemDetailPanel({
           </div>
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : undefined }}>
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : undefined }}>
           {/* ═══ Community (enriched, 3-stat row) ═══ */}
           {isLoadingRelease ? (
             <div className="px-4 pb-6">
@@ -2458,7 +2458,7 @@ function WantItemDetailPanel({
                     position: "sticky",
                     top: 0,
                     zIndex: 10,
-                    backgroundColor: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : "var(--c-surface)",
+                    backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)",
                     borderBottom: "1px solid var(--c-border)",
                     paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                   }}
@@ -2980,7 +2980,7 @@ function ReleaseDetailPanel({
           </div>
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : undefined }}>
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : undefined }}>
           {/* ═══ Community (enriched, 3-stat row) ═══ */}
           {isLoadingRelease ? (
             <div className="px-4 pb-6">
@@ -3037,7 +3037,7 @@ function ReleaseDetailPanel({
                     position: "sticky",
                     top: 0,
                     zIndex: 10,
-                    backgroundColor: hideHeader ? (isDarkMode ? "#091E34" : "#FFFFFF") : "var(--c-surface)",
+                    backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)",
                     borderBottom: "1px solid var(--c-border)",
                     paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                   }}

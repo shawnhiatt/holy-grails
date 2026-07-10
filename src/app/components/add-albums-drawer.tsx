@@ -152,7 +152,7 @@ export function AddAlbumsDrawer({ stackId, onClose }: AddAlbumsDrawerProps) {
             style={{
               width: 520,
               maxHeight: "min(720px, 85vh)",
-              backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
+              backgroundColor: isDarkMode ? "#181B21" : "#FFFFFF",
               boxShadow: "var(--c-card-shadow)",
               borderRadius: 16,
               border: "1px solid var(--c-border)",
@@ -240,7 +240,7 @@ function DrawerContent({
               width: 32,
               height: 32,
               backgroundColor: "#EBFD00",
-              color: "#0C284A",
+              color: "#16181C",
             }}
           >
             <Check size={16} weight="bold" />
@@ -291,7 +291,7 @@ function DrawerContent({
               position: "sticky",
               top: 0,
               zIndex: 10,
-              backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
+              backgroundColor: isDarkMode ? "#181B21" : "#FFFFFF",
             }}
           >
             {/* Search */}
@@ -379,7 +379,7 @@ function DrawerContent({
                         border: added ? "none" : "2px solid var(--c-border-strong)",
                       }}
                     >
-                      {added && <Check size={13} color="#0C284A" weight="bold" />}
+                      {added && <Check size={13} color="#16181C" weight="bold" />}
                     </div>
                   </button>
                 );
@@ -417,7 +417,7 @@ function ThumbnailCard({ album, isAdded, onToggle }: {
               className="w-6 h-6 rounded-full flex items-center justify-center"
               style={{ backgroundColor: "#EBFD00" }}
             >
-              <Check size={14} color="#0C284A" weight="bold" />
+              <Check size={14} color="#16181C" weight="bold" />
             </div>
           </div>
         )}
@@ -506,14 +506,14 @@ function MobileDrawerSheet({
           bottom: 0,
           paddingBottom: "env(safe-area-inset-bottom, 16px)",
           maxHeight: "calc(100dvh - 58px)",
-          backgroundColor: isDarkMode ? "#091E34" : "#FFFFFF",
+          backgroundColor: isDarkMode ? "#181B21" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
         } as MotionStyle}
       >
         {/* Grab handle */}
         <div className="flex justify-center py-3 flex-shrink-0 cursor-grab" style={{ touchAction: "none" }}>
-          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: isDarkMode ? "#2D4A66" : "#D2D8DE" }} />
+          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: isDarkMode ? "#333941" : "#D7DADE" }} />
         </div>
         {children}
       </motion.div>

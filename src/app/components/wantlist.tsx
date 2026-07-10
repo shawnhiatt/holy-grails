@@ -235,7 +235,7 @@ export function Wantlist() {
               All ({wants.length})
             </button>
             <button onClick={() => setWantFilter("priority")}
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#0C284A]" : ""}`}
+              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#16181C]" : ""}`}
               style={wantFilter !== "priority" ? { fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-secondary)" } : { fontSize: "13px", fontWeight: 500 }}>
               <Zap size={12} weight={wantFilter === "priority" ? "fill" : "regular"} />
               Priorities ({wants.filter((w) => w.priority).length})
@@ -265,7 +265,7 @@ export function Wantlist() {
           </div>
           <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={wantGridModes} compact />
           <button onClick={() => setWantFilter(wantFilter === "all" ? "priority" : "all")}
-            className={`w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors shrink-0 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#0C284A]" : ""}`}
+            className={`w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors shrink-0 ${wantFilter === "priority" ? "bg-[#EBFD00] text-[#16181C]" : ""}`}
             style={wantFilter !== "priority" ? { backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" } : undefined}
             title={wantFilter === "priority" ? "Show all" : "Priorities"}
             aria-label={wantFilter === "priority" ? "Show all wants" : "Show priorities only"}
@@ -519,7 +519,7 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
       {...safeTap(() => onSelect(item))}
       style={{
         backgroundColor: "var(--c-surface)",
-        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D7DADE"}`,
         boxShadow: "var(--c-card-shadow)",
         touchAction: "manipulation",
       }}

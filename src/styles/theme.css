@@ -12,22 +12,22 @@
 
   --font-size: 16px;
   --background: #F9F9FA;
-  --foreground: #0C284A;
+  --foreground: #16181C;
   --card: #FFFFFF;
-  --card-foreground: #0C284A;
+  --card-foreground: #16181C;
   --popover: #FFFFFF;
-  --popover-foreground: #0C284A;
+  --popover-foreground: #16181C;
   --primary: #0078B4;
   --primary-foreground: #FFFFFF;
   --secondary: #EFF1F3;
-  --secondary-foreground: #0C284A;
+  --secondary-foreground: #16181C;
   --muted: #EFF1F3;
-  --muted-foreground: #617489;
+  --muted-foreground: #70747C;
   --accent: #EBFD00;
   --accent-foreground: #242A13;
   --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
-  --border: #D2D8DE;
+  --border: #D7DADE;
   --input: transparent;
   --input-background: #FFFFFF;
   --switch-background: #BAC2CB;
@@ -217,8 +217,8 @@ input, textarea, select {
 /* Light mode */
 [data-sonner-toaster][data-sonner-theme="light"] {
   --normal-bg: #FFFFFF;
-  --normal-border: #D2D8DE;
-  --normal-text: #0C284A;
+  --normal-border: #D7DADE;
+  --normal-text: #16181C;
 
   --success-bg: #EEFAEE;
   --success-border: #93D095;
@@ -238,13 +238,13 @@ input, textarea, select {
 }
 
 [data-sonner-toaster][data-sonner-theme="light"] [data-sonner-toast][data-styled="true"] {
-  box-shadow: 0 4px 16px rgba(12, 40, 74, 0.08);
+  box-shadow: 0 4px 16px rgba(22, 24, 28, 0.08);
 }
 
 /* Dark mode */
 [data-sonner-toaster][data-sonner-theme="dark"] {
-  --normal-bg: #132B44;
-  --normal-border: #2D4A66;
+  --normal-bg: #1B1E23;
+  --normal-border: #333941;
   --normal-text: #E2E8F0;
 
   --success-bg: #0D2B14;

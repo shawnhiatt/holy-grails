@@ -363,13 +363,13 @@ function AppContent() {
 
   // Sync html background with JS dark mode so overscroll/transparent areas don't show stale light color
   useEffect(() => {
-    document.documentElement.style.backgroundColor = isDarkMode ? "#030C1C" : "#F9F9FA";
+    document.documentElement.style.backgroundColor = isDarkMode ? "#0A0B0C" : "#F9F9FA";
   }, [isDarkMode]);
 
-  /** Radial gradient background — light cyan glow from top center */
+  /** Radial gradient background — soft cool-gray lift from top center */
   const gradientBg = isDarkMode
-    ? "radial-gradient(ellipse 120% 60% at 50% 0%, #091C33 0%, #030C1C 100%)"
-    : "radial-gradient(200% 100% at 50% 0%, #FFF 21.36%, #ACDEF2 100%)";
+    ? "radial-gradient(ellipse 120% 60% at 50% 0%, #141619 0%, #0A0B0C 100%)"
+    : "radial-gradient(200% 100% at 50% 0%, #FFF 21.36%, #E4E7EA 100%)";
 
   const handleLoginWithDiscogs = useCallback(async () => {
     oauthInFlight.current = true;
@@ -452,9 +452,9 @@ function AppContent() {
         // has no chrome, and 100dvh there mis-anchors the fixed bottom nav,
         // floating it above the home indicator). See theme.css.
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-        backgroundColor: isDarkMode ? "#081A31" : "#ACDEF2",
+        backgroundColor: isDarkMode ? "#0E1013" : "#E4E7EA",
         background: gradientBg,
-        "--app-bg": isDarkMode ? "#081A31" : "#ACDEF2",
+        "--app-bg": isDarkMode ? "#0E1013" : "#E4E7EA",
       } as React.CSSProperties}
     >
       <DesktopTopNav />

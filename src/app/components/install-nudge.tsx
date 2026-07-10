@@ -169,7 +169,7 @@ export function InstallNudge() {
                     borderRadius: 9999,
                     border: "none",
                     backgroundColor: "#EBFD00",
-                    color: "#0C284A",
+                    color: "#16181C",
                     fontSize: 15,
                     fontWeight: 600,
                     fontFamily: "'DM Sans', system-ui, sans-serif",

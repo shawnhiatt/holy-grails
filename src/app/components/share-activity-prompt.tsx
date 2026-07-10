@@ -73,11 +73,11 @@ export function ShareActivityPrompt() {
             className="w-full py-3 rounded-full flex items-center justify-center gap-2 transition-colors cursor-pointer flex-shrink-0 hover:bg-[#d9e800]"
             style={{
               backgroundColor: "#EBFD00",
-              color: "#0C284A",
+              color: "#16181C",
               fontSize: "14px",
               fontWeight: 600,
               lineHeight: 1.5,
-              border: "1px solid rgba(12,40,74,0.25)",
+              border: "1px solid rgba(22,24,28,0.25)",
               opacity: disabled && pending !== "share" ? 0.5 : pending === "share" ? 0.85 : 1,
             }}
           >

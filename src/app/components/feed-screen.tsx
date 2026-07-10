@@ -65,7 +65,7 @@ const RecentAlbumCard = memo(function RecentAlbumCard({ album, width, isDarkMode
         width: width || undefined,
         flexShrink: width ? 0 : undefined,
         backgroundColor: "var(--c-surface)",
-        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+        border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D7DADE"}`,
         boxShadow: "var(--c-card-shadow)",
         touchAction: "manipulation",
       }}
@@ -492,7 +492,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   }, []);
 
   const cardBg = "var(--c-surface)";
-  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
+  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D7DADE";
 
   // Sets for quick lookups in Following Activity heart logic (release_id + master_id)
   const ownReleaseIds = useMemo(() => new Set(albums.map((a) => a.release_id)), [albums]);
@@ -619,7 +619,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           <button
             onClick={reshuffle}
             className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
-            style={{ backgroundColor: "#EBFD00", color: "#0C284A", touchAction: "manipulation" }}
+            style={{ backgroundColor: "#EBFD00", color: "#16181C", touchAction: "manipulation" }}
             aria-label="Shuffle again"
           >
             <Shuffle size={16} weight="bold" />
@@ -864,7 +864,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 flex: "0 0 145px",
                 scrollSnapAlign: "start",
                 backgroundColor: "var(--c-surface)",
-                border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+                border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D7DADE"}`,
                 boxShadow: "var(--c-card-shadow)",
                 touchAction: "manipulation",
               }}
@@ -961,7 +961,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             className="rounded-[10px] overflow-hidden group focus:outline-none text-left tappable transition-all cursor-pointer"
             style={{
               backgroundColor: "var(--c-surface)",
-              border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+              border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D7DADE"}`,
               boxShadow: "var(--c-card-shadow)",
               touchAction: "manipulation",
             }}
@@ -1092,7 +1092,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               bottom: "-6px",
               left: "-6px",
               border: `2px solid ${isDarkMode ? "rgba(19,43,68,0.65)" : "rgba(255,255,255,0.65)"}`,
-              backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
+              backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
             }}
           >
             {item.followedAvatar ? (
@@ -1106,7 +1106,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 style={{
                   fontSize: "9px",
                   fontWeight: 700,
-                  color: isDarkMode ? "#ACDEF2" : "#0C284A",
+                  color: isDarkMode ? "#ACDEF2" : "#16181C",
                   fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
                   lineHeight: 1,
                 }}
@@ -2071,29 +2071,28 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     );
 
     const syncControl = (
-      <div className="flex flex-col items-end flex-shrink-0" style={{ gap: "1px" }}>
+      <div className="flex flex-col items-center flex-shrink-0" style={{ gap: "1px" }}>
         <button
           onClick={handleSyncNow}
           disabled={syncInFlight}
-          className="tappable cursor-pointer flex items-center"
-          style={{ gap: "5px", color: "var(--c-link)", touchAction: "manipulation" }}
+          className="tappable cursor-pointer flex flex-col items-center"
+          style={{ gap: "3px", color: "var(--c-link)", touchAction: "manipulation" }}
           aria-label="Sync with Discogs"
         >
           {syncInFlight ? (
-            <Disc3 size={14} className="disc-spinner" />
+            <Disc3 size={16} className="disc-spinner" />
           ) : (
-            <RefreshCw size={14} weight="bold" />
+            <RefreshCw size={16} weight="bold" />
           )}
           <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.1em" }}>
             {syncInFlight ? "SYNCING" : "SYNC"}
           </span>
         </button>
-        {/* No subtext while syncing — the spinner + SYNCING label is enough,
-            and a progress line crowds long usernames. Per-page progress
-            stays a Settings/loading-screen detail. */}
+        {/* "Synced" is implied — the timestamp alone reads as last-sync.
+            No subtext while syncing (the spinner + SYNCING label carries it). */}
         {!syncInFlight && syncedAgo && (
           <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-            Synced {syncedAgo}
+            {syncedAgo}
           </span>
         )}
       </div>
@@ -2111,7 +2110,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     // Subtle lift behind the ticker strip — one perceptual step off the
     // canvas in each theme (Oklab-derived, per the color rules)
     const tickerBg = isDarkMode
-      ? "oklab(from #0C1A2E calc(l + 0.03) a b)"
+      ? "oklab(from #101318 calc(l + 0.03) a b)"
       : "oklab(from #F9F9FA calc(l - 0.025) a b)";
 
     const tickerStrip =
@@ -2465,7 +2464,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
                   style={{
                     fontSize: "14px", fontWeight: 600,
-                    backgroundColor: "#EBFD00", color: "#0C284A",
+                    backgroundColor: "#EBFD00", color: "#16181C",
                     opacity: isAddingWant ? 0.7 : 1,
                   }}
                 >

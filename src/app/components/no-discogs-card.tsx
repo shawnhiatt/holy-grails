@@ -17,7 +17,7 @@ export function NoDiscogsCard({
   const { isDarkMode, requestConnectDiscogs } = useApp();
 
   const cardBg = "var(--c-surface)";
-  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D2D8DE";
+  const cardBorder = isDarkMode ? "var(--c-border-strong)" : "#D7DADE";
 
   return (
     <div className="flex-1 flex items-center justify-center px-[16px] lg:px-[24px]">
@@ -66,12 +66,12 @@ export function NoDiscogsCard({
           className="w-full py-3 rounded-full flex items-center justify-center cursor-pointer transition-opacity hover:opacity-90"
           style={{
             backgroundColor: "#EBFD00",
-            color: "#0C284A",
+            color: "#16181C",
             fontSize: "15px",
             fontWeight: 600,
             fontFamily: "'DM Sans', system-ui, sans-serif",
             lineHeight: 1.5,
-            border: "1px solid rgba(12,40,74,0.25)",
+            border: "1px solid rgba(22,24,28,0.25)",
             minHeight: "46px",
             marginTop: "24px",
           }}

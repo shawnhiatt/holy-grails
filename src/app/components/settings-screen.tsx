@@ -159,7 +159,7 @@ export function SettingsScreen() {
         </p>
         <button
           onClick={() => setScreen("feed")}
-          className="px-6 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors"
+          className="px-6 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors"
           style={{ fontSize: "14px", fontWeight: 600 }}
         >
           Log in with Discogs
@@ -362,7 +362,7 @@ export function SettingsScreen() {
                   <button
                     onClick={saveProfile}
                     disabled={isSavingProfile}
-                    className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 rounded-[8px] bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
                     style={{ fontSize: "13px", fontWeight: 600 }}
                   >
                     {isSavingProfile && <Disc3 size={13} className="disc-spinner" />}
@@ -563,8 +563,8 @@ export function SettingsScreen() {
             </p>
 
             <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
-              style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(12,40,74,0.25)" }}>
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
+              style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(22,24,28,0.25)" }}>
               <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
               {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
             </button>
@@ -659,7 +659,7 @@ export function SettingsScreen() {
               <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Color mode</p>
               <div
                 className="flex rounded-[8px] flex-shrink-0"
-                style={{ border: "1px solid var(--c-border)", backgroundColor: isDarkMode ? "rgba(158,175,194,0.08)" : "rgba(12,40,74,0.04)" }}
+                style={{ border: "1px solid var(--c-border)", backgroundColor: isDarkMode ? "rgba(158,175,194,0.08)" : "rgba(22,24,28,0.04)" }}
               >
                 {(["Light", "Dark", "System"] as const).map((label) => {
                   const value = label.toLowerCase() as "light" | "dark" | "system";
@@ -700,7 +700,7 @@ export function SettingsScreen() {
                 style={{
                   width: "44px",
                   height: "24px",
-                  backgroundColor: hidePurgeIndicators ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(12,40,74,0.12)"),
+                  backgroundColor: hidePurgeIndicators ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(22,24,28,0.12)"),
                 }}
               >
                 <div
@@ -711,7 +711,7 @@ export function SettingsScreen() {
                     width: "20px",
                     height: "20px",
                     borderRadius: "50%",
-                    backgroundColor: hidePurgeIndicators ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
+                    backgroundColor: hidePurgeIndicators ? "#00527A" : (isDarkMode ? "#AAB0BA" : "#868B93"),
                     transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
                     boxShadow: "var(--c-shadow-sm)",
                   }}
@@ -770,7 +770,7 @@ export function SettingsScreen() {
                 style={{
                   width: "44px",
                   height: "24px",
-                  backgroundColor: shakeToRandom ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(12,40,74,0.12)"),
+                  backgroundColor: shakeToRandom ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(22,24,28,0.12)"),
                 }}
               >
                 <div
@@ -781,7 +781,7 @@ export function SettingsScreen() {
                     width: "20px",
                     height: "20px",
                     borderRadius: "50%",
-                    backgroundColor: shakeToRandom ? "#00527A" : (isDarkMode ? "#9EAFC2" : "#74889C"),
+                    backgroundColor: shakeToRandom ? "#00527A" : (isDarkMode ? "#AAB0BA" : "#868B93"),
                     transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
                     boxShadow: "var(--c-shadow-sm)",
                   }}
