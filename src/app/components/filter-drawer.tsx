@@ -52,8 +52,8 @@ export function FilterDrawer() {
             fontSize: "14px",
             fontWeight: 600,
             backgroundColor: "#EBFD00",
-            color: "#0C284A",
-            border: "1px solid rgba(12,40,74,0.25)",
+            color: "#16181C",
+            border: "1px solid rgba(22,24,28,0.25)",
           }}
         >
           Apply Filters

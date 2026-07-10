@@ -173,7 +173,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const [showFilters, setShowFilters] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const panelBg = isDarkMode ? "#0C1A2E" : "#F9F9FA";
+  const panelBg = isDarkMode ? "#101318" : "#F9F9FA";
   const [showScanner, setShowScanner] = useState(false);
   const cameraSupported = !!navigator.mediaDevices?.getUserMedia;
 

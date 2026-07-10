@@ -258,7 +258,7 @@ export function FollowingScreen() {
           height: "44px",
           borderRadius: "50%",
           backgroundColor: "#EBFD00",
-          color: "#0C284A",
+          color: "#16181C",
           boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
         }}
       >
@@ -293,7 +293,7 @@ export function FollowingScreen() {
                 <button
                   onClick={handleConnect}
                   disabled={addLoading || !addUsername.trim()}
-                  className="px-4 h-[40px] rounded-[10px] bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                  className="px-4 h-[40px] rounded-[10px] bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                   style={{ fontSize: "14px", fontWeight: 600 }}
                 >
                   {addLoading ? <Disc3 size={16} className="disc-spinner" /> : null}
@@ -599,7 +599,7 @@ function FollowedUserProfile({
               fontSize: "14px", fontWeight: tab === "collection" ? 600 : 400,
               fontFamily: "'DM Sans', system-ui, sans-serif",
               backgroundColor: tab === "collection" ? "#ACDEF2" : "var(--c-surface)",
-              color: tab === "collection" ? "#0C284A" : "var(--c-text-muted)",
+              color: tab === "collection" ? "#16181C" : "var(--c-text-muted)",
             }}
           >
             Collection ({user.hydrated === false ? "…" : user.collection.length})
@@ -611,7 +611,7 @@ function FollowedUserProfile({
               fontSize: "14px", fontWeight: tab === "wants" ? 600 : 400,
               fontFamily: "'DM Sans', system-ui, sans-serif",
               backgroundColor: tab === "wants" ? "#ACDEF2" : "var(--c-surface)",
-              color: tab === "wants" ? "#0C284A" : "var(--c-text-muted)",
+              color: tab === "wants" ? "#16181C" : "var(--c-text-muted)",
               borderLeft: "1px solid var(--c-border-strong)",
             }}
           >
@@ -625,7 +625,7 @@ function FollowedUserProfile({
                 fontSize: "14px", fontWeight: tab === "insights" ? 600 : 400,
                 fontFamily: "'DM Sans', system-ui, sans-serif",
                 backgroundColor: tab === "insights" ? "#ACDEF2" : "var(--c-surface)",
-                color: tab === "insights" ? "#0C284A" : "var(--c-text-muted)",
+                color: tab === "insights" ? "#16181C" : "var(--c-text-muted)",
                 borderLeft: "1px solid var(--c-border-strong)",
               }}
             >
@@ -768,7 +768,7 @@ function FollowedUserProfile({
                       onClick={() => handleOpenAlbum(album)}
                       className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left cursor-pointer"
                       style={{
-                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
                         touchAction: "manipulation",
                       }}
                     >
@@ -818,7 +818,7 @@ function FollowedUserProfile({
                     onClick={() => handleOpenAlbum(album)}
                     className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left cursor-pointer"
                     style={{
-                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
                       touchAction: "manipulation",
                     }}
                   >
@@ -1005,7 +1005,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
             {...safeTap(() => onOpenAlbum(item))}
             style={{
               backgroundColor: "var(--c-surface)",
-              border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D2D8DE"}`,
+              border: `1px solid ${isDarkMode ? "var(--c-border-strong)" : "#D7DADE"}`,
               boxShadow: "var(--c-card-shadow)",
               touchAction: "manipulation",
             }}>
@@ -1359,11 +1359,11 @@ function PopulatedFollowingView({
                   <div
                     className="w-[80px] h-[80px] rounded-full flex items-center justify-center"
                     style={{
-                      backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
+                      backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
                       border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}`,
                     }}
                   >
-                    <span style={{ fontSize: "28px", fontWeight: 600, color: isDarkMode ? "#ACDEF2" : "#0C284A", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                    <span style={{ fontSize: "28px", fontWeight: 600, color: isDarkMode ? "#ACDEF2" : "#16181C", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
                       {getInitial(followedUser.username)}
                     </span>
                   </div>
@@ -1378,10 +1378,10 @@ function PopulatedFollowingView({
                       bottom: "0px",
                       right: "0px",
                       backgroundColor: "#EBFD00",
-                      border: `2px solid ${isDarkMode ? "#0C1A2E" : "#F9F9FA"}`,
+                      border: `2px solid ${isDarkMode ? "#101318" : "#F9F9FA"}`,
                     }}
                   >
-                    <Disc3 size={12} color="#0C284A" />
+                    <Disc3 size={12} color="#16181C" />
                   </div>
                 )}
               </div>
@@ -1469,7 +1469,7 @@ function PopulatedFollowingView({
                             width: "20px",
                             height: "20px",
                             borderRadius: "50%",
-                            backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
+                            backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
                           }}
                         >
                           {avatar ? (
@@ -1483,7 +1483,7 @@ function PopulatedFollowingView({
                               style={{
                                 fontSize: "9px",
                                 fontWeight: 700,
-                                color: isDarkMode ? "#ACDEF2" : "#0C284A",
+                                color: isDarkMode ? "#ACDEF2" : "#16181C",
                                 fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
                                 lineHeight: 1,
                               }}
@@ -1629,7 +1629,7 @@ function PopulatedFollowingView({
                       bottom: "-6px",
                       left: "-6px",
                       border: `2px solid ${isDarkMode ? "rgba(19,43,68,0.65)" : "rgba(255,255,255,0.65)"}`,
-                      backgroundColor: isDarkMode ? "#1A3350" : "#ACDEF2",
+                      backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
                     }}
                   >
                     {item.followedAvatar ? (
@@ -1643,7 +1643,7 @@ function PopulatedFollowingView({
                         style={{
                           fontSize: "9px",
                           fontWeight: 700,
-                          color: isDarkMode ? "#ACDEF2" : "#0C284A",
+                          color: isDarkMode ? "#ACDEF2" : "#16181C",
                           fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
                           lineHeight: 1,
                         }}
@@ -1962,7 +1962,7 @@ function PopulatedFollowingView({
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] cursor-pointer transition-colors"
                   style={{
                     fontSize: "14px", fontWeight: 600,
-                    backgroundColor: "#EBFD00", color: "#0C284A",
+                    backgroundColor: "#EBFD00", color: "#16181C",
                     opacity: isAddingWant ? 0.7 : 1,
                   }}
                 >

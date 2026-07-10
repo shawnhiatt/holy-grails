@@ -198,9 +198,9 @@ export function DominantColorCard({
     ? {
         "--dc-bg": `rgb(${r}, ${g}, ${b})`,
         "--dc-bg-dark": `rgb(${dr}, ${dg}, ${db})`,
-        "--dc-text": light ? "#0C284A" : "#FFFFFF",
-        "--dc-text-secondary": light ? "rgba(12, 40, 74, 0.7)" : "rgba(255, 255, 255, 0.7)",
-        "--dc-text-muted": light ? "rgba(12, 40, 74, 0.5)" : "rgba(255, 255, 255, 0.5)",
+        "--dc-text": light ? "#16181C" : "#FFFFFF",
+        "--dc-text-secondary": light ? "rgba(22, 24, 28, 0.7)" : "rgba(255, 255, 255, 0.7)",
+        "--dc-text-muted": light ? "rgba(22, 24, 28, 0.5)" : "rgba(255, 255, 255, 0.5)",
         "--dc-is-light": light ? "1" : "0",
       }
     : {};

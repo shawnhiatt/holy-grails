@@ -96,9 +96,9 @@ export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) 
         height: "calc(100dvh + 200px)",
         inset: 0,
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-        backgroundColor: "#0C1A2E",
+        backgroundColor: "#101318",
         background:
-          "radial-gradient(ellipse 120% 60% at 50% 0%, #091E34 0%, #0C1A2E 100%)",
+          "radial-gradient(ellipse 120% 60% at 50% 0%, #181B21 0%, #101318 100%)",
       }}
     >
       <UnicornScene className="absolute inset-0 w-full h-full" />
@@ -110,13 +110,13 @@ export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) 
         {showOfflineMessage ? (
           /* Offline fallback — shown after 5s with no connection */
           <>
-            <WifiOff size={28} style={{ color: "#9EAFC2" }} />
+            <WifiOff size={28} style={{ color: "#AAB0BA" }} />
             <span
               style={{
                 fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
                 fontSize: 14,
                 fontWeight: 400,
-                color: "#9EAFC2",
+                color: "#AAB0BA",
                 textAlign: "center",
                 maxWidth: 220,
                 lineHeight: 1.6,
@@ -165,7 +165,7 @@ export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) 
                         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
                         fontSize: 14,
                         fontWeight: 400,
-                        color: "#9EAFC2",
+                        color: "#AAB0BA",
                         whiteSpace: "nowrap",
                       }}
                     >
@@ -178,7 +178,7 @@ export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) 
                         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
                         fontSize: 14,
                         fontWeight: 400,
-                        color: "#9EAFC2",
+                        color: "#AAB0BA",
                       }}
                     >
                       <span>.</span>
@@ -238,7 +238,7 @@ export function LoadingScreen({ message, progress, stats }: LoadingScreenProps) 
                       fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
                       fontSize: 13,
                       fontWeight: 400,
-                      color: "#6A8099",
+                      color: "#727882",
                       whiteSpace: "nowrap",
                     }}
                   >

@@ -11,7 +11,7 @@ import type { Album } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
 import { bucketAddsByYear, deriveSpending } from "../utils/insights";
-import { purgeTagColor, purgeTagBg, purgeTagBorder, purgeTagLabel } from "./purge-colors";
+import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
 import { NoDiscogsCard } from "./no-discogs-card";
 
@@ -1015,7 +1015,7 @@ function ListeningActivitySection({
                 onClick={() => onAlbumTap(item.album.id)}
                 className="flex items-center gap-3 rounded-[10px] p-2.5 transition-colors text-left"
                 style={{
-                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(12,40,74,0.04)",
+                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(22,24,28,0.04)",
                 }}
               >
                 <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden flex-shrink-0">
@@ -1066,7 +1066,7 @@ function ListeningActivitySection({
                 onClick={() => onAlbumTap(a.id)}
                 className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
                 style={{
-                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
                 }}
               >
                 <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
@@ -1111,7 +1111,7 @@ function ListeningActivitySection({
               onClick={() => onAlbumTap(item.album.id)}
               className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
               style={{
-                backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)",
+                backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
               }}
             >
               <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
@@ -1154,19 +1154,17 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
     return { keep, cut, maybe, unrated, total, rated, pct };
   }, [albums]);
 
-  // Donut chart SVG
-  const radius = 58;
-  const stroke = 10;
-  const circumference = 2 * Math.PI * radius;
-  const filled = (stats.pct / 100) * circumference;
-  const empty = circumference - filled;
-
-  const statCards: { label: string; tag: string; count: number }[] = [
-    { label: "Keep", tag: "keep", count: stats.keep },
-    { label: "Cut", tag: "cut", count: stats.cut },
-    { label: "Maybe", tag: "maybe", count: stats.maybe },
-    { label: "Unrated", tag: "unrated", count: stats.unrated },
+  // Verdict segments for the progress bar (evaluated portion, left-aligned)
+  // plus the legend below it. Unrated is the remaining track — a neutral,
+  // theme-following fill — so the bar reads as "how far into the purge" while
+  // the colored slice carries the verdict mix. Replaces the old radial ring
+  // (which stacked its center text vertically) with a linear read.
+  const segments: { tag: string; label: string; count: number }[] = [
+    { tag: "keep", label: "Keep", count: stats.keep },
+    { tag: "maybe", label: "Maybe", count: stats.maybe },
+    { tag: "cut", label: "Cut", count: stats.cut },
   ];
+  const legend = [...segments, { tag: "unrated", label: "Unrated", count: stats.unrated }];
 
   return (
     <div
@@ -1196,97 +1194,97 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         </button>
       </div>
 
-      {/* Progress ring */}
-      <div className="flex justify-center mt-4 mb-4">
-        <div className="relative" style={{ width: (radius + stroke) * 2, height: (radius + stroke) * 2 }}>
-          <svg
-            width={(radius + stroke) * 2}
-            height={(radius + stroke) * 2}
-            viewBox={`0 0 ${(radius + stroke) * 2} ${(radius + stroke) * 2}`}
+      {/* Headline — horizontal, replaces the stacked ring center */}
+      <div className="flex items-baseline justify-between mt-4 mb-3">
+        <div className="flex items-baseline" style={{ gap: "7px", minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: "30px",
+              fontWeight: 700,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              color: "var(--c-text)",
+              lineHeight: 1,
+            }}
           >
-            {/* Background ring */}
-            <circle
-              cx={radius + stroke}
-              cy={radius + stroke}
-              r={radius}
-              fill="none"
-              stroke={"var(--c-border-strong)"}
-              strokeWidth={stroke}
-            />
-            {/* Filled ring */}
-            <circle
-              cx={radius + stroke}
-              cy={radius + stroke}
-              r={radius}
-              fill="none"
-              stroke={CHART_PINK}
-              strokeWidth={stroke}
-              strokeLinecap="round"
-              strokeDasharray={`${filled} ${empty}`}
-              strokeDashoffset={circumference / 4}
-              style={{ transition: "stroke-dasharray 0.6s ease" }}
-            />
-          </svg>
-          {/* Center text */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {stats.rated}
+          </span>
+          <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+            of {stats.total} evaluated
+          </span>
+        </div>
+        <span
+          style={{
+            fontSize: "18px",
+            fontWeight: 700,
+            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            color: "var(--c-text-secondary)",
+            flexShrink: 0,
+          }}
+        >
+          {Math.round(stats.pct)}%
+        </span>
+      </div>
+
+      {/* Segmented progress bar — verdict slices over a neutral unrated track */}
+      <div
+        className="w-full flex overflow-hidden"
+        style={{ height: "14px", borderRadius: "999px", backgroundColor: "var(--c-chip-bg)" }}
+      >
+        {stats.total > 0 &&
+          segments.map((s) =>
+            s.count > 0 ? (
+              <div
+                key={s.tag}
+                style={{
+                  width: `${(s.count / stats.total) * 100}%`,
+                  backgroundColor: purgeTagColor(s.tag, isDarkMode),
+                  transition: "width 0.6s ease",
+                }}
+              />
+            ) : null,
+          )}
+      </div>
+
+      {/* Legend — carries the exact counts the old 2×2 grid held */}
+      <div className="flex flex-wrap items-center mt-3" style={{ columnGap: "16px", rowGap: "6px" }}>
+        {legend.map((l) => (
+          <div key={l.tag} className="flex items-center" style={{ gap: "6px" }}>
             <span
               style={{
-                fontSize: "22px",
+                width: "9px",
+                height: "9px",
+                borderRadius: "999px",
+                backgroundColor: l.tag === "unrated" ? "var(--c-text-muted)" : purgeTagColor(l.tag, isDarkMode),
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: "15px",
                 fontWeight: 700,
                 fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
                 color: "var(--c-text)",
-                lineHeight: 1.1,
+                lineHeight: 1,
               }}
             >
-              {stats.rated}
+              {l.count}
             </span>
-            <span style={{ fontSize: "22px", fontWeight: 700, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: 1.1 }}>of {stats.total}</span>
-            <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>evaluated</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2x2 stat grid */}
-      <div className="grid grid-cols-2 gap-2">
-        {statCards.map((s) => (
-          <div
-            key={s.label}
-            className="rounded-[10px] py-2.5 px-3 text-center"
-            style={{
-              backgroundColor: purgeTagBg(s.tag, isDarkMode),
-              border: `1px solid ${purgeTagBorder(s.tag, isDarkMode)}`,
-            }}
-          >
-            <span
-              style={{
-                fontSize: "22px",
-                fontWeight: 700,
-                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                color: purgeTagColor(s.tag, isDarkMode),
-                lineHeight: 1.2,
-              }}
-            >
-              {s.count}
-            </span>
-            <p style={{ fontSize: "11px", fontWeight: 500, color: purgeTagLabel(s.tag, isDarkMode), marginTop: 2 }}>{s.label}</p>
+            <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>{l.label}</span>
           </div>
         ))}
       </div>
 
-      {/* Activity summary */}
-      <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-        {stats.rated > 0
-          ? `You've evaluated ${Math.round(stats.pct)}% of your collection`
-          : "No verdicts yet. Open Purge to start."}
-      </p>
+      {/* Empty-state nudge only when nothing's been evaluated */}
+      {stats.rated === 0 && (
+        <p className="mt-3" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+          No verdicts yet. Open Purge to start.
+        </p>
+      )}
 
       {/* Cut-pile callout — count only for now. Upgrades to a dollar figure
           once per-album market values land (Spec 6). */}
       {hasCollectionValue && stats.cut >= 3 && (
-        <p
-          className="mt-3 text-center"
-          style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}
-        >
+        <p className="mt-3" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
           Cutting deadweight: {stats.cut} records tagged Cut.
         </p>
       )}
@@ -1499,7 +1497,7 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
               className="flex-shrink-0 flex items-center gap-3 rounded-[10px] p-3 transition-colors text-left"
               style={{
                 width: "240px",
-                backgroundColor: isActive ? tileBg : (isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(12,40,74,0.04)"),
+                backgroundColor: isActive ? tileBg : (isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(22,24,28,0.04)"),
                 border: `1px solid ${isActive ? accent : "transparent"}`,
                 touchAction: "manipulation",
               }}
@@ -1535,7 +1533,7 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
                   key={a.id}
                   onClick={() => onAlbumTap(a.id)}
                   className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
-                  style={{ backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(12,40,74,0.03)", touchAction: "manipulation" }}
+                  style={{ backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)", touchAction: "manipulation" }}
                 >
                   <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
                     <img loading="lazy" decoding="async" src={a.thumb || a.cover} alt={a.title} className="w-full h-full object-cover" />

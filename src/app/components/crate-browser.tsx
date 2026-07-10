@@ -162,7 +162,7 @@ export function CrateBrowser() {
       }}
     >
       {label}
-      <X size={11} style={{ color: isDarkMode ? "rgba(172,222,242,0.5)" : "#74889C" }} />
+      <X size={11} style={{ color: isDarkMode ? "rgba(172,222,242,0.5)" : "#868B93" }} />
     </button>
   );
 

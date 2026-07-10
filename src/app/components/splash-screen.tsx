@@ -13,7 +13,7 @@ interface SplashScreenProps {
 export function SplashScreen({
   onLoginWithDiscogs,
 }: SplashScreenProps) {
-  const mutedColor = "#7D92A8";
+  const mutedColor = "#868C96";
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -39,8 +39,8 @@ export function SplashScreen({
         height: "calc(100dvh + 200px)",
         inset: 0,
         fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-        backgroundColor: "#0C1A2E",
-        background: "radial-gradient(ellipse 120% 60% at 50% 0%, #091E34 0%, #0C1A2E 100%)",
+        backgroundColor: "#101318",
+        background: "radial-gradient(ellipse 120% 60% at 50% 0%, #181B21 0%, #101318 100%)",
       }}
     >
       {/* Fullscreen WebGL scene background */}
@@ -97,12 +97,12 @@ export function SplashScreen({
               className="w-full py-3 rounded-full flex items-center justify-center gap-2 transition-colors cursor-pointer flex-shrink-0"
               style={{
                 backgroundColor: "#EBFD00",
-                color: "#0C284A",
+                color: "#16181C",
                 fontSize: "14px",
                 fontWeight: 600,
                 fontFamily: "'DM Sans', system-ui, sans-serif",
                 lineHeight: 1.5,
-                border: "1px solid rgba(12,40,74,0.25)",
+                border: "1px solid rgba(22,24,28,0.25)",
                 opacity: loginLoading ? 0.85 : 1,
               }}
             >

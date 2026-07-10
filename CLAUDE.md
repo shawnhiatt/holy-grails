@@ -250,7 +250,7 @@ src/
       slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork. Blurs the active element on mount (`document.activeElement?.blur()`) to dismiss the iOS software keyboard whenever a panel opens over an active text input. App-wide — no individual tap handlers need to handle this.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in stacks.tsx. Use this for any future list item deletion on mobile.
       theme.ts
-      unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD, v2.1.4). Scene loaded from local `/splash-screen.json` (scene ID `w7mlqmYVwPpRyrBLkt7m`). Falls back to `#01294D` if WebGL is unavailable.
+      unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD, v2.1.4). Scene loaded from local `/splash-screen.json` (scene ID `w7mlqmYVwPpRyrBLkt7m`). Falls back to `#0E1013` if WebGL is unavailable. v0.7: the scene's navy base gradient stops (embedded GLSL `vec3` literals in the JSON) were neutralized to the cool-gray family (`#101318`→`#1B1E23`); the yellow+indigo volumetric nebula layer is kept as an accent gradient. To fully re-theme the scene, re-export from Unicorn Studio.
       use-filtered-albums.ts  # Screen-local collection filtering/sorting hook (search lives in the screens, not context)
       use-shake.ts  # Shake-to-Random gesture hook. Detects lateral shake via DeviceMotion API (threshold: 25 m/s²), fires callback. Requires iOS DeviceMotionEvent.requestPermission() flow — toggle lives in Settings → Gestures. Preference persisted to Convex (`shake_to_random`). `App.tsx` performs a silent boot-time permission check: if `shakeToRandom` is `true` on load and `DeviceMotionEvent.requestPermission()` does not return `'granted'`, the preference is reset to `false` in Convex and a toast is shown. The check runs once per session via a `hasDonePermissionCheckRef` guard.
       wantlist.tsx
@@ -271,7 +271,7 @@ src/
       shuffle.ts         # Fisher-Yates shuffle + pickRandom — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
       collection-facts.ts  # deriveCollectionFacts(albums, playCounts?) — threshold-gated stat lines (most rotated [2+ plays; derived from the optional playCounts map, no new tracking], top decade/artist/label, oldest pressing, latest pickup with artist) for the feed identity-block ticker. Returns a stable derivation order; the feed shuffles the facts per load for ticker display.
       insights.ts        # Pure derivations for the Insights phase-1 sections (Spec 4): parsePricePaid (defensive free-text price parse), parseAddedYear, bucketAddsByYear (Collection Growth), deriveSpending. No React/recharts — testable in node env.
-  imports/               # Logo SVG assets (splash, dark, light — the light variant has navy #0C284A letters for light backgrounds; the dark variant has white letters. Both keep the yellow record-dot with navy spindle hole)
+  imports/               # Logo SVG assets (splash, dark, light — the light variant has navy #0C284A letters for light backgrounds; the dark variant has white letters. Both keep the yellow record-dot with navy spindle hole). NOTE: the v0.7 gray retheme deliberately left the logo SVGs untouched — the wordmark is a fixed brand asset, not themed chrome; revisit only on an explicit brand-mark pass.
   lib/
     condition-colors.ts  # Shared condition grade color spectrum (CONDITION_SPECTRUM map + conditionGradeColor helper). Used by album-detail (incl. the Value section), reports-screen.
   styles/
@@ -344,16 +344,16 @@ Background tokens are defined in `theme.ts` using Oklab relative color expressio
 
 | Token | Expression | Role |
 |---|---|---|
-| `--c-bg` | `oklab(from #081A31 calc(l - 0.06) a b)` | Main app canvas — lowest elevation |
-| `--c-surface-alt` | `oklab(from #0C1F35 calc(l - 0.04) a b)` | Inset/recessed surfaces, input bg |
-| `--c-surface` | `#071B30` | Cards, panels, primary containers |
-| `--c-surface-hover` | `oklab(from #172E4C calc(l - 0.03) a b)` | Hover state on surface elements |
-| `--c-chip-bg` | `oklab(from #172E4C calc(l - 0.03) a b)` | Pill/chip backgrounds |
-| `--c-input-bg` | `oklab(from #0C1F35 calc(l - 0.04) a b)` | Input field backgrounds |
+| `--c-bg` | `oklab(from #14171D calc(l - 0.035) a b)` | Main app canvas — lowest elevation |
+| `--c-surface-alt` | `oklab(from #14171D calc(l - 0.015) a b)` | Inset/recessed surfaces, input bg |
+| `--c-surface` | `#14171D` | Cards, panels, primary containers (the ramp anchor) |
+| `--c-surface-hover` | `oklab(from #14171D calc(l + 0.04) a b)` | Hover state on surface elements |
+| `--c-chip-bg` | `oklab(from #14171D calc(l + 0.04) a b)` | Pill/chip backgrounds |
+| `--c-input-bg` | `oklab(from #14171D calc(l - 0.015) a b)` | Input field backgrounds |
 
-(The dark surface family was deepened in v0.6.x from the original `#0C1A2E`/`#091E34`/`#1A3350` palette to the `#081A31`/`#071B30`/`#172E4C` family above. The old hexes survive in two intentional places: the mobile bottom bar gradient and the detached-component surface pattern — see those notes before "fixing" them.)
+(v0.7 **gray retheme**: the dark surfaces are a cool near-neutral gray family so the app/brand no longer reads as "blue." The whole ramp is derived in Oklab from a single cool-gray anchor `#14171D` — a hint of blue chroma, deliberately not fully desaturated — preserving the `a`/`b` axes so every layer carries the same subtle cool tint, `--c-bg` lowest and borders highest. The prior navy family (`#081A31`/`#071B30`/`#172E4C` and the older `#0C1A2E`/`#091E34`/`#1A3350`) is fully retired. Accent pops — yellow link, pink destructive, cyan/pink/yellow accents, and the ice-blue active-state system (`#ACDEF2`/`rgba(172,222,242,…)`/`#00527A`) — are unchanged: the color lives in the accents, not the surfaces.)
 
-When a new background token is needed, choose a source hex that sits in the correct position in the hierarchy and apply an appropriate Oklab L step. Do not invent hex values directly.
+When a new background token is needed, derive it from the `#14171D` anchor with an appropriate Oklab L step. Do not invent hex values directly, and do not reintroduce a blue-tinted surface.
 
 #### Semantic Color Tokens
 
@@ -368,46 +368,46 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-surface` | `#FFFFFF` |
 | `--c-surface-hover` | `#EFF1F3` |
 | `--c-surface-alt` | `#F9F9FA` |
-| `--c-text` | `#0C284A` |
-| `--c-text-secondary` | `#455B75` |
-| `--c-text-tertiary` | `#617489` |
-| `--c-text-muted` | `#5E6E80` |
-| `--c-text-faint` | `#6E8093` |
-| `--c-border` | `#D2D8DE` |
-| `--c-border-strong` | `#74889C` |
+| `--c-text` | `#16181C` (cool near-neutral black — v0.7, was navy `#0C284A`) |
+| `--c-text-secondary` | `#565A61` |
+| `--c-text-tertiary` | `#70747C` |
+| `--c-text-muted` | `#666A72` |
+| `--c-text-faint` | `#767A82` |
+| `--c-border` | `#D7DADE` |
+| `--c-border-strong` | `#868B93` |
 | `--c-chip-bg` | `#EFF1F3` |
 | `--c-input-bg` | `#F9F9FA` |
 | `--c-destructive` | `#FF33B6` |
 | `--c-destructive-hover` | `#E6009E` |
 | `--c-destructive-tint` | `rgba(255, 51, 182, 0.12)` |
-| `--c-link` | `#0078B4` |
+| `--c-link` | `#0078B4` (blue link — deliberately kept, a permitted accent) |
 | `--c-link-hover` | `#005F8E` |
-| `--c-card-shadow` | `0 4px 20px rgba(12,40,74,0.08)` |
-| `--c-sheet-shadow` | `0 -8px 32px rgba(12, 40, 74, 0.1)` |
+| `--c-card-shadow` | `0 4px 20px rgba(22,24,28,0.08)` |
+| `--c-sheet-shadow` | `0 -8px 32px rgba(22, 24, 28, 0.1)` |
 | `--c-shadow-sm` | `0 1px 3px rgba(0, 0, 0, 0.15)` |
-| `--c-shadow-modal` | `0 16px 48px rgba(12, 40, 74, 0.15)` |
+| `--c-shadow-modal` | `0 16px 48px rgba(22, 24, 28, 0.15)` |
 | `--c-accent-cyan` | `oklab(from #00CFFF 0.52 a b)` (≈ `#0078A5`) |
 | `--c-accent-pink` | `oklab(from #F276EC 0.52 a b)` (≈ `#A428A1`) |
 | `--c-accent-yellow` | `#8C6800` (brass gold — oklch(0.54 0.115 86°)) |
 
-The light-mode cyan/pink accents are the dark accents dropped to Oklab L=0.52 with hue preserved, so 11px eyebrow text clears WCAG 4.5:1 on `--c-bg`. **Yellow is the exception:** hue-preserved darkening of `#EBFD00` (h≈115°, on the green side) can only produce olive/mud, so the light yellow hue-shifts to the brass gold `#8C6800` (h≈86°) — darkened gold still reads as the yellow family; darkened yellow does not. Any new accent token must ship BOTH a dark value and a light value that passes 4.5:1 on the light background — never reuse a bright dark-mode accent directly in light mode, and never darken a green-side yellow without shifting its hue toward gold. Where yellow appears as a **fill** in light mode, prefer keeping the true `#EBFD00` edged/paired with `#8C6800` or navy (peak-decade bar, golden-era pill, CTA buttons) over substituting a darker swatch.
+The light-mode cyan/pink accents are the dark accents dropped to Oklab L=0.52 with hue preserved, so 11px eyebrow text clears WCAG 4.5:1 on `--c-bg`. **Yellow is the exception:** hue-preserved darkening of `#EBFD00` (h≈115°, on the green side) can only produce olive/mud, so the light yellow hue-shifts to the brass gold `#8C6800` (h≈86°) — darkened gold still reads as the yellow family; darkened yellow does not. Any new accent token must ship BOTH a dark value and a light value that passes 4.5:1 on the light background — never reuse a bright dark-mode accent directly in light mode, and never darken a green-side yellow without shifting its hue toward gold. Where yellow appears as a **fill** in light mode, prefer keeping the true `#EBFD00` edged/paired with `#8C6800` or near-black ink `#16181C` (peak-decade bar, golden-era pill, CTA buttons) over substituting a darker swatch.
 
 ##### Content Area — Dark Mode
 | Token | Value |
 |---|---|
-| `--c-bg` | `oklab(from #081A31 calc(l - 0.06) a b)` |
-| `--c-surface` | `#071B30` |
-| `--c-surface-hover` | `oklab(from #172E4C calc(l - 0.03) a b)` |
-| `--c-surface-alt` | `oklab(from #0C1F35 calc(l - 0.04) a b)` |
-| `--c-text` | `#E2E8F0` |
-| `--c-text-secondary` | `#9EAFC2` |
-| `--c-text-tertiary` | `#8A9BB0` |
-| `--c-text-muted` | `#7D92A8` |
-| `--c-text-faint` | `#6A8099` |
-| `--c-border` | `#172E4C` |
-| `--c-border-strong` | `#2A4762` |
-| `--c-chip-bg` | `oklab(from #172E4C calc(l - 0.03) a b)` |
-| `--c-input-bg` | `oklab(from #0C1F35 calc(l - 0.04) a b)` |
+| `--c-bg` | `oklab(from #14171D calc(l - 0.035) a b)` |
+| `--c-surface` | `#14171D` |
+| `--c-surface-hover` | `oklab(from #14171D calc(l + 0.04) a b)` |
+| `--c-surface-alt` | `oklab(from #14171D calc(l - 0.015) a b)` |
+| `--c-text` | `#E6E8EC` |
+| `--c-text-secondary` | `#AAB0BA` |
+| `--c-text-tertiary` | `#969CA6` |
+| `--c-text-muted` | `#868C96` |
+| `--c-text-faint` | `#727882` |
+| `--c-border` | `oklab(from #14171D calc(l + 0.06) a b)` |
+| `--c-border-strong` | `oklab(from #14171D calc(l + 0.14) a b)` |
+| `--c-chip-bg` | `oklab(from #14171D calc(l + 0.04) a b)` |
+| `--c-input-bg` | `oklab(from #14171D calc(l - 0.015) a b)` |
 | `--c-destructive` | `#FF33B6` |
 | `--c-destructive-hover` | `#E6009E` |
 | `--c-destructive-tint` | `rgba(255, 51, 182, 0.08)` |
@@ -430,17 +430,17 @@ These never change with theme and are always hardcoded where used.
 | Value | Usage |
 |---|---|
 | `#EBFD00` | CTA buttons, logo accent, sync/action buttons, dark-mode active nav |
-| `#01294D` | ThemeSwitch sidebar-variant track, UnicornScene WebGL fallback |
+| `#0E1013` | UnicornScene WebGL fallback (v0.7 neutral, was navy `#01294D`) |
+| `#16181C` | Cool near-neutral black ink: text on yellow CTA buttons, light-mode active nav (bottom bar, desktop top nav icon, mobile header active buttons), ThemeSwitch sidebar-variant track (v0.7, was navy `#0C284A`/`#01294D`) |
 | `#D1D8DF` | Dark-mode inactive nav icon + label |
 | `#d9e800` | CTA button hover state |
-| `#0C284A` | Text on yellow CTA buttons, light-mode active nav (bottom bar, desktop top nav icon, mobile header active buttons) |
 
-**Both navs are theme-aware.** The desktop top nav renders on a transparent header over the app gradient (no fixed `#01294D` bar anymore); its active icon is `#EBFD00` in dark mode and `#0C284A` in light mode, matching the mobile bottom nav convention — yellow does not read on a light surface. The mobile header's active Following/Settings buttons follow the same rule.
+**Both navs are theme-aware.** The desktop top nav renders on a transparent header over the app gradient (no fixed navy bar anymore); its active icon is `#EBFD00` in dark mode and `#16181C` (near-neutral black) in light mode, matching the mobile bottom nav convention — yellow does not read on a light surface. The mobile header's active Following/Settings buttons follow the same rule.
 
 ##### Yellow CTA Buttons
 ```tsx
 // Always use this pattern for primary CTAs
-className="bg-[#EBFD00] text-[#0C284A] hover:bg-[#d9e800]"
+className="bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800]"
 ```
 
 ##### Active Filter Chips
@@ -501,7 +501,7 @@ Gradient fades to surface backgrounds must reference a CSS token — never a har
 background: "linear-gradient(to bottom, transparent, var(--c-surface))"
 
 // Wrong — breaks on theme change
-background: "linear-gradient(to bottom, transparent, #091E34)"
+background: "linear-gradient(to bottom, transparent, #181B21)"
 ```
 
 Image card overlays using `rgba(0,0,0,...)` for photo readability are intentional exceptions — do not change them.
@@ -610,7 +610,7 @@ import { Disc3 } from "./icons"
 ### CSS Variables on Detached Components
 The session picker and other components that render outside the main `<main>` element must apply CSS variables inline on their container — they don't inherit from the main cascade.
 
-**Detached-component surface color pattern:** The following components use `isDarkMode ? "#091E34" : "#FFFFFF"` for their background color rather than `var(--c-surface)`. This is intentional — these components render in a context where CSS custom properties from the root are not inherited (detached from the main DOM tree or rendered via portals):
+**Detached-component surface color pattern:** The following components use `isDarkMode ? "#181B21" : "#FFFFFF"` for their background color rather than `var(--c-surface)`. This is intentional — these components render in a context where CSS custom properties from the root are not inherited (detached from the main DOM tree or rendered via portals):
 
 - slide-out-panel.tsx
 - add-albums-drawer.tsx
@@ -620,11 +620,11 @@ The session picker and other components that render outside the main `<main>` el
 - purge-tracker.tsx
 - loading-screen.tsx
 
-`#091E34` (dark) and `#FFFFFF` (light) are the correct surface values for detached components. Do not change these to `var(--c-surface)` without first verifying CSS variable inheritance in that rendering context.
+`#181B21` (dark, v0.7 cool gray — a hair lighter than `--c-surface`, matching the prior detached-vs-surface relationship) and `#FFFFFF` (light) are the correct surface values for detached components. Do not change these to `var(--c-surface)` without first verifying CSS variable inheritance in that rendering context.
 
 ### App-Level CSS Custom Properties
 
-- `--app-bg` — set dynamically in App.tsx as the scroll-fade gradient base color. Dark: `#081A31`, Light: `#ACDEF2`. Used for the top-of-screen scroll fade overlay. (The app root also paints a radial gradient — dark: `#091C33` → `#030C1C`, light: `#FFF` → `#ACDEF2` — and syncs the `<html>` background to `#030C1C`/`#F9F9FA`; these are the true outermost canvas colors.)
+- `--app-bg` — set dynamically in App.tsx as the scroll-fade gradient base color. Dark: `#0E1013`, Light: `#E4E7EA` (v0.7 gray retheme — was navy `#081A31` / cyan `#ACDEF2`). Used for the top-of-screen scroll fade overlay. (The app root also paints a radial gradient — dark: `#141619` → `#0A0B0C`, light: `#FFF` → `#E4E7EA` — and syncs the `<html>` background to `#0A0B0C`/`#F9F9FA`; these are the true outermost canvas colors.)
 - `--nav-clearance` — `calc(84px + env(safe-area-inset-bottom, 0px))` — bottom padding calc used across 16+ screen components to clear the fixed navigation bar. Set in App.tsx or navigation.tsx.
 - `--slide-panel-footer-pb` — `84px` (mobile) / `16px` (desktop) — bottom padding for pinned sheet footers.
 - WantlistCrossoverPrompt bottom offset: `calc(72px + env(safe-area-inset-bottom, 0px))`
@@ -695,7 +695,7 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Purge tag**: Renders in its own `px-4 pb-2` row below the carousel (left-aligned), only when present and not in edit mode. No longer part of the title block.
 - **"Your Copy" card header**: On mobile, the metadata card has a "YOUR COPY" section label (16px, fontWeight 600, `var(--c-text)`) matching other section heading styles, with the edit pencil button right-aligned in the header row.
 - **Panel section order**: Hero → Thumbnail carousel → Purge tag → Your Copy (with section header, Format, Label, Catalog #, Year, Country, Folder, Media, Sleeve, Paid, custom fields) → User Notes → Mark as Played → Enriched Tabs (mobile) or accordion sections (desktop) → Community (compact row) → Sessions → Rate for Purge. (`AlbumDetailPanel` has no Value section — that lives only in `ReleaseDetailPanel`; see below.)
-- **Enriched content tabs (mobile)**: On mobile, Tracklist, Credits, Pressing Notes, and Identifiers render as a sticky horizontal tab bar instead of accordion sections. Tabs with no data are hidden after the enriched fetch resolves. During loading, all four tabs show at `opacity: 0.4` with a skeleton below. Active tab uses `2px solid #EBFD00` underline indicator. Tab bar uses `position: sticky; top: 0; z-index: 10` with a background matching the sheet's hardcoded background (`isDarkMode ? "#132B44" : "#FFFFFF"`). An IntersectionObserver sentinel pattern applies `paddingTop: 48px` only when the tab bar is stuck, clearing the close button. `tabBarStuck` state resets on album change. On desktop, the original accordion sections remain.
+- **Enriched content tabs (mobile)**: On mobile, Tracklist, Credits, Pressing Notes, and Identifiers render as a sticky horizontal tab bar instead of accordion sections. Tabs with no data are hidden after the enriched fetch resolves. During loading, all four tabs show at `opacity: 0.4` with a skeleton below. Active tab uses `2px solid #EBFD00` underline indicator. Tab bar uses `position: sticky; top: 0; z-index: 10` with a background matching the sheet's hardcoded detached-surface background (`isDarkMode ? "#181B21" : "#FFFFFF"`). An IntersectionObserver sentinel pattern applies `paddingTop: 48px` only when the tab bar is stuck, clearing the close button. `tabBarStuck` state resets on album change. On desktop, the original accordion sections remain.
 - **Section component props**: `hideTitle` prop added to `TracklistSection`, `CreditsSection`, `PressingNotesSection` — suppresses section headings when rendered inside tab content on mobile. `hideToggle` prop added to `TracklistSection` — shows full tracklist without Show More truncation on mobile tabs.
 - **Inner scroll container**: The `div.flex-1.overflow-y-auto` inside `AlbumDetailPanel` conditionally applies `overflow-y-auto` only on desktop (`hideHeader === false`). On mobile, `overflow-y` is removed so `position: sticky` resolves against `scrollRef` in `SlideOutPanel`.
 - **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section (or Pressing Notes tab on mobile). Never merge these.
@@ -772,7 +772,7 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 **Recommended section removed (v0.6.x):** The time-of-day-weighted "Give this one a spin." hero was cut — it read as redundant with Shuffle. Its `getTimeBucket`/mood-folder scoring code was deleted with it; do not resurrect it. The feed-header transparency behavior it introduced remains: the mobile feed header is transparent at scroll position 0 on the home feed and transitions to opaque on scroll, scoped via a prop on the header component (`onHeroVisibility` keys off scroll position, not any hero section). The identity block sits flush under the transparent header.
 
-**Identity block (above the fold):** The scripted time-of-day greeting pool was removed — real data carries the personality instead. A full-width band (no card container) built from rows separated by `1px solid var(--c-border)` hairlines, rendered by `identityBlock(variant)` with `"mobile"` and `"desktop"` arrangements. Mobile stacks three rows flush under the transparent header (wrapper clearance `calc(safe-area-inset-top + 58px)` — the band's own top hairline reads as the header's bottom edge): (1) avatar (44px, initial fallback) + username (22px Bricolage, `flex-1` + `min-width: 0`, truncates with ellipsis so it never collides with the sync control) + a right-aligned **SYNC control** — `RefreshCw` icon (Phosphor `ArrowsClockwise`, `weight="bold"`) beside uppercase "SYNC" (13px, weight 700, letter-spacing 0.1em) in `var(--c-link)`, with "Synced {2h ago}" (`formatSyncedAgo`, 12px muted) beneath; while syncing it becomes a Disc3 spinner + "SYNCING" and disables. Calls `syncFromDiscogs` with the Settings-style success/error toasts. (2) A stats grid — equal columns with vertical hairline dividers, ordered In Collection · Med. Value (`#009A32`, hidden when no cached collection value) · In Wantlist; values 22px Bricolage over 10px uppercase letterspaced labels; **each stat is a tappable shortcut** (In Collection → crate, Med. Value → reports, In Wantlist → wants). (3) The collection facts ticker on a subtle lifted strip (dark: `oklab(from #0C1A2E calc(l + 0.03) a b)`, light: `oklab(from #F9F9FA calc(l - 0.025) a b)`; hard edge clip, no fade mask). `deriveCollectionFacts(albums, playCounts)` returns structured `{ label, value }` pairs rendered as an eyebrow label (10px uppercase, `var(--c-text-faint)`) beside its value (13px weight 600, `var(--c-text)`); the fact order is shuffled (Fisher–Yates `shuffle`) so the ticker leads with a different fact each open — once at mount and again on every `visibilitychange` back to `visible`, since an installed PWA resumed from the background never remounts and would otherwise freeze the lead fact; the pool includes "Most rotated" (the highest-play-count record, gated at 2+ plays, derived from the existing `playCounts` map — no new listen tracking) when play history exists; seamless two-copy loop via the `.feed-ticker` keyframe in fonts.css — the track is `display:flex; width:max-content` and each item `flex-shrink:0; white-space:nowrap`, or iOS Safari stacks the text vertically; falls back to a single centered `pickRandom` fact under `prefers-reduced-motion` or when fewer than 2 facts. "Collecting since" was removed with the container redesign. Desktop composes the same pieces as one header strip (avatar 48px, username 26px, inline stat cells, sync control right) with the ticker strip underneath. Zero additional API calls — all fields come from context/cache.
+**Identity block (above the fold):** The scripted time-of-day greeting pool was removed — real data carries the personality instead. A full-width band (no card container) built from rows separated by `1px solid var(--c-border)` hairlines, rendered by `identityBlock(variant)` with `"mobile"` and `"desktop"` arrangements. Mobile stacks three rows flush under the transparent header (wrapper clearance `calc(safe-area-inset-top + 58px)` — the band's own top hairline reads as the header's bottom edge): (1) avatar (44px, initial fallback) + username (22px Bricolage, `flex-1` + `min-width: 0`, truncates with ellipsis so it never collides with the sync control) + a **SYNC control** — center-aligned and vertically stacked: `RefreshCw` icon (Phosphor `ArrowsClockwise`, `weight="bold"`, 16px) *above* uppercase "SYNC" (13px, weight 700, letter-spacing 0.1em) in `var(--c-link)`, with just "{2h ago}" (`formatSyncedAgo`, 12px muted) beneath — the word "Synced" was dropped as implied; while syncing it becomes a Disc3 spinner over "SYNCING" and disables. Calls `syncFromDiscogs` with the Settings-style success/error toasts. (2) A stats grid — equal columns with vertical hairline dividers, ordered In Collection · Med. Value (`#009A32`, hidden when no cached collection value) · In Wantlist; values 22px Bricolage over 10px uppercase letterspaced labels; **each stat is a tappable shortcut** (In Collection → crate, Med. Value → reports, In Wantlist → wants). (3) The collection facts ticker on a subtle lifted strip (dark: `oklab(from #101318 calc(l + 0.03) a b)`, light: `oklab(from #F9F9FA calc(l - 0.025) a b)`; hard edge clip, no fade mask). `deriveCollectionFacts(albums, playCounts)` returns structured `{ label, value }` pairs rendered as an eyebrow label (10px uppercase, `var(--c-text-faint)`) beside its value (13px weight 600, `var(--c-text)`); the fact order is shuffled (Fisher–Yates `shuffle`) so the ticker leads with a different fact each open — once at mount and again on every `visibilitychange` back to `visible`, since an installed PWA resumed from the background never remounts and would otherwise freeze the lead fact; the pool includes "Most rotated" (the highest-play-count record, gated at 2+ plays, derived from the existing `playCounts` map — no new listen tracking) when play history exists; seamless two-copy loop via the `.feed-ticker` keyframe in fonts.css — the track is `display:flex; width:max-content` and each item `flex-shrink:0; white-space:nowrap`, or iOS Safari stacks the text vertically; falls back to a single centered `pickRandom` fact under `prefers-reduced-motion` or when fewer than 2 facts. "Collecting since" was removed with the container redesign. Desktop composes the same pieces as one header strip (avatar 48px, username 26px, inline stat cells, sync control right) with the ticker strip underneath. Zero additional API calls — all fields come from context/cache.
 
 **Format Spotlight:** Rotates the featured format on every app load. Filters the user's collection data for obscure vinyl format descriptions (7-Inch, 12-Inch, Limited Edition, Picture Disc, Colored, Etched, 45 RPM, Mono, etc.). Headers are the plain format name ("45 RPMs", "Limited Editions") under the FORMAT SPOTLIGHT eyebrow — no "Your …" / "… in Your Collection" fluff. Requires a minimum of 3 matching albums per category to be eligible for display. Operates entirely on cached Convex collection data — zero additional API calls.
 
@@ -804,7 +804,7 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 5. **Top Artists**: Ranked list (#1–#10). Filters to artists with 2+ albums. Hidden if fewer than 3 qualify. Excludes "Various", "Various Artists", "Unknown Artist", "Unknown". #1 rank in #EBFD00, #2–3 in var(--c-text-muted), #4+ in var(--c-text-faint). Disambig suffixes (e.g. " (2)") stripped before grouping.
 6. **Top Labels**: Lollipop chart (thin stem + dot). Filters to labels with 2+ albums, cap 10. Hidden if fewer than 3 qualify. Dot color: CHART_BLUE (#0DB1F2).
 7. **Listening Activity**: Stats grid (played this month in green Keep styling, days since last played, no plays recorded count), "No Spins on File" neglected album list, "Recently Played" list (max 5, hidden entirely if no plays logged).
-8. **Purge Progress**: Donut ring, 2×2 stat grid (Keep/Cut/Maybe/Unrated). When a cached collection value exists and 3+ albums are tagged Cut, a "Cutting deadweight: {N} records tagged Cut." callout line (count-only; upgrades to a dollar figure once per-album market values land in Spec 6).
+8. **Purge Progress**: A horizontal headline (`{rated} of {total} evaluated` + `{pct}%`, replacing the old radial ring's stacked center text), a full-width **segmented progress bar** (Keep/Maybe/Cut verdict slices over a neutral `--c-chip-bg` unrated track — the colored slice reads as "how far into the purge," left-aligned), and a **legend row** carrying the exact counts (Keep/Maybe/Cut/Unrated, colored dots via `purgeTagColor`; unrated dot uses `var(--c-text-muted)`) that replaced the old 2×2 stat grid. Empty-state nudge when nothing's evaluated. When a cached collection value exists and 3+ albums are tagged Cut, a "Cutting deadweight: {N} records tagged Cut." callout line (count-only; upgrades to a dollar figure once per-album market values land in Spec 6).
 9. **Spending**: Stat grid (total spent, avg. per record) + a "Most expensive" row (title + price), under the "Based on {N} of {total} records with a price on file." microcopy. Aggregates `pricePaid` (free text) via `parsePricePaid` in `utils/insights.ts` — accepts US formatting, skips empty/junk/euro-decimal-comma/zero/negative. Neutral (not green) — money out. Rendered after Collection Value.
 10. **Collection Growth**: recharts BarChart of records added per year (from `dateAdded`), capped to the last 10 years, current-year bar in #EBFD00 (edged brass gold in light mode, matching the peak-decade convention). Yellow callout pill: "{N} records added in {year}" for the biggest year, or "Your biggest year yet" when the biggest year is the current one. Derived via `bucketAddsByYear` in `utils/insights.ts`. Rendered after Breakdown, before Top Artists.
 
@@ -832,8 +832,8 @@ Mobile bottom tab bar is fixed flush to the bottom edge (not a floating pill).
 - Height: `calc(54px + env(safe-area-inset-bottom, 0px))`
 - `paddingBottom: env(safe-area-inset-bottom, 0px)` applied internally
 - **Theme-aware surface** (reads `isDarkMode`):
-  - Dark: background `linear-gradient(to bottom in oklab, #0F2238, #0C1A2E)` (legacy dark surface hexes retained deliberately for the bar — they blend with the deepened v0.6.x background family), top border `rgba(172,222,242,0.08)`, active `#EBFD00`, inactive `#D1D8DF`
-  - Light: background `linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)`, top border `#D2D8DE`, active `#0C284A` (navy, matching desktop nav — yellow does not read on a light bar), inactive `rgba(12,40,74,0.65)`
+  - Dark: background `linear-gradient(to bottom in oklab, #191C22, #101318)` (v0.7 cool-gray bar hexes, blending with the neutral background family), top border `rgba(226,232,240,0.08)`, active `#EBFD00`, inactive `#D1D8DF`
+  - Light: background `linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)`, top border `#D7DADE`, active `#16181C` (near-neutral black, matching desktop nav — yellow does not read on a light bar), inactive `rgba(22,24,28,0.65)`
 - The nav itself needs no PWA-standalone override — it stays flush via the app-root height fix (see the `.app-viewport` note under "Full-Screen Viewport Height"). The `.bottom-tab-bar` class on the `<nav>` is a styling hook with no rules attached; keeping the nav flush is the app root's job, not the nav's.
 
 5 items:
