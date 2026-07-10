@@ -2071,7 +2071,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     );
 
     const syncControl = (
-      <div className="flex flex-col items-center flex-shrink-0" style={{ gap: "0px" }}>
+      <div className="flex flex-col items-center flex-shrink-0" style={{ gap: "2px" }}>
         <button
           onClick={handleSyncNow}
           disabled={syncInFlight}
