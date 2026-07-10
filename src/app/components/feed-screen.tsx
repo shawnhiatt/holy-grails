@@ -2071,12 +2071,12 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     );
 
     const syncControl = (
-      <div className="flex flex-col items-center flex-shrink-0" style={{ gap: "1px" }}>
+      <div className="flex flex-col items-center flex-shrink-0" style={{ gap: "0px" }}>
         <button
           onClick={handleSyncNow}
           disabled={syncInFlight}
           className="tappable cursor-pointer flex flex-col items-center"
-          style={{ gap: "3px", color: "var(--c-link)", touchAction: "manipulation" }}
+          style={{ gap: "0px", color: "var(--c-link)", touchAction: "manipulation" }}
           aria-label="Sync with Discogs"
         >
           {syncInFlight ? (
@@ -2084,14 +2084,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           ) : (
             <RefreshCw size={16} weight="bold" />
           )}
-          <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.1em" }}>
+          <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.1em", lineHeight: 1 }}>
             {syncInFlight ? "SYNCING" : "SYNC"}
           </span>
         </button>
         {/* "Synced" is implied — the timestamp alone reads as last-sync.
             No subtext while syncing (the spinner + SYNCING label carries it). */}
         {!syncInFlight && syncedAgo && (
-          <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>
+          <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)", lineHeight: 1 }}>
             {syncedAgo}
           </span>
         )}
@@ -2164,7 +2164,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       return (
         <div className="w-full flex flex-col" style={{ borderTop: "1px solid var(--c-border)", borderBottom: "1px solid var(--c-border)" }}>
           {/* Avatar + username | sync */}
-          <div className="flex items-center" style={{ gap: "12px", padding: "10px 16px", minWidth: 0 }}>
+          <div className="flex items-center" style={{ gap: "12px", padding: "8px 16px", minWidth: 0 }}>
             {avatarEl}
             {usernameEl}
             {syncControl}

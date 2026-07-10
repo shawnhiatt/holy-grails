@@ -99,18 +99,36 @@ export function CrateBrowser() {
     return () => window.removeEventListener("hg:focus-filter", handler);
   }, []);
 
+  // Remember the last grid layout (2×2 vs 3×3) so returning from List lands on
+  // the layout you left instead of forcing a toggle. Tracked across List visits
+  // for the session (viewMode itself only persists grid/grid3/list, so the
+  // variant is lost on a cold reload from List — defaults to grid there).
+  const [lastGridMode, setLastGridMode] = useState<ViewMode>(viewMode === "grid3" ? "grid3" : "grid");
+  useEffect(() => {
+    if (viewMode === "grid" || viewMode === "grid3") setLastGridMode(viewMode);
+  }, [viewMode]);
+
+  // The grid button reflects the layout it will show: the current grid mode, or
+  // the remembered one while in List.
+  const gridButtonMode: ViewMode = viewMode === "grid" || viewMode === "grid3" ? viewMode : lastGridMode;
   const gridModes = useMemo(() => [
-    { id: viewMode === "grid3" ? "grid3" as ViewMode : "grid" as ViewMode, icon: viewMode === "grid3" ? Grid3x3 : Grid2x2, label: viewMode === "grid3" ? "Compact Grid" : "Grid" },
+    { id: gridButtonMode, icon: gridButtonMode === "grid3" ? Grid3x3 : Grid2x2, label: gridButtonMode === "grid3" ? "Compact Grid" : "Grid" },
     { id: "list" as ViewMode, icon: List, label: "List" },
-  ], [viewMode]);
+  ], [gridButtonMode]);
 
   const handleSetViewMode = useCallback((v: ViewMode) => {
     if (v === "grid" || v === "grid3") {
-      setViewMode(viewMode === "grid3" ? "grid" : "grid3");
+      if (viewMode === "grid" || viewMode === "grid3") {
+        // Already in a grid → tapping the grid button cycles 2×2 ↔ 3×3.
+        setViewMode(viewMode === "grid3" ? "grid" : "grid3");
+      } else {
+        // Coming from List → return to the last grid layout, no cycle.
+        setViewMode(lastGridMode);
+      }
     } else {
       setViewMode(v);
     }
-  }, [viewMode, setViewMode]);
+  }, [viewMode, setViewMode, lastGridMode]);
 
   const sortLabel: Record<string, string> = {
     "artist-az": "Artist A\u2192Z",
