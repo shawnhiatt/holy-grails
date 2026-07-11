@@ -1,15 +1,19 @@
 import { useState, useCallback } from "react";
 import { useApp } from "./app-context";
 import { shuffle, pickRandom } from "../utils/shuffle";
-import type { Album } from "./discogs-api";
+import { mediaType, type Album, type MediaType } from "./discogs-api";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { WantlistHeartButton } from "./wantlist-heart-button";
 
 /* ─── Format category definitions ─── */
 
 interface FormatCategory {
-  /** Match strings to look for in the Album.format field (case-insensitive) */
-  patterns: string[];
+  /** Substring patterns to look for in Album.format (case-insensitive).
+   *  Used for vinyl descriptors, which are safe as substrings. */
+  patterns?: string[];
+  /** Media-type match (all-formats). Classifies via mediaType() instead of a
+   *  substring so e.g. "CD" never false-positives inside another word. */
+  media?: MediaType;
   /** Human-readable section header */
   header: string;
   /** Badge label shown on each card */
@@ -17,6 +21,10 @@ interface FormatCategory {
 }
 
 const FORMAT_CATEGORIES: FormatCategory[] = [
+  // Media types (all-formats) — classified via mediaType, not substring
+  { media: "CD", header: "CDs", badge: "CD" },
+  { media: "Cassette", header: "Cassettes", badge: "Cassette" },
+  { media: "Shellac", header: "78s & Shellac", badge: "Shellac" },
   // Physical size — headers are the plain format name (see FORMAT SPOTLIGHT eyebrow)
   { patterns: ['7"', "7-inch"], header: "7-Inches", badge: '7"' },
   { patterns: ['10"', "10-inch"], header: "10-Inches", badge: '10"' },
@@ -26,6 +34,7 @@ const FORMAT_CATEGORIES: FormatCategory[] = [
   { patterns: ["promo"], header: "Promos", badge: "Promo" },
   { patterns: ["test pressing"], header: "Test Pressings", badge: "Test Pressing" },
   { patterns: ["advance"], header: "Advance Copies", badge: "Advance" },
+  { patterns: ["box set"], header: "Box Sets", badge: "Box Set" },
   // Pressing type
   { patterns: ["picture disc"], header: "Picture Discs", badge: "Picture Disc" },
   { patterns: ["colored", "coloured"], header: "Colored Vinyl", badge: "Colored" },
@@ -39,8 +48,9 @@ const FORMAT_CATEGORIES: FormatCategory[] = [
 ];
 
 function albumMatchesCategory(album: Album, category: FormatCategory): boolean {
+  if (category.media) return mediaType(album.format) === category.media;
   const fmt = album.format.toLowerCase();
-  return category.patterns.some((p) => fmt.includes(p.toLowerCase()));
+  return (category.patterns ?? []).some((p) => fmt.includes(p.toLowerCase()));
 }
 
 /* ─── Component ─── */

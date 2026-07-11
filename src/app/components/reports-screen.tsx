@@ -7,7 +7,7 @@ import { ChevronRight, Disc3, ImageSquare } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
 import { DURATION_NORMAL } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";
-import type { Album } from "./discogs-api";
+import { mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
 import { bucketAddsByYear, deriveSpending } from "../utils/insights";
@@ -660,23 +660,40 @@ function LabelsSection({ albums }: { albums: Album[] }) {
   );
 }
 
-function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
-  const strip = new Set(["Vinyl", "Album", "All Media", "Record Store Day", "Reissue", "Compilation", "Stereo", "Mono", "Promo", "Limited Edition", "Deluxe Edition", "Remaster", "Special Edition", "Club Edition", "Transcription", "Unofficial Release", "White Label"]);
+// Descriptor words stripped when tokenizing a format string down to its
+// meaningful descriptor (LP, 12", 7", Box Set …). Medium names are handled
+// separately via mediaType so any majority medium name drops out too.
+const FORMAT_STRIP = new Set(["Album", "All Media", "Record Store Day", "Reissue", "Compilation", "Stereo", "Mono", "Promo", "Limited Edition", "Deluxe Edition", "Remaster", "Special Edition", "Club Edition", "Transcription", "Unofficial Release", "White Label"]);
 
-  const data = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const a of albums) {
-      if (!a.format) continue;
-      const tokens = a.format.split(/[,;]/).map((t) => t.trim()).filter((t) => t && !strip.has(t));
-      const key = tokens.length > 0 ? tokens[0] : "Vinyl";
-      map.set(key, (map.get(key) || 0) + 1);
-    }
-    return [...map.entries()]
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 8)
-      .map(([format, count]) => ({ format, count }));
-  }, [albums]);
+// Plural media-type labels for the "plus N …" footer line.
+const MEDIA_PLURAL: Record<MediaType, string> = {
+  Vinyl: "vinyl", Shellac: "shellac", CD: "CDs", Cassette: "cassettes",
+  Tape: "tapes", DVD: "DVDs", "Blu-ray": "Blu-rays", Digital: "digital",
+  "Box Set": "box sets", Other: "other",
+};
 
+/** Descriptor breakdown (LP, 12", 7" …) for albums of one media type. The
+ *  medium name itself is dropped via mediaType so it never dominates. */
+function descriptorBreakdown(albums: Album[], type: MediaType) {
+  const map = new Map<string, number>();
+  for (const a of albums) {
+    if (!a.format || mediaType(a.format) !== type) continue;
+    const tokens = a.format
+      .split(/[,;]/)
+      .map((t) => t.trim())
+      .filter((t) => t && !FORMAT_STRIP.has(t) && mediaType(t) !== type);
+    const key = tokens.length > 0 ? tokens[0] : type;
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return [...map.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 8)
+    .map(([format, count]) => ({ format, count }));
+}
+
+const MAJORITY_THRESHOLD = 0.9;
+
+function StatGrid({ data }: { data: { format: string; count: number }[] }) {
   return (
     <div className={data.length <= 3 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
       {data.map((d) => (
@@ -710,6 +727,66 @@ function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
+  const { typeEntries, majorityType, majorityShare, descriptor } = useMemo(() => {
+    const typeMap = new Map<MediaType, number>();
+    let total = 0;
+    for (const a of albums) {
+      if (!a.format) continue;
+      const t = mediaType(a.format);
+      typeMap.set(t, (typeMap.get(t) || 0) + 1);
+      total++;
+    }
+    const entries = [...typeMap.entries()].sort(([, a], [, b]) => b - a);
+    const top = entries[0];
+    const majType = top ? top[0] : ("Vinyl" as MediaType);
+    return {
+      typeEntries: entries,
+      majorityType: majType,
+      majorityShare: top && total ? top[1] / total : 1,
+      descriptor: descriptorBreakdown(albums, majType),
+    };
+  }, [albums]);
+
+  // Single-medium collection: descriptor grid only — matches the old look.
+  if (typeEntries.length <= 1) {
+    return <StatGrid data={descriptor} />;
+  }
+
+  // Mixed but one type dominates (the common case, e.g. mostly vinyl): keep
+  // the descriptor grid for the majority type, with a footer naming the rest.
+  if (majorityShare >= MAJORITY_THRESHOLD) {
+    const rest = typeEntries.filter(([t]) => t !== majorityType);
+    return (
+      <>
+        <StatGrid data={descriptor} />
+        {rest.length > 0 && (
+          <p className="mt-3" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+            plus {rest.map(([t, n]) => `${n} ${MEDIA_PLURAL[t]}`).join(", ")}
+          </p>
+        )}
+      </>
+    );
+  }
+
+  // Genuinely mixed media: media-type breakdown on top, majority descriptor
+  // grid beneath.
+  const typeData = typeEntries.slice(0, 8).map(([t, count]) => ({ format: t, count }));
+  return (
+    <div className="flex flex-col gap-4">
+      <StatGrid data={typeData} />
+      {descriptor.length > 0 && (
+        <div>
+          <p className="mb-2" style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--c-text-faint)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            {majorityType} breakdown
+          </p>
+          <StatGrid data={descriptor} />
+        </div>
+      )}
     </div>
   );
 }
