@@ -28,6 +28,7 @@ export const replaceAll = mutation({
         cover: v.string(),
         thumb: v.optional(v.string()),
         label: v.string(),
+        format: v.optional(v.string()),
         priority: v.boolean(),
       })
     ),
@@ -63,6 +64,7 @@ type WantInput = {
   cover: string;
   thumb?: string;
   label: string;
+  format?: string;
   priority: boolean;
 };
 
@@ -75,6 +77,7 @@ function wantSignature(w: WantInput | Record<string, unknown>): string {
     (w as WantInput).cover,
     (w as WantInput).thumb ?? null,
     (w as WantInput).label,
+    (w as WantInput).format ?? null,
     (w as WantInput).priority,
   ]);
 }
@@ -97,6 +100,7 @@ export const applyDiff = mutation({
         cover: v.string(),
         thumb: v.optional(v.string()),
         label: v.string(),
+        format: v.optional(v.string()),
         priority: v.boolean(),
       })
     ),
@@ -153,6 +157,7 @@ export const addItem = mutation({
     cover: v.string(),
     thumb: v.optional(v.string()),
     label: v.string(),
+    format: v.optional(v.string()),
     priority: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -177,6 +182,7 @@ export const addItem = mutation({
       cover: args.cover,
       thumb: args.thumb,
       label: args.label,
+      format: args.format,
       priority: args.priority,
     });
   },

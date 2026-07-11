@@ -54,6 +54,9 @@ export interface WantItem {
   thumb: string;
   cover: string;
   label: string;
+  /** Raw Discogs format string; may be undefined for rows synced before the
+   *  all-formats change captured format on the wantlist. Powers badges. */
+  format?: string;
   priority: boolean;
 }
 
@@ -89,6 +92,9 @@ export interface FeedAlbum {
   thumb: string;
   cover: string;
   label: string;
+  /** Raw Discogs format string; undefined for feed/followed rows synced before
+   *  the all-formats change. Powers badges; missing = no badge (never vinyl). */
+  format?: string;
   dateAdded: string;
 }
 
@@ -121,11 +127,70 @@ export interface CollectionValue {
 }
 
 
-// ─── Vinyl-only filter ───
+// ─── Format classifier ───
 
-/** Returns true if the release format string indicates vinyl */
-export function isVinylFormat(format: string): boolean {
-  return format.toLowerCase().includes("vinyl");
+/**
+ * UI media-type buckets. The raw Discogs format string is never discarded —
+ * this classifier only groups it for badges, the filter drawer, Reports By
+ * Format, and the `"vinyl"` display scope. A CD/CDr/SACD all read "CD" here.
+ */
+export type MediaType =
+  | "Vinyl"
+  | "Shellac"
+  | "CD"
+  | "Cassette"
+  | "Tape"
+  | "DVD"
+  | "Blu-ray"
+  | "Digital"
+  | "Box Set"
+  | "Other";
+
+/**
+ * Classify a Discogs format string into a UI media-type bucket. First match
+ * wins — order matters: the physical-medium checks come before "Box Set"/
+ * "All Media" so "Box Set; Vinyl; LP" reads as Vinyl, not Box Set. Forgiving:
+ * anything unmatched (including "") falls through to "Other", never throws.
+ *
+ * Mirrored deliberately in convex/discogs.ts if the server ever needs it — as
+ * of the all-formats change nothing server-side classifies, so only this copy
+ * exists. Keep them in sync if a mirror is added.
+ */
+export function mediaType(format: string): MediaType {
+  const f = format.toLowerCase();
+  if (
+    f.includes("vinyl") ||
+    f.includes("flexi") ||
+    f.includes("lathe") ||
+    f.includes("acetate")
+  )
+    return "Vinyl";
+  if (
+    f.includes("shellac") ||
+    f.includes("pathé") ||
+    f.includes("pathe") ||
+    f.includes("edison") ||
+    f.includes("cylinder")
+  )
+    return "Shellac";
+  if (f.includes("blu-ray") || f.includes("bluray")) return "Blu-ray";
+  // "cd" also covers CDr/CDV/SACD; Minidisc has no "cd" substring so it's explicit.
+  if (f.includes("cd") || f.includes("minidisc")) return "CD";
+  if (
+    f.includes("cassette") ||
+    f.includes("cartridge") ||
+    f.includes("dcc") ||
+    f.includes("elcaset") ||
+    f.includes("playtape")
+  )
+    return "Cassette";
+  if (f.includes("reel") || f.includes("dat")) return "Tape";
+  if (f.includes("dvd") || f.includes("laserdisc") || f.includes("vhs"))
+    return "DVD";
+  if (f.includes("file") || f.includes("memory stick") || f.includes("floppy"))
+    return "Digital";
+  if (f.includes("box set")) return "Box Set";
+  return "Other";
 }
 
 // ─── Condition grade constants ───

@@ -29,6 +29,7 @@ export const upsert = mutation({
         thumb: v.optional(v.string()),
         cover: v.string(),
         label: v.string(),
+        format: v.optional(v.string()),
         dateAdded: v.string(),
       })
     ),
@@ -43,6 +44,7 @@ export const upsert = mutation({
           thumb: v.optional(v.string()),
           cover: v.string(),
           label: v.string(),
+          format: v.optional(v.string()),
           dateAdded: v.string(),
         })
       )

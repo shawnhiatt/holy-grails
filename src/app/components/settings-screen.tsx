@@ -7,7 +7,7 @@ import { SlideOutPanel } from "./slide-out-panel";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useApp } from "./app-context";
-import type { Screen, SortOption } from "./app-context";
+import type { Screen, SortOption, FormatScope } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { version as APP_VERSION } from "../../../package.json";
 
@@ -27,6 +27,11 @@ const DEFAULT_COLLECTION_SORT_OPTIONS: { value: SortOption; label: string }[] = 
   { value: "year-new", label: "Year (Newest First)" },
   { value: "year-old", label: "Year (Oldest First)" },
   { value: "label-az", label: "Label A–Z" },
+];
+
+const FORMAT_SCOPE_OPTIONS: { value: FormatScope; label: string }[] = [
+  { value: "all", label: "All formats" },
+  { value: "vinyl", label: "Vinyl only" },
 ];
 
 export function SettingsScreen() {
@@ -61,6 +66,8 @@ export function SettingsScreen() {
     setDefaultScreen,
     defaultCollectionSort,
     setDefaultCollectionSort,
+    formatScope,
+    setFormatScope,
     executePurgeCut,
     stacks,
     deleteStack,
@@ -82,6 +89,7 @@ export function SettingsScreen() {
   const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
   const [showDefaultScreenPicker, setShowDefaultScreenPicker] = useState(false);
   const [showDefaultSortPicker, setShowDefaultSortPicker] = useState(false);
+  const [showFormatScopePicker, setShowFormatScopePicker] = useState(false);
 
   // Profile edit state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -748,6 +756,21 @@ export function SettingsScreen() {
                 <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
               </button>
             </div>
+             <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Formats</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Which formats from Discogs show up here</p>
+              </div>
+              <button
+                onClick={() => setShowFormatScopePicker(true)}
+                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
+              >
+                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {FORMAT_SCOPE_OPTIONS.find((o) => o.value === formatScope)?.label ?? "All formats"}
+                </span>
+                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
+              </button>
+            </div>
           </div>
         </section>
 
@@ -952,6 +975,56 @@ export function SettingsScreen() {
                       setDefaultCollectionSort(option.value);
                       setShowDefaultSortPicker(false);
                       toast.success(`Default sort set to ${option.label}.`);
+                    }}
+                    className="w-full flex items-center justify-between py-3 cursor-pointer"
+                    style={{
+                      borderBottom: !isLast ? "1px solid var(--c-border)" : undefined,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: isSelected ? 600 : 400,
+                        color: isSelected
+                          ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                          : "var(--c-text)",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                      }}
+                    >
+                      {option.label}
+                    </span>
+                    {isSelected && (
+                      <Check size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </SlideOutPanel>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFormatScopePicker && (
+          <SlideOutPanel
+            title="Formats"
+            onClose={() => setShowFormatScopePicker(false)}
+            backdropZIndex={80}
+            sheetZIndex={85}
+          >
+            <div className="px-4 py-2">
+              {FORMAT_SCOPE_OPTIONS.map((option, idx) => {
+                const isSelected = formatScope === option.value;
+                const isLast = idx === FORMAT_SCOPE_OPTIONS.length - 1;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setFormatScope(option.value);
+                      setShowFormatScopePicker(false);
+                      toast.success(
+                        option.value === "vinyl" ? "Showing vinyl only." : "Showing all formats."
+                      );
                     }}
                     className="w-full flex items-center justify-between py-3 cursor-pointer"
                     style={{

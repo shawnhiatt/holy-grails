@@ -20,6 +20,7 @@ const itemFields = {
   thumb: v.optional(v.string()),
   cover: v.string(),
   label: v.string(),
+  format: v.optional(v.string()),
   dateAdded: v.string(),
 };
 
@@ -62,6 +63,7 @@ export const getForUser = query({
       thumb: r.thumb,
       cover: r.cover,
       label: r.label,
+      format: r.format,
       dateAdded: r.dateAdded,
     });
 

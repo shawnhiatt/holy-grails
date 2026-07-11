@@ -14,7 +14,7 @@ import {
   setCollectionValueCache,
   type CollectionValue,
   type UserProfile,
-  isVinylFormat,
+  mediaType,
 } from "./discogs-api";
 import { initiateDiscogsOAuth, oauthInFlight } from "./oauth-helpers";
 import {
@@ -42,6 +42,7 @@ function getOrCreateContext(): React.Context<AppState | null> {
 
 export type Screen = "crate" | "purge" | "stacks" | "wants" | "following" | "settings" | "reports" | "feed";
 export type ViewMode = "grid" | "grid3" | "list";
+export type FormatScope = "all" | "vinyl";
 export type SortOption =
   | "artist-az"
   | "artist-za"
@@ -130,6 +131,9 @@ interface AppState {
   // Default collection sort
   defaultCollectionSort: SortOption;
   setDefaultCollectionSort: (s: SortOption) => void;
+  // Format display scope (all-formats): "all" (default) | "vinyl"
+  formatScope: FormatScope;
+  setFormatScope: (s: FormatScope) => void;
   // Discogs sync
   folders: { id: number; name: string; count: number }[];
   createFolder: (name: string) => Promise<void>;
@@ -353,6 +357,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
   const [defaultCollectionSort, setDefaultCollectionSortRaw] = useState<SortOption>("added-new");
+  const [formatScope, setFormatScopeRaw] = useState<FormatScope>("all");
   const [folders, setFolders] = useState<{ id: number; name: string; count: number }[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   // Background sync runs without taking over the screen — the app stays
@@ -612,7 +617,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (convexCollection === undefined) return; // subscription not resolved
     const tagMap = new Map((convexPurgeTags ?? []).map((t) => [t.release_id, t.tag as PurgeTag]));
     const derived: Album[] = convexCollection
-      .filter((row) => isVinylFormat(row.format))
+      // All-formats: the data layer stores every format; scope is display-only.
+      // "all" (default) is a no-op; "vinyl" reproduces the old behavior.
+      .filter((row) => formatScope !== "vinyl" || mediaType(row.format) === "Vinyl")
       .map((row) => ({
         id: String(row.releaseId),
         release_id: row.releaseId,
@@ -647,31 +654,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (derived.length === 0 && prev.length > 0) return prev;
       return derived;
     });
-  }, [convexCollection, convexPurgeTags, discogsUsername]);
+  }, [convexCollection, convexPurgeTags, discogsUsername, formatScope]);
 
   useEffect(() => {
     if (!discogsUsername) return;
     if (convexWantlist === undefined) return;
     const prioMap = new Map((convexWantPriorities ?? []).map((p) => [p.release_id, p.is_priority]));
-    const derived: WantItem[] = convexWantlist.map((row) => ({
-      id: `w-${row.release_id}`,
-      release_id: row.release_id,
-      master_id: (row as any).master_id || undefined,
-      title: row.title,
-      artist: row.artist,
-      year: row.year,
-      thumb: row.thumb ?? "",
-      cover: row.cover,
-      label: row.label,
-      priority: prioMap.get(row.release_id) || false,
-    }));
+    const derived: WantItem[] = convexWantlist
+      // Scope applies to wantlist only for rows that carry a format (synced
+      // after the all-formats change). Formatless legacy rows always pass —
+      // they can't be classified, so hiding them would be wrong.
+      .filter((row) => {
+        if (formatScope !== "vinyl") return true;
+        const f = (row as any).format as string | undefined;
+        return !f || mediaType(f) === "Vinyl";
+      })
+      .map((row) => ({
+        id: `w-${row.release_id}`,
+        release_id: row.release_id,
+        master_id: (row as any).master_id || undefined,
+        title: row.title,
+        artist: row.artist,
+        year: row.year,
+        thumb: row.thumb ?? "",
+        cover: row.cover,
+        label: row.label,
+        format: (row as any).format || undefined,
+        priority: prioMap.get(row.release_id) || false,
+      }));
     setWants((prev) => {
       // Same empty-cache guard as albums (covers the boot fallback fetch
       // that populates local wants before the cache write lands).
       if (derived.length === 0 && prev.length > 0) return prev;
       return derived;
     });
-  }, [convexWantlist, convexWantPriorities, discogsUsername]);
+  }, [convexWantlist, convexWantPriorities, discogsUsername, formatScope]);
 
   useEffect(() => {
     if (initialSyncDoneRef.current) return;
@@ -860,6 +877,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setDefaultCollectionSortRaw(dcs);
         setSortOption(dcs);
       }
+      if (convexPreferences.format_scope === "vinyl") {
+        setFormatScopeRaw("vinyl");
+      }
     }
   }, [convexPreferences]);
 
@@ -1001,6 +1021,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setViewModeRaw(v);
     if (sessionToken) {
       upsertPreferencesMut({ sessionToken, view_mode: v });
+    }
+  }, [sessionToken, upsertPreferencesMut]);
+
+  const setFormatScope = useCallback((s: FormatScope) => {
+    setFormatScopeRaw(s);
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, format_scope: s });
     }
   }, [sessionToken, upsertPreferencesMut]);
 
@@ -1152,6 +1179,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cover: result.cover,
       thumb: result.thumb || undefined,
       label: result.label,
+      format: result.format || undefined,
       priority: result.priority,
     }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
@@ -1617,12 +1645,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (lastSynced && (now - lastSynced) < TWENTY_FOUR_HOURS) {
             // Bypass cache if stored data lacks master_id (pre-schema-change migration)
             // or is missing recent_wants (first-hydration for wantlist activity)
+            // or lacks the format field (all-formats change — refetch once so
+            // cached feed rows can badge non-vinyl formats)
             const cachedEntry = cachedFeed?.find(e => e.followed_username === followedUser);
             const needsMasterIdMigration = cachedEntry?.recent_albums &&
               cachedEntry.recent_albums.length > 0 &&
               !cachedEntry.recent_albums.some((a: any) => a.master_id);
             const needsWantsMigration = cachedEntry?.recent_wants === undefined;
-            if (!needsMasterIdMigration && !needsWantsMigration) {
+            const needsFormatMigration = cachedEntry?.recent_albums &&
+              cachedEntry.recent_albums.length > 0 &&
+              !cachedEntry.recent_albums.some((a: any) => a.format);
+            if (!needsMasterIdMigration && !needsWantsMigration && !needsFormatMigration) {
               continue; // Cache is fresh and complete — skip
             }
           }
@@ -2351,6 +2384,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Default collection sort
       defaultCollectionSort,
       setDefaultCollectionSort,
+      // Format display scope
+      formatScope,
+      setFormatScope,
       // Discogs sync
       folders,
       createFolder,
@@ -2456,6 +2492,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       shakeToRandom, setShakeToRandom,
       defaultScreen, setDefaultScreen,
       defaultCollectionSort, setDefaultCollectionSort,
+      formatScope, setFormatScope,
       folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,
       discogsUsername, setDiscogsUsername,

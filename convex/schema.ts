@@ -114,6 +114,7 @@ export default defineSchema({
     thumb: v.optional(v.string()),
     cover: v.string(),
     label: v.string(),
+    format: v.optional(v.string()),
     dateAdded: v.string(),
   }).index("by_follower_followed", ["follower_username", "followed_username"]),
 
@@ -181,6 +182,9 @@ export default defineSchema({
     cover: v.string(),
     thumb: v.optional(v.string()),
     label: v.string(),
+    // Raw Discogs format string (all-formats change). Optional: rows synced
+    // before it read undefined → no badge, no vinyl assumption.
+    format: v.optional(v.string()),
     priority: v.boolean(),
   })
     .index("by_username", ["discogs_username"])
@@ -198,6 +202,9 @@ export default defineSchema({
     default_collection_sort: v.optional(v.string()),
     // Look It Up recent queries — most recent first, capped at 8
     recent_searches: v.optional(v.array(v.string())),
+    // All-formats display scope: "all" (default) | "vinyl". Loose string, no
+    // enum — undefined reads as "all". Applied client-side at the derive.
+    format_scope: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
 
   // Live progress for the server-side sync loop (discogs.syncSelf). One doc
@@ -225,6 +232,7 @@ export default defineSchema({
         thumb: v.optional(v.string()),
         cover: v.string(),
         label: v.string(),
+        format: v.optional(v.string()),
         dateAdded: v.string(),
       })
     ),
@@ -239,6 +247,7 @@ export default defineSchema({
           thumb: v.optional(v.string()),
           cover: v.string(),
           label: v.string(),
+          format: v.optional(v.string()),
           dateAdded: v.string(),
         })
       )

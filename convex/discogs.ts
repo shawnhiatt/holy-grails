@@ -165,6 +165,7 @@ interface DiscogsWant {
     year: number;
     artists: { name: string; anv: string }[];
     labels: { name: string; catno: string }[];
+    formats?: { name: string; qty: string; descriptions?: string[] }[];
     cover_image: string;
     thumb: string;
   };
@@ -249,6 +250,19 @@ interface ProxyAlbum {
   discogsUrl: string;
 }
 
+/** Flatten Discogs `formats[]` into the app's single format string: each
+ *  format's name + descriptions joined by ", ", the formats themselves joined
+ *  by "; ". Shared by collection and wantlist mapping. Empty → "". */
+function flattenFormats(
+  formats: { name: string; descriptions?: string[] }[] | undefined
+): string {
+  const parts: string[] = [];
+  for (const fmt of formats || []) {
+    parts.push([fmt.name, ...(fmt.descriptions || [])].filter(Boolean).join(", "));
+  }
+  return parts.join("; ");
+}
+
 function mapRelease(
   r: DiscogsRelease,
   folderMap: Map<number, string>,
@@ -260,12 +274,6 @@ function mapRelease(
     .join(", ");
   const label = bi.labels?.[0]?.name || "Unknown";
   const catno = bi.labels?.[0]?.catno || "";
-  const formatParts: string[] = [];
-  for (const fmt of bi.formats || []) {
-    formatParts.push(
-      [fmt.name, ...(fmt.descriptions || [])].filter(Boolean).join(", ")
-    );
-  }
 
   const noteValues: string[] = [];
   const mediaCondition: string[] = [];
@@ -333,7 +341,10 @@ function mapRelease(
     folder: folderName(r.folder_id, folderMap),
     label,
     catalogNumber: catno,
-    format: formatParts.join("; ") || "Vinyl",
+    // Raw flattened Discogs format string. No "Vinyl" fallback — the old
+    // fallback existed to survive the vinyl-only filter; with all formats
+    // stored, an empty format must stay empty (classified "Other"), not lie.
+    format: flattenFormats(bi.formats),
     mediaCondition: mediaCondition.join(" · "),
     sleeveCondition: sleeveCondition.join(" · "),
     pricePaid: "",
@@ -395,11 +406,6 @@ interface Creds {
   username: string;
   access_token: string;
   token_secret: string;
-}
-
-/** Vinyl-only product filter — mirrors isVinylFormat in discogs-api.ts. */
-function isVinylFormat(format: string): boolean {
-  return format.toLowerCase().includes("vinyl");
 }
 
 /**
@@ -502,6 +508,7 @@ interface ProxyWant {
   thumb: string;
   cover: string;
   label: string;
+  format: string;
   priority: boolean;
 }
 
@@ -550,6 +557,7 @@ async function fetchWantlistInternal(
         thumb: bi.thumb || "",
         cover: bi.cover_image || bi.thumb || "",
         label: bi.labels?.[0]?.name || "Unknown",
+        format: flattenFormats(bi.formats),
         priority: false,
       });
     }
@@ -874,21 +882,22 @@ export const syncSelf = action({
         console.warn("[Discogs] Profile fetch failed during sync:", e);
       }
 
-      // Collection — paginated fetch with live progress, vinyl-only filter,
-      // then a single server-to-server diff write.
+      // Collection — paginated fetch with live progress, then a single
+      // server-to-server diff write. All formats are stored (the vinyl-only
+      // filter was removed with the all-formats change); scope is a
+      // display-only concern applied at the client derive.
       const { albums, folders } = await fetchCollectionInternal(
         creds,
         creds.username,
         false,
         (fetched, total) => setStatus("collection", fetched, total)
       );
-      const vinylAlbums = albums.filter((a) => isVinylFormat(a.format));
 
       await setStatus("caching");
       const collDiff: { added: number; removed: number; updated: number } =
         await ctx.runMutation(api.collection.applyDiff, {
           sessionToken: args.sessionToken,
-          albums: vinylAlbums.map((a) => ({
+          albums: albums.map((a) => ({
             releaseId: a.release_id,
             masterId: a.master_id || undefined,
             instanceId: a.instance_id,
@@ -930,13 +939,14 @@ export const syncSelf = action({
             cover: w.cover,
             thumb: w.thumb || undefined,
             label: w.label,
+            format: w.format || undefined,
             priority: w.priority,
           })),
         });
 
       // Wantlist items that are now in the collection — drives the
       // "Now in your collection" crossover prompt.
-      const collectionRids = new Set(vinylAlbums.map((a) => a.release_id));
+      const collectionRids = new Set(albums.map((a) => a.release_id));
       const crossovers = wants.filter((w) => collectionRids.has(w.release_id));
 
       // Collection value (non-fatal)
@@ -984,7 +994,7 @@ export const syncSelf = action({
             }
           : null,
         folders,
-        albumCount: vinylAlbums.length,
+        albumCount: albums.length,
         wantCount: wants.length,
         collDiff,
         wantDiff,
@@ -1018,8 +1028,9 @@ export const syncFollowedUser = action({
     let isPrivate = false;
     try {
       const result = await fetchCollectionInternal(creds, args.username, true);
-      // Vinyl-only, matching the product rule applied to the user's own data
-      albums = result.albums.filter((a) => isVinylFormat(a.format));
+      // All formats — the vinyl-only filter was removed with the all-formats
+      // change; scope is applied display-only at the viewer's client derive.
+      albums = result.albums;
     } catch (e: any) {
       if (String(e?.message ?? "").includes("403")) {
         isPrivate = true;
@@ -1056,6 +1067,7 @@ export const syncFollowedUser = action({
       thumb: string;
       cover: string;
       label: string;
+      format?: string;
     } & { dateAdded?: string }) => ({
       release_id: x.release_id,
       master_id: x.master_id || undefined,
@@ -1065,6 +1077,7 @@ export const syncFollowedUser = action({
       thumb: x.thumb || undefined,
       cover: x.cover,
       label: x.label,
+      format: x.format || undefined,
       dateAdded: x.dateAdded ?? "",
     });
 
@@ -1300,6 +1313,7 @@ export const proxyAddToWantlist = action({
       thumb: bi?.thumb || "",
       cover: bi?.cover_image || bi?.thumb || "",
       label: bi?.labels?.[0]?.name || "Unknown",
+      format: flattenFormats(bi?.formats) || undefined,
       priority: false,
     };
   },
@@ -1476,6 +1490,7 @@ export const proxyFetchUserCollectionPage = action({
         thumb: bi.thumb || "",
         cover: bi.cover_image || bi.thumb || "",
         label: bi.labels?.[0]?.name || "Unknown",
+        format: flattenFormats(bi.formats) || undefined,
         dateAdded: r.date_added || "",
       };
     });
@@ -1525,6 +1540,7 @@ export const proxyFetchUserWantlistPage = action({
           thumb: bi.thumb || "",
           cover: bi.cover_image || bi.thumb || "",
           label: bi.labels?.[0]?.name || "Unknown",
+          format: flattenFormats(bi.formats) || undefined,
           dateAdded: w.date_added || "",
         };
       });
