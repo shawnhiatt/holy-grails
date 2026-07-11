@@ -15,6 +15,7 @@ import {
   type CollectionValue,
   type UserProfile,
   mediaType,
+  type MediaType,
 } from "./discogs-api";
 import { initiateDiscogsOAuth, oauthInFlight } from "./oauth-helpers";
 import {
@@ -119,6 +120,9 @@ interface AppState {
   setNeverPlayedFilter: (v: boolean) => void;
   playsRecordedFilter: boolean;
   setPlaysRecordedFilter: (v: boolean) => void;
+  // Media-type filter (all-formats) — transient, single-select; null = all
+  formatFilter: MediaType | null;
+  setFormatFilter: (v: MediaType | null) => void;
   // Display preferences
   hidePurgeIndicators: boolean;
   setHidePurgeIndicators: (v: boolean) => void;
@@ -352,6 +356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
   const [allPlayTimestamps, setAllPlayTimestamps] = useState<number[]>([]);
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
+  const [formatFilter, setFormatFilter] = useState<MediaType | null>(null);
   const [playsRecordedFilter, setPlaysRecordedFilter] = useState(false);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
@@ -2372,6 +2377,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setNeverPlayedFilter,
       playsRecordedFilter,
       setPlaysRecordedFilter,
+      formatFilter,
+      setFormatFilter,
       // Display preferences
       hidePurgeIndicators,
       setHidePurgeIndicators,
@@ -2488,6 +2495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,
       playsRecordedFilter,
+      formatFilter, setFormatFilter,
       hidePurgeIndicators, setHidePurgeIndicators,
       shakeToRandom, setShakeToRandom,
       defaultScreen, setDefaultScreen,

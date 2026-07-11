@@ -14,6 +14,7 @@ import type { Album, FollowedUser, FeedAlbum, WantItem } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, DURATION_NORMAL, DURATION_FAST } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
+import { FormatBadge } from "./format-badge";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { formatRelativeDate } from "./last-played-utils";
@@ -37,6 +38,7 @@ interface FollowedItemRow {
   thumb?: string;
   cover: string;
   label: string;
+  format?: string;
   dateAdded: string;
 }
 
@@ -55,7 +57,9 @@ function slimToAlbum(r: FollowedItemRow): Album {
     folder: "All",
     label: r.label,
     catalogNumber: "",
-    format: "Vinyl",
+    // Real format when the cached row carries one (post all-formats change);
+    // "" for legacy rows → classified "Other", badge omitted (never vinyl).
+    format: r.format ?? "",
     mediaCondition: "",
     sleeveCondition: "",
     pricePaid: "",
@@ -77,6 +81,7 @@ function slimToWant(r: FollowedItemRow): WantItem {
     thumb: r.thumb ?? "",
     cover: r.cover,
     label: r.label,
+    format: r.format,
     priority: false,
   };
 }
@@ -1016,6 +1021,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
                   {badge.label}
                 </div>
               )}
+              <FormatBadge format={item.format} variant="overlay" className="absolute top-1.5 right-1.5 z-[1]" />
             </div>
             <div className="px-2.5 pt-2 pb-2.5" style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: "13px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", lineHeight: "1.25", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
@@ -1048,6 +1054,7 @@ function FollowedUserListView({ items, filter, userCutIds, userWantIds, userIds,
               <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.title}</p>
               <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{item.artist}{hasYear(item.year) ? ` \u00B7 ${item.year}` : ""}</p>
             </div>
+            <FormatBadge format={item.format} variant="inline" />
             {badge && (
               <span className="px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: badge.color + "20", fontSize: "11px", fontWeight: 600, color: badge.color }}>
                 {badge.label}

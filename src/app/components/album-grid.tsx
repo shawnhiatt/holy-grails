@@ -3,6 +3,7 @@ import { Play } from "./icons";
 import { useApp, type SortOption } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
+import { FormatBadge } from "./format-badge";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { safeTap } from "../lib/safe-tap";
 
@@ -91,6 +92,7 @@ const GridCard = memo(function GridCard({ album, isDarkMode, purgeColor, playCou
             style={{ backgroundColor: purgeColor }}
           />
         )}
+        <FormatBadge format={album.format} variant="overlay" className="absolute top-1.5 right-1.5" />
         {playCount >= 1 && (
           <div
             className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5"

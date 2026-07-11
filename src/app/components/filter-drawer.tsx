@@ -1,5 +1,12 @@
+import { useMemo } from "react";
 import { useApp, type SortOption } from "./app-context";
+import { mediaType, type MediaType } from "./discogs-api";
 import { SlideOutPanel } from "./slide-out-panel";
+
+// Display order for the Format section chips — common media first.
+const MEDIA_TYPE_ORDER: MediaType[] = [
+  "Vinyl", "CD", "Cassette", "Shellac", "Tape", "DVD", "Blu-ray", "Digital", "Box Set", "Other",
+];
 
 /* Bottom sheet safe area standard:
    - Outer container bottom: 0, paddingBottom: env(safe-area-inset-bottom, 16px)
@@ -18,15 +25,24 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 export function FilterDrawer() {
-  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter } = useApp();
+  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, albums, formatFilter, setFormatFilter } = useApp();
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter;
+  // Media types actually present in the collection, in display order. The
+  // Format section hides entirely for a single-type (all-vinyl) collection.
+  const formatTypes = useMemo(() => {
+    const present = new Set<MediaType>();
+    for (const a of albums) present.add(mediaType(a.format));
+    return MEDIA_TYPE_ORDER.filter((t) => present.has(t));
+  }, [albums]);
+
+  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || !!formatFilter;
 
   const handleReset = () => {
     setActiveFolder("All");
     setSortOption("artist-az");
     setNeverPlayedFilter(false);
     setPlaysRecordedFilter(false);
+    setFormatFilter(null);
   };
 
   return (
@@ -82,6 +98,29 @@ export function FilterDrawer() {
             ))}
           </div>
         </div>
+
+        {/* Format — hidden for single-type (all-vinyl) collections */}
+        {formatTypes.length > 1 && (
+          <div className="mb-6">
+            <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Format</p>
+            <div className="flex flex-wrap gap-2">
+              {formatTypes.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setFormatFilter(formatFilter === t ? null : t)}
+                  aria-pressed={formatFilter === t}
+                  className="px-3 py-1.5 rounded-full transition-all"
+                  style={formatFilter !== t
+                    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
+                    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
+                  }
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick Filters */}
         <div className="mb-6">

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Album } from "./discogs-api";
+import { mediaType, type Album, type MediaType } from "./discogs-api";
 import type { SortOption } from "./app-context";
 
 /**
@@ -17,17 +17,23 @@ export interface FilterAlbumsOptions {
   searchQuery: string;
   neverPlayedFilter: boolean;
   playsRecordedFilter: boolean;
+  /** Single-select media-type filter (all-formats), null = all formats. */
+  formatFilter?: MediaType | null;
   lastPlayed: Record<string, string>;
   effectiveSortOption: SortOption;
 }
 
 /** Pure filter + sort — the hook wraps this in useMemo. Exported for tests. */
 export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
-  const { albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, lastPlayed, effectiveSortOption } = opts;
+  const { albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, formatFilter, lastPlayed, effectiveSortOption } = opts;
   let result = [...albums];
 
   if (activeFolder !== "All") {
     result = result.filter((a) => a.folder === activeFolder);
+  }
+
+  if (formatFilter) {
+    result = result.filter((a) => mediaType(a.format) === formatFilter);
   }
 
   if (neverPlayedFilter) {
@@ -98,15 +104,16 @@ export function useFilteredAlbums(opts: {
   searchQuery: string;
   neverPlayedFilter: boolean;
   playsRecordedFilter: boolean;
+  formatFilter?: MediaType | null;
   lastPlayed: Record<string, string>;
 }): { filteredAlbums: Album[]; effectiveSortOption: SortOption } {
-  const { albums, activeFolder, sortOption, searchQuery, neverPlayedFilter, playsRecordedFilter, lastPlayed } = opts;
+  const { albums, activeFolder, sortOption, searchQuery, neverPlayedFilter, playsRecordedFilter, formatFilter = null, lastPlayed } = opts;
 
   const effectiveSortOption: SortOption = searchQuery.trim() ? "artist-az" : sortOption;
 
   const filteredAlbums = useMemo(
-    () => filterAndSortAlbums({ albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, lastPlayed, effectiveSortOption }),
-    [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, lastPlayed]
+    () => filterAndSortAlbums({ albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, formatFilter, lastPlayed, effectiveSortOption }),
+    [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, formatFilter, lastPlayed]
   );
 
   return { filteredAlbums, effectiveSortOption };

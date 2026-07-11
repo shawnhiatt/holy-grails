@@ -122,6 +122,31 @@ describe("filterAndSortAlbums", () => {
     ]);
   });
 
+  it("filters by media type via formatFilter, passing everything through when null", () => {
+    const albums = [
+      makeAlbum({ format: "Vinyl, LP, Album" }),
+      makeAlbum({ format: "CD, Album" }),
+      makeAlbum({ format: "Box Set, Cassette; Cassette" }),
+      makeAlbum({ format: "Vinyl, 12\"" }),
+    ];
+    expect(run({ albums, formatFilter: "Vinyl" })).toHaveLength(2);
+    expect(run({ albums, formatFilter: "CD" })).toHaveLength(1);
+    expect(run({ albums, formatFilter: "Cassette" })).toHaveLength(1);
+    expect(run({ albums, formatFilter: null })).toHaveLength(4);
+    expect(run({ albums })).toHaveLength(4);
+  });
+
+  it("combines formatFilter with folder and search", () => {
+    const albums = [
+      makeAlbum({ folder: "Jazz", artist: "Miles Davis", format: "Vinyl, LP" }),
+      makeAlbum({ folder: "Jazz", artist: "Miles Davis", format: "CD" }),
+      makeAlbum({ folder: "Rock", artist: "Miles Davis", format: "CD" }),
+    ];
+    const result = run({ albums, activeFolder: "Jazz", formatFilter: "CD", searchQuery: "miles" });
+    expect(result).toHaveLength(1);
+    expect(result[0].folder).toBe("Jazz");
+  });
+
   it("applies filters before sort — folder + search combine", () => {
     const albums = [
       makeAlbum({ folder: "Jazz", artist: "Alice Coltrane" }),

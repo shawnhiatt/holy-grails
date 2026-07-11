@@ -6,6 +6,7 @@ import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { useApp, type ViewMode } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
+import { FormatBadge } from "./format-badge";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { safeTap } from "../lib/safe-tap";
 import { SyncStatusLine } from "./sync-status-line";
@@ -491,6 +492,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                   <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{want.title}</p>
                   <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-tertiary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{want.artist} · {want.year}</p>
                 </div>
+                <FormatBadge format={want.format} variant="inline" />
                 <span className="hidden sm:block flex-shrink-0" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{want.label}</span>
                 <button onClick={() => togglePriority(want.id)} className="flex-shrink-0 p-2 transition-transform hover:scale-110">
                   <motion.div initial={false} animate={{ scale: want.priority ? [1, 1.3, 1] : 1 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}>
@@ -540,6 +542,8 @@ function WantGridCard({ item, togglePriority, isDarkMode, onSelect }: {
     >
       <div className="relative aspect-square overflow-hidden">
         <img loading="lazy" decoding="async" src={item.cover} alt={`${item.artist} - ${item.title}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" draggable={false} />
+
+        <FormatBadge format={item.format} variant="overlay" className="absolute top-1.5 left-1.5 z-[2]" />
 
         <button
           onClick={() => togglePriority(item.id)}

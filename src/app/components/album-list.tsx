@@ -3,6 +3,7 @@ import { Play } from "./icons";
 import { useApp, type SortOption } from "./app-context";
 import type { Album } from "./discogs-api";
 import { purgeIndicatorColor } from "./purge-colors";
+import { FormatBadge } from "./format-badge";
 import { formatRelativeDate } from "./last-played-utils";
 import { DIVIDER_SORT_OPTS, getAlbumGroupLabel } from "./album-grid";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
@@ -62,6 +63,7 @@ const ListRow = memo(function ListRow({ album, isDarkMode, showDot, lastPlayedIs
               }}
             />
           )}
+          <FormatBadge format={album.format} variant="inline" />
           <span
             className="px-2 py-0.5 rounded-full hidden md:block"
             style={{
