@@ -4,6 +4,30 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **All formats** — Holy Grails now syncs every media format Discogs supports
+  (CD, cassette, shellac, box sets, files, …), not just vinyl. The old
+  vinyl-only filter was a data-layer filter that discarded non-vinyl items
+  before they reached the app; it's gone. Scope is now display-only: a new
+  **Settings → Formats** preference (`All formats` default / `Vinyl only`)
+  filters the view without touching what's stored. Non-vinyl items carry a
+  small format badge (CD, Cassette, 78, …); vinyl stays unbadged. Look It Up
+  search is all-formats with a Format facet chip in the pressing picker;
+  Reports "By Format" and Format Spotlight understand mixed media. See
+  `docs/all-formats-plan.md`.
+- **Backfill on next sync (no migration)** — the Convex caches hold only vinyl
+  rows today. After this ships, each user's non-vinyl records appear on their
+  **next sync** (24h TTL or a manual SYNC) via the normal add path — a user
+  with 300 vinyl + 200 CDs sees 300 until their first post-deploy sync, then
+  500. Followed users backfill on their own 24h TTL / next profile open.
+  Nothing to run. **Requires `npx convex deploy`** (schema gained optional
+  `format` fields on wantlist/followed-items/following-feed rows and a
+  `format_scope` preference; the sync actions stop filtering).
+
+---
+
 ## [0.6.0] — 2026-07-05
 
 Beta-ready state. Not a public release — the milestone where the codebase is
@@ -358,7 +382,7 @@ fit to put in front of invited testers, per `docs/BETA-PLAYBOOK.md`.
 - **Collection folders not displaying** — all releases showed as "Uncategorized" regardless of actual Discogs folder assignment. Root cause: the Discogs API does not return `folder_id` on release objects fetched from the aggregate folder 0 ("All") endpoint. Fix: `proxyFetchCollection` now fetches releases per-folder (one paginated request per user folder, skipping folder 0), injecting the correct `folder_id` from the folder being fetched. Folder 0 is still used for followed users (`skipPrivateFields: true`) where folder names are irrelevant.
 
 ### Documented
-- **Vinyl-only filter** — the app is intentionally vinyl-only. The global filter on `formats[].name === "Vinyl"` is applied at the data layer during collection sync. This is a product decision, not a user setting.
+- **Vinyl-only filter** — the app is intentionally vinyl-only. The global filter on `formats[].name === "Vinyl"` is applied at the data layer during collection sync. This is a product decision, not a user setting. _(Superseded — see [Unreleased]: Holy Grails now syncs all formats; scope is a display-only Settings preference.)_
 - **Folder sync architecture** — per-folder fetching pattern, `skipPrivateFields` fallback to folder 0, and rate limiting documented in CLAUDE.md.
 
 ---

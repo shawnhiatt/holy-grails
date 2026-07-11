@@ -2,6 +2,12 @@
 
 **Status: planning only. No code changes yet.**
 
+> **Superseded in part by `docs/all-formats-plan.md`** — the vinyl-only
+> enforcement described below (the `format=Vinyl` release-search param and the
+> hard-coded `format=Vinyl` in the pressing picker's versions call) was removed
+> with the all-formats change. Search is now all-formats and the pressing
+> picker exposes a Format facet chip. The rest of this plan still holds.
+
 Goal: make Holy Grails fully self-sufficient so a user never needs to open the
 Discogs app or website. Today the only way to add an album you don't already
 own (or that no friend owns) is to leave the app, find it on Discogs, add it

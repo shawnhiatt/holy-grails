@@ -1,7 +1,10 @@
 # All Formats — Implementation Plan
 
-**Status: approved and ready for execution (product decisions in §0
-confirmed 2026-07-11). No code changes yet.**
+**Status: EXECUTED 2026-07-11 (phases 1–5). Product decisions in §0 confirmed
+2026-07-11. Remaining checkpoint: the Reports "By Format" layout (§5.3) is
+built data-first and awaits a live screenshot review by Shawn on a
+mixed-format account. Deploy note: the `convex/` changes in phases 1–2 require
+`npx convex deploy` to prod before the Vercel client ships.**
 **Audience: an executing Claude Code session (Opus 4.8 or later). Written to be
 followed phase by phase. Read CLAUDE.md first — this plan amends it.**
 
