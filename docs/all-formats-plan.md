@@ -1,6 +1,7 @@
 # All Formats — Implementation Plan
 
-**Status: planning only. No code changes yet.**
+**Status: approved and ready for execution (product decisions in §0
+confirmed 2026-07-11). No code changes yet.**
 **Audience: an executing Claude Code session (Opus 4.8 or later). Written to be
 followed phase by phase. Read CLAUDE.md first — this plan amends it.**
 
@@ -17,12 +18,14 @@ note, and the vinyl-only enforcement rules in
 
 ---
 
-## 0. Open Decisions — Confirm With Shawn Before Executing
+## 0. Product Decisions — CONFIRMED
 
-These are product/design calls, not engineering calls. Each has a
-recommendation; do not silently pick differently.
+**All six recommendations below were reviewed and approved by Shawn on
+2026-07-11.** They are settled — execute as written; do not re-open or
+silently deviate. (The one remaining review checkpoint is the Reports
+By Format layout in §5.3, which is screenshot-for-review by design.)
 
-| # | Decision | Recommendation |
+| # | Decision | Approved approach |
 |---|---|---|
 | D1 | **All-formats always-on vs. per-user scope preference** | Store ALL formats in the Convex caches unconditionally; add a Settings preference `format_scope: "all" \| "vinyl"` applied at the client derive layer only. Default `"all"` (the expansion is the point). The preference makes the change reversible per user and cheap to ship — it's one `.filter()` at the existing derive site. |
 | D2 | **Format visibility on cards** | Badge **non-vinyl only** — a small media-type chip (CD, Tape, …) on grid cards and list rows. Vinyl stays unbadged so the default aesthetic doesn't change for the 90%+ vinyl majority. Album detail already has a Format row; no change there. |
