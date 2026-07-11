@@ -1822,7 +1822,9 @@ export const warm = action({
   handler: async () => true,
 });
 
-// 20. Search the Discogs database (vinyl-only on release searches; see below)
+// 20. Search the Discogs database (all formats — the all-formats change
+// removed the vinyl-only release filter; scope is a display concern applied
+// at the client derive, and the pressing picker exposes a Format facet chip).
 export const proxySearchDatabase = action({
   args: {
     sessionToken: v.string(),
@@ -1837,13 +1839,7 @@ export const proxySearchDatabase = action({
     );
     const type = args.searchType ?? "master";
     const page = args.page ?? 1;
-    // format=Vinyl applies to release searches only. Masters aren't
-    // format-specific objects and coupling them to a format filter starves
-    // results (masters with vinyl pressings can return zero rows). Vinyl-only
-    // is still enforced downstream: the pressing picker's versions call
-    // hard-codes format=Vinyl, so nothing non-vinyl is ever addable.
-    const formatParam = type === "release" ? "&format=Vinyl" : "";
-    const url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}${formatParam}&per_page=25&page=${page}`;
+    const url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}&per_page=25&page=${page}`;
     const res = await discogsFetch(
       "GET",
       url,
@@ -1887,7 +1883,10 @@ export const proxySearchDatabase = action({
   },
 });
 
-// 21. Fetch vinyl pressings of a master (server-side filtered/paginated)
+// 21. Fetch pressings of a master (server-side filtered/paginated). All
+// formats by default; the optional `format` arg (native versions param, like
+// country/year/label) narrows to one media type when the picker's Format
+// facet chip is set. The mainRelease probe below is also format-independent.
 export const proxyFetchMasterVersions = action({
   args: {
     sessionToken: v.string(),
@@ -1896,6 +1895,7 @@ export const proxyFetchMasterVersions = action({
     country: v.optional(v.string()),
     year: v.optional(v.string()),
     label: v.optional(v.string()),
+    format: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const creds = await ctx.runQuery(
@@ -1903,10 +1903,11 @@ export const proxyFetchMasterVersions = action({
       { sessionToken: args.sessionToken }
     );
     const page = args.page ?? 1;
-    let url = `${BASE}/masters/${args.masterId}/versions?format=Vinyl&per_page=25&page=${page}&sort=released&sort_order=asc`;
+    let url = `${BASE}/masters/${args.masterId}/versions?per_page=25&page=${page}&sort=released&sort_order=asc`;
     if (args.country) url += `&country=${encodeURIComponent(args.country)}`;
     if (args.year) url += `&released=${encodeURIComponent(args.year)}`;
     if (args.label) url += `&label=${encodeURIComponent(args.label)}`;
+    if (args.format) url += `&format=${encodeURIComponent(args.format)}`;
     const res = await discogsFetch(
       "GET",
       url,
@@ -1949,7 +1950,7 @@ export const proxyFetchMasterVersions = action({
     // Main release — fallback for the pinned "most collected" row.
     // Only worth one extra request on an unfiltered first page.
     let mainReleaseId = 0;
-    if (page === 1 && !args.country && !args.year && !args.label) {
+    if (page === 1 && !args.country && !args.year && !args.label && !args.format) {
       const mRes = await discogsFetch(
         "GET",
         `${BASE}/masters/${args.masterId}`,
