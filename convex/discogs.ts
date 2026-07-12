@@ -418,7 +418,7 @@ async function fetchCollectionInternal(
   username: string,
   skipPrivateFields: boolean,
   onProgress?: (fetched: number, total: number) => Promise<void>
-): Promise<{ albums: ProxyAlbum[]; folders: FolderInfo[] }> {
+): Promise<{ albums: ProxyAlbum[]; folders: FolderInfo[]; forbidden: boolean }> {
   const folderResult: { map: Map<number, string>; list: FolderInfo[] } = skipPrivateFields
     ? { map: new Map<number, string>(), list: [] }
     : await fetchFolderMapInternal(
@@ -450,7 +450,14 @@ async function fetchCollectionInternal(
     .filter((f) => f.id !== 0)
     .reduce((sum, f) => sum + f.count, 0);
 
+  // A private/forbidden own collection returns 403 on the per-folder releases
+  // endpoint (folder metadata reads fine — that's why we still have the folder
+  // list). Rather than aborting the whole sync, flag it and let syncSelf skip
+  // the collection write (preserving any cache) while the wantlist still syncs.
+  let forbidden = false;
+
   for (const folderId of folderIds) {
+    if (forbidden) break;
     let page = 1;
     let totalPages = 1;
 
@@ -462,10 +469,18 @@ async function fetchCollectionInternal(
         creds.access_token,
         creds.token_secret
       );
-      if (!res.ok)
+      if (!res.ok) {
+        if (res.status === 403 && !skipPrivateFields) {
+          console.warn(
+            `[Discogs] Collection folder ${folderId} returned 403 for @${username} — collection is private/forbidden; skipping collection sync`
+          );
+          forbidden = true;
+          break;
+        }
         throw new Error(
           `Failed to fetch collection folder ${folderId} page ${page} (${res.status})`
         );
+      }
       const data: CollectionPage = await res.json();
       totalPages = data.pagination.pages;
       if (skipPrivateFields && page === 1) totalItems = data.pagination.items;
@@ -495,7 +510,7 @@ async function fetchCollectionInternal(
     ? folderResult.list
     : [{ id: 0, name: "All", count: deduped.length }];
 
-  return { albums: deduped, folders: folderObjects };
+  return { albums: deduped, folders: folderObjects, forbidden };
 }
 
 interface ProxyWant {
@@ -852,6 +867,8 @@ export const syncSelf = action({
       currency: string;
       fetchedAt: number;
     } | null;
+    collectionPrivate: boolean;
+    wantlistPrivate: boolean;
   }> => {
     const creds = await ctx.runQuery(
       internal.discogsHelpers.getUserCredentials,
@@ -886,7 +903,11 @@ export const syncSelf = action({
       // server-to-server diff write. All formats are stored (the vinyl-only
       // filter was removed with the all-formats change); scope is a
       // display-only concern applied at the client derive.
-      const { albums, folders } = await fetchCollectionInternal(
+      const {
+        albums,
+        folders,
+        forbidden: collectionPrivate,
+      } = await fetchCollectionInternal(
         creds,
         creds.username,
         false,
@@ -894,8 +915,15 @@ export const syncSelf = action({
       );
 
       await setStatus("caching");
-      const collDiff: { added: number; removed: number; updated: number } =
-        await ctx.runMutation(api.collection.applyDiff, {
+      // Skip the diff write entirely when the collection is private/forbidden —
+      // applyDiff with an empty array would delete any existing cached rows.
+      let collDiff: { added: number; removed: number; updated: number } = {
+        added: 0,
+        removed: 0,
+        updated: 0,
+      };
+      if (!collectionPrivate)
+        collDiff = await ctx.runMutation(api.collection.applyDiff, {
           sessionToken: args.sessionToken,
           albums: albums.map((a) => ({
             releaseId: a.release_id,
@@ -920,15 +948,35 @@ export const syncSelf = action({
           })),
         });
 
-      // Wantlist
+      // Wantlist — same private/forbidden handling as the collection: a
+      // wantlist with "Allow others to browse my wantlist" off returns 403,
+      // which must not abort the sync or wipe the cached wantlist.
       await setStatus("wantlist");
-      const wants = await fetchWantlistInternal(
-        creds,
-        creds.username,
-        (fetched, total) => setStatus("wantlist", fetched, total)
-      );
-      const wantDiff: { added: number; removed: number; updated: number } =
-        await ctx.runMutation(api.wantlist.applyDiff, {
+      let wants: ProxyWant[] = [];
+      let wantlistPrivate = false;
+      try {
+        wants = await fetchWantlistInternal(
+          creds,
+          creds.username,
+          (fetched, total) => setStatus("wantlist", fetched, total)
+        );
+      } catch (e: any) {
+        if (String(e?.message ?? "").includes("403")) {
+          wantlistPrivate = true;
+          console.warn(
+            `[Discogs] Wantlist returned 403 for @${creds.username} — wantlist is private/forbidden; skipping wantlist sync`
+          );
+        } else {
+          throw e;
+        }
+      }
+      let wantDiff: { added: number; removed: number; updated: number } = {
+        added: 0,
+        removed: 0,
+        updated: 0,
+      };
+      if (!wantlistPrivate)
+        wantDiff = await ctx.runMutation(api.wantlist.applyDiff, {
           sessionToken: args.sessionToken,
           items: wants.map((w) => ({
             release_id: w.release_id,
@@ -1000,6 +1048,10 @@ export const syncSelf = action({
         wantDiff,
         crossovers,
         collectionValue,
+        // True when Discogs privacy ("Allow others to browse my …") blocks the
+        // read — the client can surface a "this is private on Discogs" note.
+        collectionPrivate,
+        wantlistPrivate,
       };
     } finally {
       await setStatus("idle");
