@@ -410,6 +410,10 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
     return peak.decade;
   }, [data]);
 
+  // No datable years → render nothing (recharts otherwise paints an empty gray
+  // box). Matches the By Format / By Folder tabs, which show nothing when empty.
+  if (data.length === 0) return null;
+
   return (
     <div>
       <div style={{ height: 180 }}>
@@ -1664,6 +1668,27 @@ export function ReportsScreen() {
           heading="No data yet."
           subtext="Connect your Discogs collection to see insights about your records."
         />
+      ) : albums.length === 0 ? (
+        /* Connected but no collection to analyze (empty or private on Discogs)
+           — one clean notice instead of a stack of $0.00 / 0 / 0% cards. */
+        <div
+          className="flex-1 flex flex-col items-center justify-center px-8"
+          style={{ paddingBottom: "var(--nav-clearance, 0px)" }}
+        >
+          <p style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "center" }}>
+            No insights yet.
+          </p>
+          <p className="mt-1" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "center" }}>
+            Sync your Discogs collection to see stats about your records.
+          </p>
+          <button
+            onClick={() => setScreen("settings")}
+            className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-full transition-colors cursor-pointer"
+            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.4)", color: isDarkMode ? "#ACDEF2" : "#00527A" }}
+          >
+            Sync your Discogs account →
+          </button>
+        </div>
       ) : (
       /* Scrollable content */
       <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "calc(32px + var(--nav-clearance, 0px))" }}>

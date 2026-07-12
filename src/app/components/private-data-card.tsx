@@ -18,7 +18,12 @@ export function PrivateDataCard({ kind }: { kind: "collection" | "wantlist" }) {
       : 'Turn on "Allow others to browse my wantlist" in your Discogs privacy settings to see it here.';
 
   return (
-    <div className="flex-1 flex items-center justify-center px-[16px] lg:px-[24px]">
+    <div
+      className="flex-1 flex items-center justify-center px-[16px] lg:px-[24px]"
+      // Clear the fixed bottom nav so the card centers in the visible band,
+      // matching the Feed screen's empty-state notice (which does the same).
+      style={{ paddingBottom: "var(--nav-clearance, 0px)" }}
+    >
       <div
         className="w-full max-w-[400px] rounded-[12px] flex flex-col items-center px-[24px] pt-[24px] pb-[32px]"
         style={{
