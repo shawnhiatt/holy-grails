@@ -1021,6 +1021,8 @@ export const syncSelf = action({
         sessionToken: args.sessionToken,
         collectionCount: profile?.num_collection,
         wantlistCount: profile?.num_wantlist,
+        collectionPrivate,
+        wantlistPrivate,
       });
 
       return {

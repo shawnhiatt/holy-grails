@@ -7,6 +7,7 @@ import { AlbumGrid } from "./album-grid";
 
 import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { PrivateDataCard } from "./private-data-card";
 import { SyncStatusLine } from "./sync-status-line";
 
 const VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
@@ -76,6 +77,7 @@ export function CrateBrowser() {
     setPlaysRecordedFilter,
     formatFilter,
     setFormatFilter,
+    collectionPrivate,
     isAuthenticated,
     defaultCollectionSort,
   } = useApp();
@@ -323,6 +325,8 @@ export function CrateBrowser() {
           heading="No albums found."
           subtext="Connect your Discogs collection to start browsing your crate."
         />
+      ) : albums.length === 0 && collectionPrivate ? (
+        <PrivateDataCard kind="collection" />
       ) : (
         <>
           {/* resetKey scrolls the view back to top on filter changes without

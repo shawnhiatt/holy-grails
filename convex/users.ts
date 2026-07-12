@@ -27,6 +27,8 @@ export const getLatestUser = query({
       shareActivity: user.shareActivity,
       last_collection_count: user.last_collection_count,
       last_wantlist_count: user.last_wantlist_count,
+      collection_private: user.collection_private,
+      wantlist_private: user.wantlist_private,
     };
   },
 });
@@ -50,6 +52,8 @@ export const getMe = query({
       shareActivity: user.shareActivity,
       last_collection_count: user.last_collection_count,
       last_wantlist_count: user.last_wantlist_count,
+      collection_private: user.collection_private,
+      wantlist_private: user.wantlist_private,
     };
   },
 });
@@ -138,6 +142,9 @@ export const updateLastSynced = mutation({
     // cold load's probe can detect whether anything changed.
     collectionCount: v.optional(v.number()),
     wantlistCount: v.optional(v.number()),
+    // Discogs privacy state observed this sync (403 = "browse" turned off).
+    collectionPrivate: v.optional(v.boolean()),
+    wantlistPrivate: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -145,9 +152,13 @@ export const updateLastSynced = mutation({
       last_synced_at: number;
       last_collection_count?: number;
       last_wantlist_count?: number;
+      collection_private?: boolean;
+      wantlist_private?: boolean;
     } = { last_synced_at: Date.now() };
     if (args.collectionCount !== undefined) patch.last_collection_count = args.collectionCount;
     if (args.wantlistCount !== undefined) patch.last_wantlist_count = args.wantlistCount;
+    if (args.collectionPrivate !== undefined) patch.collection_private = args.collectionPrivate;
+    if (args.wantlistPrivate !== undefined) patch.wantlist_private = args.wantlistPrivate;
     await ctx.db.patch(user._id, patch);
   },
 });

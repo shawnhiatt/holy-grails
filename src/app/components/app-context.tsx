@@ -138,6 +138,9 @@ interface AppState {
   // Format display scope (all-formats): "all" (default) | "vinyl"
   formatScope: FormatScope;
   setFormatScope: (s: FormatScope) => void;
+  // Discogs privacy: collection/wantlist "browse" is off, so the read 403s
+  collectionPrivate: boolean;
+  wantlistPrivate: boolean;
   // Discogs sync
   folders: { id: number; name: string; count: number }[];
   createFolder: (name: string) => Promise<void>;
@@ -1940,6 +1943,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // showSharePrompt is derived — clears reactively once setShareActivity
   // patches the user record and Convex updates.
   const shareActivity = convexUser?.shareActivity ?? convexLatestUser?.shareActivity;
+  // Discogs privacy state from the last sync — true when "Allow others to
+  // browse my collection/wantlist" is off, so the read 403s and HG can't show
+  // it. Reactive: updates once a sync patches the user record.
+  const collectionPrivate = (convexUser?.collection_private ?? convexLatestUser?.collection_private) ?? false;
+  const wantlistPrivate = (convexUser?.wantlist_private ?? convexLatestUser?.wantlist_private) ?? false;
   const convexUserHasLoaded = !!discogsUsername && convexUser !== undefined;
   const showSharePrompt =
     !!discogsUsername &&
@@ -2394,6 +2402,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Format display scope
       formatScope,
       setFormatScope,
+      // Discogs privacy state
+      collectionPrivate,
+      wantlistPrivate,
       // Discogs sync
       folders,
       createFolder,
@@ -2501,6 +2512,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       defaultScreen, setDefaultScreen,
       defaultCollectionSort, setDefaultCollectionSort,
       formatScope, setFormatScope,
+      collectionPrivate, wantlistPrivate,
       folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,
       discogsUsername, setDiscogsUsername,

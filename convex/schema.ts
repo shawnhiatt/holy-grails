@@ -40,6 +40,11 @@ export default defineSchema({
     // the num_collection / num_wantlist returned by the profile endpoint.
     last_collection_count: v.optional(v.number()),
     last_wantlist_count: v.optional(v.number()),
+    // Discogs privacy state observed at the last sync — true when "Allow others
+    // to browse my collection/wantlist" is off (the read 403s even for the
+    // owner). Drives the private empty-state note on Collection/Wantlist.
+    collection_private: v.optional(v.boolean()),
+    wantlist_private: v.optional(v.boolean()),
     // LEGACY (Spec 6A → 6A.1): per-user drip watermark. The drip is now keyed
     // on the shared `market_values` table and orders by staleness, so there's
     // no per-user cursor. Unused; kept to avoid a schema-removal deploy dance.

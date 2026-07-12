@@ -8,6 +8,7 @@ import { ViewModeToggle } from "./crate-browser";
 import type { WantItem } from "./discogs-api";
 import { FormatBadge } from "./format-badge";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { PrivateDataCard } from "./private-data-card";
 import { safeTap } from "../lib/safe-tap";
 import { SyncStatusLine } from "./sync-status-line";
 
@@ -162,7 +163,7 @@ function getWantGroupLabel(item: WantItem): string {
 }
 
 export function Wantlist() {
-  const { wants, toggleWantPriority, wantFilter, setWantFilter, isDarkMode, setScreen, isAuthenticated, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
+  const { wants, toggleWantPriority, wantFilter, setWantFilter, isDarkMode, setScreen, isAuthenticated, wantlistPrivate, wantViewMode: viewMode, setWantViewMode: setViewMode, setSelectedWantItem, setShowAlbumDetail } = useApp();
   // Search state is screen-local: a keystroke re-renders this screen only,
   // not every consumer of the app context.
   const [wantSearchQuery, setWantSearchQuery] = useState("");
@@ -299,6 +300,8 @@ export function Wantlist() {
           heading="No wants found."
           subtext="Connect your Discogs account to sync your wantlist."
         />
+      ) : wants.length === 0 && wantlistPrivate ? (
+        <PrivateDataCard kind="wantlist" />
       ) : filteredWants.length === 0 ? (
         <div
           className="flex-1 flex flex-col items-center justify-center px-8"
