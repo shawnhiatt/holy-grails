@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useApp, type ViewMode, type Screen, type FollowingFeedEntry } from "./app-context";
 import { ViewModeToggle } from "./crate-browser";
 import type { Album, FollowedUser, FeedAlbum, WantItem } from "./discogs-api";
+import { mediaType, type MediaType } from "./discogs-api";
 import { EASE_IN_OUT, EASE_OUT, DURATION_NORMAL, DURATION_FAST } from "./motion-tokens";
 import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
@@ -27,6 +28,37 @@ const hasYear = (year: number | null | undefined): year is number =>
 
 type FollowingFilter = "all" | "in-common" | "they-want-you-cut" | "you-want-they-have";
 type FollowingTab = "collection" | "wants" | "insights";
+
+// Followed-profile sort — limited to fields the slim followed_items rows carry
+// (no reliable add-date, and last-played is the viewer's own data, not theirs).
+type FollowedSortOption = "artist-az" | "artist-za" | "title-az" | "year-new" | "year-old";
+const FOLLOWED_SORT_OPTIONS: { value: FollowedSortOption; label: string }[] = [
+  { value: "artist-az", label: "Artist A→Z" },
+  { value: "artist-za", label: "Artist Z→A" },
+  { value: "title-az", label: "Title A→Z" },
+  { value: "year-new", label: "Year: Newest First" },
+  { value: "year-old", label: "Year: Oldest First" },
+];
+
+// Display order for the Format section chips — common media first (mirrors filter-drawer).
+const MEDIA_TYPE_ORDER: MediaType[] = [
+  "Vinyl", "CD", "Cassette", "Shellac", "Tape", "DVD", "Blu-ray", "Digital", "Box Set", "Other",
+];
+
+function sortFollowedItems<T extends { artist: string; title: string; year: number | null | undefined }>(
+  items: T[],
+  sort: FollowedSortOption,
+): T[] {
+  const sorted = [...items];
+  switch (sort) {
+    case "artist-az": sorted.sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title)); break;
+    case "artist-za": sorted.sort((a, b) => b.artist.localeCompare(a.artist) || a.title.localeCompare(b.title)); break;
+    case "title-az": sorted.sort((a, b) => a.title.localeCompare(b.title)); break;
+    case "year-new": sorted.sort((a, b) => (b.year || 0) - (a.year || 0)); break;
+    case "year-old": sorted.sort((a, b) => (a.year || 0) - (b.year || 0)); break;
+  }
+  return sorted;
+}
 
 /** Slim followed_items cache row → Album shape used by the profile views. */
 interface FollowedItemRow {
@@ -384,6 +416,8 @@ function FollowedUserProfile({
 }) {
   const [tab, setTab] = useState<FollowingTab>("collection");
   const [filter, setFilter] = useState<FollowingFilter>("all");
+  const [formatFilter, setFormatFilter] = useState<string | null>(null);
+  const [sortOption, setSortOption] = useState<FollowedSortOption>("artist-az");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
@@ -492,39 +526,47 @@ function FollowedUserProfile({
   const theyWantYouCutCount = useMemo(() => user.wants.filter((w) => userCutReleaseIds.has(w.release_id)).length, [user.wants, userCutReleaseIds]);
   const youWantTheyHaveCount = useMemo(() => userWants.filter((w) => followedReleaseIds.has(w.release_id)).length, [userWants, followedReleaseIds]);
 
+  // Media types present in the active tab's data, in display order. The Format
+  // section hides entirely when only one type is present.
+  const formatTypes = useMemo(() => {
+    const src: { format?: string }[] = tab === "wants" ? user.wants : user.collection;
+    const present = new Set<MediaType>();
+    for (const it of src) present.add(mediaType(it.format || ""));
+    return MEDIA_TYPE_ORDER.filter((t) => present.has(t));
+  }, [tab, user.wants, user.collection]);
+
+  const hasActiveFilters = filter !== "all" || !!formatFilter || sortOption !== "artist-az";
+
   const displayItems = useMemo(() => {
+    let items: (Album | WantItem)[];
     if (tab === "wants") {
-      let items = [...user.wants];
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        items = items.filter((w) => w.artist.toLowerCase().includes(q) || w.title.toLowerCase().includes(q));
-        // While searching, order results by artist A→Z
-        items.sort((a, b) => a.artist.localeCompare(b.artist));
+      items = [...user.wants];
+    } else {
+      let coll: Album[] = [...user.collection];
+      switch (filter) {
+        case "in-common":
+          coll = coll.filter((a) => userReleaseIds.has(a.release_id));
+          break;
+        case "they-want-you-cut": {
+          const followedWantIds = new Set(user.wants.map((w) => w.release_id));
+          coll = userAlbums.filter((a) => a.purgeTag === "cut" && followedWantIds.has(a.release_id));
+          break;
+        }
+        case "you-want-they-have":
+          coll = coll.filter((a) => userWantReleaseIds.has(a.release_id));
+          break;
       }
-      return items;
+      items = coll;
     }
-    let items: Album[] = [...user.collection];
-    switch (filter) {
-      case "in-common":
-        items = items.filter((a) => userReleaseIds.has(a.release_id));
-        break;
-      case "they-want-you-cut": {
-        const followedWantIds = new Set(user.wants.map((w) => w.release_id));
-        items = userAlbums.filter((a) => a.purgeTag === "cut" && followedWantIds.has(a.release_id));
-        break;
-      }
-      case "you-want-they-have":
-        items = items.filter((a) => userWantReleaseIds.has(a.release_id));
-        break;
+    if (formatFilter) {
+      items = items.filter((it) => mediaType(it.format || "") === formatFilter);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      items = items.filter((a) => a.artist.toLowerCase().includes(q) || a.title.toLowerCase().includes(q));
-      // While searching, order results by artist A→Z
-      items.sort((a, b) => a.artist.localeCompare(b.artist));
+      items = items.filter((it) => it.artist.toLowerCase().includes(q) || it.title.toLowerCase().includes(q));
     }
-    return items;
-  }, [tab, filter, user, searchQuery, userReleaseIds, userCutReleaseIds, userWantReleaseIds, userAlbums]);
+    return sortFollowedItems(items, sortOption);
+  }, [tab, filter, formatFilter, sortOption, user, searchQuery, userReleaseIds, userCutReleaseIds, userWantReleaseIds, userAlbums]);
 
   if (user.isPrivate) {
     return (
@@ -655,41 +697,17 @@ function FollowedUserProfile({
             />
             {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
           </div>
-          {showFilters && tab === "collection" && (
-            <div className="flex items-center gap-2 shrink-0">
-              {FILTER_CHIPS.map((chip) => {
-                const isActive = filter === chip.id;
-                return (
-                  <button
-                    key={chip.id}
-                    onClick={() => setFilter(chip.id)}
-                    className="px-3 py-1.5 rounded-full transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    style={isActive
-                      ? { fontSize: "13px", fontWeight: 600, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                      : { fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-secondary)" }}
-                  >
-                    {chip.label}
-                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1"
-                      style={{
-                        fontSize: "11px", fontWeight: 600,
-                        backgroundColor: isActive ? (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(0,82,122,0.12)") : "var(--c-border)",
-                        color: isActive ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)",
-                      }}
-                    >
-                      {chip.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
           <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} />
           <button
-            onClick={() => setShowFilters((v) => !v)}
+            onClick={() => setShowFilters(true)}
+            aria-label="Filter"
             className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
             style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
           >
             <SlidersHorizontal size={18} />
+            {hasActiveFilters && (
+              <span className="absolute rounded-full" style={{ top: 6, right: 6, width: 6, height: 6, backgroundColor: "var(--c-link)" }} />
+            )}
           </button>
         </div>
 
@@ -708,41 +726,17 @@ function FollowedUserProfile({
             </div>
             <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} compact />
             <button
-              onClick={() => setShowFilters((v) => !v)}
+              onClick={() => setShowFilters(true)}
+              aria-label="Filter"
               className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
               style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
             >
               <SlidersHorizontal size={18} />
+              {hasActiveFilters && (
+                <span className="absolute rounded-full" style={{ top: 5, right: 5, width: 6, height: 6, backgroundColor: "var(--c-link)" }} />
+              )}
             </button>
           </div>
-          {showFilters && tab === "collection" && (
-            <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-1 no-scrollbar">
-              {FILTER_CHIPS.map((chip) => {
-                const isActive = filter === chip.id;
-                return (
-                  <button
-                    key={chip.id}
-                    onClick={() => setFilter(chip.id)}
-                    className="px-3 py-1.5 rounded-full transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    style={isActive
-                      ? { fontSize: "12px", fontWeight: 600, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                      : { fontSize: "12px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}
-                  >
-                    {chip.label}
-                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1"
-                      style={{
-                        fontSize: "11px", fontWeight: 600,
-                        backgroundColor: isActive ? (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(0,82,122,0.12)") : "var(--c-border)",
-                        color: isActive ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)",
-                      }}
-                    >
-                      {chip.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
       )}
@@ -951,7 +945,152 @@ function FollowedUserProfile({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showFilters && (
+        <FollowedFilterDrawer
+          tab={tab}
+          filter={filter}
+          setFilter={setFilter}
+          filterChips={FILTER_CHIPS}
+          formatFilter={formatFilter}
+          setFormatFilter={setFormatFilter}
+          formatTypes={formatTypes}
+          sortOption={sortOption}
+          setSortOption={setSortOption}
+          hasActiveFilters={hasActiveFilters}
+          isDarkMode={isDarkMode}
+          onClose={() => setShowFilters(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function FollowedFilterDrawer({
+  tab, filter, setFilter, filterChips,
+  formatFilter, setFormatFilter, formatTypes,
+  sortOption, setSortOption, hasActiveFilters, isDarkMode, onClose,
+}: {
+  tab: FollowingTab;
+  filter: FollowingFilter;
+  setFilter: (f: FollowingFilter) => void;
+  filterChips: { id: FollowingFilter; label: string; count: number }[];
+  formatFilter: string | null;
+  setFormatFilter: (f: string | null) => void;
+  formatTypes: MediaType[];
+  sortOption: FollowedSortOption;
+  setSortOption: (s: FollowedSortOption) => void;
+  hasActiveFilters: boolean;
+  isDarkMode: boolean;
+  onClose: () => void;
+}) {
+  const chipStyle = (active: boolean): React.CSSProperties => active
+    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
+    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" };
+  const sectionLabel: React.CSSProperties = { fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" };
+
+  return (
+    <SlideOutPanel
+      onClose={onClose}
+      title="Filter"
+      ariaLabel="Filter collection"
+      headerAction={
+        hasActiveFilters ? (
+          <button
+            onClick={() => { setFilter("all"); setFormatFilter(null); setSortOption("artist-az"); }}
+            className="transition-colors"
+            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-link)" }}
+          >
+            Reset
+          </button>
+        ) : null
+      }
+      footer={
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 rounded-full transition-colors"
+          style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "#EBFD00", color: "#16181C", border: "1px solid rgba(22,24,28,0.25)" }}
+        >
+          Apply Filters
+        </button>
+      }
+      backdropZIndex={60}
+      sheetZIndex={70}
+      className="lg:bottom-auto lg:top-[72px] lg:left-1/2 lg:-translate-x-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100dvh-100px)]"
+    >
+      <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+        {/* Relationship — collection tab only */}
+        {tab === "collection" && (
+          <div className="mb-6">
+            <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Relationship</p>
+            <div className="flex flex-wrap gap-2">
+              {filterChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  onClick={() => setFilter(chip.id)}
+                  aria-pressed={filter === chip.id}
+                  className="px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5"
+                  style={chipStyle(filter === chip.id)}
+                >
+                  {chip.label}
+                  <span
+                    className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1"
+                    style={{
+                      fontSize: "11px", fontWeight: 600,
+                      backgroundColor: filter === chip.id ? (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(0,82,122,0.12)") : "var(--c-border)",
+                      color: filter === chip.id ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)",
+                    }}
+                  >
+                    {chip.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Format — hidden when only one media type is present */}
+        {formatTypes.length > 1 && (
+          <div className="mb-6">
+            <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Format</p>
+            <div className="flex flex-wrap gap-2">
+              {formatTypes.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setFormatFilter(formatFilter === t ? null : t)}
+                  aria-pressed={formatFilter === t}
+                  className="px-3 py-1.5 rounded-full transition-all"
+                  style={chipStyle(formatFilter === t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sort By */}
+        <div>
+          <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Sort By</p>
+          <div className="flex flex-col gap-0.5">
+            {FOLLOWED_SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setSortOption(opt.value)}
+                aria-pressed={sortOption === opt.value}
+                className="px-3 py-2.5 rounded-[8px] text-left transition-colors"
+                style={sortOption !== opt.value
+                  ? { fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }
+                  : { fontSize: "14px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
+                }
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </SlideOutPanel>
   );
 }
 
