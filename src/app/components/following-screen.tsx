@@ -566,7 +566,7 @@ function FollowedUserProfile({
       items = items.filter((it) => it.artist.toLowerCase().includes(q) || it.title.toLowerCase().includes(q));
     }
     return sortFollowedItems(items, sortOption);
-  }, [tab, filter, formatFilter, sortOption, user, searchQuery, userReleaseIds, userCutReleaseIds, userWantReleaseIds, userAlbums]);
+  }, [tab, filter, formatFilter, sortOption, user, searchQuery, userReleaseIds, userWantReleaseIds, userAlbums]);
 
   if (user.isPrivate) {
     return (
