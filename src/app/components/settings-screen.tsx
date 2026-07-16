@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus } from "./icons";
+import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus, RefreshCw } from "./icons";
 import { getInitial } from "../utils/format";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
@@ -10,6 +10,7 @@ import { useApp } from "./app-context";
 import type { Screen, SortOption, FormatScope } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { version as APP_VERSION } from "../../../package.json";
+import { checkForUpdates } from "../lib/pwa-update";
 
 const DEFAULT_SCREEN_OPTIONS: { value: Screen; label: string }[] = [
   { value: "feed", label: "Feed" },
@@ -90,6 +91,18 @@ export function SettingsScreen() {
   const [showDefaultScreenPicker, setShowDefaultScreenPicker] = useState(false);
   const [showDefaultSortPicker, setShowDefaultSortPicker] = useState(false);
   const [showFormatScopePicker, setShowFormatScopePicker] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckUpdates = useCallback(async () => {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    const res = await checkForUpdates();
+    setCheckingUpdate(false);
+    // "updated" → the persistent "Update available." toast is shown by the
+    // update flow's onNeedRefresh; only report the other outcomes here.
+    if (res === "current") toast("Up to date.");
+    else if (res === "error") toast.error("Couldn't check for updates.");
+  }, [checkingUpdate]);
 
   // Profile edit state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -853,6 +866,15 @@ export function SettingsScreen() {
             <Info size={14} />
             <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v{APP_VERSION}. A Discogs companion app.</span>
           </div>
+          <button
+            onClick={handleCheckUpdates}
+            disabled={checkingUpdate}
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-full transition-colors tappable disabled:opacity-60"
+            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}
+          >
+            {checkingUpdate ? <Disc3 size={14} className="disc-spinner" /> : <RefreshCw size={14} weight="bold" />}
+            {checkingUpdate ? "Checking..." : "Check for updates"}
+          </button>
         </section>
       </div>
 

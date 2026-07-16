@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { IconContext } from "./app/components/icons";
 import App from "./app/App.tsx";
+import { initPwaUpdate } from "./app/lib/pwa-update";
 import "./styles/index.css";
 
 // Error monitoring boots lazily and only when a DSN is configured — the
@@ -34,3 +35,7 @@ createRoot(document.getElementById("root")!).render(
     </IconContext.Provider>
   </ConvexProvider>
 );
+
+// Register the service worker and wire the update flow after the first render
+// kicks off, so the app's Toaster is mounted before any update toast fires.
+initPwaUpdate();
