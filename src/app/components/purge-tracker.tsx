@@ -80,7 +80,7 @@ export function PurgeTracker() {
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[16px]">
         <div className="flex items-center justify-between mb-1.5">
           <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>{ratedCount} of {totalCount} evaluated — {Math.round(progress)}%</span>
-          <span style={{ fontSize: "14px", fontWeight: 600, color: purgeTagColor("cut", isDarkMode) }}>{unratedCount > 0 ? `${unratedCount} still waiting for a verdict.` : "Every record has been evaluated. Rare discipline."}</span>
+          <span style={{ fontSize: "14px", fontWeight: 600, color: purgeTagColor("cut", isDarkMode) }}>{unratedCount > 0 ? `${unratedCount} still waiting for a verdict.` : "Every record evaluated. Check back when you add to your collection."}</span>
         </div>
         <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--c-chip-bg)" }}>
           <motion.div

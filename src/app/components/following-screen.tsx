@@ -330,9 +330,9 @@ export function FollowingScreen() {
       </AnimatePresence>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "var(--nav-clearance, 84px)" }}>
+      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll" style={{ paddingBottom: "var(--nav-clearance, 84px)" }}>
         {followedUsers.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-8 py-20">
+          <div className="flex-1 flex flex-col items-center justify-center px-8">
             <Users size={48} style={{ color: "var(--c-text-faint)" }} />
             <p className="mt-4 text-center" style={{ fontSize: "16px", fontWeight: 500, color: "var(--c-text-muted)" }}>You're not following anyone yet.</p>
             <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
@@ -1667,7 +1667,7 @@ function PopulatedFollowingView({
                     style={{
                       fontSize: "13px",
                       fontWeight: 400,
-                      color: "var(--c-text)",
+                      color: "var(--c-text-secondary)",
                       fontFamily: "'DM Sans', system-ui, sans-serif",
                       lineHeight: 1.35,
                       display: "block",
@@ -1678,9 +1678,26 @@ function PopulatedFollowingView({
                       maxWidth: "100%",
                     } as React.CSSProperties}
                   >
-                    <span style={{ fontWeight: 600 }}>{item.followedUsername}</span>
-                    {activityTab === "wantlist" ? " wantlisted " : " added "}
-                    <span style={{ fontWeight: 400 }}>{item.albumTitle}</span>
+                    <span style={{ fontWeight: 600, color: "var(--c-text)" }}>{item.followedUsername}</span>
+                    {activityTab === "wantlist" ? " added to wantlist" : " added to collection"}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "var(--c-text)",
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      lineHeight: 1.35,
+                      marginTop: "2px",
+                      display: "block",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      WebkitTextOverflow: "ellipsis",
+                      maxWidth: "100%",
+                    } as React.CSSProperties}
+                  >
+                    {item.albumTitle}
                   </p>
                   <p
                     style={{

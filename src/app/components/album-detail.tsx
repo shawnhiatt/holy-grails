@@ -831,7 +831,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
         {/* ═══ Edit form / Your Copy section ═══ */}
         {isEditMode ? (
-          <div className="px-4 pb-4">
+          <div className={hideHeader ? "px-4 pt-4 pb-4" : "px-4 pb-4"}>
             <div className="rounded-[10px] p-3 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
               {/* Static read-only rows */}
               {hasYear(selectedAlbum.year) && <DetailRow label="Year" value={String(selectedAlbum.year)} />}
