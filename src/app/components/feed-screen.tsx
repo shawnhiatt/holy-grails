@@ -12,6 +12,8 @@ import {
   Play,
   RefreshCw,
   Shuffle,
+  Check,
+  UserPlus,
 } from "./icons";
 import { WantlistAddIcon } from "./wantlist-add-icon";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
@@ -296,6 +298,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     isInCollection,
     playCounts,
     setFollowingActivityTabIntent,
+    accounts,
+    switchAccount,
+    addAccount,
   } = useApp();
 
   // Per-item in-flight tracking for wantlist API calls
@@ -305,6 +310,27 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const [isAddingWant, setIsAddingWant] = useState(false);
   const [removeWantConfirm, setRemoveWantConfirm] = useState<FeedActivity | null>(null);
   const [isRemovingWant, setIsRemovingWant] = useState(false);
+
+  // Account switcher — pulled up by tapping the username when 2+ accounts are
+  // signed in (Spec 5). Mirrors the Settings Accounts accordion; switching
+  // swaps the active token and reloads.
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null);
+  const hasMultipleAccounts = accounts.length >= 2;
+
+  const handleSwitchAccount = useCallback((username: string) => {
+    if (username === discogsUsername || switchingTo) return;
+    setSwitchingTo(username); // brief pressed state before the reload
+    switchAccount(username);
+  }, [discogsUsername, switchingTo, switchAccount]);
+
+  const handleAddAccount = useCallback(async () => {
+    try {
+      await addAccount(); // page redirects to Discogs
+    } catch {
+      toast.error("Couldn't start sign-in.");
+    }
+  }, [addAccount]);
 
   // Purge evaluator — current album for inline rating
   const [purgeEvalAlbumId, setPurgeEvalAlbumId] = useState<string | null>(() => {
@@ -2050,22 +2076,37 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       </div>
     );
 
-    const usernameEl = (
-      <p
-        className="flex-1"
-        style={{
-          fontSize: isMobile ? "22px" : "26px",
-          fontWeight: 700,
-          fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-          color: "var(--c-text)",
-          letterSpacing: "-0.4px",
-          lineHeight: 1.2,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          minWidth: 0,
-        }}
+    const usernameTextStyle: React.CSSProperties = {
+      fontSize: isMobile ? "22px" : "26px",
+      fontWeight: 700,
+      fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+      color: "var(--c-text)",
+      letterSpacing: "-0.4px",
+      lineHeight: 1.2,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      minWidth: 0,
+    };
+
+    const usernameEl = hasMultipleAccounts ? (
+      <button
+        onClick={() => setShowAccountSwitcher(true)}
+        className="flex-1 flex items-center gap-1 min-w-0 tappable cursor-pointer text-left"
+        style={{ background: "none", border: "none", padding: 0, touchAction: "manipulation" }}
+        aria-label="Switch account"
+        aria-haspopup="dialog"
       >
+        <span style={{ ...usernameTextStyle, display: "block" }}>{discogsUsername}</span>
+        <ChevronDown
+          size={isMobile ? 20 : 22}
+          weight="bold"
+          className="flex-shrink-0"
+          style={{ color: "var(--c-text-muted)" }}
+        />
+      </button>
+    ) : (
+      <p className="flex-1" style={usernameTextStyle}>
         {discogsUsername}
       </p>
     );
@@ -2476,6 +2517,83 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   ) : "Add to Wantlist"}
                 </button>
               </div>
+            </div>
+          </SlideOutPanel>
+        )}
+      </AnimatePresence>
+
+      {/* ── Account switcher — tap the username to pull this up (2+ accounts) ── */}
+      <AnimatePresence>
+        {showAccountSwitcher && (
+          <SlideOutPanel
+            onClose={() => setShowAccountSwitcher(false)}
+            title="Switch account"
+            backdropZIndex={110}
+            sheetZIndex={120}
+          >
+            <div className="flex flex-col gap-1 px-4 py-3">
+              {accounts.map((a) => {
+                const active = a.username === discogsUsername;
+                const switching = switchingTo === a.username;
+                return (
+                  <button
+                    key={a.username}
+                    onClick={() => handleSwitchAccount(a.username)}
+                    disabled={active || !!switchingTo}
+                    aria-label={active ? `${a.username}, current account` : `Switch to ${a.username}`}
+                    aria-pressed={active}
+                    className="w-full flex items-center gap-2.5 py-2 px-2 rounded-[8px] tappable transition-colors"
+                    style={{ cursor: active ? "default" : "pointer", touchAction: "manipulation" }}
+                  >
+                    {a.avatarUrl ? (
+                      <img src={a.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div
+                        className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: "var(--c-chip-bg)", fontSize: "14px", fontWeight: 600, color: "var(--c-text-secondary)" }}
+                      >
+                        {getInitial(a.username)}
+                      </div>
+                    )}
+                    <span
+                      className="flex-1 text-left"
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: 500,
+                        color: "var(--c-text)",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        display: "block",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        WebkitTextOverflow: "ellipsis",
+                        maxWidth: "100%",
+                      } as React.CSSProperties}
+                    >
+                      {a.username}
+                    </span>
+                    {switching ? (
+                      <Disc3 size={16} className="disc-spinner flex-shrink-0" style={{ color: "var(--c-text-muted)" }} />
+                    ) : active ? (
+                      <Check size={18} className="flex-shrink-0" style={{ color: "var(--c-link)" }} />
+                    ) : null}
+                  </button>
+                );
+              })}
+              <button
+                onClick={handleAddAccount}
+                disabled={!!switchingTo}
+                aria-label="Add account"
+                className="w-full flex items-center gap-2.5 py-2 px-2 rounded-[8px] tappable transition-colors"
+                style={{ cursor: "pointer", touchAction: "manipulation" }}
+              >
+                <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ border: "1px solid var(--c-border-strong)" }}>
+                  <UserPlus size={16} style={{ color: "var(--c-text-secondary)" }} />
+                </div>
+                <span style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                  Add account
+                </span>
+              </button>
             </div>
           </SlideOutPanel>
         )}
