@@ -22,7 +22,12 @@ export default defineConfig(({ command, mode }) => {
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' (not 'autoUpdate'): an installed PWA resumed from the
+      // background never reloads on its own, so a silent auto-update never
+      // reaches the user. Instead we surface an "Update available." toast with
+      // a Refresh action (see src/app/lib/pwa-update.ts) and a Settings
+      // "Check for updates" control, and reload in place on demand.
+      registerType: 'prompt',
       manifest: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],

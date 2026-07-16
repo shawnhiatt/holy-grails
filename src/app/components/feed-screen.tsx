@@ -1065,7 +1065,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   ) : null;
 
   /* ─────────────── FOLLOWING ACTIVITY card content ─────────────── */
-  const renderActivityRow = (item: FeedActivity, showHeart: boolean, verb: "added" | "wantlisted") => {
+  const renderActivityRow = (item: FeedActivity, showHeart: boolean, list: "collection" | "wantlist") => {
     const inCollection = ownReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && ownMasterIds.has(item.albumMasterId));
     const inWantList = wantReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && wantMasterIds.has(item.albumMasterId));
     return (
@@ -1149,7 +1149,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             style={{
               fontSize: "13px",
               fontWeight: 400,
-              color: "var(--c-text)",
+              color: "var(--c-text-secondary)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
               lineHeight: 1.35,
               display: "block",
@@ -1160,9 +1160,26 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               maxWidth: "100%",
             } as React.CSSProperties}
           >
-            <span style={{ fontWeight: 600 }}>{item.followedUsername}</span>
-            {` ${verb} `}
-            <span style={{ fontWeight: 400 }}>{item.albumTitle}</span>
+            <span style={{ fontWeight: 600, color: "var(--c-text)" }}>{item.followedUsername}</span>
+            {list === "collection" ? " added to collection" : " added to wantlist"}
+          </p>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--c-text)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              lineHeight: 1.35,
+              marginTop: "2px",
+              display: "block",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              WebkitTextOverflow: "ellipsis",
+              maxWidth: "100%",
+            } as React.CSSProperties}
+          >
+            {item.albumTitle}
           </p>
           <p
             style={{
@@ -1262,7 +1279,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   };
 
   const activeList = followingActivityTab === "collection" ? followingActivity : followingWantActivity;
-  const activeVerb: "added" | "wantlisted" = followingActivityTab === "collection" ? "added" : "wantlisted";
 
   const FollowingActivityCard = (
     <div className="rounded-[12px] overflow-hidden h-full" style={cardStyle}>
@@ -1343,10 +1359,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: DURATION_FAST, ease: EASE_OUT, delay: (i - ACTIVITY_COLLAPSED) * 0.04 }}
               >
-                {renderActivityRow(item, followingActivityTab === "collection", activeVerb)}
+                {renderActivityRow(item, followingActivityTab === "collection", followingActivityTab)}
               </motion.div>
             ) : (
-              renderActivityRow(item, followingActivityTab === "collection", activeVerb)
+              renderActivityRow(item, followingActivityTab === "collection", followingActivityTab)
             )
           )}
           {activeList.length > ACTIVITY_COLLAPSED && (
@@ -1775,7 +1791,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 lineHeight: 1.4,
               }}
             >
-              Every record has a verdict. Rare discipline.
+              Every record evaluated. Check back when you add to your collection.
             </p>
           </div>
         ) : purgeEvalAlbum ? (
@@ -2099,7 +2115,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       >
         <span style={{ ...usernameTextStyle, display: "block" }}>{discogsUsername}</span>
         <ChevronDown
-          size={isMobile ? 20 : 22}
+          size={isMobile ? 18 : 20}
           weight="bold"
           className="flex-shrink-0"
           style={{ color: "var(--c-text-muted)" }}
@@ -2117,7 +2133,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           onClick={handleSyncNow}
           disabled={syncInFlight}
           className="tappable cursor-pointer flex flex-col items-center"
-          style={{ gap: "0px", color: "var(--c-link)", touchAction: "manipulation" }}
+          style={{ gap: "2px", color: "var(--c-link)", touchAction: "manipulation" }}
           aria-label="Sync with Discogs"
         >
           {syncInFlight ? (

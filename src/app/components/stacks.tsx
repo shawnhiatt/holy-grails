@@ -355,10 +355,10 @@ function StackDetail({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
         {stackAlbums.length === 0 ? (
           /* Empty state */
-          <div className="flex flex-col items-center justify-center py-20">
+          <div className="flex-1 flex flex-col items-center justify-center">
             <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
             <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>
               Nothing here yet.

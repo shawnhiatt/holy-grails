@@ -10,6 +10,8 @@ import { useApp } from "./app-context";
 import { getContentTokens } from "./theme";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import type { FeedAlbum } from "./discogs-api";
+import { mediaType } from "./discogs-api";
+import { SlideOutPanel } from "./slide-out-panel";
 
 /* DiscogsSearchSheet — "Look It Up"
    Standalone Discogs database search as a FULL-SCREEN panel (Discogs-app
@@ -84,6 +86,16 @@ interface VersionsPage {
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
+
+// Discogs' single versions `format` facet mixes media names and descriptors.
+// These are the media names — everything else (LP, Album, 45 RPM, Reissue,
+// RSD, Limited Edition, Colored, Picture Disc, Mono, …) is a descriptor.
+// Both groups feed the same single `format` filter param (one value at a time).
+const MEDIA_FORMAT_NAMES = new Set([
+  "Vinyl", "CD", "CDr", "Cassette", "Shellac", "File", "DVD", "DVDr",
+  "Blu-ray", "Blu-ray-R", "SACD", "Minidisc", "8-Track Cartridge",
+  "Reel-To-Reel", "VHS", "Flexi-disc", "Lathe Cut", "Box Set", "All Media",
+]);
 
 // Session-scoped result cache (mirrors the releaseDataCache pattern)
 const searchCache = new Map<string, ResolvedSearch>();
@@ -171,6 +183,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const [countryFilter, setCountryFilter] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = useState<string | null>(null);
   const [formatFilter, setFormatFilter] = useState<string | null>(null);
+  const [labelFilter, setLabelFilter] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -299,7 +312,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   // Pressing picker fetch
   const fetchVersions = useCallback((
     master: SearchResult,
-    opts: { page: number; country: string | null; year: string | null; format: string | null; append: boolean }
+    opts: { page: number; country: string | null; year: string | null; format: string | null; label: string | null; append: boolean }
   ) => {
     if (!sessionToken) return;
     setIsLoadingVersions(true);
@@ -311,6 +324,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         country: opts.country ?? undefined,
         year: opts.year ?? undefined,
         format: opts.format ?? undefined,
+        label: opts.label ?? undefined,
       })
     )
       .then((data) => {
@@ -337,24 +351,27 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     setCountryFilter(null);
     setYearFilter(null);
     setFormatFilter(initialFormat);
+    setLabelFilter(null);
     setShowFilters(false);
     setVersionsPage(1);
     setVersionsTotalPages(1);
     setVersionsTotal(0);
-    fetchVersions(master, { page: 1, country: null, year: null, format: initialFormat, append: false });
+    fetchVersions(master, { page: 1, country: null, year: null, format: initialFormat, label: null, append: false });
   }, [fetchVersions, formatScope]);
 
   const applyFilter = useCallback((
     country: string | null,
     year: string | null,
-    format: string | null
+    format: string | null,
+    label: string | null
   ) => {
     if (!pickerMaster) return;
     setCountryFilter(country);
     setYearFilter(year);
     setFormatFilter(format);
+    setLabelFilter(label);
     setVersions([]);
-    fetchVersions(pickerMaster, { page: 1, country, year, format, append: false });
+    fetchVersions(pickerMaster, { page: 1, country, year, format, label, append: false });
   }, [pickerMaster, fetchVersions]);
 
   // Hand off to the existing ReleaseDetailPanel
@@ -406,13 +423,13 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   // Pinned "most collected" pressing — max community have-count across
   // loaded, unfiltered versions
   const pinnedVersion = useMemo(() => {
-    if (countryFilter || yearFilter || versions.length < 2) return null;
+    if (countryFilter || yearFilter || labelFilter || versions.length < 2) return null;
     let best: Version | null = null;
     for (const ver of versions) {
       if (!best || ver.haveCount > best.haveCount) best = ver;
     }
     return best && best.haveCount > 0 ? best : null;
-  }, [versions, countryFilter, yearFilter]);
+  }, [versions, countryFilter, yearFilter, labelFilter]);
 
   // Filter chip options — facets when the API provides them, else derived.
   // Facet titles/values are decoded so encoded strings never reach the UI.
@@ -445,38 +462,51 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     return [...years].sort().slice(0, 8).map((y) => ({ value: y, label: y }));
   }, [facets, versions]);
 
-  const formatOptions = useMemo(() => {
+  // Format facet split into media (Vinyl/CD/Cassette…) and descriptor
+  // (LP, 45 RPM, Reissue, RSD, Limited Edition, …) groups. Both feed the same
+  // single `format` filter param — the versions endpoint takes one value.
+  const { mediaFormatOptions, descriptorFormatOptions } = useMemo(() => {
+    let all: { value: string; label: string }[];
     const facet = facets.find((f) => f.id.toLowerCase().includes("format"));
     if (facet) {
-      return facet.values.slice(0, 8).map((x) => ({
+      all = facet.values.map((x) => ({
+        value: decodeFacetValue(x.value),
+        label: decodeFacetValue(x.title || x.value),
+      }));
+    } else {
+      // No facets — tokenize each version's full format string.
+      const counts = new Map<string, number>();
+      for (const ver of versions) {
+        for (const tok of (ver.format || "").split(",").map((t) => t.trim()).filter(Boolean)) {
+          counts.set(tok, (counts.get(tok) || 0) + 1);
+        }
+      }
+      all = [...counts.entries()].sort((a, b) => b[1] - a[1]).map((e) => ({ value: e[0], label: e[0] }));
+    }
+    const media: { value: string; label: string }[] = [];
+    const descriptor: { value: string; label: string }[] = [];
+    for (const opt of all) {
+      if (MEDIA_FORMAT_NAMES.has(opt.label) || MEDIA_FORMAT_NAMES.has(opt.value)) media.push(opt);
+      else descriptor.push(opt);
+    }
+    return { mediaFormatOptions: media.slice(0, 8), descriptorFormatOptions: descriptor.slice(0, 12) };
+  }, [facets, versions]);
+
+  const labelOptions = useMemo(() => {
+    const facet = facets.find((f) => f.id.toLowerCase().includes("label"));
+    if (facet) {
+      return facet.values.slice(0, 12).map((x) => ({
         value: decodeFacetValue(x.value),
         label: decodeFacetValue(x.title || x.value),
       }));
     }
     const counts = new Map<string, number>();
     for (const ver of versions) {
-      // First token of a version's format string is its medium name.
-      const name = (ver.format || "").split(",")[0].trim();
-      if (name) counts.set(name, (counts.get(name) || 0) + 1);
+      if (ver.label) counts.set(ver.label, (counts.get(ver.label) || 0) + 1);
     }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
       .map((e) => ({ value: e[0], label: e[0] }));
   }, [facets, versions]);
-
-  const chipStyle = (active: boolean): CSSProperties => ({
-    fontSize: "12px",
-    fontWeight: 500,
-    padding: "5px 12px",
-    borderRadius: "999px",
-    whiteSpace: "nowrap",
-    cursor: "pointer",
-    touchAction: "manipulation",
-    backgroundColor: active
-      ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
-      : "var(--c-chip-bg)",
-    color: active ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-secondary)",
-    border: "1px solid transparent",
-  });
 
   const rowTitleStyle: CSSProperties = {
     display: "block",
@@ -510,6 +540,33 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     </span>
   );
 
+  // Media-type tag on each pressing row — shows the medium (Vinyl, CD,
+  // Cassette, Digital, …) at a glance before filtering. Unlike the app-wide
+  // FormatBadge, this deliberately shows Vinyl too; only an unclassifiable
+  // "Other" (or empty format) hides.
+  const mediaTag = (fmt: string) => {
+    const mt = mediaType(fmt || "");
+    if (mt === "Other") return null;
+    return (
+      <span
+        className="flex-shrink-0"
+        style={{
+          fontSize: "10px",
+          fontWeight: 700,
+          letterSpacing: "0.02em",
+          padding: "1px 6px",
+          borderRadius: "5px",
+          backgroundColor: "var(--c-chip-bg)",
+          color: "var(--c-text-secondary)",
+          textTransform: "uppercase",
+          lineHeight: 1.5,
+        }}
+      >
+        {mt}
+      </span>
+    );
+  };
+
   const versionRow = (ver: Version, pinned: boolean) => (
     <button
       key={`${pinned ? "pin-" : ""}${ver.releaseId}`}
@@ -530,7 +587,10 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
             Most collected
           </span>
         )}
-        <span style={rowTitleStyle}>{ver.format || ver.title}</span>
+        <span className="flex items-center gap-1.5 min-w-0">
+          {mediaTag(ver.format)}
+          <span style={{ ...rowTitleStyle, flex: "1 1 auto", minWidth: 0 }}>{ver.format || ver.title}</span>
+        </span>
         <span style={rowMetaStyle}>
           {[ver.label && `${ver.label}${ver.catno ? ` – ${ver.catno}` : ""}`, ver.country, hasYear(ver.year) ? ver.year : null]
             .filter(Boolean)
@@ -664,18 +724,18 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                 >
                   <ArrowLeft size={20} />
                 </button>
-                {(countryOptions.length > 1 || yearOptions.length > 1 || formatOptions.length > 1) && (
+                {(mediaFormatOptions.length + descriptorFormatOptions.length > 1 || countryOptions.length > 1 || yearOptions.length > 1 || labelOptions.length > 1) && (
                   <button
-                    onClick={() => setShowFilters((v) => !v)}
+                    onClick={() => setShowFilters(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full tappable cursor-pointer flex-shrink-0"
                     style={{
                       fontSize: "13px",
                       fontWeight: 500,
                       touchAction: "manipulation",
-                      backgroundColor: (countryFilter || yearFilter || formatFilter || showFilters)
+                      backgroundColor: (countryFilter || yearFilter || formatFilter || labelFilter)
                         ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
                         : "var(--c-chip-bg)",
-                      color: (countryFilter || yearFilter || formatFilter || showFilters)
+                      color: (countryFilter || yearFilter || formatFilter || labelFilter)
                         ? (isDarkMode ? "#ACDEF2" : "#00527A")
                         : "var(--c-text-secondary)",
                     }}
@@ -683,8 +743,8 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                   >
                     <SlidersHorizontal size={14} />
                     Filter
-                    {(countryFilter || yearFilter || formatFilter) &&
-                      ` · ${(countryFilter ? 1 : 0) + (yearFilter ? 1 : 0) + (formatFilter ? 1 : 0)}`}
+                    {(countryFilter || yearFilter || formatFilter || labelFilter) &&
+                      ` · ${(countryFilter ? 1 : 0) + (yearFilter ? 1 : 0) + (formatFilter ? 1 : 0) + (labelFilter ? 1 : 0)}`}
                   </button>
                 )}
               </div>
@@ -726,25 +786,6 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
 
-              {showFilters && (countryOptions.length > 1 || yearOptions.length > 1 || formatOptions.length > 1) && (
-                <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-3 px-3 overlay-scroll" style={{ scrollbarWidth: "none" }}>
-                  {formatOptions.length > 1 && formatOptions.map((f) => (
-                    <button key={`f-${f.value}`} onClick={() => applyFilter(countryFilter, yearFilter, formatFilter === f.value ? null : f.value)} style={chipStyle(formatFilter === f.value)} className="tappable">
-                      {f.label}
-                    </button>
-                  ))}
-                  {countryOptions.map((c) => (
-                    <button key={`c-${c.value}`} onClick={() => applyFilter(countryFilter === c.value ? null : c.value, yearFilter, formatFilter)} style={chipStyle(countryFilter === c.value)} className="tappable">
-                      {c.label}
-                    </button>
-                  ))}
-                  {yearOptions.map((y) => (
-                    <button key={`y-${y.value}`} onClick={() => applyFilter(countryFilter, yearFilter === y.value ? null : y.value, formatFilter)} style={chipStyle(yearFilter === y.value)} className="tappable">
-                      {y.label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </>
           )}
         </div>
@@ -903,7 +944,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
 
               {versions.length > 0 && versionsPage < versionsTotalPages &&
                 loadMoreButton(
-                  () => pickerMaster && fetchVersions(pickerMaster, { page: versionsPage + 1, country: countryFilter, year: yearFilter, format: formatFilter, append: true }),
+                  () => pickerMaster && fetchVersions(pickerMaster, { page: versionsPage + 1, country: countryFilter, year: yearFilter, format: formatFilter, label: labelFilter, append: true }),
                   isLoadingVersions
                 )}
             </>
@@ -911,10 +952,116 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
+      {showFilters && pickerMaster && (
+        <PressingFilterDrawer
+          isDarkMode={isDarkMode}
+          country={countryFilter}
+          year={yearFilter}
+          format={formatFilter}
+          label={labelFilter}
+          mediaFormatOptions={mediaFormatOptions}
+          descriptorFormatOptions={descriptorFormatOptions}
+          labelOptions={labelOptions}
+          countryOptions={countryOptions}
+          yearOptions={yearOptions}
+          onApply={(c, y, f, l) => applyFilter(c, y, f, l)}
+          onClose={() => setShowFilters(false)}
+        />
+      )}
+
       {showScanner && (
         <BarcodeScanner onDetect={handleScanDetect} onClose={() => setShowScanner(false)} />
       )}
     </motion.div>
+  );
+}
+
+type FilterOpt = { value: string; label: string };
+
+// Pressing-picker filter drawer — matches the collection Filter drawer pattern
+// (SlideOutPanel, Reset + Apply Filters). Selections are staged and applied on
+// Apply so the server refetch fires once, not per chip. Single-select per
+// section; Format and Format Description share the single `format` param.
+function PressingFilterDrawer({
+  isDarkMode, country, year, format, label,
+  mediaFormatOptions, descriptorFormatOptions, labelOptions, countryOptions, yearOptions,
+  onApply, onClose,
+}: {
+  isDarkMode: boolean;
+  country: string | null; year: string | null; format: string | null; label: string | null;
+  mediaFormatOptions: FilterOpt[]; descriptorFormatOptions: FilterOpt[];
+  labelOptions: FilterOpt[]; countryOptions: FilterOpt[]; yearOptions: FilterOpt[];
+  onApply: (country: string | null, year: string | null, format: string | null, label: string | null) => void;
+  onClose: () => void;
+}) {
+  const [dCountry, setDCountry] = useState(country);
+  const [dYear, setDYear] = useState(year);
+  const [dFormat, setDFormat] = useState(format);
+  const [dLabel, setDLabel] = useState(label);
+
+  const hasActive = !!dCountry || !!dYear || !!dFormat || !!dLabel;
+  const chipStyle = (active: boolean): CSSProperties => active
+    ? { fontSize: "13px", fontWeight: 500, padding: "6px 12px", borderRadius: "999px", backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
+    : { fontSize: "13px", fontWeight: 500, padding: "6px 12px", borderRadius: "999px", backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" };
+  const sectionLabel: CSSProperties = { fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" };
+  const toggle = (cur: string | null, val: string) => (cur === val ? null : val);
+
+  const renderSection = (title: string, options: FilterOpt[], selected: string | null, onPick: (v: string | null) => void) => {
+    if (options.length === 0) return null;
+    return (
+      <div className="mb-6">
+        <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>{title}</p>
+        <div className="flex flex-wrap gap-2">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => onPick(toggle(selected, o.value))}
+              aria-pressed={selected === o.value}
+              className="transition-all"
+              style={chipStyle(selected === o.value)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <SlideOutPanel
+      onClose={onClose}
+      title="Filter"
+      ariaLabel="Filter pressings"
+      headerAction={
+        hasActive ? (
+          <button
+            onClick={() => { setDCountry(null); setDYear(null); setDFormat(null); setDLabel(null); }}
+            className="transition-colors"
+            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-link)" }}
+          >
+            Reset
+          </button>
+        ) : null
+      }
+      footer={
+        <button
+          onClick={() => { onApply(dCountry, dYear, dFormat, dLabel); onClose(); }}
+          className="w-full py-2.5 rounded-full transition-colors"
+          style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "#EBFD00", color: "#16181C", border: "1px solid rgba(22,24,28,0.25)" }}
+        >
+          Apply Filters
+        </button>
+      }
+    >
+      <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+        {renderSection("Format", mediaFormatOptions, dFormat, setDFormat)}
+        {renderSection("Format Description", descriptorFormatOptions, dFormat, setDFormat)}
+        {renderSection("Label / Companies", labelOptions, dLabel, setDLabel)}
+        {renderSection("Country", countryOptions, dCountry, setDCountry)}
+        {renderSection("Year", yearOptions, dYear, setDYear)}
+      </div>
+    </SlideOutPanel>
   );
 }
 
