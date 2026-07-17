@@ -11,7 +11,7 @@ import { useApp, type Screen } from "./app-context";
 import { mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
-import { bucketAddsByYear, deriveSpending, parsePricePaid } from "../utils/insights";
+import { bucketAddsByYear } from "../utils/insights";
 import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
 import { formatSyncedAgo } from "../utils/format";
@@ -1561,131 +1561,6 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
   );
 }
 
-/* ─────────────────── SECTION: Spending ─────────────────── */
-
-function SpendingSection({ albums }: { albums: Album[] }) {
-  const summary = useMemo(() => deriveSpending(albums), [albums]);
-
-  // Paid-vs-market over records that carry BOTH a parseable price paid and a
-  // priced market ask (Spec 6B). Neutral framing — lowest ask runs below retail,
-  // so this is a reference point, not a gain/loss verdict.
-  const paidVsMarket = useMemo(() => {
-    let paid = 0;
-    let market = 0;
-    let count = 0;
-    for (const a of albums) {
-      const price = parsePricePaid(a.pricePaid);
-      if (price == null || !hasMarketValue(a)) continue;
-      paid += price;
-      market += a.marketValue;
-      count += 1;
-    }
-    return count >= 5 ? { paid, market, count } : null;
-  }, [albums]);
-
-  // Gate: needs a handful of priced records before a spend picture is honest.
-  if (summary.count < 5 || !summary.priciest) return null;
-
-  const stats = [
-    { label: "Total spent", value: formatCurrency(summary.total) },
-    { label: "Avg. per record", value: formatCurrency(summary.average) },
-  ];
-
-  return (
-    <div
-      className="rounded-[12px] p-4 lg:p-5"
-      style={{
-        backgroundColor: "var(--c-surface)",
-        border: "1px solid var(--c-border-strong)",
-        boxShadow: "var(--c-card-shadow)",
-      }}
-    >
-      <p style={sectionHeaderStyle}>Spending</p>
-      <div className="grid grid-cols-2 gap-2 mt-4">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="rounded-[10px] py-3 px-3 text-center"
-            style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
-          >
-            <span
-              style={{
-                fontSize: "22px",
-                fontWeight: 700,
-                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                color: "var(--c-text)",
-                lineHeight: 1.2,
-              }}
-            >
-              {s.value}
-            </span>
-            <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", marginTop: 2 }}>{s.label}</p>
-          </div>
-        ))}
-      </div>
-      <div
-        className="mt-2 rounded-[10px] py-2.5 px-3 flex items-center justify-between gap-3"
-        style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Most expensive</p>
-          <p
-            style={{
-              fontSize: "14px",
-              fontWeight: 500,
-              color: "var(--c-text)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-              maxWidth: "100%",
-            } as React.CSSProperties}
-          >
-            {summary.priciest.title}
-          </p>
-        </div>
-        <span
-          className="shrink-0"
-          style={{ fontSize: "15px", fontWeight: 700, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}
-        >
-          {formatCurrency(summary.priciest.price)}
-        </span>
-      </div>
-      <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
-        Based on {summary.count} of {albums.length} records with a price on file.
-      </p>
-
-      {/* Paid vs. market — only when enough records have both numbers. */}
-      {paidVsMarket && (
-        <div
-          className="mt-3 rounded-[10px] py-2.5 px-3"
-          style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Paid</p>
-              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                {formatCurrency(paidVsMarket.paid)}
-              </span>
-            </div>
-            <div className="text-right" style={{ minWidth: 0 }}>
-              <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Market ask</p>
-              <span style={{ fontSize: "15px", fontWeight: 700, color: CHART_GREEN, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                ~{formatWhole(paidVsMarket.market)}
-              </span>
-            </div>
-          </div>
-          <p className="mt-1.5" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
-            Across {paidVsMarket.count} records with both a price paid and a market ask.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ═══════════════════ MAIN REPORTS SCREEN ═══════════════════ */
 
 /* ─────────────────── Collection Maintenance ─────────────────── */
@@ -1883,11 +1758,6 @@ export function ReportsScreen() {
               albums={albums}
               onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
             />
-          </div>
-
-          {/* Spending */}
-          <div className="lg:col-span-2">
-            <SpendingSection albums={albums} />
           </div>
 
           {/* Listening Activity */}

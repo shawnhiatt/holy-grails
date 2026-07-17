@@ -1533,6 +1533,20 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               <CommunityRow community={releaseData!.community!} />
             ) : null}
 
+            {/* ═══ Value (market lookup — live lowest ask) ═══
+                Same section the feed/search panel uses. Hidden for unofficial
+                releases: Discogs bans selling bootlegs, so there are no listings
+                and the price suggestions have no sales history behind them.
+                The live ask here can differ from the ~monthly drip value shown
+                in Insights Top Shelf — this one is current. */}
+            {releaseData && !releaseData.isUnofficial && (
+              <ValueSection
+                releaseId={selectedAlbum.release_id}
+                lowestPrice={releaseData.lowestPrice ?? null}
+                numForSale={releaseData.numForSale ?? 0}
+              />
+            )}
+
             {/* ═══ Enriched Content Tabs ═══ */}
             {(() => {
               const hasIdentifiers = releaseData && releaseData.identifiers.length > 0;
