@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "convex/react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
@@ -10,10 +11,12 @@ import { useApp, type Screen } from "./app-context";
 import { mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
-import { bucketAddsByYear, deriveSpending } from "../utils/insights";
+import { bucketAddsByYear, deriveSpending, parsePricePaid } from "../utils/insights";
 import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
+import { formatSyncedAgo } from "../utils/format";
 import { NoDiscogsCard } from "./no-discogs-card";
+import { api } from "../../../convex/_generated/api";
 
 /* ─── Daily rotation utilities ─── */
 function mulberry32(seed: number) {
@@ -50,6 +53,19 @@ export function setReportEntryScreen(s: Screen) {
 
 function formatCurrency(n: number): string {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Whole-dollar formatting for market asks — matches the album-detail Value
+ *  section convention (rounded, no cents). Callers prefix `~` where the number
+ *  is an approximation. */
+function formatWhole(n: number): string {
+  return "$" + Math.round(n).toLocaleString("en-US");
+}
+
+/** True when the album carries a usable market ask (a priced number > 0).
+ *  `null` (no listings) and `undefined` (never fetched) are both excluded. */
+function hasMarketValue(a: Album): a is Album & { marketValue: number } {
+  return typeof a.marketValue === "number" && a.marketValue > 0;
 }
 
 function getDecade(year: number): string {
@@ -185,6 +201,64 @@ function CollectionValueSection(_props: { albums: Album[] }) {
 
         </>
       )}
+    </div>
+  );
+}
+
+/* ─────────────────── SECTION: Top Shelf ─────────────────── */
+
+/* The five most valuable records by lowest marketplace ask, from the shared
+   market-value drip (Spec 6A.1 → 6B). Gated at 10+ valued albums so a nearly
+   empty drip doesn't render a lopsided list. `marketValue` is merged onto the
+   albums in ReportsScreen from market_values.getForUser. */
+function TopShelfSection({ albums, onAlbumTap }: { albums: Album[]; onAlbumTap: (id: string) => void }) {
+  const { valued, top } = useMemo(() => {
+    const valued = albums.filter(hasMarketValue);
+    const top = [...valued].sort((a, b) => b.marketValue - a.marketValue).slice(0, 5);
+    return { valued, top };
+  }, [albums]);
+
+  // Gate: needs a real spread of priced records before a "top" is meaningful.
+  if (valued.length < 10) return null;
+
+  return (
+    <div
+      className="rounded-[12px] p-4 lg:p-5"
+      style={{
+        backgroundColor: "var(--c-surface)",
+        border: "1px solid var(--c-border-strong)",
+        boxShadow: "var(--c-card-shadow)",
+      }}
+    >
+      <p style={sectionHeaderStyle}>Top Shelf</p>
+      <p className="mt-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+        Your priciest pressings by lowest marketplace ask.
+      </p>
+
+      <div className="mt-3 flex flex-col gap-2">
+        {top.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => onAlbumTap(a.id)}
+            className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left tappable"
+            style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)", touchAction: "manipulation" }}
+          >
+            <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+              <img loading="lazy" decoding="async" src={a.thumb || a.cover} alt={a.title} className="w-full h-full object-cover" />
+            </div>
+            <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+              <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{a.title}</p>
+              <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{a.artist}</p>
+            </div>
+            <span
+              className="shrink-0"
+              style={{ fontSize: "15px", fontWeight: 700, color: CHART_GREEN, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}
+            >
+              ~{formatWhole(a.marketValue)}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -344,14 +418,23 @@ function CollectionBreakdownSection({ albums }: { albums: Album[] }) {
 }
 
 function ByFolderChart({ albums }: { albums: Album[]; isDark: boolean }) {
-  const data = useMemo(() => {
-    const map = new Map<string, number>();
+  const { data, showValue } = useMemo(() => {
+    const map = new Map<string, { count: number; value: number }>();
     for (const a of albums) {
-      map.set(a.folder, (map.get(a.folder) || 0) + 1);
+      const entry = map.get(a.folder) || { count: 0, value: 0 };
+      entry.count += 1;
+      if (hasMarketValue(a)) entry.value += a.marketValue;
+      map.set(a.folder, entry);
     }
-    return [...map.entries()]
-      .sort(([, a], [, b]) => b - a)
-      .map(([folder, count]) => ({ folder, count }));
+    const data = [...map.entries()]
+      .sort(([, a], [, b]) => b.count - a.count)
+      .map(([folder, v]) => ({ folder, count: v.count, value: v.value }));
+    // Only surface a value column once most of the collection is priced —
+    // otherwise per-folder totals read as artificially low.
+    const valuedShare = albums.length > 0
+      ? albums.filter(hasMarketValue).length / albums.length
+      : 0;
+    return { data, showValue: valuedShare >= 0.7 };
   }, [albums]);
 
   return (
@@ -359,7 +442,7 @@ function ByFolderChart({ albums }: { albums: Album[]; isDark: boolean }) {
       {data.map((d, i) => (
         <div
           key={d.folder}
-          className="flex items-center justify-between py-2.5"
+          className="flex items-center justify-between py-2.5 gap-3"
           style={i < data.length - 1 ? { borderBottom: "1px solid var(--c-border)" } : undefined}
         >
           <span
@@ -368,20 +451,39 @@ function ByFolderChart({ albums }: { albums: Album[]; isDark: boolean }) {
               fontWeight: 500,
               color: "var(--c-text)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
             {d.folder}
           </span>
-          <span
-            style={{
-              fontSize: "13px",
-              fontWeight: 700,
-              color: "var(--c-text)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-            }}
-          >
-            {d.count}
-          </span>
+          <div className="flex flex-col items-end flex-shrink-0">
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "var(--c-text)",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                lineHeight: 1.2,
+              }}
+            >
+              {d.count}
+            </span>
+            {showValue && d.value > 0 && (
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  color: "var(--c-text-muted)",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                }}
+              >
+                ~{formatWhole(d.value)}
+              </span>
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -1232,7 +1334,12 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
     const total = albums.length;
     const rated = total - unrated;
     const pct = total > 0 ? (rated / total) * 100 : 0;
-    return { keep, cut, maybe, unrated, total, rated, pct };
+    // Market ask summed over Cut records that carry a priced value (Spec 6B) —
+    // upgrades the count-only "Cutting deadweight" callout to a dollar figure.
+    const cutValue = albums
+      .filter((a) => a.purgeTag === "cut" && hasMarketValue(a))
+      .reduce((sum, a) => sum + (a.marketValue as number), 0);
+    return { keep, cut, maybe, unrated, total, rated, pct, cutValue };
   }, [albums]);
 
   // Verdict segments for the progress bar (evaluated portion, left-aligned)
@@ -1362,11 +1469,13 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         </p>
       )}
 
-      {/* Cut-pile callout — count only for now. Upgrades to a dollar figure
-          once per-album market values land (Spec 6). */}
+      {/* Cut-pile callout — dollar figure once the drip has priced the Cut
+          records (Spec 6B), otherwise count only. */}
       {hasCollectionValue && stats.cut >= 3 && (
         <p className="mt-3" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
-          Cutting deadweight: {stats.cut} records tagged Cut.
+          {stats.cutValue > 0
+            ? `Cutting deadweight: ${stats.cut} tagged Cut, ~${formatWhole(stats.cutValue)} at lowest ask.`
+            : `Cutting deadweight: ${stats.cut} records tagged Cut.`}
         </p>
       )}
     </div>
@@ -1457,6 +1566,23 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
 function SpendingSection({ albums }: { albums: Album[] }) {
   const summary = useMemo(() => deriveSpending(albums), [albums]);
 
+  // Paid-vs-market over records that carry BOTH a parseable price paid and a
+  // priced market ask (Spec 6B). Neutral framing — lowest ask runs below retail,
+  // so this is a reference point, not a gain/loss verdict.
+  const paidVsMarket = useMemo(() => {
+    let paid = 0;
+    let market = 0;
+    let count = 0;
+    for (const a of albums) {
+      const price = parsePricePaid(a.pricePaid);
+      if (price == null || !hasMarketValue(a)) continue;
+      paid += price;
+      market += a.marketValue;
+      count += 1;
+    }
+    return count >= 5 ? { paid, market, count } : null;
+  }, [albums]);
+
   // Gate: needs a handful of priced records before a spend picture is honest.
   if (summary.count < 5 || !summary.priciest) return null;
 
@@ -1530,6 +1656,32 @@ function SpendingSection({ albums }: { albums: Album[] }) {
       <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
         Based on {summary.count} of {albums.length} records with a price on file.
       </p>
+
+      {/* Paid vs. market — only when enough records have both numbers. */}
+      {paidVsMarket && (
+        <div
+          className="mt-3 rounded-[10px] py-2.5 px-3"
+          style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Paid</p>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                {formatCurrency(paidVsMarket.paid)}
+              </span>
+            </div>
+            <div className="text-right" style={{ minWidth: 0 }}>
+              <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Market ask</p>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: CHART_GREEN, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+                ~{formatWhole(paidVsMarket.market)}
+              </span>
+            </div>
+          </div>
+          <p className="mt-1.5" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+            Across {paidVsMarket.count} records with both a price paid and a market ask.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1639,7 +1791,33 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
 }
 
 export function ReportsScreen() {
-  const { albums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, playCounts, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated } = useApp();
+  const { albums: rawAlbums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, playCounts, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated, sessionToken } = useApp();
+
+  // Shared per-release market values from the drip (Spec 6A.1 → 6B). Subscribed
+  // here (not in app-context) so the query stays scoped to the lazy-loaded
+  // Insights chunk and off every other consumer. "skip" until authed.
+  const marketValues = useQuery(
+    api.market_values.getForUser,
+    sessionToken ? { sessionToken } : "skip"
+  );
+
+  // Merge value + fetchedAt onto the albums by release_id. Same array identity
+  // as rawAlbums until values arrive, so no extra section re-renders on load.
+  const albums = useMemo(() => {
+    if (!marketValues || marketValues.length === 0) return rawAlbums;
+    const byRelease = new Map(marketValues.map((m) => [m.releaseId, m]));
+    return rawAlbums.map((a) => {
+      const mv = byRelease.get(a.release_id);
+      return mv ? { ...a, marketValue: mv.value, marketValueFetchedAt: mv.fetchedAt } : a;
+    });
+  }, [rawAlbums, marketValues]);
+
+  // Freshness of the value data — newest fetchedAt across the caller's priced
+  // releases. Null until any value has been collected.
+  const valuesFreshAt = useMemo(() => {
+    if (!marketValues || marketValues.length === 0) return null;
+    return marketValues.reduce((mx, m) => Math.max(mx, m.fetchedAt), 0);
+  }, [marketValues]);
 
   return (
     <div className="flex flex-col h-full">
@@ -1697,6 +1875,14 @@ export function ReportsScreen() {
           {/* Collection Value — full width */}
           <div className="lg:col-span-2">
             <CollectionValueSection albums={albums} />
+          </div>
+
+          {/* Top Shelf — most valuable records (hidden until 10+ are priced) */}
+          <div className="lg:col-span-2">
+            <TopShelfSection
+              albums={albums}
+              onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
+            />
           </div>
 
           {/* Spending */}
@@ -1762,6 +1948,11 @@ export function ReportsScreen() {
           <p className="max-w-xs" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", textWrap: "pretty" }}>
             Collection value from Discogs{lastSynced ? `, updated ${lastSynced}` : ""}.
           </p>
+          {valuesFreshAt !== null && (
+            <p className="max-w-xs" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", textWrap: "pretty" }}>
+              Market asks updated {formatSyncedAgo(valuesFreshAt)}.
+            </p>
+          )}
         </div>
       </div>
       )}
