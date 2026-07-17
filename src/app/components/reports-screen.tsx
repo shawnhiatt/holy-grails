@@ -11,7 +11,7 @@ import { useApp, type Screen } from "./app-context";
 import { mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
-import { bucketAddsByYear, deriveSpending, parsePricePaid } from "../utils/insights";
+import { bucketAddsByYear, deriveSpending } from "../utils/insights";
 import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
 import { formatSyncedAgo } from "../utils/format";
@@ -1566,23 +1566,6 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
 function SpendingSection({ albums }: { albums: Album[] }) {
   const summary = useMemo(() => deriveSpending(albums), [albums]);
 
-  // Paid-vs-market over records that carry BOTH a parseable price paid and a
-  // priced market ask (Spec 6B). Neutral framing — lowest ask runs below retail,
-  // so this is a reference point, not a gain/loss verdict.
-  const paidVsMarket = useMemo(() => {
-    let paid = 0;
-    let market = 0;
-    let count = 0;
-    for (const a of albums) {
-      const price = parsePricePaid(a.pricePaid);
-      if (price == null || !hasMarketValue(a)) continue;
-      paid += price;
-      market += a.marketValue;
-      count += 1;
-    }
-    return count >= 5 ? { paid, market, count } : null;
-  }, [albums]);
-
   // Gate: needs a handful of priced records before a spend picture is honest.
   if (summary.count < 5 || !summary.priciest) return null;
 
@@ -1656,32 +1639,6 @@ function SpendingSection({ albums }: { albums: Album[] }) {
       <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
         Based on {summary.count} of {albums.length} records with a price on file.
       </p>
-
-      {/* Paid vs. market — only when enough records have both numbers. */}
-      {paidVsMarket && (
-        <div
-          className="mt-3 rounded-[10px] py-2.5 px-3"
-          style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Paid</p>
-              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                {formatCurrency(paidVsMarket.paid)}
-              </span>
-            </div>
-            <div className="text-right" style={{ minWidth: 0 }}>
-              <p style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)" }}>Market ask</p>
-              <span style={{ fontSize: "15px", fontWeight: 700, color: CHART_GREEN, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
-                ~{formatWhole(paidVsMarket.market)}
-              </span>
-            </div>
-          </div>
-          <p className="mt-1.5" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
-            Across {paidVsMarket.count} records with both a price paid and a market ask.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

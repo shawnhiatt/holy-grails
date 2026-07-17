@@ -3,9 +3,8 @@
 **Status:** shipped (Spec 6A → **6A.1** backend, **6B / Session B** UI). The
 daily cron collects prices; the Insights screen now reads them via
 `market_values.getForUser` and surfaces Top Shelf, a value-by-folder column,
-value-vs-paid, the purge×value dollar upgrade, and a freshness line — all
-threshold-gated so a sparsely-filled drip renders nothing rather than a lopsided
-view.
+the purge×value dollar upgrade, and a freshness line — all threshold-gated so a
+sparsely-filled drip renders nothing rather than a lopsided view.
 
 **One-line summary:** a nightly Convex cron collects the lowest asking price for
 each **Discogs release** any user owns and stores it **once per release** in a
@@ -297,12 +296,13 @@ merges `value`/`fetchedAt` onto the albums by `release_id` (`Album.marketValue` 
   under Collection Value; rows tap through to album detail.
 - **Value by folder** — a muted `~$X` line under each count on the By Folder
   breakdown tab (shown only when ≥70% of the collection is priced).
-- **Value vs. paid** — a "Paid vs. market ask" callout inside Spending (5+
-  albums carrying both a parseable `pricePaid` and a priced ask). Neutral
-  framing — lowest ask runs below retail, so it's a reference point, not a
-  gain/loss verdict.
 - **Purge × value** — the count-only "Cutting deadweight" callout upgrades to
   `~$X at lowest ask` once the drip has priced the Cut records.
+
+A **value-vs-paid** callout was specced but intentionally dropped: it depended
+on `pricePaid`, which the sync hardcodes to `""` and never populates (Discogs
+exposes price paid only as a per-user custom field, not universal data). The
+market-value UI keys only on drip data.
 - **Freshness line** — "Market asks updated {Xd ago}" in the Insights footer,
   from `max(fetchedAt)` (via `formatSyncedAgo`).
 
