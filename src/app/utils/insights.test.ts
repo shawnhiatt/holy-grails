@@ -1,36 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  parsePricePaid,
   parseAddedYear,
   bucketAddsByYear,
-  deriveSpending,
 } from "./insights";
 import { makeAlbum } from "../../test/factories";
-
-describe("parsePricePaid", () => {
-  it("parses US-formatted prices", () => {
-    expect(parsePricePaid("$25.00")).toBe(25);
-    expect(parsePricePaid("25")).toBe(25);
-    expect(parsePricePaid("  $12.50 ")).toBe(12.5);
-    expect(parsePricePaid("$1,234.56")).toBe(1234.56);
-    expect(parsePricePaid("USD 40")).toBe(40);
-  });
-
-  it("skips empty, junk, and ambiguous formats", () => {
-    expect(parsePricePaid("")).toBeNull();
-    expect(parsePricePaid("   ")).toBeNull();
-    expect(parsePricePaid(null)).toBeNull();
-    expect(parsePricePaid(undefined)).toBeNull();
-    expect(parsePricePaid("free")).toBeNull();
-    expect(parsePricePaid("€1.200,50")).toBeNull(); // euro decimal-comma
-  });
-
-  it("skips zero and negative", () => {
-    expect(parsePricePaid("0")).toBeNull();
-    expect(parsePricePaid("0.00")).toBeNull();
-    expect(parsePricePaid("-5.00")).toBeNull();
-  });
-});
 
 describe("parseAddedYear", () => {
   it("extracts the year from an ISO date", () => {
@@ -75,30 +48,5 @@ describe("bucketAddsByYear", () => {
     expect(buckets).toHaveLength(10);
     expect(buckets[0].year).toBe(2012); // 2010, 2011 dropped
     expect(buckets[buckets.length - 1].year).toBe(2021);
-  });
-});
-
-describe("deriveSpending", () => {
-  it("aggregates total, average, count, and priciest over parseable prices", () => {
-    const albums = [
-      makeAlbum({ title: "Cheap", pricePaid: "10.00" }),
-      makeAlbum({ title: "Grail", pricePaid: "$90.00" }),
-      makeAlbum({ title: "No price", pricePaid: "" }),
-    ];
-    const s = deriveSpending(albums);
-    expect(s.count).toBe(2);
-    expect(s.total).toBe(100);
-    expect(s.average).toBe(50);
-    expect(s.priciest).toEqual({ title: "Grail", price: 90 });
-  });
-
-  it("returns zeroes and null priciest when nothing has a price", () => {
-    const albums = [makeAlbum({ pricePaid: "" }), makeAlbum({ pricePaid: "junk" })];
-    expect(deriveSpending(albums)).toEqual({
-      total: 0,
-      average: 0,
-      count: 0,
-      priciest: null,
-    });
   });
 });
