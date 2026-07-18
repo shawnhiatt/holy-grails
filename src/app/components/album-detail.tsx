@@ -21,15 +21,24 @@ import { conditionGradeColor as conditionColor } from "../../lib/condition-color
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
 
+/* ─── Section label (uppercase eyebrow shared by all detail-panel sections) ─── */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      {children}
+    </p>
+  );
+}
+
 /* ─── Listen On (Spotify / Apple Music search links) ─── */
-function ListenOnButtons({ artist, title }: { artist: string; title: string }) {
+function ListenOnButtons({ artist, title, className = "px-4 pb-4" }: { artist: string; title: string; className?: string }) {
   const term = `${(artist || "").replace(/\s*\(\d+\)$/, "").trim()} ${title || ""}`.trim();
   if (!term) return null;
   const open = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
   const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(term)}`;
   const appleUrl = `https://music.apple.com/search?term=${encodeURIComponent(term)}`;
   return (
-    <div className="px-4 pb-4">
+    <div className={className}>
       <div className="flex gap-2">
         <button
           type="button"
@@ -1074,9 +1083,15 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </div>
         ) : (
           <div>
-            {/* ═══ Mark as Played button ═══ */}
+            {/* ═══ Listening (play actions + last played + history) ═══ */}
             {!isEditMode && (
               <div className="px-4 pt-4 pb-4">
+                <div className="flex items-center justify-between mb-2.5">
+                  <SectionLabel>Listening</SectionLabel>
+                  <span style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
+                    {(justPlayed || playedToday) ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged"}
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={handlePlayedToday}
@@ -1133,9 +1148,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     <span style={{ fontSize: "14px", fontWeight: 600 }}>Log Past Play</span>
                   </button>
                 </div>
-                <p className="mt-2 text-center" style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
-                  {justPlayed ? "Played today" : playedToday ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged"}
-                </p>
                 <AnimatePresence>
                   {pastPlayPickerOpen && (
                     <motion.div
@@ -1239,27 +1251,80 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Play history accordion */}
+                {(playCounts[selectedAlbum.id] || 0) >= 1 && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => setPlayHistoryExpanded((v) => !v)}
+                      className="w-full flex items-center gap-2 tappable"
+                      style={{ touchAction: "manipulation" }}
+                    >
+                      <Play size={14} style={{ color: "var(--c-text-secondary)", flexShrink: 0 }} />
+                      <span style={{ flex: 1, textAlign: "left", fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)" }}>
+                        {playCounts[selectedAlbum.id] === 1 ? "1 Play" : `${playCounts[selectedAlbum.id]} Plays`}
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        style={{ color: "var(--c-text-muted)", flexShrink: 0 }}
+                        className={`transition-transform ${playHistoryExpanded ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                    <AnimatePresence>
+                      {playHistoryExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: DURATION_NORMAL }}
+                          className="overflow-hidden"
+                        >
+                          <div className="flex flex-col gap-1 pt-2">
+                            {playHistory === undefined ? (
+                              <div className="flex items-center justify-center py-2">
+                                <Disc3 className="disc-spinner" size={16} style={{ color: "var(--c-text-muted)" }} />
+                              </div>
+                            ) : playHistory.length === 0 ? null : (
+                              playHistory.map((entry) => (
+                                <SwipeToDelete
+                                  key={entry._id}
+                                  onDelete={() => {
+                                    removePlay(entry._id, selectedAlbum.id, entry.played_at);
+                                  }}
+                                >
+                                  <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingLeft: "22px", paddingTop: "8px", paddingBottom: "8px", backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)" }}>
+                                    {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                  </div>
+                                </SwipeToDelete>
+                              ))
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
               </div>
             )}
 
             {/* ═══ Your Copy ═══ */}
-            <div className="px-4 pb-4">
-              <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+            <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
+              <div className="flex items-center justify-between mb-3">
+                <SectionLabel>Your Copy</SectionLabel>
                 {hideHeader && (
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--c-text)" }}>Your Copy</span>
-                    <div className="flex items-center gap-2">
-                      {selectedAlbum.purgeTag && !isEditMode && (
-                        <span className="px-2.5 py-1 rounded-full capitalize" style={{
-                          fontSize: "11px", fontWeight: 500,
-                          backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
-                          color: purgeTagColor[selectedAlbum.purgeTag],
-                        }}>{selectedAlbum.purgeTag}</span>
-                      )}
-                      {editButton}
-                    </div>
+                  <div className="flex items-center gap-2">
+                    {selectedAlbum.purgeTag && !isEditMode && (
+                      <span className="px-2.5 py-1 rounded-full capitalize" style={{
+                        fontSize: "11px", fontWeight: 500,
+                        backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
+                        color: purgeTagColor[selectedAlbum.purgeTag],
+                      }}>{selectedAlbum.purgeTag}</span>
+                    )}
+                    {editButton}
                   </div>
                 )}
+              </div>
+              <div className="flex flex-col gap-2.5">
                 <DetailRow label="Format" value={selectedAlbum.format} />
                 <DetailRow label="Label" value={selectedAlbum.label} />
                 <DetailRow label="Catalog #" value={selectedAlbum.catalogNumber} />
@@ -1304,35 +1369,54 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} />
                 ))}
                 {selectedAlbum.notes && <DetailRow label="Notes" value={selectedAlbum.notes} />}
+              </div>
+            </div>
 
-                {/* ═══ Add to a Stack (inside Your Copy) ═══ */}
-                {!isEditMode && (
-                  <>
-                    <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
-                      <p className="mb-2" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        {inAnyStack ? "Saved" : "Add to a Session"}
-                      </p>
-                      <div style={{ border: "1px solid var(--c-border-strong)", borderRadius: "10px", padding: "4px 8px", maxHeight: "240px", overflowY: "auto" }}>
+            {!isEditMode && (
+              <>
+                {/* ═══ Value (market lookup — live lowest ask) ═══
+                    Same section the feed/search panel uses. Hidden for unofficial
+                    releases: Discogs bans selling bootlegs, so there are no listings
+                    and the price suggestions have no sales history behind them.
+                    The live ask here can differ from the ~monthly drip value shown
+                    in Insights Top Shelf — this one is current. Sits directly under
+                    Your Copy so the condition-tiered suggestions read against the
+                    copy's own grades. */}
+                {releaseData && !releaseData.isUnofficial && (
+                  <ValueSection
+                    releaseId={selectedAlbum.release_id}
+                    lowestPrice={releaseData.lowestPrice ?? null}
+                    numForSale={releaseData.numForSale ?? 0}
+                  />
+                )}
+
+                {/* ═══ Add to a Session ═══ */}
+                <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
+                  <div className="mb-1.5">
+                    <SectionLabel>{inAnyStack ? "Saved" : "Add to a Session"}</SectionLabel>
+                  </div>
+                  <div style={{ maxHeight: "240px", overflowY: "auto" }}>
                         {[...stacks]
                           .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
-                          .map((stack) => {
+                          .map((stack, i) => {
                             const inStack = isInStack(selectedAlbum.id, stack.id);
                             return (
-                              <InlineStackRow
-                                key={stack.id}
-                                label={stack.name}
-                                count={stack.albumIds.length}
-                                checked={inStack}
-                                onToggle={() => toggleAlbumInStack(selectedAlbum.id, stack.id)}
-                                isDarkMode={isDarkMode}
-                              />
+                              <div key={stack.id} style={{ borderTop: i > 0 ? "1px solid var(--c-border)" : "none" }}>
+                                <InlineStackRow
+                                  label={stack.name}
+                                  count={stack.albumIds.length}
+                                  checked={inStack}
+                                  onToggle={() => toggleAlbumInStack(selectedAlbum.id, stack.id)}
+                                  isDarkMode={isDarkMode}
+                                />
+                              </div>
                             );
                           })}
                         {!showNewStack ? (
                           <button
                             onClick={() => setShowNewStack(true)}
-                            className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors"
-                            style={{ color: "var(--c-text-secondary)" }}
+                            className="w-full flex items-center gap-2 py-2 px-1 tappable transition-colors"
+                            style={{ color: "var(--c-text-secondary)", borderTop: stacks.length > 0 ? "1px solid var(--c-border)" : "none" }}
                           >
                             <div className="flex items-center justify-center flex-shrink-0" style={{ width: 20, height: 20 }}>
                               <Plus size={14} />
@@ -1340,7 +1424,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                             <span style={{ fontSize: "13px", fontWeight: 500 }}>New Session</span>
                           </button>
                         ) : (
-                          <div className="flex items-center gap-2 py-2 px-1">
+                          <div className="flex items-center gap-2 py-2 px-1" style={{ borderTop: stacks.length > 0 ? "1px solid var(--c-border)" : "none" }}>
                             <input
                               ref={newStackInputRef}
                               type="text"
@@ -1381,12 +1465,10 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       </div>
                     </div>
 
-                    {/* ═══ Rate for Purge (inside Your Copy) ═══ */}
-                    <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          Rate for Purge
-                        </p>
+                {/* ═══ Rate for Purge ═══ */}
+                <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
+                      <div className="flex items-center justify-between mb-2.5">
+                        <SectionLabel>Rate for Purge</SectionLabel>
                         <button
                           onClick={() => {
                             setShowAlbumDetail(false);
@@ -1421,65 +1503,15 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       />
                     </div>
 
-                    {/* ═══ Play History (inside Your Copy) ═══ */}
-                    {(playCounts[selectedAlbum.id] || 0) >= 1 && (
-                      <div style={{ borderTop: "1px solid var(--c-border)", marginTop: "8px", paddingTop: "12px" }}>
-                        <button
-                          onClick={() => setPlayHistoryExpanded((v) => !v)}
-                          className="w-full flex items-center gap-2 tappable"
-                          style={{ touchAction: "manipulation" }}
-                        >
-                          <Play size={14} style={{ color: "var(--c-text-secondary)", flexShrink: 0 }} />
-                          <span style={{ flex: 1, textAlign: "left", fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)" }}>
-                            {playCounts[selectedAlbum.id] === 1 ? "1 Play" : `${playCounts[selectedAlbum.id]} Plays`}
-                          </span>
-                          <ChevronDown
-                            size={14}
-                            style={{ color: "var(--c-text-muted)", flexShrink: 0 }}
-                            className={`transition-transform ${playHistoryExpanded ? "rotate-180" : ""}`}
-                          />
-                        </button>
-                        <AnimatePresence>
-                          {playHistoryExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: DURATION_NORMAL }}
-                              className="overflow-hidden"
-                            >
-                              <div className="flex flex-col gap-1 pt-2">
-                                {playHistory === undefined ? (
-                                  <div className="flex items-center justify-center py-2">
-                                    <Disc3 className="disc-spinner" size={16} style={{ color: "var(--c-text-muted)" }} />
-                                  </div>
-                                ) : playHistory.length === 0 ? null : (
-                                  playHistory.map((entry) => (
-                                    <SwipeToDelete
-                                      key={entry._id}
-                                      onDelete={() => {
-                                        removePlay(entry._id, selectedAlbum.id, entry.played_at);
-                                      }}
-                                    >
-                                      <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingLeft: "22px", paddingTop: "8px", paddingBottom: "8px", backgroundColor: "var(--c-surface)" }}>
-                                        {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                                      </div>
-                                    </SwipeToDelete>
-                                  ))
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* ═══ Listen On ═══ */}
-            {!isEditMode && <ListenOnButtons artist={selectedAlbum.artist} title={selectedAlbum.title} />}
+                {/* ═══ Listen On ═══ */}
+                <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
+                  <div className="mb-2.5">
+                    <SectionLabel>Listen On</SectionLabel>
+                  </div>
+                  <ListenOnButtons artist={selectedAlbum.artist} title={selectedAlbum.title} className="" />
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1532,20 +1564,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             ) : hasCommunity ? (
               <CommunityRow community={releaseData!.community!} />
             ) : null}
-
-            {/* ═══ Value (market lookup — live lowest ask) ═══
-                Same section the feed/search panel uses. Hidden for unofficial
-                releases: Discogs bans selling bootlegs, so there are no listings
-                and the price suggestions have no sales history behind them.
-                The live ask here can differ from the ~monthly drip value shown
-                in Insights Top Shelf — this one is current. */}
-            {releaseData && !releaseData.isUnofficial && (
-              <ValueSection
-                releaseId={selectedAlbum.release_id}
-                lowestPrice={releaseData.lowestPrice ?? null}
-                numForSale={releaseData.numForSale ?? 0}
-              />
-            )}
 
             {/* ═══ Enriched Content Tabs ═══ */}
             {(() => {
@@ -1662,6 +1680,20 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
 
 /* ─── Enriched data section components ─── */
 
+// "3:45" / "1:02:10" → seconds, or null when missing/unparseable
+function parseTrackDuration(duration: string): number | null {
+  const parts = duration.split(":").map((p) => Number(p.trim()));
+  if (parts.length < 2 || parts.length > 3 || parts.some((n) => Number.isNaN(n))) return null;
+  return parts.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+function formatRuntime(totalSeconds: number): string {
+  const mins = Math.round(totalSeconds / 60);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h} hr ${m} min` : `${m} min`;
+}
+
 function TracklistSection({
   tracklist,
   isExpanded,
@@ -1680,6 +1712,13 @@ function TracklistSection({
   const SHOW_COUNT = 5;
   const shouldFade = !hideToggle && tracklist.length > SHOW_COUNT;
   const visibleTracks = shouldFade && !isExpanded ? tracklist.slice(0, SHOW_COUNT) : tracklist;
+
+  // Total runtime — only when every track has a parseable duration (a partial
+  // sum would understate the runtime and read as wrong data)
+  const durations = tracklist.map((t) => parseTrackDuration(t.duration || ""));
+  const totalSeconds = durations.length > 0 && durations.every((d) => d != null && d > 0)
+    ? durations.reduce((acc: number, d) => acc + (d as number), 0)
+    : null;
 
   return (
     <div className="px-4 pb-6">
@@ -1726,6 +1765,12 @@ function TracklistSection({
           />
         )}
       </div>
+      {(!shouldFade || isExpanded) && (
+        <p className="mt-2" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+          {tracklist.length} {tracklist.length === 1 ? "track" : "tracks"}
+          {totalSeconds != null ? ` · ${formatRuntime(totalSeconds)}` : ""}
+        </p>
+      )}
       {shouldFade && (
         <button
           onClick={onToggle}
@@ -1840,42 +1885,49 @@ function ValueSection({ releaseId, lowestPrice, numForSale }: {
     .sort((a, b) => VALUE_GRADES.indexOf(a.short) - VALUE_GRADES.indexOf(b.short));
 
   return (
-    <div className="px-4 pb-4">
-      <div className="rounded-[10px] p-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--c-text-muted)", textTransform: "uppercase" }}>
-          Value
-        </span>
-        <div className="mt-1.5" style={{ fontSize: "14px", color: "var(--c-text)" }}>
-          {typeof lowestPrice === "number" ? (
-            <>
-              Lowest ask {formatPrice(lowestPrice, gradeRows[0]?.currency || "USD", false)}
-              {" · "}
-              {numForSale} for sale
-            </>
-          ) : (
-            <span style={{ color: "var(--c-text-secondary)" }}>No copies for sale</span>
-          )}
-        </div>
-        {gradeRows.length > 0 && (
-          <div className="grid grid-cols-3 mt-2.5">
-            {gradeRows.map((sug) => (
-              <div key={sug.short} className="flex flex-col">
-                <span style={{ fontSize: "11px", fontWeight: 700, color: conditionColor(sug.short, isDarkMode) || "var(--c-text-muted)" }}>
-                  {sug.short}
-                </span>
-                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)" }}>
-                  {formatPrice(sug.value, sug.currency, true)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        {gradeRows.length > 0 && (
-          <p className="mt-2" style={{ fontSize: "11px", color: "var(--c-text-faint)" }}>
-            Suggested prices from Discogs sales history.
-          </p>
-        )}
+    <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
+      <div className="mb-2">
+        <SectionLabel>Value</SectionLabel>
       </div>
+      {typeof lowestPrice === "number" ? (
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.2", color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" }}>
+            {formatPrice(lowestPrice, gradeRows[0]?.currency || "USD", false)}
+          </span>
+          <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+            lowest ask · {numForSale} for sale
+          </span>
+        </div>
+      ) : (
+        <p style={{ fontSize: "14px", color: "var(--c-text-secondary)" }}>No copies for sale</p>
+      )}
+      {gradeRows.length > 0 && (
+        <div className="flex items-baseline mt-2.5">
+          {gradeRows.map((sug, i) => (
+            <div
+              key={sug.short}
+              className="flex items-baseline gap-1.5"
+              style={{
+                paddingLeft: i > 0 ? "12px" : 0,
+                paddingRight: "12px",
+                borderLeft: i > 0 ? "1px solid var(--c-border)" : "none",
+              }}
+            >
+              <span style={{ fontSize: "11px", fontWeight: 700, color: conditionColor(sug.short, isDarkMode) || "var(--c-text-muted)" }}>
+                {sug.short}
+              </span>
+              <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)" }}>
+                {formatPrice(sug.value, sug.currency, true)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {gradeRows.length > 0 && (
+        <p className="mt-2" style={{ fontSize: "11px", color: "var(--c-text-faint)" }}>
+          Suggested prices from Discogs sales history.
+        </p>
+      )}
     </div>
   );
 }
@@ -1892,7 +1944,7 @@ function CommunityRow({ community }: { community: { rating: number | null; ratin
   ];
 
   return (
-    <div className="px-4 pt-2 pb-6">
+    <div className="px-4 py-5" style={{ borderTop: "1px solid var(--c-border)" }}>
       <div className="grid grid-cols-3">
         {stats.map(({ icon, value, label }) => (
           <div key={label} className="flex flex-col items-center gap-1">
@@ -2420,11 +2472,27 @@ function WantItemDetailPanel({
         {/* ═══ Listen On ═══ */}
         <ListenOnButtons artist={item.artist} title={item.title} />
 
-        {/* Detail rows */}
-        <div className="px-4 pb-4">
-          <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+        {/* ═══ Details ═══ */}
+        <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
+          <div className="mb-3">
+            <SectionLabel>Details</SectionLabel>
+          </div>
+          <div className="flex flex-col gap-2.5">
             {hasYear(item.year) && <DetailRow label="Year" value={String(item.year)} />}
             <DetailRow label="Label" value={item.label} />
+            {releaseData?.country && <DetailRow label="Country" value={releaseData.country} />}
+            {(releaseData?.genres?.length || releaseData?.styles?.length) ? (
+              <div className="flex items-start gap-3">
+                <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "3px" }}>Genres</span>
+                <div className="flex flex-wrap gap-1.5 flex-1">
+                  {[...(releaseData!.genres || []), ...(releaseData!.styles || [])].map((g, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full" style={{ fontSize: "11px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -2986,11 +3054,27 @@ function ReleaseDetailPanel({
         {/* ═══ Listen On ═══ */}
         <ListenOnButtons artist={album.artist} title={album.title} />
 
-        {/* ═══ Detail rows ═══ */}
-        <div className="px-4 pb-4">
-          <div className="rounded-[10px] p-3 flex flex-col gap-2.5" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+        {/* ═══ Details ═══ */}
+        <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
+          <div className="mb-3">
+            <SectionLabel>Details</SectionLabel>
+          </div>
+          <div className="flex flex-col gap-2.5">
             {hasYear(album.year) && <DetailRow label="Year" value={String(album.year)} />}
             <DetailRow label="Label" value={album.label} />
+            {releaseData?.country && <DetailRow label="Country" value={releaseData.country} />}
+            {(releaseData?.genres?.length || releaseData?.styles?.length) ? (
+              <div className="flex items-start gap-3">
+                <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "3px" }}>Genres</span>
+                <div className="flex flex-wrap gap-1.5 flex-1">
+                  {[...(releaseData!.genres || []), ...(releaseData!.styles || [])].map((g, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full" style={{ fontSize: "11px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
