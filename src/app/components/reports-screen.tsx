@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip,
+  BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
 import { ChevronRight, Disc3, ImageSquare } from "./icons";
@@ -11,7 +11,7 @@ import { useApp, type Screen } from "./app-context";
 import { mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
-import { bucketAddsByYear } from "../utils/insights";
+import { bucketAddsByYear, cumulativeAddsByYear } from "../utils/insights";
 import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
 import { formatSyncedAgo } from "../utils/format";
@@ -546,29 +546,48 @@ function ByFolderChart({ albums }: { albums: Album[]; isDark: boolean }) {
     return { data, showValue: valuedShare >= 0.7 };
   }, [albums]);
 
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
   return (
-    <div className="flex flex-col">
-      {data.map((d, i) => (
-        <div
-          key={d.folder}
-          className="flex items-center justify-between py-2.5 gap-3"
-          style={i < data.length - 1 ? { borderBottom: "1px solid var(--c-border)" } : undefined}
-        >
+    <motion.div
+      className="flex flex-col gap-2.5"
+      variants={fillGroup}
+      initial="hidden"
+      whileInView="show"
+      viewport={VIEWPORT_ONCE}
+    >
+      {data.map((d) => (
+        <div key={d.folder} className="flex items-center gap-3" style={{ minHeight: 32 }}>
           <span
+            className="shrink-0 text-right"
             style={{
-              fontSize: "13px",
+              width: 110,
+              fontSize: "12px",
               fontWeight: 500,
-              color: "var(--c-text)",
+              color: "var(--c-text-secondary)",
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              minWidth: 0,
+              display: "block",
+              whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
+              WebkitTextOverflow: "ellipsis",
+            } as React.CSSProperties}
           >
             {d.folder}
           </span>
-          <div className="flex flex-col items-end flex-shrink-0">
+          <div className="flex-1 h-[10px] rounded-[4px] overflow-hidden" style={{ backgroundColor: "var(--c-input-bg)" }}>
+            <motion.div
+              className="h-full rounded-[4px]"
+              variants={fillBar}
+              style={{
+                width: `${(d.count / maxCount) * 100}%`,
+                backgroundColor: CHART_BLUE,
+                minWidth: 4,
+                transformOrigin: "left",
+              }}
+            />
+          </div>
+          <div className="flex flex-col items-end flex-shrink-0" style={{ minWidth: 36 }}>
             <span
               style={{
                 fontSize: "13px",
@@ -595,7 +614,7 @@ function ByFolderChart({ albums }: { albums: Album[]; isDark: boolean }) {
           </div>
         </div>
       ))}
-    </div>
+    </motion.div>
   );
 }
 
@@ -1306,20 +1325,29 @@ function ListeningActivitySection({
           whileInView="show"
           viewport={VIEWPORT_ONCE}
         >
+          {/* A live streak (2+ days) earns the yellow accent treatment
+              (golden-era pill convention); otherwise neutral. */}
           <motion.div
             variants={riseItem}
             className="rounded-[10px] py-3 px-3 text-center"
-            style={{
-              backgroundColor: "var(--c-surface-alt)",
-              border: "1px solid var(--c-border)",
-            }}
+            style={
+              currentStreak >= 2
+                ? {
+                    backgroundColor: isDarkMode ? "rgba(235, 253, 0, 0.08)" : "rgba(235, 253, 0, 0.28)",
+                    border: isDarkMode ? "1px solid rgba(235, 253, 0, 0.2)" : "1px solid rgba(140, 104, 0, 0.4)",
+                  }
+                : {
+                    backgroundColor: "var(--c-surface-alt)",
+                    border: "1px solid var(--c-border)",
+                  }
+            }
           >
             <span
               style={{
                 fontSize: "28px",
                 fontWeight: 700,
                 fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                color: "var(--c-text)",
+                color: currentStreak >= 2 ? "var(--c-accent-yellow)" : "var(--c-text)",
                 lineHeight: 1.1,
               }}
             >
@@ -1668,8 +1696,11 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 
 /* ─────────────────── SECTION: Collection Growth ─────────────────── */
 
+type GrowthTab = "year" | "all";
+
 function CollectionGrowthSection({ albums }: { albums: Album[] }) {
   const { isDarkMode } = useApp();
+  const [growthTab, setGrowthTab] = useState<GrowthTab>("year");
 
   // In-view chart mount — same pattern as ByDecadeChart.
   const chartRef = useRef<HTMLDivElement>(null);
@@ -1678,6 +1709,7 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
   const showChart = inView || !!reduceMotion;
 
   const data = useMemo(() => bucketAddsByYear(albums), [albums]);
+  const cumulative = useMemo(() => cumulativeAddsByYear(albums), [albums]);
   const total = useMemo(() => data.reduce((sum, d) => sum + d.count, 0), [data]);
   const peak = useMemo(() => {
     if (data.length === 0) return null;
@@ -1690,6 +1722,12 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
   if (data.length < 2 || total < 10 || !peak) return null;
 
   const currentYear = new Date().getFullYear();
+  const allTimeTotal = cumulative.length > 0 ? cumulative[cumulative.length - 1].total : 0;
+
+  const growthTabs: { id: GrowthTab; label: string }[] = [
+    { id: "year", label: "Per Year" },
+    { id: "all", label: "All Time" },
+  ];
 
   return (
     <div
@@ -1701,39 +1739,94 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
       }}
     >
       <p style={sectionHeaderStyle}>Collection Growth</p>
+
+      {/* Per Year = adds per year (last 10). All Time = the cumulative curve —
+          the actual size of the collection over time. */}
+      <ChipTabs tabs={growthTabs} active={growthTab} onSelect={setGrowthTab} isDark={isDarkMode} className="mt-3" />
+
       <div ref={chartRef} className="mt-4" style={{ height: 180 }}>
         {showChart && (
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
-            <XAxis
-              dataKey="year"
-              tickLine={false}
-              axisLine={false}
-              interval={0}
-              tick={{ fontSize: 10, fill: "var(--c-text-faint)" }}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
-              allowDecimals={false}
-            />
-            <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} added`} />} />
-            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reduceMotion} animationDuration={600} animationEasing="ease-out">
-              {/* Current-year bar in the brand yellow, edged with brass gold in
-                  light mode so it holds on a white card (matches the peak-decade
-                  convention in ByDecadeChart). */}
-              {data.map((entry, i) => (
-                <Cell
-                  key={i}
-                  fill={entry.year === currentYear ? "#EBFD00" : CHART_BLUE}
-                  stroke={entry.year === currentYear && !isDarkMode ? "#8C6800" : undefined}
-                  strokeWidth={entry.year === currentYear && !isDarkMode ? 1.5 : undefined}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={growthTab}
+              className="h-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+            >
+              {growthTab === "year" ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
+                    <XAxis
+                      dataKey="year"
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      tick={{ fontSize: 10, fill: "var(--c-text-faint)" }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} added`} />} />
+                    <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reduceMotion} animationDuration={600} animationEasing="ease-out">
+                      {/* Current-year bar in the brand yellow, edged with brass gold in
+                          light mode so it holds on a white card (matches the peak-decade
+                          convention in ByDecadeChart). */}
+                      {data.map((entry, i) => (
+                        <Cell
+                          key={i}
+                          fill={entry.year === currentYear ? "#EBFD00" : CHART_BLUE}
+                          stroke={entry.year === currentYear && !isDarkMode ? "#8C6800" : undefined}
+                          strokeWidth={entry.year === currentYear && !isDarkMode ? 1.5 : undefined}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={cumulative} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={CHART_BLUE} stopOpacity={0.3} />
+                        <stop offset="100%" stopColor={CHART_BLUE} stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis
+                      dataKey="year"
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={28}
+                      tick={{ fontSize: 10, fill: "var(--c-text-faint)" }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} records`} />} />
+                    <Area
+                      type="monotone"
+                      dataKey="total"
+                      stroke={CHART_BLUE}
+                      strokeWidth={2}
+                      fill="url(#growthFill)"
+                      dot={false}
+                      activeDot={{ r: 4, fill: CHART_BLUE, strokeWidth: 0 }}
+                      isAnimationActive={!reduceMotion}
+                      animationDuration={700}
+                      animationEasing="ease-out"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </motion.div>
+          </AnimatePresence>
         )}
       </div>
       <div
@@ -1744,9 +1837,11 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
         }}
       >
         <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)", lineHeight: 1.4, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-          {peak.year === currentYear
-            ? "Your biggest year yet"
-            : `${peak.count} records added in ${peak.year}`}
+          {growthTab === "all"
+            ? `${allTimeTotal} records deep.`
+            : peak.year === currentYear
+              ? "Your biggest year yet"
+              : `${peak.count} records added in ${peak.year}`}
         </p>
       </div>
     </div>

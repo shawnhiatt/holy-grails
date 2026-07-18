@@ -19,6 +19,7 @@ import { FormatBadge } from "./format-badge";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { formatRelativeDate } from "./last-played-utils";
+import { purgeTagColor } from "./purge-colors";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { safeTap } from "../lib/safe-tap";
@@ -634,8 +635,78 @@ function FollowedUserProfile({
     { id: "you-want-they-have", label: "You Want / They Have", count: youWantTheyHaveCount },
   ];
 
+  // Comparison stats — the crate-cross data (yours vs. theirs) that otherwise
+  // hides inside the filter sheet. Zero-count stats drop out; the strip hides
+  // entirely until the profile is hydrated and something overlaps. Each stat
+  // taps through to the Collection tab with the matching filter applied.
+  // Numbers use the permitted semantic accents: green = shared/have, warm red
+  // = want, cut pink = your Cut pile.
+  const allComparisonStats: { id: FollowingFilter; label: string; count: number; color: string }[] = [
+    { id: "in-common", label: "In Common", count: inCommonCount, color: "#3E9842" },
+    { id: "you-want-they-have", label: "You Want / They Have", count: youWantTheyHaveCount, color: "#EF5350" },
+    { id: "they-want-you-cut", label: "They Want / You Cut", count: theyWantYouCutCount, color: purgeTagColor("cut", isDarkMode) },
+  ];
+  const comparisonStats = allComparisonStats.filter((s) => s.count > 0);
+  const showComparisonStrip = user.hydrated !== false && comparisonStats.length > 0;
+
   return (
     <div className="flex flex-col h-full">
+      {/* Comparison stat strip */}
+      {showComparisonStrip && (
+        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[10px] lg:pt-[16px] lg:pb-[10px]">
+          <div
+            className="grid rounded-[12px] overflow-hidden"
+            style={{
+              gridTemplateColumns: `repeat(${comparisonStats.length}, minmax(0, 1fr))`,
+              backgroundColor: "var(--c-surface)",
+              border: "1px solid var(--c-border-strong)",
+            }}
+          >
+            {comparisonStats.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={() => { setTab("collection"); setFilter(s.id); }}
+                className="flex flex-col items-center justify-center py-[10px] px-2 cursor-pointer transition-opacity hover:opacity-80"
+                style={{
+                  touchAction: "manipulation",
+                  minWidth: 0,
+                  background: "none",
+                  border: "none",
+                  borderLeft: i > 0 ? "1px solid var(--c-border)" : undefined,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "22px",
+                    fontWeight: 700,
+                    fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                    letterSpacing: "-0.3px",
+                    color: s.color,
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {s.count}
+                </span>
+                <span
+                  className="text-center"
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "var(--c-text-muted)",
+                    marginTop: "3px",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {s.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Collection / Wantlist toggle */}
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[12px] lg:pt-[16px] lg:pb-[12px]">
         <div className="flex rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>

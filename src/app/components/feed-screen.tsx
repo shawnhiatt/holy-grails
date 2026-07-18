@@ -1511,6 +1511,42 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   );
 
   /* ─────────────── INSIGHTS card content ─────────────── */
+  // Collection facts — real data doing the personality work. Derived once
+  // when albums hydrate; the derivation itself is stable. Order is shuffled
+  // for the identity-block ticker so it leads with a different fact each
+  // open; the Insights card below picks one at random for its fact line.
+  // Rendered as a horizontal ticker, or a single centered line under
+  // reduced-motion / sparse data.
+  const [collectionFacts, setCollectionFacts] = useState<CollectionFact[]>([]);
+  useEffect(() => {
+    if (collectionFacts.length > 0 || albums.length === 0) return;
+    setCollectionFacts(shuffle(deriveCollectionFacts(albums, playCounts)));
+  }, [albums, collectionFacts, playCounts]);
+  // Re-lead on each app open. A mount-time shuffle alone freezes the order
+  // for the life of the mount — and an installed PWA resumed from the
+  // background never remounts, so the same fact would lead every time the
+  // user reopens the app. Reshuffle whenever the tab returns to the
+  // foreground so each open feels fresh. (No reorder mid-view: the app is
+  // backgrounded when this fires.)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      setCollectionFacts((prev) => (prev.length > 1 ? shuffle(prev) : prev));
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  const collectionFact = useMemo(
+    () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
+    [collectionFacts]
+  );
+  // The Insights card's own fact — drawn from the same pool but picked
+  // independently, so it usually differs from the ticker's lead fact.
+  const insightsCardFact = useMemo(
+    () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
+    [collectionFacts]
+  );
+
   const InsightsCard = (
     <div className="rounded-[12px] overflow-hidden h-full" style={cardStyle}>
       {/* Section header inside card */}
@@ -1645,6 +1681,44 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         />
       </div>
 
+      {/* Rotating collection fact — same eyebrow/value treatment as the
+          identity-block ticker, one fact per open. */}
+      {insightsCardFact && (
+        <div
+          className="flex items-baseline px-[16px] pt-[10px] pb-[14px]"
+          style={{ borderTop: "1px solid var(--c-border)" }}
+        >
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "var(--c-text-faint)",
+              marginRight: "7px",
+              flexShrink: 0,
+            }}
+          >
+            {insightsCardFact.label}
+          </span>
+          <span
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--c-text)",
+              minWidth: 0,
+              display: "block",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              WebkitTextOverflow: "ellipsis",
+            } as React.CSSProperties}
+          >
+            {insightsCardFact.value}
+          </span>
+        </div>
+      )}
+
     </div>
   );
 
@@ -1692,7 +1766,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           </button>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar — verdict-segmented, matching the Insights screen's
+            Purge Progress bar so the two purge visuals tell the same story.
+            The evaluated slice sweeps in on view (scaleX on the group, so the
+            segments hold their relative sizes while growing). */}
         <div
           style={{
             height: "4px",
@@ -1702,16 +1779,37 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              height: "100%",
-              borderRadius: "2px",
-              backgroundColor: "#EBFD00",
-              width: `${purgeProgress}%`,
-              transition: "width 300ms ease-out",
-              minWidth: ratedCount > 0 ? "2px" : "0px",
-            }}
-          />
+          {ratedCount > 0 && (
+            <motion.div
+              className="h-full flex overflow-hidden"
+              initial={{ scaleX: 0 }}
+              whileInView={{ scaleX: 1 }}
+              viewport={{ once: true, amount: 0.5 }}
+              transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
+              style={{
+                width: `${purgeProgress}%`,
+                minWidth: "2px",
+                borderRadius: "2px",
+                transformOrigin: "left",
+              }}
+            >
+              {[
+                { tag: "keep", count: keepCount },
+                { tag: "maybe", count: maybeCount },
+                { tag: "cut", count: cutCount },
+              ].map((s) =>
+                s.count > 0 ? (
+                  <div
+                    key={s.tag}
+                    style={{
+                      width: `${(s.count / ratedCount) * 100}%`,
+                      backgroundColor: purgeTagColor(s.tag, isDarkMode),
+                    }}
+                  />
+                ) : null,
+              )}
+            </motion.div>
+          )}
         </div>
 
         {/* Progress label */}
@@ -1975,34 +2073,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
   const syncedAgo = formatSyncedAgo(lastSyncedAt);
 
-  // Collection facts — real data doing the personality work. Derived once
-  // when albums hydrate; the derivation itself is stable. Order is shuffled
-  // for the ticker so it leads with a different fact each open. Rendered as
-  // a horizontal ticker, or a single centered line under reduced-motion /
-  // sparse data.
-  const [collectionFacts, setCollectionFacts] = useState<CollectionFact[]>([]);
-  useEffect(() => {
-    if (collectionFacts.length > 0 || albums.length === 0) return;
-    setCollectionFacts(shuffle(deriveCollectionFacts(albums, playCounts)));
-  }, [albums, collectionFacts, playCounts]);
-  // Re-lead on each app open. A mount-time shuffle alone freezes the order
-  // for the life of the mount — and an installed PWA resumed from the
-  // background never remounts, so the same fact would lead every time the
-  // user reopens the app. Reshuffle whenever the tab returns to the
-  // foreground so each open feels fresh. (No reorder mid-view: the app is
-  // backgrounded when this fires.)
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      setCollectionFacts((prev) => (prev.length > 1 ? shuffle(prev) : prev));
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
-  const collectionFact = useMemo(
-    () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
-    [collectionFacts]
-  );
+  // (collectionFacts state lives above the Insights card definition — the
+  // card's fact line and this ticker share it.)
   // Full-width band, no card container — rows separated by hairline
   // dividers. Cells are tappable shortcuts (Collection → crate,
   // Med. Value → reports, Wantlist → wants).

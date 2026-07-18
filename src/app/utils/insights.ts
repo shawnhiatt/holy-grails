@@ -39,3 +39,26 @@ export function bucketAddsByYear(albums: Album[], maxYears = 10): YearBucket[] {
     .map(([year, count]) => ({ year, count }));
   return sorted.slice(-maxYears);
 }
+
+export interface CumulativeYearBucket {
+  year: number;
+  total: number;
+}
+
+/**
+ * Running total of records added, year by year — the all-time growth curve.
+ * Covers every year from the first add to the last (gap years carry the
+ * previous total forward so the curve holds flat instead of skipping them).
+ */
+export function cumulativeAddsByYear(albums: Album[]): CumulativeYearBucket[] {
+  const buckets = bucketAddsByYear(albums, Infinity);
+  if (buckets.length === 0) return [];
+  const byYear = new Map(buckets.map((b) => [b.year, b.count]));
+  const out: CumulativeYearBucket[] = [];
+  let total = 0;
+  for (let y = buckets[0].year; y <= buckets[buckets.length - 1].year; y++) {
+    total += byYear.get(y) ?? 0;
+    out.push({ year: y, total });
+  }
+  return out;
+}
