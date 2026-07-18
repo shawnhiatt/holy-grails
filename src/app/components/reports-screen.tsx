@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
 import { ChevronRight, Disc3, ImageSquare } from "./icons";
-import { motion, AnimatePresence } from "motion/react";
-import { DURATION_NORMAL } from "./motion-tokens";
+import { motion, AnimatePresence, useInView, useReducedMotion } from "motion/react";
+import { DURATION_FAST, DURATION_NORMAL, DURATION_SLOW, EASE_OUT } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";
 import { mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
@@ -101,6 +101,62 @@ const CHART_GREEN = "#009A32";
 const CHART_PINK = "#FF33B6";
 const CHART_BLUE = "#0DB1F2";
 
+/* ─── In-view animation variants ───
+   Bars and stat tiles draw themselves when scrolled into view. Transform +
+   opacity only (the design rule) — bar growth is scaleX with a left origin,
+   never a width animation. MotionConfig reducedMotion="user" in App.tsx
+   disables the transforms for reduced-motion users automatically. */
+const VIEWPORT_ONCE = { once: true, amount: 0.25 } as const;
+
+const fillGroup = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
+const fillBar = {
+  hidden: { scaleX: 0 },
+  show: { scaleX: 1, transition: { duration: DURATION_SLOW, ease: EASE_OUT } },
+};
+const fadeDot = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: DURATION_NORMAL, ease: EASE_OUT } },
+};
+
+const riseGroup = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
+const riseItem = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: DURATION_NORMAL, ease: EASE_OUT } },
+};
+
+/* ─── Shared chip-tab row (Breakdown, Listening) ─── */
+function ChipTabs<T extends string>({ tabs, active, onSelect, isDark, className }: {
+  tabs: { id: T; label: string }[];
+  active: T;
+  onSelect: (id: T) => void;
+  isDark: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`flex gap-2 overflow-x-auto no-scrollbar ${className ?? ""}`}>
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => onSelect(t.id)}
+          aria-pressed={t.id === active}
+          className="px-3 py-1.5 rounded-full whitespace-nowrap transition-all flex-shrink-0"
+          style={{
+            fontSize: "12px",
+            fontWeight: active === t.id ? 600 : 400,
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            backgroundColor: active === t.id ? (isDark ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)") : (isDark ? "var(--c-chip-bg)" : "#EFF1F3"),
+            color: active === t.id ? (isDark ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)",
+            border: "1px solid transparent",
+            touchAction: "manipulation",
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Custom Tooltip ─── */
 function ChartTooltip({ active, payload, label, formatter }: any) {
   if (!active || !payload?.length) return null;
@@ -194,11 +250,57 @@ function CollectionValueSection(_props: { albums: Album[] }) {
             <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 4 }}>
               Estimated median value
             </p>
-            <p className="mt-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-              {formatCurrency(minimum)} – {formatCurrency(maximum)}
-            </p>
           </div>
 
+          {/* Range strip — where the median sits between the low and high
+              Discogs estimates. A range is a position, not a sentence, so it
+              gets a track + marker instead of the old "min – max" text line. */}
+          {maximum > minimum ? (
+            <div className="mt-4 mb-1 px-1">
+              <div style={{ position: "relative", height: 6, borderRadius: 999, backgroundColor: "var(--c-chip-bg)" }}>
+                <motion.div
+                  initial={{ scaleX: 0 }}
+                  whileInView={{ scaleX: 1 }}
+                  viewport={VIEWPORT_ONCE}
+                  transition={{ duration: DURATION_SLOW, ease: EASE_OUT }}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: `${Math.min(100, Math.max(0, ((median - minimum) / (maximum - minimum)) * 100))}%`,
+                    borderRadius: 999,
+                    backgroundColor: CHART_GREEN,
+                    opacity: 0.35,
+                    transformOrigin: "left",
+                  }}
+                />
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={VIEWPORT_ONCE}
+                  transition={{ duration: DURATION_NORMAL, ease: EASE_OUT, delay: DURATION_SLOW * 0.6 }}
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: `${Math.min(100, Math.max(0, ((median - minimum) / (maximum - minimum)) * 100))}%`,
+                    transform: "translate(-50%, -50%)",
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: CHART_GREEN,
+                    border: "2px solid var(--c-surface)",
+                  }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5">
+                <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{formatCurrency(minimum)}</span>
+                <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{formatCurrency(maximum)}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center mb-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+              {formatCurrency(minimum)} – {formatCurrency(maximum)}
+            </p>
+          )}
         </>
       )}
     </div>
@@ -235,10 +337,17 @@ function TopShelfSection({ albums, onAlbumTap }: { albums: Album[]; onAlbumTap: 
         Your priciest pressings by lowest marketplace ask.
       </p>
 
-      <div className="mt-3 flex flex-col gap-2">
+      <motion.div
+        className="mt-3 flex flex-col gap-2"
+        variants={riseGroup}
+        initial="hidden"
+        whileInView="show"
+        viewport={VIEWPORT_ONCE}
+      >
         {top.map((a) => (
-          <button
+          <motion.button
             key={a.id}
+            variants={riseItem}
             onClick={() => onAlbumTap(a.id)}
             className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left tappable"
             style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)", touchAction: "manipulation" }}
@@ -256,9 +365,9 @@ function TopShelfSection({ albums, onAlbumTap }: { albums: Album[]; onAlbumTap: 
             >
               ~{formatWhole(a.marketValue)}
             </span>
-          </button>
+          </motion.button>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -326,8 +435,14 @@ function ConditionSection({ albums }: { albums: Album[] }) {
         </p>
       </div>
 
-      {/* Condition distribution */}
-      <div className="flex flex-col gap-2.5">
+      {/* Condition distribution — bars draw in on scroll (scaleX, left origin) */}
+      <motion.div
+        className="flex flex-col gap-2.5"
+        variants={fillGroup}
+        initial="hidden"
+        whileInView="show"
+        viewport={VIEWPORT_ONCE}
+      >
         {conditionData.map((d) => (
           <div key={d.condition} className="flex items-center gap-3">
             <span
@@ -343,12 +458,14 @@ function ConditionSection({ albums }: { albums: Album[] }) {
               {d.condition}
             </span>
             <div className="flex-1 h-[18px] rounded-[4px] overflow-hidden" style={{ backgroundColor: "var(--c-input-bg)" }}>
-              <div
+              <motion.div
                 className="h-full rounded-[4px]"
+                variants={fillBar}
                 style={{
                   width: `${(d.count / maxCount) * 100}%`,
                   backgroundColor: conditionBarColor(d.condition),
                   minWidth: 4,
+                  transformOrigin: "left",
                 }}
               />
             </div>
@@ -357,7 +474,7 @@ function ConditionSection({ albums }: { albums: Album[] }) {
             </span>
           </div>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -390,29 +507,21 @@ function CollectionBreakdownSection({ albums }: { albums: Album[] }) {
       </p>
 
       {/* Tab chips */}
-      <div className="flex gap-2 mt-3 mb-4 overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className="px-3 py-1.5 rounded-full whitespace-nowrap transition-all"
-            style={{
-              fontSize: "12px",
-              fontWeight: tab === t.id ? 600 : 400,
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              backgroundColor: tab === t.id ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)") : (isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3"),
-              color: tab === t.id ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)",
-              border: `1px solid ${tab === t.id ? "transparent" : "transparent"}`,
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <ChipTabs tabs={tabs} active={tab} onSelect={setTab} isDark={isDarkMode} className="mt-3 mb-4" />
 
-      {tab === "folder" && <ByFolderChart albums={albums} isDark={isDarkMode} />}
-      {tab === "decade" && <ByDecadeChart albums={albums} isDark={isDarkMode} />}
-      {tab === "format" && <ByFormatChart albums={albums} isDark={isDarkMode} />}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
+        >
+          {tab === "folder" && <ByFolderChart albums={albums} isDark={isDarkMode} />}
+          {tab === "decade" && <ByDecadeChart albums={albums} isDark={isDarkMode} />}
+          {tab === "format" && <ByFormatChart albums={albums} isDark={isDarkMode} />}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
@@ -491,6 +600,14 @@ function ByFolderChart({ albums }: { albums: Album[]; isDark: boolean }) {
 }
 
 function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean }) {
+  // Mount the chart only once it scrolls into view so the recharts draw-in
+  // animation plays where the user can see it (not at screen mount, far
+  // above the fold). Reduced motion renders immediately, no animation.
+  const chartRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(chartRef, { once: true, amount: 0.3 });
+  const reduceMotion = useReducedMotion();
+  const showChart = inView || !!reduceMotion;
+
   const data = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of albums) {
@@ -518,7 +635,8 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
 
   return (
     <div>
-      <div style={{ height: 180 }}>
+      <div ref={chartRef} style={{ height: 180 }}>
+        {showChart && (
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
             <XAxis
@@ -535,7 +653,7 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
               allowDecimals={false}
             />
             <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} albums`} />} />
-            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36}>
+            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reduceMotion} animationDuration={600} animationEasing="ease-out">
               {/* Peak bar light mode: keep the true brand yellow as the fill and
                   edge it with the brass gold accent so it holds on a white card —
                   a solid dark-yellow bar reads olive/muddy */}
@@ -550,6 +668,7 @@ function ByDecadeChart({ albums, isDark }: { albums: Album[]; isDark: boolean })
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
       {goldenEra && (
         <div
@@ -706,7 +825,13 @@ function LabelsSection({ albums }: { albums: Album[] }) {
       }}
     >
       <p style={sectionHeaderStyle}>Top Labels</p>
-      <div className="flex flex-col gap-2.5 mt-4">
+      <motion.div
+        className="flex flex-col gap-2.5 mt-4"
+        variants={fillGroup}
+        initial="hidden"
+        whileInView="show"
+        viewport={VIEWPORT_ONCE}
+      >
         {data.map((d) => (
           <div key={d.label} className="flex items-center gap-3" style={{ height: 32 }}>
             <span
@@ -727,8 +852,9 @@ function LabelsSection({ albums }: { albums: Album[] }) {
               {d.label}
             </span>
             <div className="flex-1 relative flex items-center">
-              <div
+              <motion.div
                 className="absolute"
+                variants={fillBar}
                 style={{
                   left: 0,
                   width: `calc(${(d.count / maxCount) * 100}% - 3px)`,
@@ -736,10 +862,12 @@ function LabelsSection({ albums }: { albums: Album[] }) {
                   backgroundColor: "var(--c-border-strong)",
                   borderRadius: 2,
                   minWidth: 4,
+                  transformOrigin: "left",
                 }}
               />
-              <div
+              <motion.div
                 className="absolute"
+                variants={fadeDot}
                 style={{
                   left: `calc(${(d.count / maxCount) * 100}% - 3px)`,
                   width: 8,
@@ -758,7 +886,7 @@ function LabelsSection({ albums }: { albums: Album[] }) {
             </span>
           </div>
         ))}
-      </div>
+      </motion.div>
       <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
         Labels with 2+ records
       </p>
@@ -801,10 +929,17 @@ const MAJORITY_THRESHOLD = 0.9;
 
 function StatGrid({ data }: { data: { format: string; count: number }[] }) {
   return (
-    <div className={data.length <= 3 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+    <motion.div
+      className={data.length <= 3 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}
+      variants={riseGroup}
+      initial="hidden"
+      whileInView="show"
+      viewport={VIEWPORT_ONCE}
+    >
       {data.map((d) => (
-        <div
+        <motion.div
           key={d.format}
+          variants={riseItem}
           className="rounded-[10px] py-3 px-3 text-center"
           style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)" }}
         >
@@ -831,9 +966,9 @@ function StatGrid({ data }: { data: { format: string; count: number }[] }) {
           >
             {d.count}
           </div>
-        </div>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }
 
@@ -898,6 +1033,8 @@ function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
 }
 
 /* ─────────────────── SECTION 5: Listening Activity ─────────────────── */
+
+type ListeningTab = "top" | "recent" | "unplayed";
 
 function ListeningActivitySection({
   albums,
@@ -1038,6 +1175,19 @@ function ListeningActivitySection({
       .slice(0, 5);
   }, [albums, lastPlayed]);
 
+  // Tabbed lists — replaces the old stacked Top Played / Recently Played /
+  // No Spins scroll. Only tabs with data appear; if the stored tab loses its
+  // data (e.g. hydration order), fall to the first available.
+  const [tab, setTab] = useState<ListeningTab>("top");
+  const listTabs = useMemo(() => {
+    const t: { id: ListeningTab; label: string }[] = [];
+    if (topPlayed.length >= 5) t.push({ id: "top", label: "Top Played" });
+    if (recentlyPlayed.length > 0) t.push({ id: "recent", label: "Recently Played" });
+    if (neglected.length > 0) t.push({ id: "unplayed", label: "No Spins" });
+    return t;
+  }, [topPlayed, recentlyPlayed, neglected]);
+  const activeTab = listTabs.some((t) => t.id === tab) ? tab : listTabs[0]?.id;
+
   const monthName = new Date().toLocaleDateString("en-US", { month: "long" });
 
   return (
@@ -1054,9 +1204,16 @@ function ListeningActivitySection({
       </p>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3 mt-4">
+      <motion.div
+        className="grid grid-cols-3 gap-3 mt-4"
+        variants={riseGroup}
+        initial="hidden"
+        whileInView="show"
+        viewport={VIEWPORT_ONCE}
+      >
         {/* Played this month */}
-        <div
+        <motion.div
+          variants={riseItem}
           className="rounded-[10px] py-3 px-3 text-center"
           style={{
             backgroundColor: purgeTagBg("keep", isDarkMode),
@@ -1077,10 +1234,11 @@ function ListeningActivitySection({
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
             played in<br/> {monthName}
           </p>
-        </div>
+        </motion.div>
 
         {/* Days since last played */}
-        <div
+        <motion.div
+          variants={riseItem}
           className="rounded-[10px] py-3 px-3 text-center"
           style={{
             backgroundColor: isDarkMode ? "rgba(172,222,242,0.08)" : "rgba(172,222,242,0.2)",
@@ -1109,15 +1267,17 @@ function ListeningActivitySection({
               </p>
             </>
           )}
-        </div>
+        </motion.div>
 
         {/* No play recorded */}
-        <button
+        <motion.button
+          variants={riseItem}
           onClick={onNeverPlayedTap}
           className="rounded-[10px] py-3 px-3 text-center transition-colors"
           style={{
             backgroundColor: isDarkMode ? "rgba(255,51,182,0.08)" : "rgba(255,51,182,0.12)",
             border: `1px solid ${isDarkMode ? "rgba(255,51,182,0.2)" : "rgba(255,51,182,0.3)"}`,
+            touchAction: "manipulation",
           }}
         >
           <span
@@ -1134,13 +1294,20 @@ function ListeningActivitySection({
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
             no plays<br/> recorded
           </p>
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
       {/* Streak row — only when at least one streak >= 1 */}
       {(currentStreak >= 1 || longestStreak >= 1) && (
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          <div
+        <motion.div
+          className="grid grid-cols-2 gap-3 mt-3"
+          variants={riseGroup}
+          initial="hidden"
+          whileInView="show"
+          viewport={VIEWPORT_ONCE}
+        >
+          <motion.div
+            variants={riseItem}
             className="rounded-[10px] py-3 px-3 text-center"
             style={{
               backgroundColor: "var(--c-surface-alt)",
@@ -1161,8 +1328,9 @@ function ListeningActivitySection({
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
               current streak days
             </p>
-          </div>
-          <div
+          </motion.div>
+          <motion.div
+            variants={riseItem}
             className="rounded-[10px] py-3 px-3 text-center"
             style={{
               backgroundColor: "var(--c-surface-alt)",
@@ -1183,138 +1351,139 @@ function ListeningActivitySection({
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
               longest streak days
             </p>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
-      {/* Top Played — only when 5+ albums have plays */}
-      {topPlayed.length >= 5 && (
+      {/* Tabbed lists — Top Played / Recently Played / No Spins. One list at
+          a time instead of the old triple-stacked scroll. */}
+      {listTabs.length > 0 && activeTab && (
         <div className="mt-5">
-          <p style={sectionHeaderStyle} className="mb-3">Top Played</p>
-          <div className="flex flex-col gap-2">
-            {topPlayed.map((item) => (
-              <button
-                key={item.album.id}
-                onClick={() => onAlbumTap(item.album.id)}
-                className="flex items-center gap-3 rounded-[10px] p-2.5 transition-colors text-left"
-                style={{
-                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(22,24,28,0.04)",
-                }}
-              >
-                <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden flex-shrink-0">
-                  <img loading="lazy" decoding="async" src={item.album.cover || item.album.thumb} alt={item.album.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                  <p
-                    style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
-                  >
-                    {item.album.title}
-                  </p>
-                  <p
-                    className="mt-0.5"
-                    style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
-                  >
-                    {item.album.artist}
-                  </p>
-                  <p className="mt-1" style={{ fontSize: "13px", fontWeight: 600, color: "#3E9842", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                    {item.count} {item.count === 1 ? "play" : "plays"}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+          <ChipTabs tabs={listTabs} active={activeTab} onSelect={setTab} isDark={isDarkMode} className="mb-3" />
 
-      {/* Recently Played */}
-      {recentlyPlayed.length > 0 && (
-        <div className="mt-4">
-          <p
-            className="mb-2"
-            style={{
-              fontSize: "11px",
-              fontWeight: 600,
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-              color: "var(--c-text-faint)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-            }}
-          >
-            Recently Played
-          </p>
-          <div className="flex flex-col gap-2">
-            {recentlyPlayed.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => onAlbumTap(a.id)}
-                className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
-                style={{
-                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
-                }}
-              >
-                <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                  <img loading="lazy" decoding="async" src={a.thumb || a.cover} alt={a.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                    {a.title}
-                  </p>
-                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                    {a.artist}
-                  </p>
-                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                    Played {formatDateShort(lastPlayed[a.id])}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* No play recorded — neglected list */}
-      <div className="mt-5">
-        <p
-          className="mb-3"
-          style={{
-            fontSize: "11px",
-            fontWeight: 600,
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            color: "var(--c-text-muted)",
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-          }}
-        >
-          No Spins on File
-        </p>
-        <div className="flex flex-col gap-2">
-          {neglected.map((item) => (
-            <button
-              key={item.album.id}
-              onClick={() => onAlbumTap(item.album.id)}
-              className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
-              style={{
-                backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
-              }}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              variants={riseGroup}
+              initial="hidden"
+              animate="show"
+              exit={{ opacity: 0, transition: { duration: DURATION_FAST, ease: EASE_OUT } }}
             >
-              <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                <img loading="lazy" decoding="async" src={item.album.thumb || item.album.cover} alt={item.album.title} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {item.album.title}
-                </p>
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {item.album.artist}
-                </p>
-                <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                  {item.label}
-                </p>
-              </div>
-            </button>
-          ))}
+              {activeTab === "top" && (
+                <div className="flex flex-col gap-2">
+                  {topPlayed.map((item) => (
+                    <motion.button
+                      key={item.album.id}
+                      variants={riseItem}
+                      onClick={() => onAlbumTap(item.album.id)}
+                      className="flex items-center gap-3 rounded-[10px] p-2.5 transition-colors text-left"
+                      style={{
+                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(22,24,28,0.04)",
+                        touchAction: "manipulation",
+                      }}
+                    >
+                      <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden flex-shrink-0">
+                        <img loading="lazy" decoding="async" src={item.album.cover || item.album.thumb} alt={item.album.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                        <p
+                          style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
+                        >
+                          {item.album.title}
+                        </p>
+                        <p
+                          className="mt-0.5"
+                          style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
+                        >
+                          {item.album.artist}
+                        </p>
+                        <p className="mt-1" style={{ fontSize: "13px", fontWeight: 600, color: "#3E9842", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                          {item.count} {item.count === 1 ? "play" : "plays"}
+                        </p>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === "recent" && (
+                <div className="flex flex-col gap-2">
+                  {recentlyPlayed.map((a) => (
+                    <motion.button
+                      key={a.id}
+                      variants={riseItem}
+                      onClick={() => onAlbumTap(a.id)}
+                      className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
+                      style={{
+                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
+                        touchAction: "manipulation",
+                      }}
+                    >
+                      <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
+                        <img loading="lazy" decoding="async" src={a.thumb || a.cover} alt={a.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                        <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                          {a.title}
+                        </p>
+                        <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                          {a.artist}
+                        </p>
+                        <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                          Played {formatDateShort(lastPlayed[a.id])}
+                        </p>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === "unplayed" && (
+                <>
+                  <div className="flex flex-col gap-2">
+                    {neglected.map((item) => (
+                      <motion.button
+                        key={item.album.id}
+                        variants={riseItem}
+                        onClick={() => onAlbumTap(item.album.id)}
+                        className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
+                        style={{
+                          backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
+                          touchAction: "manipulation",
+                        }}
+                      >
+                        <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
+                          <img loading="lazy" decoding="async" src={item.album.thumb || item.album.cover} alt={item.album.title} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+                          <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                            {item.album.title}
+                          </p>
+                          <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                            {item.album.artist}
+                          </p>
+                          <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
+                            {item.label}
+                          </p>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                  {neverPlayedCount > neglected.length && (
+                    <button
+                      onClick={onNeverPlayedTap}
+                      className="mt-3 tappable transition-colors"
+                      style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-link)", background: "none", border: "none", padding: 0, touchAction: "manipulation" }}
+                    >
+                      See all {neverPlayedCount}
+                    </button>
+                  )}
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
-      </div>
+      )}
 
     </div>
   );
@@ -1413,24 +1582,39 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         </span>
       </div>
 
-      {/* Segmented progress bar — verdict slices over a neutral unrated track */}
+      {/* Segmented progress bar — verdict slices over a neutral unrated track.
+          The evaluated slice sweeps in from the left on scroll (scaleX on the
+          group, so the segments hold their relative sizes while growing). */}
       <div
-        className="w-full flex overflow-hidden"
+        className="w-full overflow-hidden"
         style={{ height: "14px", borderRadius: "999px", backgroundColor: "var(--c-chip-bg)" }}
       >
-        {stats.total > 0 &&
-          segments.map((s) =>
-            s.count > 0 ? (
-              <div
-                key={s.tag}
-                style={{
-                  width: `${(s.count / stats.total) * 100}%`,
-                  backgroundColor: purgeTagColor(s.tag, isDarkMode),
-                  transition: "width 0.6s ease",
-                }}
-              />
-            ) : null,
-          )}
+        {stats.total > 0 && stats.rated > 0 && (
+          <motion.div
+            className="h-full flex overflow-hidden"
+            initial={{ scaleX: 0 }}
+            whileInView={{ scaleX: 1 }}
+            viewport={VIEWPORT_ONCE}
+            transition={{ duration: DURATION_SLOW, ease: EASE_OUT }}
+            style={{
+              width: `${(stats.rated / stats.total) * 100}%`,
+              borderRadius: "999px",
+              transformOrigin: "left",
+            }}
+          >
+            {segments.map((s) =>
+              s.count > 0 ? (
+                <div
+                  key={s.tag}
+                  style={{
+                    width: `${(s.count / stats.rated) * 100}%`,
+                    backgroundColor: purgeTagColor(s.tag, isDarkMode),
+                  }}
+                />
+              ) : null,
+            )}
+          </motion.div>
+        )}
       </div>
 
       {/* Legend — carries the exact counts the old 2×2 grid held */}
@@ -1487,6 +1671,12 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
 function CollectionGrowthSection({ albums }: { albums: Album[] }) {
   const { isDarkMode } = useApp();
 
+  // In-view chart mount — same pattern as ByDecadeChart.
+  const chartRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(chartRef, { once: true, amount: 0.3 });
+  const reduceMotion = useReducedMotion();
+  const showChart = inView || !!reduceMotion;
+
   const data = useMemo(() => bucketAddsByYear(albums), [albums]);
   const total = useMemo(() => data.reduce((sum, d) => sum + d.count, 0), [data]);
   const peak = useMemo(() => {
@@ -1511,7 +1701,8 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
       }}
     >
       <p style={sectionHeaderStyle}>Collection Growth</p>
-      <div className="mt-4" style={{ height: 180 }}>
+      <div ref={chartRef} className="mt-4" style={{ height: 180 }}>
+        {showChart && (
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 16, right: 4, left: -20, bottom: 0 }}>
             <XAxis
@@ -1528,7 +1719,7 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
               allowDecimals={false}
             />
             <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} added`} />} />
-            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36}>
+            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reduceMotion} animationDuration={600} animationEasing="ease-out">
               {/* Current-year bar in the brand yellow, edged with brass gold in
                   light mode so it holds on a white card (matches the peak-decade
                   convention in ByDecadeChart). */}
@@ -1543,6 +1734,7 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
       <div
         className="mt-3 rounded-[10px] px-4 py-3"
