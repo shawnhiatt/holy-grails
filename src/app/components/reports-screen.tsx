@@ -124,6 +124,16 @@ const riseItem = {
   show: { opacity: 1, y: 0, transition: { duration: DURATION_NORMAL, ease: EASE_OUT } },
 };
 
+/* iOS-safe single-line truncation (inline styles per the design rules) */
+const truncateStyle = {
+  display: "block",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  WebkitTextOverflow: "ellipsis",
+  maxWidth: "100%",
+} as React.CSSProperties;
+
 /* ─── Shared chip-tab row (Breakdown, Listening) ─── */
 function ChipTabs<T extends string>({ tabs, active, onSelect, isDark, className }: {
   tabs: { id: T; label: string }[];
@@ -252,55 +262,12 @@ function CollectionValueSection(_props: { albums: Album[] }) {
             </p>
           </div>
 
-          {/* Range strip — where the median sits between the low and high
-              Discogs estimates. A range is a position, not a sentence, so it
-              gets a track + marker instead of the old "min – max" text line. */}
-          {maximum > minimum ? (
-            <div className="mt-4 mb-1 px-1">
-              <div style={{ position: "relative", height: 6, borderRadius: 999, backgroundColor: "var(--c-chip-bg)" }}>
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  whileInView={{ scaleX: 1 }}
-                  viewport={VIEWPORT_ONCE}
-                  transition={{ duration: DURATION_SLOW, ease: EASE_OUT }}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: `${Math.min(100, Math.max(0, ((median - minimum) / (maximum - minimum)) * 100))}%`,
-                    borderRadius: 999,
-                    backgroundColor: CHART_GREEN,
-                    opacity: 0.35,
-                    transformOrigin: "left",
-                  }}
-                />
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={VIEWPORT_ONCE}
-                  transition={{ duration: DURATION_NORMAL, ease: EASE_OUT, delay: DURATION_SLOW * 0.6 }}
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: `${Math.min(100, Math.max(0, ((median - minimum) / (maximum - minimum)) * 100))}%`,
-                    transform: "translate(-50%, -50%)",
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    backgroundColor: CHART_GREEN,
-                    border: "2px solid var(--c-surface)",
-                  }}
-                />
-              </div>
-              <div className="flex justify-between mt-1.5">
-                <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{formatCurrency(minimum)}</span>
-                <span style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>{formatCurrency(maximum)}</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-center mb-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-              {formatCurrency(minimum)} – {formatCurrency(maximum)}
-            </p>
-          )}
+          {/* Low–high estimate range, plain text. (A meter version was tried
+              and cut — the median always sits inside the range, so plotting
+              its position carried no information the text doesn't.) */}
+          <p className="text-center mt-1 mb-1" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+            {formatCurrency(minimum)} – {formatCurrency(maximum)}
+          </p>
         </>
       )}
     </div>
@@ -1055,6 +1022,40 @@ function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
 
 type ListeningTab = "top" | "recent" | "unplayed";
 
+/* One card style for all three Listening tabs (the Top Played treatment):
+   72px art, Bricolage title, artist line, then a tab-specific detail line. */
+function ListeningCard({ album, isDark, onTap, children }: {
+  album: Album;
+  isDark: boolean;
+  onTap: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.button
+      variants={riseItem}
+      onClick={onTap}
+      className="flex items-center gap-3 rounded-[10px] p-2.5 transition-colors text-left"
+      style={{
+        backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(22,24,28,0.04)",
+        touchAction: "manipulation",
+      }}
+    >
+      <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden flex-shrink-0">
+        <img loading="lazy" decoding="async" src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
+      </div>
+      <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
+        <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", ...truncateStyle }}>
+          {album.title}
+        </p>
+        <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", ...truncateStyle }}>
+          {album.artist}
+        </p>
+        {children}
+      </div>
+    </motion.button>
+  );
+}
+
 function ListeningActivitySection({
   albums,
   lastPlayed,
@@ -1169,29 +1170,29 @@ function ListeningActivitySection({
   // Daily rotation of never-played albums
   const neglected = useMemo(() => {
     const pool = albums.filter((a) => !lastPlayed[a.id]);
-    return seededShuffle(pool, getDailySeed()).slice(0, 5).map((album) => ({
+    return seededShuffle(pool, getDailySeed()).slice(0, 10).map((album) => ({
       album,
       neverPlayed: true,
       label: `Added ${formatDateShort(album.dateAdded)}, no plays recorded`,
     }));
   }, [albums, lastPlayed]);
 
-  // Top played — top 5 albums by play count (only if 5+ albums have plays)
+  // Top played — up to 10 by play count (only if 5+ albums have plays)
   const topPlayed = useMemo(() => {
     const withPlays = albums
       .filter((a) => (playCounts[a.id] ?? 0) >= 1)
       .map((a) => ({ album: a, count: playCounts[a.id] }))
       .sort((a, b) => b.count - a.count);
     if (withPlays.length < 5) return [];
-    return withPlays.slice(0, 5);
+    return withPlays.slice(0, 10);
   }, [albums, playCounts]);
 
-  // Recently played
+  // Recently played — most recent first, up to 10
   const recentlyPlayed = useMemo(() => {
     return albums
       .filter((a) => !!lastPlayed[a.id])
       .sort((a, b) => new Date(lastPlayed[b.id]).getTime() - new Date(lastPlayed[a.id]).getTime())
-      .slice(0, 5);
+      .slice(0, 10);
   }, [albums, lastPlayed]);
 
   // Tabbed lists — replaces the old stacked Top Played / Recently Played /
@@ -1206,6 +1207,16 @@ function ListeningActivitySection({
     return t;
   }, [topPlayed, recentlyPlayed, neglected]);
   const activeTab = listTabs.some((t) => t.id === tab) ? tab : listTabs[0]?.id;
+
+  // One expand state for the whole tab container — 5 rows collapsed, up to 10
+  // expanded. Deliberately shared across tabs so the container height carries
+  // over when switching.
+  const [showAll, setShowAll] = useState(false);
+  const visibleCount = showAll ? 10 : 5;
+  const activeFullCount =
+    activeTab === "top" ? topPlayed.length :
+    activeTab === "recent" ? recentlyPlayed.length :
+    activeTab === "unplayed" ? neglected.length : 0;
 
   const monthName = new Date().toLocaleDateString("en-US", { month: "long" });
 
@@ -1399,117 +1410,78 @@ function ListeningActivitySection({
             >
               {activeTab === "top" && (
                 <div className="flex flex-col gap-2">
-                  {topPlayed.map((item) => (
-                    <motion.button
-                      key={item.album.id}
-                      variants={riseItem}
-                      onClick={() => onAlbumTap(item.album.id)}
-                      className="flex items-center gap-3 rounded-[10px] p-2.5 transition-colors text-left"
-                      style={{
-                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(22,24,28,0.04)",
-                        touchAction: "manipulation",
-                      }}
-                    >
-                      <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden flex-shrink-0">
-                        <img loading="lazy" decoding="async" src={item.album.cover || item.album.thumb} alt={item.album.title} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                        <p
-                          style={{ fontSize: "15px", fontWeight: 600, color: "var(--c-text)", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
-                        >
-                          {item.album.title}
-                        </p>
-                        <p
-                          className="mt-0.5"
-                          style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}
-                        >
-                          {item.album.artist}
-                        </p>
-                        <p className="mt-1" style={{ fontSize: "13px", fontWeight: 600, color: "#3E9842", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                          {item.count} {item.count === 1 ? "play" : "plays"}
-                        </p>
-                      </div>
-                    </motion.button>
+                  {topPlayed.slice(0, visibleCount).map((item) => (
+                    <ListeningCard key={item.album.id} album={item.album} isDark={isDarkMode} onTap={() => onAlbumTap(item.album.id)}>
+                      <p className="mt-1" style={{ fontSize: "13px", fontWeight: 600, color: "#3E9842", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                        {item.count} {item.count === 1 ? "play" : "plays"}
+                      </p>
+                    </ListeningCard>
                   ))}
                 </div>
               )}
 
               {activeTab === "recent" && (
                 <div className="flex flex-col gap-2">
-                  {recentlyPlayed.map((a) => (
-                    <motion.button
-                      key={a.id}
-                      variants={riseItem}
-                      onClick={() => onAlbumTap(a.id)}
-                      className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
-                      style={{
-                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
-                        touchAction: "manipulation",
-                      }}
-                    >
-                      <div className="w-11 h-11 rounded-[6px] overflow-hidden flex-shrink-0">
-                        <img loading="lazy" decoding="async" src={a.thumb || a.cover} alt={a.title} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                        <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                          {a.title}
+                  {recentlyPlayed.slice(0, visibleCount).map((a) => {
+                    const count = playCounts[a.id] ?? 0;
+                    return (
+                      <ListeningCard key={a.id} album={a} isDark={isDarkMode} onTap={() => onAlbumTap(a.id)}>
+                        <p className="mt-1" style={{ fontSize: "13px", fontFamily: "'DM Sans', system-ui, sans-serif", ...truncateStyle }}>
+                          {count >= 1 && (
+                            <span style={{ fontWeight: 600, color: "#3E9842" }}>
+                              {count} {count === 1 ? "play" : "plays"}
+                              <span aria-hidden style={{ color: "var(--c-text-muted)", fontWeight: 400 }}> · </span>
+                            </span>
+                          )}
+                          <span style={{ fontWeight: 400, color: "var(--c-text-muted)" }}>
+                            Played {formatDateShort(lastPlayed[a.id])}
+                          </span>
                         </p>
-                        <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                          {a.artist}
-                        </p>
-                        <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                          Played {formatDateShort(lastPlayed[a.id])}
-                        </p>
-                      </div>
-                    </motion.button>
-                  ))}
+                      </ListeningCard>
+                    );
+                  })}
                 </div>
               )}
 
               {activeTab === "unplayed" && (
-                <>
-                  <div className="flex flex-col gap-2">
-                    {neglected.map((item) => (
-                      <motion.button
-                        key={item.album.id}
-                        variants={riseItem}
-                        onClick={() => onAlbumTap(item.album.id)}
-                        className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left"
-                        style={{
-                          backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
-                          touchAction: "manipulation",
-                        }}
-                      >
-                        <div className="w-10 h-10 rounded-[6px] overflow-hidden flex-shrink-0">
-                          <img loading="lazy" decoding="async" src={item.album.thumb || item.album.cover} alt={item.album.title} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                          <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                            {item.album.title}
-                          </p>
-                          <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                            {item.album.artist}
-                          </p>
-                          <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>
-                            {item.label}
-                          </p>
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-                  {neverPlayedCount > neglected.length && (
-                    <button
-                      onClick={onNeverPlayedTap}
-                      className="mt-3 tappable transition-colors"
-                      style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-link)", background: "none", border: "none", padding: 0, touchAction: "manipulation" }}
-                    >
-                      See all {neverPlayedCount}
-                    </button>
-                  )}
-                </>
+                <div className="flex flex-col gap-2">
+                  {neglected.slice(0, visibleCount).map((item) => (
+                    <ListeningCard key={item.album.id} album={item.album} isDark={isDarkMode} onTap={() => onAlbumTap(item.album.id)}>
+                      <p className="mt-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", ...truncateStyle }}>
+                        {item.label}
+                      </p>
+                    </ListeningCard>
+                  ))}
+                </div>
               )}
             </motion.div>
           </AnimatePresence>
+
+          {/* Show more expands the shared container (up to 10 rows) — the
+              expansion carries across tabs. No Spins keeps its jump into the
+              filtered Collection view. */}
+          {(activeFullCount > 5 || (activeTab === "unplayed" && neverPlayedCount > neglected.length)) && (
+            <div className="mt-3 flex items-center gap-5">
+              {activeFullCount > 5 && (
+                <button
+                  onClick={() => setShowAll((v) => !v)}
+                  className="tappable transition-colors"
+                  style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-link)", background: "none", border: "none", padding: 0, touchAction: "manipulation" }}
+                >
+                  {showAll ? "Show less" : "Show more"}
+                </button>
+              )}
+              {activeTab === "unplayed" && neverPlayedCount > neglected.length && (
+                <button
+                  onClick={onNeverPlayedTap}
+                  className="tappable transition-colors"
+                  style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-link)", background: "none", border: "none", padding: 0, touchAction: "manipulation" }}
+                >
+                  See all {neverPlayedCount}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1645,10 +1617,11 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         )}
       </div>
 
-      {/* Legend — carries the exact counts the old 2×2 grid held */}
-      <div className="flex flex-wrap items-center mt-3" style={{ columnGap: "16px", rowGap: "6px" }}>
+      {/* Legend — one row, all four counts spread across the width (Unrated
+          wrapping onto its own line read as a mistake) */}
+      <div className="flex flex-wrap items-center justify-between mt-3" style={{ columnGap: "10px", rowGap: "6px" }}>
         {legend.map((l) => (
-          <div key={l.tag} className="flex items-center" style={{ gap: "6px" }}>
+          <div key={l.tag} className="flex items-center" style={{ gap: "5px" }}>
             <span
               style={{
                 width: "9px",
