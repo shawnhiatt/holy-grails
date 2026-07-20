@@ -57,7 +57,7 @@ All documented as legacy in CLAUDE.md; none are load-bearing for new writes. Gro
 | `users.session_token`, `users.session_created_at` + the `by_session_token` index and the legacy fallback in `authHelper.ts:24–56` | `convex/schema.ts:30,54` | ~October 2026 — 90 days after the `auth_sessions` migration (v0.6.0, July 2026), when every legacy single-token session has aged past `SESSION_TTL_MS`. Check prod for any user rows still lacking an `auth_sessions` row first. |
 | `collection.marketValue`, `collection.marketValueFetchedAt`, `users.market_cursor` + the migration read in `market_values.ts:38` | `convex/schema.ts:51,161` | Once the one-time `seedFromCollection` migration is confirmed complete in **prod** (every legacy per-user value has a `market_values` row). Verify in the Convex dashboard, then drop the fields and the migration branch. |
 | `preferences.hide_gallery_meta` | `convex/schema.ts:202`, plus write plumbing at `convex/preferences.ts:25,48–49,67` | Now. The swiper view and its Settings toggle are gone; nothing reads it. Delete the schema field and the three plumbing sites together. |
-| `collection.pricePaid` | `convex/schema.ts:143` + ~10 plumb-through sites (`convex/discogs.ts:246,350,944`, `convex/collection.ts:38,91,123,145,327,359`, `app-context.tsx:648,1219,1250`, `discogs-api.ts:33`, `following-screen.tsx:98,1525`, test factories) | Decision needed. It is schema-**required**, always `""`, and the Spending feature built on it was deleted. Either drop it end-to-end (larger diff, cleanest) or leave it as documented-dead (current state). If kept, nothing further; if dropped, note the `stacks.test.ts:67` fixture also fakes a value. |
+| `collection.pricePaid` | `convex/schema.ts:143` + ~10 plumb-through sites (`convex/discogs.ts:246,350,944`, `convex/collection.ts:38,91,123,145,327,359`, `app-context.tsx:648,1219,1250`, `discogs-api.ts:33`, `following-screen.tsx:98,1525`, test factories) | **Decided (July 2026): drop it end-to-end** — it's a per-user Discogs custom field, never universal data. Schema change (field currently required) → `npx convex deploy` both deployments; note the `stacks.test.ts:67` fixture also fakes a value. Own session. |
 
 ### M4 — Surface-tinting rule violations (Color System rule 5)
 
@@ -98,5 +98,5 @@ All global-layer values in code match the CLAUDE.md hierarchy table. Remaining `
 - [ ] **CLAUDE.md corrections** — file tree, phantom `proxyFetchCollection`, oauth-helpers comment (L2/L3). Doc-only session.
 - [ ] **October 2026: legacy session fields** — calendar item; verify prod, then delete fields + fallback (M3).
 - [ ] **After prod migration check: legacy market-value fields** (M3).
-- [ ] **Decide `pricePaid`:** drop end-to-end or keep documented-dead (M3).
+- [ ] **Drop `pricePaid` end-to-end** (decided July 2026) — schema field, plumb-through sites, test fixtures; schema change → deploy both deployments (M3).
 - [ ] **Token stragglers** — `purge-colors.ts:51`, the two rule-5 tints, detached-component hex documentation (M4/L1). Fits the next dedicated color-audit pass.

@@ -50,7 +50,7 @@ User Lists endpoints are entirely unused. One-shot import of a Discogs list into
 
 ## Flagged, not recommended now
 
-- **Cover-photo recognition** (Record Scanner/Groovv table stakes): no Discogs API for it — needs a third-party vision service or model. New dependency + cost + accuracy risk. **SCOPE DECISION**; barcode scan already covers the barcode era. Revisit if store-companion usage grows.
+- **Cover-photo recognition** — ~~SCOPE DECISION~~ **decided and shipped (July 2026)**: built as the Look It Up scanner's Cover mode, powered by the Claude API (`convex/vision.ts`, `claude-haiku-4-5`). Shawn approved the external-service dependency explicitly.
 - **Artist/label discography pages** (Artist/Label endpoints): explicitly out of scope (database browsing). The Look It Up master/versions flow already covers the add-and-price path.
 - **Listening logs beyond last-played**: explicitly out of scope; #1/#7 deliberately use only the existing `playCounts`/`last_played` data.
 - **Push notifications**: real PWA capability (iOS 16.4+), but a scope and infra decision (service, permissions UX) — decide alongside #8, not inside it.

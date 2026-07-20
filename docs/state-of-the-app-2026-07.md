@@ -40,11 +40,10 @@ The market moved favorably this year: the official Discogs app's 2025 redesign g
 7. Album-detail freebies: release videos, rarity signal (features #9/#10)
 8. Shareable stat cards (features #5) — the growth loop starter
 
-**Waiting on a decision from Shawn:**
-- Email Discogs about commercial permission? (Unblocks all monetization thinking; costs nothing.)
-- Monetization posture — recommendation is patronage now, one-time unlock later if beta retention proves out (monetization option C → B)
-- `pricePaid`: drop end-to-end or leave documented-dead
-- Cover-photo recognition: category table stakes, but new dependency + cost — explicit scope decision
+**Decided (July 2026, same session):**
+- Monetization posture: **cost-recovery** — free until usage grows past a couple of friends, then charge to cover infra. Discogs outreach approved; draft email in `docs/monetization-plan.md`. Shawn-owned action: send it.
+- `pricePaid`: **drop end-to-end** — queued in the hygiene execution checklist.
+- Cover-photo recognition: **approved and built** — shipped as the Look It Up scanner's Cover mode (`vision.identifyCover`, Claude API). Shawn setup remaining: create the Anthropic API key, `npx convex env set ANTHROPIC_API_KEY` on both deployments, deploy.
 
 **Calendared:**
 - ~Oct 2026: delete legacy session fields (after prod verification)

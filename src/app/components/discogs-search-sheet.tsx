@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties }
 import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { motion } from "motion/react";
-import { Disc3, ArrowLeft, Check, X, ScanBarcode, History, SlidersHorizontal } from "./icons";
+import { Disc3, ArrowLeft, Camera, Check, X, ScanBarcode, History, SlidersHorizontal } from "./icons";
+import { toast } from "sonner";
 // Bundled locally so the decoder never fetches from a CDN (PWA/CSP-safe);
 // the module itself is dynamic-imported only when the scanner opens
 import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
@@ -152,6 +153,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   const searchAction = useAction(api.discogs.proxySearchDatabase);
   const versionsAction = useAction(api.discogs.proxyFetchMasterVersions);
   const warmAction = useAction(api.discogs.warm);
+  const identifyCoverAction = useAction(api.vision.identifyCover);
 
   // Spin up the "use node" runtime while the user is still typing, so the
   // first search doesn't pay the container cold start on top of the query
@@ -419,6 +421,27 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     setShowScanner(false);
     setQuery(code);
   }, []);
+
+  // Cover mode: a captured frame goes to the identifyCover action; a hit
+  // lands "Artist Title" in the search box (the debounced master-first
+  // search takes it from there). Returns true when handled (scanner closes),
+  // false to keep the scanner open for a retry.
+  const handleCoverCapture = useCallback(async (imageBase64: string): Promise<boolean> => {
+    if (!sessionToken) return false;
+    try {
+      const res = await identifyCoverAction({ sessionToken, imageBase64 });
+      if (res.ok) {
+        setShowScanner(false);
+        setQuery(`${res.artist} ${res.title}`);
+        return true;
+      }
+      toast.error(res.reason === "unconfigured" ? "Cover scan isn't set up." : "Couldn't read that cover.", { duration: 2000 });
+      return false;
+    } catch {
+      toast.error("Couldn't read that cover.", { duration: 2000 });
+      return false;
+    }
+  }, [identifyCoverAction, sessionToken]);
 
   // Pinned "most collected" pressing — max community have-count across
   // loaded, unfiltered versions
@@ -848,7 +871,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                               touchAction: "manipulation",
                             }}
                           >
-                            scan a barcode
+                            scan a barcode or cover
                           </button>
                         </>
                       )}
@@ -970,7 +993,11 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       )}
 
       {showScanner && (
-        <BarcodeScanner onDetect={handleScanDetect} onClose={() => setShowScanner(false)} />
+        <BarcodeScanner
+          onDetect={handleScanDetect}
+          onCoverCapture={handleCoverCapture}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </motion.div>
   );
@@ -1070,12 +1097,21 @@ function PressingFilterDrawer({
    own origin). Media barcodes are 1D EAN/UPC only (a scanned CD now finds its
    release too). A detected code lands in the search box, where the barcode
    heuristic routes it to release search. */
-function BarcodeScanner({ onDetect, onClose }: {
+// Two-mode camera overlay: continuous zxing barcode decode (Barcode) or a
+// shutter-captured frame sent to the identifyCover action (Cover). One camera
+// stream serves both — the mode toggle flips a ref so switching never
+// restarts the stream, and the decode loop simply skips frames in Cover mode.
+function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
   onDetect: (code: string) => void;
+  onCoverCapture: (imageBase64: string) => Promise<boolean>;
   onClose: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraError, setCameraError] = useState(false);
+  const [mode, setMode] = useState<"barcode" | "cover">("barcode");
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const [isIdentifying, setIsIdentifying] = useState(false);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -1102,7 +1138,7 @@ function BarcodeScanner({ onDetect, onClose }: {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         const tick = async () => {
           if (stopped || !ctx) return;
-          if (video.readyState >= 2 && video.videoWidth > 0) {
+          if (modeRef.current === "barcode" && video.readyState >= 2 && video.videoWidth > 0) {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);
@@ -1135,6 +1171,49 @@ function BarcodeScanner({ onDetect, onClose }: {
     };
   }, [onDetect]);
 
+  // Shutter: grab the current frame downscaled to ≤768px on the long edge
+  // (plenty for identification, keeps the upload small), pause the preview
+  // while the action runs, resume on failure so the user can reframe.
+  const handleShutter = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || video.videoWidth === 0 || isIdentifying) return;
+    const scale = Math.min(1, 768 / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageBase64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+    if (!imageBase64) return;
+    video.pause();
+    setIsIdentifying(true);
+    const handled = await onCoverCapture(imageBase64);
+    if (!handled) {
+      setIsIdentifying(false);
+      video.play().catch(() => { /* stream may already be gone on unmount */ });
+    }
+  }, [onCoverCapture, isIdentifying]);
+
+  const modePill = (target: "barcode" | "cover", label: string, icon: React.ReactNode) => (
+    <button
+      onClick={() => setMode(target)}
+      className="flex items-center gap-1.5 rounded-full tappable cursor-pointer"
+      style={{
+        padding: "6px 14px",
+        fontSize: "13px",
+        fontWeight: 600,
+        color: mode === target ? "#16181C" : "rgba(255,255,255,0.9)",
+        backgroundColor: mode === target ? "#FFFFFF" : "transparent",
+        touchAction: "manipulation",
+      }}
+      aria-pressed={mode === target}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+
   return (
     <div className="absolute inset-0 z-20" style={{ backgroundColor: "#000" }}>
       <video
@@ -1144,21 +1223,62 @@ function BarcodeScanner({ onDetect, onClose }: {
         muted
       />
       {!cameraError ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <div
+              style={{
+                width: "78%",
+                maxWidth: "360px",
+                aspectRatio: mode === "barcode" ? "1.9" : "1",
+                border: "2px solid rgba(255,255,255,0.9)",
+                borderRadius: "14px",
+                boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+              }}
+            />
+            <p className="mt-4" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
+              {mode === "barcode" ? "Point at the barcode" : "Frame the cover"}
+            </p>
+          </div>
+          {/* Mode toggle — top center, clear of the close button */}
           <div
+            className="absolute left-1/2 flex rounded-full"
             style={{
-              width: "78%",
-              maxWidth: "360px",
-              aspectRatio: "1.9",
-              border: "2px solid rgba(255,255,255,0.9)",
-              borderRadius: "14px",
-              boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+              top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+              transform: "translateX(-50%)",
+              backgroundColor: "rgba(0,0,0,0.45)",
+              backdropFilter: "blur(6px)",
+              padding: "3px",
             }}
-          />
-          <p className="mt-4" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
-            Point at the barcode
-          </p>
-        </div>
+          >
+            {modePill("barcode", "Barcode", <ScanBarcode size={16} weight={mode === "barcode" ? "bold" : "light"} />)}
+            {modePill("cover", "Cover", <Camera size={16} weight={mode === "cover" ? "bold" : "light"} />)}
+          </div>
+          {mode === "cover" && (
+            <button
+              onClick={handleShutter}
+              disabled={isIdentifying}
+              className="absolute left-1/2 rounded-full tappable cursor-pointer"
+              style={{
+                bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)",
+                transform: "translateX(-50%)",
+                width: "64px",
+                height: "64px",
+                border: "4px solid rgba(255,255,255,0.9)",
+                backgroundColor: isIdentifying ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
+                touchAction: "manipulation",
+              }}
+              aria-label="Capture cover"
+            />
+          )}
+          {isIdentifying && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ backgroundColor: "rgba(0,0,0,0.35)" }}>
+              <Disc3 className="disc-spinner" size={32} color="#FFFFFF" />
+              <p className="mt-3" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
+                Identifying...
+              </p>
+            </div>
+          )}
+        </>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center px-8">
           <p className="text-center" style={{ fontSize: "14px", color: "rgba(255,255,255,0.8)" }}>

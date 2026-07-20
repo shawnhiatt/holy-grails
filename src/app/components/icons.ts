@@ -18,6 +18,7 @@ export {
   ArrowLeftIcon as ArrowLeft,
   ChartBarIcon as BarChart3,
   CalendarIcon as Calendar,
+  CameraIcon as Camera,
   CheckIcon as Check,
   CheckCircleIcon as CheckCircle2,
   CaretDownIcon as ChevronDown,

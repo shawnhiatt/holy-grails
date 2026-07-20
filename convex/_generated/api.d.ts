@@ -25,6 +25,7 @@ import type * as purge_tags from "../purge_tags.js";
 import type * as stacks from "../stacks.js";
 import type * as syncStatus from "../syncStatus.js";
 import type * as users from "../users.js";
+import type * as vision from "../vision.js";
 import type * as want_priorities from "../want_priorities.js";
 import type * as wantlist from "../wantlist.js";
 
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   stacks: typeof stacks;
   syncStatus: typeof syncStatus;
   users: typeof users;
+  vision: typeof vision;
   want_priorities: typeof want_priorities;
   wantlist: typeof wantlist;
 }>;

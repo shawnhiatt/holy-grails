@@ -1,6 +1,6 @@
-# Holy Grails — Monetization Plan (Exploratory), July 2026
+# Holy Grails — Monetization Plan, July 2026
 
-**Status: options to react to, not a commitment.** This maps what a free/paid split could look like, what it would cost to build, and the one hard gate that comes before any of it. Pricing benchmarks come from `docs/competitor-landscape.md`; scaling economics from `docs/growth-readiness.md`.
+**Status: posture decided — cost-recovery.** Shawn's call (July 2026): free for himself and one or two others; if usage grows beyond that, charging becomes necessary because database/storage/monitoring costs scale with users. Revenue goal is covering infrastructure, not profit — option C below now, escalating toward B (one-time unlock) or A (subscription) only if costs demand it. **Discogs outreach is approved** — Shawn will send the email (draft in the appendix). This maps what a free/paid split could look like, what it would cost to build, and the one hard gate that comes before any of it. Pricing benchmarks come from `docs/competitor-landscape.md`; scaling economics from `docs/growth-readiness.md`.
 
 ---
 
@@ -57,8 +57,27 @@ Ranked by defensibility (HG-native derivation > convenience > restricted-data-de
 - **Payments**: Stripe Checkout + a webhook → Convex HTTP action setting the entitlement. No App Store cut applies (PWA) — but see `growth-readiness.md` on the account-recovery problem *before* taking anyone's money: a paying user who loses Discogs access currently loses everything.
 - **Refund/support surface**: a support email at minimum. Selling creates obligations the current zero-comms setup can't meet.
 
-## Open questions for Shawn
+## Decisions (answered July 2026)
 
-1. Is revenue the actual goal, or is sustainability (covering costs) the goal? (Determines A/B/C.)
-2. Comfortable emailing Discogs to ask? (Costs nothing, unblocks everything, and the answer shapes which features can gate.)
-3. If charging: is the small-circle-of-friends era over? Paid tiers and friend-beta dynamics mix awkwardly — friends should probably be grandfathered free.
+1. ~~Revenue vs sustainability?~~ **Sustainability.** Costs covered = success; the tier design should be the lightest structure that recoups infra spend at each scale step.
+2. ~~Email Discogs?~~ **Yes — approved.** Draft below; Shawn sends it from hello@shawnhiatt.com.
+3. Still open: if charging starts, are early friends grandfathered free? (Recommend yes — decide when the first invoice from Convex/Sentry actually arrives.)
+
+## Appendix — draft Discogs outreach email
+
+To: api@discogs.com (verify the current contact on discogs.com/developers before sending) · From: hello@shawnhiatt.com
+
+> Subject: Commercial-use permission question — Holy Grails (personal Discogs companion app)
+>
+> Hi,
+>
+> I'm Shawn Hiatt, an independent designer. I built Holy Grails (holygrails.app), a web app that helps collectors curate their collections — deciding what to keep or sell, planning listening sessions, and looking up pressings while digging. It syncs with Discogs via OAuth: every user authenticates with their own Discogs account and their own token, requests respect the per-token rate limits, and no Discogs data is redistributed — each user only sees their own collection (plus friends who opt in).
+>
+> Today it's free and serves a handful of friends. If it grows, hosting and database costs will scale with users, and I'd want to charge a modest fee purely to cover those costs. Before doing that, I want to make sure I'm on the right side of your API Terms of Use, so two questions:
+>
+> 1. May I charge users of an app that integrates the Discogs API in this way (personal collection tools built on each user's own OAuth token)?
+> 2. If yes — may marketplace data (lowest ask, price suggestions) appear in the paid app, or must those surfaces stay free / be removed?
+>
+> Happy to share more detail about the app or adjust anything about how it uses the API. Thanks for the database — it's the foundation this whole hobby runs on.
+>
+> Shawn

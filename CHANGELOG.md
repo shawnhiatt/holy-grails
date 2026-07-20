@@ -6,6 +6,21 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ## [Unreleased]
 
+### Added
+- **Cover scan in Look It Up** — the barcode scanner gained a second mode:
+  point the camera at an album cover, tap the shutter, and the pressing lands
+  in the normal search flow. A `Barcode | Cover` toggle sits at the top of the
+  scanner; Cover mode shows a square framing guide and shutter button. The
+  captured frame is downscaled client-side (≤768px JPEG) and identified
+  server-side by a new Convex action (`vision.identifyCover`) calling the
+  Claude API (`claude-haiku-4-5`, structured output) — covers without
+  barcodes (most pre-mid-80s pressings) are now searchable from a photo.
+  Failures degrade to a toast and a retry; the barcode path is unchanged.
+  **Requires `npx convex deploy`** (new `convex/vision.ts`) and the
+  `ANTHROPIC_API_KEY` Convex env var on both deployments — without the key
+  the feature toasts "Cover scan isn't set up." New server-only dependency:
+  `@anthropic-ai/sdk` (never shipped to the client bundle).
+
 ### Changed
 - **All formats** — Holy Grails now syncs every media format Discogs supports
   (CD, cassette, shellac, box sets, files, …), not just vinyl. The old
