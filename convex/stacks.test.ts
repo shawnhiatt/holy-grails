@@ -64,7 +64,6 @@ async function seedAlbum(
       format: "Vinyl, LP",
       mediaCondition: "VG+",
       sleeveCondition: "VG",
-      pricePaid: "42.00",
       notes: "secret personal note",
       dateAdded: "2024-01-01T00:00:00-08:00",
       ...overrides,
@@ -231,7 +230,6 @@ describe("getShared", () => {
       "tok-dj",
       "secret personal note",
       "VG+", // mediaCondition
-      "42.00", // pricePaid
     ]) {
       expect(serialized).not.toContain(leak);
     }

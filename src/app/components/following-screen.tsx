@@ -95,7 +95,6 @@ function slimToAlbum(r: FollowedItemRow): Album {
     format: r.format ?? "",
     mediaCondition: "",
     sleeveCondition: "",
-    pricePaid: "",
     notes: "",
     dateAdded: r.dateAdded,
     discogsUrl: `https://www.discogs.com/release/${r.release_id}`,
@@ -1522,7 +1521,6 @@ function PopulatedFollowingView({
           mediaCondition: "",
           sleeveCondition: "",
           notes: "",
-          pricePaid: "",
           instance_id: 0,
         };
         results.push({

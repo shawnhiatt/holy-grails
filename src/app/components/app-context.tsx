@@ -645,7 +645,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         format: row.format,
         mediaCondition: row.mediaCondition,
         sleeveCondition: row.sleeveCondition,
-        pricePaid: row.pricePaid,
         notes: row.notes,
         customFields: row.customFields,
         dateAdded: row.dateAdded,
@@ -1216,7 +1215,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       format: result.format ?? "",
       mediaCondition: "",
       sleeveCondition: "",
-      pricePaid: "",
       notes: "",
       // Custom field definitions (empty values) ride along from the add
       // action so they're editable immediately, not only after the next sync
@@ -1247,7 +1245,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       format: newAlbum.format,
       mediaCondition: newAlbum.mediaCondition,
       sleeveCondition: newAlbum.sleeveCondition,
-      pricePaid: newAlbum.pricePaid,
       notes: newAlbum.notes,
       customFields: newAlbum.customFields,
       dateAdded: newAlbum.dateAdded,

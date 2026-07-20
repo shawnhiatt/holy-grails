@@ -35,7 +35,6 @@ export const replaceAll = mutation({
         format: v.string(),
         mediaCondition: v.string(),
         sleeveCondition: v.string(),
-        pricePaid: v.string(),
         notes: v.string(),
         customFields: v.optional(
           v.array(v.object({
@@ -88,7 +87,6 @@ const albumFields = {
   format: v.string(),
   mediaCondition: v.string(),
   sleeveCondition: v.string(),
-  pricePaid: v.string(),
   notes: v.string(),
   customFields: v.optional(
     v.array(v.object({
@@ -120,7 +118,6 @@ type AlbumInput = {
   format: string;
   mediaCondition: string;
   sleeveCondition: string;
-  pricePaid: string;
   notes: string;
   customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
   dateAdded: string;
@@ -142,7 +139,6 @@ function albumSignature(a: AlbumInput | Record<string, unknown>): string {
     (a as AlbumInput).format,
     (a as AlbumInput).mediaCondition,
     (a as AlbumInput).sleeveCondition,
-    (a as AlbumInput).pricePaid,
     (a as AlbumInput).notes,
     (a as AlbumInput).customFields ?? null,
     (a as AlbumInput).dateAdded,
@@ -324,7 +320,6 @@ export const addItem = mutation({
     format: v.string(),
     mediaCondition: v.string(),
     sleeveCondition: v.string(),
-    pricePaid: v.string(),
     notes: v.string(),
     customFields: v.optional(
       v.array(v.object({
@@ -356,7 +351,6 @@ export const addItem = mutation({
       format: args.format,
       mediaCondition: args.mediaCondition,
       sleeveCondition: args.sleeveCondition,
-      pricePaid: args.pricePaid,
       notes: args.notes,
       customFields: args.customFields,
       dateAdded: args.dateAdded,

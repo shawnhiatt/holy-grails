@@ -30,7 +30,6 @@ export interface Album {
   format: string;
   mediaCondition: string;
   sleeveCondition: string;
-  pricePaid: string;
   notes: string;
   /** Arbitrary user-defined Discogs custom fields (e.g. "Acquired From", "Last Cleaned") */
   customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];

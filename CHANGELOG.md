@@ -70,6 +70,19 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
   but never used (`animate-in`/`fade-in`/`slide-in-*`/`zoom-*` appear nowhere).
   Import removed and the package uninstalled; every visitor was downloading its
   CSS for nothing.
+- **`collection.pricePaid`** — dropped end-to-end. It was hardcoded `""` at sync
+  and never populated (Discogs exposes price paid only as a per-user custom
+  field), so it was permanently inert. Removed from the `Album` type, the sync
+  mapping, the collection cache mutations, and all client/test plumbing. Because
+  it's a required field on every existing collection doc, the Convex schema field
+  was made `v.optional` (not deleted) so the deploy passes; the schema line can be
+  removed after a clear-then-redeploy pass strips it from stored docs.
+  **Requires `npx convex deploy`** to both deployments.
+- **`preferences.hide_gallery_meta` write plumbing** — the swiper view it
+  controlled and its Settings toggle were removed releases ago; nothing read or
+  wrote it. Removed from `preferences.upsert`; the schema field was made
+  `v.optional` legacy pending the same clear-then-redeploy pass.
+  **Requires `npx convex deploy`.**
 
 ---
 

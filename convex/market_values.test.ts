@@ -40,7 +40,6 @@ const collectionRow = (
   format: "Vinyl, LP",
   mediaCondition: "VG+",
   sleeveCondition: "VG",
-  pricePaid: "",
   notes: "",
   dateAdded: "2024-01-01T00:00:00-08:00",
   ...overrides,

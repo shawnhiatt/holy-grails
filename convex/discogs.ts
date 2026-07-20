@@ -243,7 +243,6 @@ interface ProxyAlbum {
   format: string;
   mediaCondition: string;
   sleeveCondition: string;
-  pricePaid: string;
   notes: string;
   customFields?: { name: string; value: string; fieldId: number; type: string; options?: string[] }[];
   dateAdded: string;
@@ -347,7 +346,6 @@ function mapRelease(
     format: flattenFormats(bi.formats),
     mediaCondition: mediaCondition.join(" · "),
     sleeveCondition: sleeveCondition.join(" · "),
-    pricePaid: "",
     notes: noteValues.join(" · "),
     customFields: customFields.length > 0 ? customFields : undefined,
     dateAdded: r.date_added ? r.date_added.split("T")[0] : "",
@@ -941,7 +939,6 @@ export const syncSelf = action({
             format: a.format,
             mediaCondition: a.mediaCondition,
             sleeveCondition: a.sleeveCondition,
-            pricePaid: a.pricePaid,
             notes: a.notes,
             customFields: a.customFields,
             dateAdded: a.dateAdded,

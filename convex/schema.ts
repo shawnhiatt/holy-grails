@@ -140,7 +140,11 @@ export default defineSchema({
     format: v.string(),
     mediaCondition: v.string(),
     sleeveCondition: v.string(),
-    pricePaid: v.string(),
+    // LEGACY: hardcoded "" at sync and never populated — Discogs exposes price
+    // paid only as a per-user custom field, not universal data. All read/write
+    // plumbing is gone. Made optional so new rows omit it; delete this line
+    // after a clear-then-redeploy pass strips it from existing docs.
+    pricePaid: v.optional(v.string()),
     notes: v.string(),
     customFields: v.optional(v.array(v.object({
       name: v.string(),

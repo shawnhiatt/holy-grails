@@ -21,7 +21,6 @@ export function makeAlbum(overrides: Partial<Album> = {}): Album {
     format: "Vinyl, LP",
     mediaCondition: "",
     sleeveCondition: "",
-    pricePaid: "",
     notes: "",
     dateAdded: "2024-01-01T00:00:00-08:00",
     discogsUrl: "",
