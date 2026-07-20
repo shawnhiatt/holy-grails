@@ -134,7 +134,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 - `syncFollowedUser` — fetches a followed user's collection (folder 0, `skipPrivateFields` semantics) + wantlist and replaces their `followed_items` rows in chunks. Detects private collections (403 → `is_private` on the `following` row) and refreshes the stored avatar.
 - **Adaptive rate limiting** — `discogsFetch` reads `X-Discogs-Ratelimit-Remaining` and backs off progressively as the 60/min budget drains (full speed with headroom, sleeps near the floor, 429 retry as backstop). The old fixed 1.1s sleep between pages is gone; do not re-add fixed sleeps to server-side pagination loops.
 
-**Self-operation username derivation:** Actions that operate on the authenticated user's own data (collection value, instance updates, folder moves/management, collection add/remove, wantlist add/remove, profile update) build their Discogs URLs from `creds.username` returned by `getUserCredentials` — the client-supplied `username` argument is accepted for backward compatibility but ignored. Only the cross-user read actions (`proxyFetchUserProfile`, `proxyFetchCollection`, `proxyFetchWantlist`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`) honor the `username` argument, since they are also used to fetch followed users' data.
+**Self-operation username derivation:** Actions that operate on the authenticated user's own data (collection value, instance updates, folder moves/management, collection add/remove, wantlist add/remove, profile update) build their Discogs URLs from `creds.username` returned by `getUserCredentials` — the client-supplied `username` argument is accepted for backward compatibility but ignored. Only the cross-user read actions (`proxyFetchUserProfile`, `proxyFetchWantlist`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`) honor the `username` argument, since they are also used to fetch followed users' data.
 
 `proxyAddToCollection` — action #19. POSTs to `/users/{username}/collection/folders/{folder_id}/releases/{release_id}`. Defaults to folder 1 (Uncategorized). Returns `instance_id`. Caller inserts album into local state and Convex collection cache — no full re-sync.
 
@@ -243,6 +243,7 @@ src/
       no-discogs-card.tsx
       offline-banner.tsx   # Banner shown when device has no network connection; uses z-[115]
       oauth-helpers.ts   # OAuth 1.0a initiation — kicks off Discogs redirect (no signing, just calls convex/oauth.ts)
+      private-data-card.tsx  # Empty-state note when a followed user's (or the owner's own) Discogs collection/wantlist is not browsable — Discogs 403s even for the owner's token. Instructional copy only, no discogs.com link. Used by crate-browser and wantlist private/empty states. Matches NoDiscogsCard's card treatment.
       purge-colors.ts
       purge-tracker.tsx
       purge-verdict-buttons.tsx  # Shared Keep/Maybe/Cut verdict button row — solid fill = selected verdict, tag-colored outline = unselected, icons Check/HelpCircle/StackMinus (weight bold). Used by the feed evaluator and album detail Rate for Purge; any new verdict UI must use this component, never bespoke buttons.
@@ -631,6 +632,8 @@ The session picker and other components that render outside the main `<main>` el
 - loading-screen.tsx
 
 `#181B21` (dark, v0.7 cool gray — a hair lighter than `--c-surface`, matching the prior detached-vs-surface relationship) and `#FFFFFF` (light) are the correct surface values for detached components. Do not change these to `var(--c-surface)` without first verifying CSS variable inheritance in that rendering context.
+
+For the same detached reason, these components also hardcode the dark-mode **border/chip/text** equivalents rather than referencing `--c-border-strong`/`--c-chip-bg`/`--c-text` tokens (which would not resolve outside the root cascade): `#333941` (border-strong equivalent), `#2A2E36`/`#191C22` (chip/recessed surface equivalents), and `#E2E8F0` (text equivalent). They appear in `slide-out-panel.tsx`, `purge-tracker.tsx`, `add-albums-drawer.tsx`, `stack-picker-sheet.tsx`, and `wantlist-crossover-prompt.tsx`. These are the blessed detached-context values alongside the surface pair — do not migrate them to tokens without verifying variable inheritance, and do not flag them as color-doctrine violations.
 
 ### App-Level CSS Custom Properties
 

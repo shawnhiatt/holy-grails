@@ -22,6 +22,21 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
   `@anthropic-ai/sdk` (never shipped to the client bundle).
 
 ### Changed
+- **Gray retheme (v0.7)** — the dark surface family is no longer navy. The whole
+  dark background ramp is now derived in Oklab from a single cool near-neutral
+  gray anchor (`#14171D`), so the app/brand no longer reads as "blue" while every
+  layer keeps the same subtle cool tint. Light-mode navy text and chrome
+  (`#0C284A`) became a cool near-neutral black (`#16181C`); the UnicornScene
+  pre-auth background's navy gradient stops were neutralized to the gray family;
+  the WebGL fallback and `--app-bg` values moved off navy. Accent pops (yellow
+  link, pink destructive, cyan/pink/yellow accents, ice-blue active state) are
+  unchanged — the color lives in the accents, not the surfaces. The logo wordmark
+  is a fixed brand asset and was left untouched. This shipped in app code without
+  a changelog entry; the PWA shell had been missed and is corrected here:
+  `site.webmanifest` `theme_color`/`background_color` and the light-scheme
+  `theme-color` meta moved off navy `#0c284a` so the installed PWA no longer
+  flashes navy before render. A couple of stray `rgba(19,43,68,…)` navy borders
+  were also migrated to the gray family.
 - **All formats** — Holy Grails now syncs every media format Discogs supports
   (CD, cassette, shellac, box sets, files, …), not just vinyl. The old
   vinyl-only filter was a data-layer filter that discarded non-vinyl items
@@ -40,6 +55,21 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
   Nothing to run. **Requires `npx convex deploy`** (schema gained optional
   `format` fields on wantlist/followed-items/following-feed rows and a
   `format_scope` preference; the sync actions stop filtering).
+
+### Removed
+- **Dead shadcn-era styling layer** — the unused shadcn/ui token block in
+  `theme.css` (`--card`, `--popover`, `--primary`, `--destructive: #DC2626`,
+  `--chart-1..5`, the whole `@theme inline` color/font-family map) and the
+  `@custom-variant dark` rule (dark mode is JS-driven, no `.dark` class exists)
+  had zero component consumers. Removed; the two internal consumers were
+  repointed to real tokens (focus-outline ring → `var(--c-link)`, base `body`
+  color → `var(--c-text)`) and the two base font weights inlined. The one live
+  token — the `rounded-lg` border-radius (0.625rem) — was preserved. `rounded-lg`
+  renders identically.
+- **`tw-animate-css`** — a shadcn-era dependency imported once in `tailwind.css`
+  but never used (`animate-in`/`fade-in`/`slide-in-*`/`zoom-*` appear nowhere).
+  Import removed and the package uninstalled; every visitor was downloading its
+  CSS for nothing.
 
 ---
 

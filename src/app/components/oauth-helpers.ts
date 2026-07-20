@@ -9,7 +9,8 @@
  *
  * sessionStorage is used only for the transient request-token secret that
  * bridges the redirect. It is cleared immediately after the callback completes.
- * All persistent data lives in Convex — no localStorage is used anywhere.
+ * Persistent app data lives in Convex; the few permitted localStorage keys
+ * (session token, account list, install-nudge flag) are documented in CLAUDE.md.
  */
 
 /**
