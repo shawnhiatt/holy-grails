@@ -10,6 +10,7 @@
 
 import type * as authHelper from "../authHelper.js";
 import type * as collection from "../collection.js";
+import type * as coverIdentity from "../coverIdentity.js";
 import type * as crons from "../crons.js";
 import type * as discogs from "../discogs.js";
 import type * as discogsHelpers from "../discogsHelpers.js";
@@ -38,6 +39,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   authHelper: typeof authHelper;
   collection: typeof collection;
+  coverIdentity: typeof coverIdentity;
   crons: typeof crons;
   discogs: typeof discogs;
   discogsHelpers: typeof discogsHelpers;
