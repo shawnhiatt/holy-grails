@@ -22,7 +22,6 @@ export const upsert = mutation({
       v.union(v.literal("light"), v.literal("dark"), v.literal("system"))
     ),
     hide_purge_indicators: v.optional(v.boolean()),
-    hide_gallery_meta: v.optional(v.boolean()),
     shake_to_random: v.optional(v.boolean()),
     view_mode: v.optional(v.string()),
     want_view_mode: v.optional(v.string()),
@@ -45,8 +44,6 @@ export const upsert = mutation({
       if (args.theme !== undefined) updates.theme = args.theme;
       if (args.hide_purge_indicators !== undefined)
         updates.hide_purge_indicators = args.hide_purge_indicators;
-      if (args.hide_gallery_meta !== undefined)
-        updates.hide_gallery_meta = args.hide_gallery_meta;
       if (args.shake_to_random !== undefined)
         updates.shake_to_random = args.shake_to_random;
       if (args.view_mode !== undefined) updates.view_mode = args.view_mode;
@@ -64,7 +61,6 @@ export const upsert = mutation({
       discogs_username: user.discogs_username,
       theme: args.theme ?? "system",
       hide_purge_indicators: args.hide_purge_indicators ?? false,
-      hide_gallery_meta: args.hide_gallery_meta ?? false,
       shake_to_random: args.shake_to_random ?? false,
       ...(args.recent_searches !== undefined ? { recent_searches: args.recent_searches } : {}),
       ...(args.format_scope !== undefined ? { format_scope: args.format_scope } : {}),

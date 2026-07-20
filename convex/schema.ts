@@ -199,7 +199,11 @@ export default defineSchema({
     discogs_username: v.string(),
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("system")),
     hide_purge_indicators: v.boolean(),
-    hide_gallery_meta: v.boolean(),
+    // LEGACY: controlled the removed swiper gallery view; the Settings toggle
+    // is gone and nothing reads or writes it anymore. Made optional so new
+    // preference rows omit it. Delete this line after a clear-then-redeploy
+    // pass strips the field from existing docs (same dance as market_cursor).
+    hide_gallery_meta: v.optional(v.boolean()),
     shake_to_random: v.optional(v.boolean()),
     view_mode: v.optional(v.string()),
     want_view_mode: v.optional(v.string()),
