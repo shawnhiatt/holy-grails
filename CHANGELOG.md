@@ -4,7 +4,7 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
-## [Unreleased]
+## [0.6.1] — 2026-07-20
 
 ### Added
 - **Cover scan in Look It Up** — the barcode scanner gained a second mode:
