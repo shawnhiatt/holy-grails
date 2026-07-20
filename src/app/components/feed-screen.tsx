@@ -1117,7 +1117,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               borderRadius: "50%",
               bottom: "-6px",
               left: "-6px",
-              border: `2px solid ${isDarkMode ? "rgba(19,43,68,0.65)" : "rgba(255,255,255,0.65)"}`,
+              border: `2px solid ${isDarkMode ? "oklab(from #14171D l a b / 0.65)" : "rgba(255,255,255,0.65)"}`,
               backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
             }}
           >

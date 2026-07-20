@@ -48,7 +48,7 @@ export function purgeTagBorder(tag: string, isDark: boolean): string {
 export function purgeTagLabel(tag: string, isDark: boolean): string {
   switch (tag) {
     case "keep":    return isDark ? "#E2E8F0" : "#16181C";
-    case "cut":     return isDark ? "#AAB0BA" : "#9BA4B2";
+    case "cut":     return isDark ? "#AAB0BA" : "#70747C";
     case "maybe":   return isDark ? "#E2E8F0" : "#16181C";
     case "unrated": return isDark ? "#E2E8F0" : "#16181C";
     default:        return isDark ? "#E2E8F0" : "#16181C";

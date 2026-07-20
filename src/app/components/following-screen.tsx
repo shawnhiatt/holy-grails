@@ -838,7 +838,7 @@ function FollowedUserProfile({
                       onClick={() => handleOpenAlbum(album)}
                       className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left cursor-pointer"
                       style={{
-                        backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
+                        backgroundColor: "var(--c-chip-bg)",
                         touchAction: "manipulation",
                       }}
                     >
@@ -888,7 +888,7 @@ function FollowedUserProfile({
                     onClick={() => handleOpenAlbum(album)}
                     className="flex items-center gap-3 rounded-[8px] p-2 transition-colors text-left cursor-pointer"
                     style={{
-                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(22,24,28,0.03)",
+                      backgroundColor: "var(--c-chip-bg)",
                       touchAction: "manipulation",
                     }}
                   >
@@ -1845,7 +1845,7 @@ function PopulatedFollowingView({
                       borderRadius: "50%",
                       bottom: "-6px",
                       left: "-6px",
-                      border: `2px solid ${isDarkMode ? "rgba(19,43,68,0.65)" : "rgba(255,255,255,0.65)"}`,
+                      border: `2px solid ${isDarkMode ? "oklab(from #14171D l a b / 0.65)" : "rgba(255,255,255,0.65)"}`,
                       backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
                     }}
                   >
