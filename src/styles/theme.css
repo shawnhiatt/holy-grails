@@ -1,5 +1,3 @@
-@custom-variant dark (&:is(.dark *));
-
 :root {
   /* ─── Animation tokens ─── */
   --ease-out:     cubic-bezier(0.25, 1, 0.5, 1);
@@ -11,75 +9,22 @@
   --duration-slow:    300ms;
 
   --font-size: 16px;
-  --background: #F9F9FA;
-  --foreground: #16181C;
-  --card: #FFFFFF;
-  --card-foreground: #16181C;
-  --popover: #FFFFFF;
-  --popover-foreground: #16181C;
-  --primary: #0078B4;
-  --primary-foreground: #FFFFFF;
-  --secondary: #EFF1F3;
-  --secondary-foreground: #16181C;
-  --muted: #EFF1F3;
-  --muted-foreground: #70747C;
-  --accent: #EBFD00;
-  --accent-foreground: #242A13;
-  --destructive: #DC2626;
-  --destructive-foreground: #FFFFFF;
-  --border: #D7DADE;
-  --input: transparent;
-  --input-background: #FFFFFF;
-  --switch-background: #BAC2CB;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: #0078B4;
-  --chart-1: #0078B4;
-  --chart-2: #3E9842;
-  --chart-3: #DC2626;
-  --chart-4: #D1E21A;
-  --chart-5: #B8CB1F;
-  --radius: 0.625rem;
 }
 
-@theme inline {
-  --font-family-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-family-display: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-input-background: var(--input-background);
-  --color-switch-background: var(--switch-background);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+/* Border-radius scale — `rounded-lg` (the only radius utility used in the app)
+   resolves to this. The rest of the shadcn-era token layer (colors, charts,
+   font-family maps) was removed as dead — nothing consumed it. */
+@theme {
+  --radius-lg: 0.625rem;
 }
 
 @layer base {
+  /* The --c-* theme tokens are applied on <main> (App.tsx), not :root, so at
+     this global scope --c-link is out of range — the fallback keeps the prior
+     app-wide focus-outline color (the old --ring, #0078B4) on pre-auth/nav
+     surfaces, while elements inside <main> pick up the theme-aware link color. */
   * {
-    outline-color: color-mix(in srgb, var(--color-ring) 50%, transparent);
+    outline-color: color-mix(in srgb, var(--c-link, #0078B4) 50%, transparent);
   }
 
   /* Text selection — ensure white text on blue highlight for readability */
@@ -90,7 +35,9 @@
 
   body {
     background-color: transparent;
-    color: var(--color-foreground);
+    /* --c-text lives on <main>, not :root; the fallback preserves the prior
+       global body color (the old --foreground) for anything outside <main>. */
+    color: var(--c-text, #16181C);
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   }
 
@@ -124,25 +71,25 @@
 
   h4 {
     font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
+    font-weight: 500;
     line-height: 1.5;
   }
 
   label {
     font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
+    font-weight: 500;
     line-height: 1.5;
   }
 
   button {
     font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
+    font-weight: 500;
     line-height: 1.5;
   }
 
   input {
     font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
+    font-weight: 400;
     line-height: 1.5;
   }
 }
