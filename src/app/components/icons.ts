@@ -49,6 +49,7 @@ export {
   ArrowsClockwiseIcon as RefreshCw,
   ArrowCounterClockwiseIcon as RotateCcw,
   BarcodeIcon as ScanBarcode,
+  ScanIcon as Scan, // generic scan affordance (barcode + cover) — corner-bracket frame
   ScissorsIcon as Scissors,
   MagnifyingGlassIcon as Search,
   ShareFatIcon as Share,
