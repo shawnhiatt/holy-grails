@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties }
 import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { motion } from "motion/react";
-import { Disc3, ArrowLeft, Camera, Check, X, ScanBarcode, History, SlidersHorizontal } from "./icons";
+import { Disc3, ArrowLeft, Camera, Check, X, Scan, ScanBarcode, History, SlidersHorizontal } from "./icons";
 import { toast } from "sonner";
 // Bundled locally so the decoder never fetches from a CDN (PWA/CSP-safe);
 // the module itself is dynamic-imported only when the scanner opens
@@ -729,9 +729,9 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                   onClick={() => { inputRef.current?.blur(); setShowScanner(true); }}
                   className="w-10 h-10 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
                   style={{ color: "var(--c-text)", touchAction: "manipulation" }}
-                  aria-label="Scan barcode"
+                  aria-label="Scan barcode or cover"
                 >
-                  <ScanBarcode size={20} />
+                  <Scan size={22} />
                 </button>
               )}
             </div>
@@ -1112,6 +1112,19 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const [isIdentifying, setIsIdentifying] = useState(false);
+  // Barcode decode is silent on failure — after ~7s with no read, surface a
+  // hint so the moment doesn't read as broken. Resets whenever barcode mode
+  // (re)starts; a successful read unmounts the scanner before it fires.
+  const [showBarcodeHint, setShowBarcodeHint] = useState(false);
+  useEffect(() => {
+    if (mode !== "barcode" || cameraError) {
+      setShowBarcodeHint(false);
+      return;
+    }
+    setShowBarcodeHint(false);
+    const t = window.setTimeout(() => setShowBarcodeHint(true), 7000);
+    return () => clearTimeout(t);
+  }, [mode, cameraError]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -1235,9 +1248,31 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
                 boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
               }}
             />
-            <p className="mt-4" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
-              {mode === "barcode" ? "Point at the barcode" : "Frame the cover"}
-            </p>
+            {mode === "barcode" && showBarcodeHint ? (
+              <div className="mt-4 flex flex-col items-center gap-2 px-8 pointer-events-auto">
+                <p className="text-center" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)", lineHeight: 1.4 }}>
+                  No barcode found. Steady the shot in good light.
+                </p>
+                <button
+                  onClick={() => setMode("cover")}
+                  className="rounded-full tappable cursor-pointer"
+                  style={{
+                    padding: "7px 16px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#16181C",
+                    backgroundColor: "#FFFFFF",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  Scan the cover instead
+                </button>
+              </div>
+            ) : (
+              <p className="mt-4" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
+                {mode === "barcode" ? "Point at the barcode" : "Frame the cover"}
+              </p>
+            )}
           </div>
           {/* Mode toggle — top center, clear of the close button */}
           <div
