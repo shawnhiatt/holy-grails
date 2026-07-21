@@ -1112,7 +1112,7 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const [isIdentifying, setIsIdentifying] = useState(false);
-  // Barcode decode is silent on failure — after ~8s with no read, surface a
+  // Barcode decode is silent on failure — after ~7s with no read, surface a
   // hint so the moment doesn't read as broken. Resets whenever barcode mode
   // (re)starts; a successful read unmounts the scanner before it fires.
   const [showBarcodeHint, setShowBarcodeHint] = useState(false);
@@ -1122,7 +1122,7 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
       return;
     }
     setShowBarcodeHint(false);
-    const t = window.setTimeout(() => setShowBarcodeHint(true), 8000);
+    const t = window.setTimeout(() => setShowBarcodeHint(true), 7000);
     return () => clearTimeout(t);
   }, [mode, cameraError]);
 
