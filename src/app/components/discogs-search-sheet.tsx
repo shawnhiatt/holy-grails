@@ -1276,10 +1276,19 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
                   Scan the cover instead
                 </button>
               </div>
-            ) : (
+            ) : mode === "barcode" ? (
               <p className="mt-4" style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
-                {mode === "barcode" ? "Point at the barcode" : "Frame the cover"}
+                Point at the barcode
               </p>
+            ) : (
+              <div className="mt-4 flex flex-col items-center gap-1 px-8">
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>
+                  Frame the cover
+                </p>
+                <p className="text-center" style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.65)" }}>
+                  Include the title or hype sticker
+                </p>
+              </div>
             )}
           </div>
           {/* Mode toggle — top center, clear of the close button */}
