@@ -6,10 +6,13 @@
     accuracy ever disappoints — cost is the reason Haiku was chosen. */
 export const COVER_MODEL = "claude-haiku-4-5";
 
-/** What the model is asked to do. Short on purpose — the structured-output
-    schema does the shaping, the prompt just sets the task. */
+/** What the model is asked to do. The structured-output schema does the
+    shaping; the prompt sets the task and — critically — tells the model to
+    fall back to transcribing printed text when it doesn't recognize the
+    release (most scans are obscure pressings the model has never seen, so
+    reading the cover text is the common path, not the exception). */
 export const COVER_PROMPT =
-  "Identify the album from this photo of its cover. Return the primary artist name and album title exactly as they would appear in a music database. If you cannot identify the album with reasonable confidence, set identified to false.";
+  "This is a photo of a record album cover. Identify the release: first try to recognize it; if you don't recognize it, read the artist name and album title directly from the text printed on the cover and transcribe them exactly as printed, even if the type is stylized. Return the primary artist and album title as they would appear in a music database. Only set identified to false when there is no readable artist/title text on the cover AND you do not recognize the album.";
 
 /** Strict JSON schema for the structured output. `additionalProperties: false`
     + required on every field guarantees the response parses into the shape

@@ -1184,20 +1184,28 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
     };
   }, [onDetect]);
 
-  // Shutter: grab the current frame downscaled to ≤768px on the long edge
-  // (plenty for identification, keeps the upload small), pause the preview
-  // while the action runs, resume on failure so the user can reframe.
+  // Shutter: grab the largest centered SQUARE of the current frame (the
+  // framing guide is a centered square, and object-cover centers the video,
+  // so a centered-square crop is what's inside the guide) and downscale to
+  // ≤1280px. Cropping to the square instead of sending the whole 4:3/16:9
+  // frame makes the cover fill the image, and 1280 (up from 768) keeps small
+  // stylized cover type legible — both matter because most scans are read by
+  // OCR, not recognized. Pause the preview while the action runs, resume on
+  // failure so the user can reframe.
   const handleShutter = useCallback(async () => {
     const video = videoRef.current;
     if (!video || video.readyState < 2 || video.videoWidth === 0 || isIdentifying) return;
-    const scale = Math.min(1, 768 / Math.max(video.videoWidth, video.videoHeight));
+    const side = Math.min(video.videoWidth, video.videoHeight);
+    const sx = (video.videoWidth - side) / 2;
+    const sy = (video.videoHeight - side) / 2;
+    const target = Math.min(1280, side);
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.width = target;
+    canvas.height = target;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageBase64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+    ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
+    const imageBase64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
     if (!imageBase64) return;
     video.pause();
     setIsIdentifying(true);
