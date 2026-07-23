@@ -2,9 +2,13 @@
    own plain module (no Convex deps) so the "use node" vision action and the
    vitest suite can both import it — same pattern as marketValue.ts. */
 
-/** Model for cover identification. One-line bump to "claude-opus-4-8" if
-    accuracy ever disappoints — cost is the reason Haiku was chosen. */
-export const COVER_MODEL = "claude-haiku-4-5";
+/** Model for cover identification. Sonnet 5 reads stylized/letterpress cover
+    type and small hype-sticker text far better than Haiku did, and its
+    high-resolution vision suits the OCR-fallback path — Haiku plateaued on
+    exactly those covers. Cover scans are rare, deliberate shutter presses, so
+    the per-scan cost of Sonnet over Haiku is negligible. Bump to
+    "claude-opus-4-8" if accuracy ever still disappoints. */
+export const COVER_MODEL = "claude-sonnet-5";
 
 /** What the model is asked to do. The structured-output schema does the
     shaping; the prompt sets the task and — critically — tells the model to
