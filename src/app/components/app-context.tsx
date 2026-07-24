@@ -18,6 +18,7 @@ import {
   type MediaType,
 } from "./discogs-api";
 import { initiateDiscogsOAuth, oauthInFlight } from "./oauth-helpers";
+import { recordScreen } from "../lib/screen-trail";
 import {
   type StoredAccount,
   parseAccounts,
@@ -965,6 +966,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setScreen = useCallback((s: Screen) => {
     setScreenRaw(s);
+    recordScreen(s); // breadcrumb for bug reports — see lib/screen-trail.ts
     setShowAlbumDetail(false);
     setShowFilterDrawer(false);
     setSelectedAlbumId(null);

@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as authHelper from "../authHelper.js";
+import type * as bugReports from "../bugReports.js";
 import type * as collection from "../collection.js";
 import type * as coverIdentity from "../coverIdentity.js";
 import type * as crons from "../crons.js";
@@ -37,7 +39,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   authHelper: typeof authHelper;
+  bugReports: typeof bugReports;
   collection: typeof collection;
   coverIdentity: typeof coverIdentity;
   crons: typeof crons;

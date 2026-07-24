@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { authenticateUser, resolveSession, SESSION_TTL_MS } from "./authHelper";
+import { deleteReportsForUser } from "./bugReports";
 
 /**
  * Bootstrap query for session restore on cold load.
@@ -333,6 +334,10 @@ export const deleteAllUserData = mutation({
       .withIndex("by_username", (q) => q.eq("discogs_username", username))
       .collect();
     for (const row of syncStatus) await ctx.db.delete(row._id);
+
+    // Bug reports + their screenshots (Settings promises this removes
+    // everything on our side — reports carry the reporter's username)
+    await deleteReportsForUser(ctx, username);
 
     // All sessions (every device)
     const sessions = await ctx.db

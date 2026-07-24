@@ -1,11 +1,15 @@
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus, RefreshCw } from "./icons";
-import { getInitial } from "../utils/format";
+import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus, RefreshCw, Bug, Lightbulb, Tray } from "./icons";
+import { getInitial, formatSyncedAgo } from "../utils/format";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
+import { BugReportSheet } from "./bug-report-sheet";
+import { BugInboxScreen } from "./bug-inbox-screen";
 import { SlideOutPanel } from "./slide-out-panel";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { useApp } from "./app-context";
 import type { Screen, SortOption, FormatScope } from "./app-context";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
@@ -38,6 +42,7 @@ const FORMAT_SCOPE_OPTIONS: { value: FormatScope; label: string }[] = [
 export function SettingsScreen() {
   const {
     discogsUsername,
+    sessionToken,
     isSyncing,
     isBackgroundSyncing,
     syncProgress,
@@ -84,6 +89,16 @@ export function SettingsScreen() {
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const [motionDenied, setMotionDenied] = useState(false);
   const [showFolders, setShowFolders] = useState(false);
+
+  // ── Feedback ──
+  // The admin inbox is gated server-side (bugReports.listAll returns null for
+  // non-admins); amIAdmin only decides whether the row is worth rendering.
+  const [showBugReport, setShowBugReport] = useState(false);
+  const [showBugInbox, setShowBugInbox] = useState(false);
+  const authedArgs = sessionToken ? { sessionToken } : "skip";
+  const myReports = useQuery(api.bugReports.listMine, authedArgs);
+  const isAdmin = useQuery(api.bugReports.amIAdmin, authedArgs);
+  const inboxNewCount = useQuery(api.bugReports.newCount, authedArgs) ?? 0;
   const motionDeniedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Purge Cut dialog (execution lives in context via executePurgeCut)
@@ -279,6 +294,10 @@ export function SettingsScreen() {
 
   if (showFolders) {
     return <FoldersScreen onBack={() => setShowFolders(false)} />;
+  }
+
+  if (showBugInbox) {
+    return <BugInboxScreen onBack={() => setShowBugInbox(false)} />;
   }
 
   return (
@@ -855,9 +874,110 @@ export function SettingsScreen() {
                 If the app crashes, a technical error report reaches the developer so it can get fixed. It never includes your collection.
               </p>
               <p style={{ margin: 0 }}>
+                When you report a problem, we send your note along with your app version, device, and a few counts — you can see the full list before sending.
+              </p>
+              <p style={{ margin: 0 }}>
                 Want out? Delete All My Data above removes everything on our side, and you can revoke access anytime at discogs.com → Settings → Applications.
               </p>
             </div>
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <div className="rounded-[12px] p-4 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Feedback</h3>
+
+            <button
+              onClick={() => setShowBugReport(true)}
+              className="w-full flex items-center justify-between gap-3 py-2.5 text-left cursor-pointer"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Bug size={15} style={{ color: "var(--c-text-secondary)", flexShrink: 0 }} />
+                <div className="min-w-0">
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Report a problem</p>
+                  <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                    Something broke, or an idea. Sends what version and device you're on.
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} style={{ color: "var(--c-text-muted)", flexShrink: 0 }} />
+            </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => setShowBugInbox(true)}
+                className="w-full flex items-center justify-between gap-3 py-2.5 text-left cursor-pointer"
+                style={{ borderTop: "1px solid var(--c-border)" }}
+              >
+                <div className="flex items-center gap-2">
+                  <Tray size={15} style={{ color: "var(--c-text-secondary)" }} />
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Reports inbox</p>
+                  {inboxNewCount > 0 && (
+                    <span
+                      className="px-2 py-0.5 rounded-full"
+                      style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive-text)" }}
+                    >
+                      {inboxNewCount} new
+                    </span>
+                  )}
+                </div>
+                <ChevronRight size={16} style={{ color: "var(--c-text-muted)", flexShrink: 0 }} />
+              </button>
+            )}
+
+            {myReports && myReports.length > 0 && (
+              <div className="mt-1 pt-1 flex flex-col" style={{ borderTop: "1px solid var(--c-border)" }}>
+                <p className="py-1.5" style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--c-text-faint)" }}>
+                  Your reports
+                </p>
+                {myReports.slice(0, 5).map((report) => {
+                  const isFixed = report.status === "fixed";
+                  const isKnown = report.status === "known";
+                  const chipLabel = isFixed
+                    ? (report.kind === "idea" ? "Shipped" : "Fixed")
+                    : isKnown ? "Known" : "New";
+                  return (
+                    <div key={report._id} className="py-2" style={{ borderTop: "1px solid var(--c-border)" }}>
+                      <div className="flex items-start gap-2">
+                        {report.kind === "bug"
+                          ? <Bug size={14} style={{ color: "var(--c-text-faint)", flexShrink: 0, marginTop: "2px" }} />
+                          : <Lightbulb size={14} style={{ color: "var(--c-text-faint)", flexShrink: 0, marginTop: "2px" }} />}
+                        <p className="flex-1 min-w-0 line-clamp-2" style={{ fontSize: "13px", color: "var(--c-text-secondary)", lineHeight: 1.4 }}>
+                          {report.message}
+                        </p>
+                        <span
+                          className="px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            backgroundColor: isFixed
+                              ? "rgba(62,152,66,0.16)"
+                              : isKnown
+                                ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
+                                : "var(--c-chip-bg)",
+                            color: isFixed
+                              ? "#3E9842"
+                              : isKnown
+                                ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                                : "var(--c-text-muted)",
+                          }}
+                        >
+                          {chipLabel}
+                        </span>
+                      </div>
+                      {report.resolution_note && (
+                        <p className="mt-1 ml-6" style={{ fontSize: "12px", color: "var(--c-text-muted)", lineHeight: 1.4 }}>
+                          {report.resolution_note}
+                        </p>
+                      )}
+                      <p className="mt-1 ml-6" style={{ fontSize: "11px", color: "var(--c-text-faint)" }}>
+                        {formatSyncedAgo(report.created_at) ?? ""}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 
@@ -1074,6 +1194,10 @@ export function SettingsScreen() {
             </div>
           </SlideOutPanel>
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showBugReport && <BugReportSheet onClose={() => setShowBugReport(false)} />}
       </AnimatePresence>
     </div>
   );

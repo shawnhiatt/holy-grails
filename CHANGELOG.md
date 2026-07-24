@@ -4,6 +4,38 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## [0.7.0] — 2026-07-24
+
+### Added
+- **Report a problem** — bug reports and ideas can be filed from inside the app
+  (Settings → Feedback). A report carries the reporter's note plus the context
+  that makes it fixable: app version, the screens they moved through, installed
+  PWA vs browser tab, device/UA, viewport, theme, format scope, collection and
+  wantlist counts, last sync, connection state, account count, Discogs privacy
+  flags, and the last few JavaScript errors from the session. A "What gets sent"
+  disclosure lists that payload verbatim before sending — nothing about the
+  user's records, notes, or Discogs login is ever included. An optional
+  screenshot can be attached (downscaled client-side to ≤1600px, stored in
+  Convex file storage). Reporters see their own reports in Settings with a
+  New/Known/Fixed chip and any reply, so a filed report visibly goes somewhere.
+  **Requires `npx convex deploy`** (new `convex/bugReports.ts` + `bug_reports`
+  table).
+- **Reports inbox (admin)** — a Settings row, visible only to usernames in the
+  `HG_ADMIN_USERNAMES` Convex env var, opening a full triage view: every report
+  with its diagnostics, screenshot, and error trace, plus status controls and
+  delete. The gate is server-side — `bugReports.listAll` returns `null` for
+  everyone else, and the allowlist fails closed when the env var is unset.
+- **Client error buffer** — `report-error.ts` now keeps the last 10 errors of a
+  session in memory (plus global `error`/`unhandledrejection` listeners in
+  `main.tsx`), so a submitted report carries stack traces even when Sentry is
+  not configured. Memory only; never persisted.
+
+### Changed
+- **Delete All My Data** now also removes the user's bug reports and their
+  screenshots, keeping the Settings promise literally true.
+
+---
+
 ## [0.6.1] — 2026-07-20
 
 ### Added

@@ -231,6 +231,33 @@ export default defineSchema({
     updated_at: v.number(),
   }).index("by_username", ["discogs_username"]),
 
+  // In-app bug reports and ideas. One row per submission, authored by the
+  // authenticated reporter; only an admin (see admin.ts) can read other
+  // people's rows. `status` closes the loop — the reporter sees it on their
+  // own reports in Settings.
+  //
+  // `diagnostics` is a label/value list rather than a typed object on purpose:
+  // it is captured by the client, rendered verbatim in the inbox, and never
+  // queried on. Adding a new diagnostic line is a client change with no schema
+  // deploy and no optional-field archaeology.
+  bug_reports: defineTable({
+    discogs_username: v.string(),
+    kind: v.union(v.literal("bug"), v.literal("idea")),
+    message: v.string(),
+    status: v.union(v.literal("new"), v.literal("known"), v.literal("fixed")),
+    created_at: v.number(),
+    updated_at: v.optional(v.number()),
+    // Admin's short reply, shown back to the reporter beside the status chip.
+    resolution_note: v.optional(v.string()),
+    screenshot_id: v.optional(v.id("_storage")),
+    diagnostics: v.array(v.object({ label: v.string(), value: v.string() })),
+    // Last few client-side errors captured before the report was filed (see
+    // report-error.ts). Present even when Sentry is not configured.
+    recent_errors: v.optional(v.array(v.string())),
+  })
+    .index("by_username", ["discogs_username"])
+    .index("by_status", ["status"]),
+
   following_feed: defineTable({
     follower_username: v.string(),
     followed_username: v.string(),

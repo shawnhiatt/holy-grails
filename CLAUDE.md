@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.6.1
+# CLAUDE.md — Holy Grails v0.7.0
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -50,6 +50,7 @@ Do not introduce new dependencies without flagging it first. The existing stack 
 - Followed collections cache (`followed_items` table — slim rows of each followed user's collection + wantlist, written server-side by `discogs.syncFollowedUser`, read per-profile; sync metadata `is_private`/`collection_synced_at` lives on the `following` table)
 - Sync progress (`sync_status` table — one doc per user, written by the server-side sync loop, subscribed by the client for per-page progress)
 - User preferences (theme, hide purge indicators, shake to random, view mode, want view mode, default screen, default collection sort, recent Look It Up searches, format scope), keyed by `discogs_username`. The `hide_gallery_meta` field is legacy — its swiper view was removed and the Settings toggle deleted with it. Its write plumbing (`preferences.ts`) is gone and the schema field is now `v.optional` (nothing reads or writes it); the schema line can be deleted after a clear-then-redeploy pass strips it from existing docs. Do not resurface it.
+- Bug reports and ideas (`bug_reports` table — the reporter's note, `kind` (`bug`/`idea`), `status` (`new`/`known`/`fixed`), an optional admin `resolution_note`, an optional `screenshot_id` in Convex file storage, plus `diagnostics` and `recent_errors` captured client-side). Keyed by `discogs_username`. See the Bug Reports section below.
 - OAuth tokens (access token + token secret), `session_token`, `session_created_at`, `collection_value`, `collection_value_synced_at`, `discogs_avatar_url`, `created_at`, `last_synced_at`, stored in the `users` table
 
 ### Sessions Naming Note (feature name vs. internal names)
@@ -165,6 +166,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 - `DISCOGS_CONSUMER_KEY` — set on both `adventurous-crow-499` (dev) and `unique-sturgeon-566` (prod)
 - `DISCOGS_CONSUMER_SECRET` — set on both deployments
 - `ANTHROPIC_API_KEY` — Claude API key for the cover scan (`vision.identifyCover`); set on both deployments. Optional in the sense that the app runs without it — cover scan just reports itself unconfigured.
+- `HG_ADMIN_USERNAMES` — comma-separated Discogs usernames allowed to read the bug-report inbox (see Bug Reports). Optional and **fails closed**: unset means no admins and the inbox row never appears, so set it on both deployments or you won't see reports. Deliberately an env var, not a code constant — the repo may go public.
 
 Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (Settings > Environment Variables) or `npx convex env set KEY value`.
 
@@ -201,6 +203,7 @@ Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config
 - `authHelper.test.ts` — session-token guard: valid/unknown/empty/expired tokens, the 90-day TTL boundary, legacy single-token fallback, per-device sign-out isolation, and that `getMe`/`getLatestUser` never return `access_token`/`token_secret`/`session_token`.
 - `shareActivity.test.ts` — the Cross-User Data Pattern gate: unauthenticated viewers rejected, only `shareActivity === true` exposed, "not found" indistinguishable from "not opted in", no token leakage, and that viewers authenticated via the `auth_sessions` table (every fresh login) can read opted-in targets.
 - `stacks.test.ts` — the session-share capability gate: `getShared` returns only whitelisted display fields for a valid `share_id`, preserves album order, silently skips albums no longer in the collection, returns `null` for unknown/empty/revoked ids (revoked indistinguishable from unknown), `enableShare`/`disableShare` reject bad session tokens, `enableShare` is idempotent, and the payload never leaks username/tokens/notes/conditions/ids.
+- `bugReports.test.ts` — the app's first admin-gated surface: every function rejects an invalid session token, `listMine` returns only the caller's own reports, the `HG_ADMIN_USERNAMES` allowlist parses/matches case-insensitively and **fails closed when unset** (no substring matches), a non-admin gets `null` from `listAll` and "Not found." from `setStatus`/`remove`, the hourly rate limit and recent-error cap hold, and `users.deleteAllUserData` takes the reporter's reports with it.
 - `market_values.test.ts` — the shared per-release market-value drip (Spec 6A.1): `seedFromCollection` dedupes across owners + migrates legacy per-user values + is idempotent, `getDripBatch` returns never-fetched/stalest-first capped, `setValue` advances `fetchedAt` always and writes `value` only on success (preserving prior value on failure) + no-ops for a missing row, and `getForUser` scopes to the caller's own priced releases + rejects unauthenticated callers.
 
 **Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`, `mediaType` (format classifier), the Fisher–Yates `shuffle`, `insights.ts` (add-year bucketing for Collection Growth), and `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse). `convex/coverIdentity.test.ts` (plain node env — no convex-test/edge-runtime needed, it's a pure module) covers `parseCoverIdentity`: confident hit, trimming, `identified: false`, empty/non-string fields, junk payloads, over-length fields. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
@@ -224,6 +227,8 @@ src/
       alphabet-sidebar.tsx # Shared useAlphabetIndex hook + AlphabetSidebar component for album-grid and album-list. Optional onActivate fires when the user engages the A–Z strip — album-grid uses it to un-window the grid before jumping.
       app-context.tsx    # Global state — do not refactor without discussion. albums/wants reactively derive from Convex cache subscriptions.
       auth-callback.tsx  # OAuth callback handler — processes Discogs redirect and exchanges tokens
+      bug-report-sheet.tsx  # "Report a problem" sheet — Bug/Idea toggle, message, optional screenshot, "What gets sent" disclosure. See Bug Reports.
+      bug-inbox-screen.tsx  # Admin-only reports inbox (Settings subview, folders-screen pattern). Gated server-side by bugReports.listAll.
       crate-browser.tsx
       shuffle-album-card.tsx
       dominant-color-card.tsx  # Reusable card wrapper — extracts dominant color from album artwork via canvas, sets CSS custom properties (--dc-bg, --dc-text, etc.) for children. Uses /img-proxy/ to avoid CORS canvas tainting.
@@ -271,7 +276,8 @@ src/
     lib/
       dialog-stack.ts    # Module-level stack of open dialogs — Escape-closable overlays push/pop a token; only the TOPMOST responds to Escape (see Dialog Accessibility)
       monitoring.ts      # Sentry init (errors only) — lazy-loaded from main.tsx ONLY when VITE_SENTRY_DSN is set; registers itself as the reportError reporter
-      report-error.ts    # reportError() indirection — no-op until monitoring registers; call sites (App.tsx ErrorBoundary) report unconditionally
+      report-error.ts    # reportError() indirection — no-op until monitoring registers; call sites (App.tsx ErrorBoundary) report unconditionally. Also keeps a 10-entry in-memory ring buffer (getRecentErrors) that bug reports attach — see Bug Reports.
+      screen-trail.ts    # Module-level breadcrumb of recent screens, recorded from setScreen in app-context; attached to bug reports as "Where"
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
       safe-tap.ts        # Shared safeTap() helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards. NOT a hook (module-level touch state, no use* prefix) — it is deliberately callable inside .map() loops.
     utils/
@@ -290,7 +296,9 @@ src/
     theme.css
   main.tsx
 convex/                  # Convex backend functions and schema
+  admin.ts             # Pure admin allowlist (HG_ADMIN_USERNAMES) for the bug-report inbox — fails closed when unset
   authHelper.ts        # Central session-token auth guard — used by all guarded queries/mutations
+  bugReports.ts        # Bug reports/ideas: submit + listMine (reporter), listAll/newCount/setStatus/remove (admin-gated), generateUploadUrl (screenshots), deleteReportsForUser (called by users.deleteAllUserData)
   collection.ts        # Collection cache CRUD + diff sync (applyDiff)
   market_values.ts     # Shared per-release market value (Spec 6A.1): seedFromCollection/getDripBatch/setValue (internal, drip) + getForUser (public read for Insights)
   crons.ts             # Convex cron registry — daily marketValueDrip (Spec 6A.1)
@@ -580,6 +588,25 @@ viewer must:
 users who predate the field. It is not dismissable. `showSharePrompt` is
 derived reactively in `app-context.tsx` and clears automatically once
 `setShareActivity` resolves in Convex.
+
+---
+
+## Bug Reports
+
+In-app reporting (Settings → Feedback), built for the beta: a report that arrives with its own context beats "it felt broken once." It complements Sentry rather than duplicating it — Sentry catches crashes the user never mentions, this catches "this is wrong," which no crash reporter sees.
+
+**Submitting** (`bug-report-sheet.tsx`, a `SlideOutPanel` at z-80/85): a Bug/Idea toggle, one message field, an optional screenshot, and a **"What gets sent" disclosure that lists the exact payload** — keep that honesty if the diagnostics list changes. Attached automatically: app version, the screen trail, installed-PWA vs browser tab, UA, viewport, theme, format scope, collection/wantlist counts, last sync, online state, account count (when >1), Discogs privacy flags, and the session's recent client errors. Never include collection contents, notes, or anything auth-related.
+
+- **Screen trail** (`lib/screen-trail.ts`) — a module-level breadcrumb recorded from the single `setScreen` chokepoint in `app-context.tsx`. Reports are filed from Settings, so without it every report reads "screen: settings."
+- **Error buffer** (`lib/report-error.ts`) — `reportError()` and the global `error`/`unhandledrejection` listeners in `main.tsx` push into a 10-entry in-memory ring buffer; the sheet attaches it. Works with no Sentry DSN. Deliberately NOT persisted — a crash-then-reload loses it, and the localStorage whitelist stays closed.
+- **Screenshots** — downscaled client-side to ≤1600px JPEG, then uploaded to Convex file storage via `bugReports.generateUploadUrl`. The downscale is deliberately not shared with the Look It Up cover scanner's (that one crops a centered square from a video frame for the vision model — different input, different geometry).
+- **Status loop** — Settings lists the reporter's own reports with a New/Known/Fixed chip and any admin reply. For an idea, `fixed` renders as "Shipped."
+
+**Admin inbox** (`bug-inbox-screen.tsx`, a Settings subview following the `folders-screen.tsx` pattern): every report with diagnostics, screenshot, error trace, status controls, and delete.
+
+**The admin gate is server-side.** `convex/admin.ts` (pure, no Convex deps — `marketValue.ts` pattern) reads the `HG_ADMIN_USERNAMES` Convex env var, a comma-separated allowlist compared case-insensitively. It **fails closed**: unset means nobody is an admin. `bugReports.listAll` returns `null` for non-admins (indistinguishable from an empty inbox, per the Cross-User Data Pattern), `setStatus`/`remove` throw a bare "Not found.", and `amIAdmin` only decides whether the Settings row renders — never trust it as the gate. Do not move the allowlist into code: the repo may go public, and an admin list in git is permanent.
+
+`users.deleteAllUserData` deletes the caller's reports and their screenshots via `deleteReportsForUser` — "removes everything on our side" has to stay literally true. Submissions are rate-limited to 5 per reporter per hour, and a screenshot uploaded for a rejected submission is deleted rather than orphaned.
 
 ---
 
@@ -951,6 +978,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor mig
 | Add Albums drawer sheet | `z-[85]` | add-albums-drawer.tsx |
 | Add Albums drawer backdrop | `z-[80]` | add-albums-drawer.tsx |
 | Look It Up search panel (full-screen, no backdrop) | `z-[85]` | discogs-search-sheet.tsx |
+| Bug report sheet | `z-[85]` | bug-report-sheet.tsx |
+| Bug report backdrop | `z-[80]` | bug-report-sheet.tsx |
 | Filter drawer panel | `z-[70]` | filter-drawer.tsx |
 | Filter drawer backdrop | `z-[60]` | filter-drawer.tsx |
 | Desktop session picker | `z-50` | stack-picker-sheet.tsx |
@@ -998,6 +1027,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - `master_id` matching for "In Collection" and heart state across different pressings
 - **Standalone Discogs search ("Look It Up")** — `discogs-search-sheet.tsx`: master-first database search (all formats) with a drill-in pressing picker (server-side country/year/format filtering incl. a Format facet chip, pinned most-collected row), barcode-like queries routed to release search, handoff to `ReleaseDetailPanel`. Makes the app usable without touching Discogs — add to collection/wantlist and check market value from search results.
 - **Record-store price lookup** — shared Value section in `ReleaseDetailPanel` and `AlbumDetailPanel` (lowest ask + N-for-sale + VG/VG+/NM suggestions), shown entirely in-app (no outbound listings link — see the outbound-links rule).
+- **In-app bug reports** — Settings → Feedback files a bug or idea with automatic diagnostics, an optional screenshot, and a status the reporter can read back; an admin-gated inbox (`HG_ADMIN_USERNAMES`) triages them from inside the app. See Bug Reports.
 - Deployed to Vercel — live at holygrails.app (custom domain) and holy-grails.vercel.app
 
 ### What's Explicitly Out of Scope
