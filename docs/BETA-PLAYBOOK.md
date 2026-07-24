@@ -25,7 +25,7 @@ Work through these in order. Each is one focused session or less.
 
 4. **Fresh-account walkthroughs.** Run first-run end to end on: iPhone Safari (browser + installed PWA), Android Chrome, desktop. Use at least one Discogs account that is not yours, including the edge cases a stranger will hit — empty collection, no vinyl (CDs only), huge collection (1,000+). The zero-vinyl case has a fix; verify it held.
 
-5. **Pick ONE feedback channel.** A group chat (iMessage/WhatsApp/Discord) is right for 20 people. Pin a two-line note: "Something broke? Screenshot + what you tapped. Ideas welcome but bugs first."
+5. **Pick ONE feedback channel.** *(In-app reporting shipped in v0.7.0 — Settings → Feedback files a bug or idea with the version, device, screen trail, and session errors attached, plus an optional screenshot. Remaining: set the `HG_ADMIN_USERNAMES` Convex env var to your Discogs username on **both** deployments, or the Reports inbox row never appears and submissions pile up unread. Verify by filing one report from a second account.)* A group chat (iMessage/WhatsApp/Discord) is still worth having for conversation — but point testers at the in-app report for anything broken, since a chat message arrives without any of that context. Pin a two-line note: "Something broke? Settings → Report a problem. Ideas welcome but bugs first."
 
 6. **Tag the release.** Bump the version, update the changelog, tag it in git. Every bug report should be answerable with "which version?" — the Settings screen shows it (reads package.json automatically as of 0.6.0).
 
@@ -33,7 +33,7 @@ Work through these in order. Each is one focused session or less.
 
 ### During the beta
 
-- **Cadence:** twice a week, 30 minutes — Sentry issues, Convex logs, Convex dashboard usage (bandwidth/storage), feedback channel triage. Sort everything into *fix now* (broken flows, data issues) or *backlog* (polish, ideas). Resist mid-beta feature work; testers on a moving target produce noise.
+- **Cadence:** twice a week, 30 minutes — the in-app Reports inbox (Settings → Feedback, badged with the new count), Sentry issues, Convex logs, Convex dashboard usage (bandwidth/storage), feedback channel triage. Mark each report Known or Fixed as you go: the reporter sees that chip on their own report, which is what keeps people reporting instead of going quiet. Sort everything into *fix now* (broken flows, data issues) or *backlog* (polish, ideas). Resist mid-beta feature work; testers on a moving target produce noise.
 - **Releases:** patch versions, one concern per session, changelog entries — same discipline as now. `npx convex deploy` before Vercel whenever `convex/` changed. There is no downtime story needed; Vercel deploys are atomic and Convex migrations here are additive.
 - **Costs:** ~20 users is comfortably inside Convex and Vercel free tiers. Discogs rate limits are per user token — testers don't share your budget.
 - **If something breaks badly:** Vercel dashboard → previous deployment → "Promote to production" is the instant rollback. Convex functions roll back by re-deploying the previous git state. A single misbehaving account can be cleaned with `users.deleteAllUserData` semantics via the user themselves (Settings) — never edit their rows by hand.

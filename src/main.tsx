@@ -3,6 +3,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { IconContext } from "./app/components/icons";
 import App from "./app/App.tsx";
 import { initPwaUpdate } from "./app/lib/pwa-update";
+import { recordClientError } from "./app/lib/report-error";
 import "./styles/index.css";
 
 // Error monitoring boots lazily and only when a DSN is configured — the
@@ -11,6 +12,12 @@ const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 if (sentryDsn) {
   import("./app/lib/monitoring").then((m) => m.initMonitoring(sentryDsn));
 }
+
+// Keep uncaught errors in the bug-report buffer so a submitted report carries
+// the stack trace, not just the user's description. Recorded only (not routed
+// through reportError) — Sentry instruments these globals itself.
+window.addEventListener("error", (e) => recordClientError(e.error ?? e.message));
+window.addEventListener("unhandledrejection", (e) => recordClientError(e.reason));
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL;
 

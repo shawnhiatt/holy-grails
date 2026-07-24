@@ -60,6 +60,10 @@ export {
   BroomIcon as Broom, // the Purge feature identity — nav, Settings tile, unrated insight
   StackMinusIcon as StackMinus, // the "cut" purge verdict — remove from the stack
   ImageSquareIcon as ImageSquare, // sleeve/cover condition (Media uses the vinyl disc)
+  BugIcon as Bug, // report a problem — Settings row, report sheet
+  LightbulbIcon as Lightbulb, // the "idea" report kind, beside Bug
+  PaperclipIcon as Paperclip, // attach a screenshot to a report
+  TrayIcon as Tray, // the admin reports inbox
   StarIcon as Star,
   SunIcon as Sun,
   TrashIcon as Trash2,
