@@ -1220,7 +1220,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               className="flex-shrink-0 flex items-center gap-1.5"
               style={{ color: "var(--c-link)", padding: "4px" }}
             >
-              <GalleryVerticalEnd size={18} />
+              <GalleryVerticalEnd size={18} weight="fill" />
               <span
                 className="hidden lg:inline"
                 style={{
