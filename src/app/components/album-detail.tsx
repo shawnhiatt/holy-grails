@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import type React from "react";
 import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw, Music } from "./icons";
@@ -10,7 +10,7 @@ import { useApp } from "./app-context";
 import { purgeTagColor as getPurgeColor, purgeToast, purgeClearToast } from "./purge-colors";
 import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
-import { formatDateShort, isToday } from "./last-played-utils";
+import { formatDateShort, isToday, playCountLabel, playMonthLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
 import { useAction, useQuery } from "convex/react";
@@ -20,6 +20,11 @@ import { conditionGradeColor as conditionColor } from "../../lib/condition-color
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
+
+/* Play history: rows shown before "Show all", and the length past which the
+   full list gets month subheads so a long scroll has landmarks. */
+const PLAY_HISTORY_PREVIEW = 5;
+const PLAY_HISTORY_GROUP_THRESHOLD = 12;
 
 /* ─── Section label (uppercase eyebrow shared by all detail-panel sections) ─── */
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -275,6 +280,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const proxyFetchRelease = useAction(api.discogs.proxyFetchRelease);
   const [justPlayed, setJustPlayed] = useState(false);
   const [playHistoryExpanded, setPlayHistoryExpanded] = useState(false);
+  const [showAllPlays, setShowAllPlays] = useState(false);
   const [pastPlayPickerOpen, setPastPlayPickerOpen] = useState(false);
   const [selectedPastDate, setSelectedPastDate] = useState("");
   const [selectedPastTime, setSelectedPastTime] = useState("");
@@ -325,6 +331,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   useEffect(() => {
     setJustPlayed(false);
     setPlayHistoryExpanded(false);
+    setShowAllPlays(false);
     setStackListExpanded(false);
     setShowNewStack(false);
     setNewStackName("");
@@ -1256,13 +1263,20 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 {(playCounts[selectedAlbum.id] || 0) >= 1 && (
                   <div className="mt-3">
                     <button
-                      onClick={() => setPlayHistoryExpanded((v) => !v)}
+                      onClick={() => {
+                        setPlayHistoryExpanded((v) => {
+                          if (v) setShowAllPlays(false);
+                          return !v;
+                        });
+                      }}
                       className="w-full flex items-center gap-2 tappable"
                       style={{ touchAction: "manipulation" }}
                     >
-                      <Play size={14} style={{ color: "var(--c-text-secondary)", flexShrink: 0 }} />
                       <span style={{ flex: 1, textAlign: "left", fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)" }}>
-                        {playCounts[selectedAlbum.id] === 1 ? "1 Play" : `${playCounts[selectedAlbum.id]} Plays`}
+                        {playCountLabel(
+                          playCounts[selectedAlbum.id] || 0,
+                          playHistory?.length ? playHistory[playHistory.length - 1].played_at : undefined
+                        )}
                       </span>
                       <ChevronDown
                         size={14}
@@ -1285,18 +1299,60 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                 <Disc3 className="disc-spinner" size={16} style={{ color: "var(--c-text-muted)" }} />
                               </div>
                             ) : playHistory.length === 0 ? null : (
-                              playHistory.map((entry) => (
-                                <SwipeToDelete
-                                  key={entry._id}
-                                  onDelete={() => {
-                                    removePlay(entry._id, selectedAlbum.id, entry.played_at);
-                                  }}
-                                >
-                                  <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingLeft: "22px", paddingTop: "8px", paddingBottom: "8px", backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)" }}>
-                                    {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                                  </div>
-                                </SwipeToDelete>
-                              ))
+                              (() => {
+                                const grouped = showAllPlays && playHistory.length > PLAY_HISTORY_GROUP_THRESHOLD;
+                                const visible = showAllPlays ? playHistory : playHistory.slice(0, PLAY_HISTORY_PREVIEW);
+                                let lastMonth = "";
+                                return (
+                                  <>
+                                    {visible.map((entry) => {
+                                      const month = playMonthLabel(entry.played_at);
+                                      const showMonth = grouped && month !== lastMonth;
+                                      lastMonth = month;
+                                      return (
+                                        <Fragment key={entry._id}>
+                                          {showMonth && (
+                                            <p style={{ fontSize: "10px", fontWeight: 600, color: "var(--c-text-faint)", textTransform: "uppercase", letterSpacing: "0.06em", paddingTop: "10px", paddingBottom: "2px" }}>
+                                              {month}
+                                            </p>
+                                          )}
+                                          <SwipeToDelete
+                                            onDelete={() => {
+                                              removePlay(entry._id, selectedAlbum.id, entry.played_at);
+                                            }}
+                                          >
+                                            <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingTop: "8px", paddingBottom: "8px", backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)" }}>
+                                              {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                                            </div>
+                                          </SwipeToDelete>
+                                        </Fragment>
+                                      );
+                                    })}
+                                    {playHistory.length > PLAY_HISTORY_PREVIEW && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowAllPlays((v) => !v)}
+                                        className="w-full flex items-center gap-1 tappable"
+                                        style={{
+                                          fontSize: "12px",
+                                          fontWeight: 600,
+                                          color: "var(--c-link)",
+                                          fontFamily: "'DM Sans', system-ui, sans-serif",
+                                          paddingTop: "10px",
+                                          paddingBottom: "2px",
+                                          touchAction: "manipulation",
+                                        }}
+                                      >
+                                        {showAllPlays ? "Show less" : `Show all ${playHistory.length} plays`}
+                                        <ChevronDown
+                                          size={14}
+                                          style={{ transform: showAllPlays ? "rotate(180deg)" : "none", transition: "transform 150ms ease" }}
+                                        />
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              })()
                             )}
                           </div>
                         </motion.div>
