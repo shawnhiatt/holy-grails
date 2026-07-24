@@ -1117,8 +1117,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               borderRadius: "50%",
               bottom: "-6px",
               left: "-6px",
-              border: `2px solid ${isDarkMode ? "oklab(from #14171D l a b / 0.65)" : "rgba(255,255,255,0.65)"}`,
-              backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
+              border: `2px solid ${isDarkMode ? "oklab(from #101318 l a b / 0.65)" : "rgba(255,255,255,0.65)"}`,
+              backgroundColor: isDarkMode ? "#252931" : "#ACDEF2",
             }}
           >
             {item.followedAvatar ? (
@@ -2239,7 +2239,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     // Subtle lift behind the ticker strip — one perceptual step off the
     // canvas in each theme (Oklab-derived, per the color rules)
     const tickerBg = isDarkMode
-      ? "oklab(from #101318 calc(l + 0.03) a b)"
+      ? "oklab(from #0C0F13 calc(l + 0.03) a b)"
       : "oklab(from #F9F9FA calc(l - 0.025) a b)";
 
     const tickerStrip =

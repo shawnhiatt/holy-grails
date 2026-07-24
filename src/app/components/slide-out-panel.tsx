@@ -223,7 +223,7 @@ export function SlideOutPanel({
           bottom: "0px",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           maxHeight: "calc(100dvh - 58px)",
-          backgroundColor: isDarkMode ? "#181B21" : "#FFFFFF",
+          backgroundColor: isDarkMode ? "#14161C" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           ...getContentTokens(isDarkMode),
         } as MotionStyle}
@@ -235,7 +235,7 @@ export function SlideOutPanel({
         >
           <div
             className="w-10 h-1 rounded-full"
-            style={{ backgroundColor: isDarkMode ? "#333941" : "#D7DADE" }}
+            style={{ backgroundColor: isDarkMode ? "#2E343C" : "#D7DADE" }}
           />
         </div>
 

@@ -225,20 +225,20 @@ export function PurgeCutDialog({
         style={{
           zIndex: 89,
           maxHeight: "75vh",
-          backgroundColor: isDark ? "#181B21" : "#FFFFFF",
+          backgroundColor: isDark ? "#14161C" : "#FFFFFF",
           boxShadow: "var(--c-sheet-shadow)",
           "--c-sheet-shadow": isDark ? "0 -8px 32px rgba(0, 0, 0, 0.3)" : "0 -8px 32px rgba(22, 24, 28, 0.1)",
           "--c-text": isDark ? "#E2E8F0" : "#16181C",
           "--c-text-secondary": isDark ? "#AAB0BA" : "#565A61",
           "--c-text-muted": isDark ? "#868C96" : "#666A72",
-          "--c-border-strong": isDark ? "#333941" : "#868B93",
-          "--c-surface": isDark ? "#181B21" : "#FFFFFF",
-          "--c-chip-bg": isDark ? "#2A2E36" : "#EFF1F3",
+          "--c-border-strong": isDark ? "#2E343C" : "#868B93",
+          "--c-surface": isDark ? "#14161C" : "#FFFFFF",
+          "--c-chip-bg": isDark ? "#252931" : "#EFF1F3",
         } as React.CSSProperties}
       >
         {/* Grab handle */}
         <div className="flex justify-center py-3 flex-shrink-0">
-          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: isDark ? "#333941" : "#D7DADE" }} />
+          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: isDark ? "#2E343C" : "#D7DADE" }} />
         </div>
 
         {/* Header */}

@@ -28,8 +28,8 @@ export function purgeTagBg(tag: string, isDark: boolean): string {
     case "keep":    return isDark ? "rgba(62,152,66,0.15)"   : "#DAF8DF";
     case "cut":     return isDark ? "rgba(255,152,218,0.15)" : "#FFF0FA";
     case "maybe":   return isDark ? "rgba(172,222,242,0.15)" : "#E2F4FB";
-    case "unrated": return isDark ? "#191C22"                : "#F5F5F6";
-    default:        return isDark ? "#191C22"                : "#F5F5F6";
+    case "unrated": return isDark ? "#14171D"                : "#F5F5F6";
+    default:        return isDark ? "#14171D"                : "#F5F5F6";
   }
 }
 
@@ -39,8 +39,8 @@ export function purgeTagBorder(tag: string, isDark: boolean): string {
     case "keep":    return isDark ? "rgba(62,152,66,0.3)"    : "rgba(22,24,28,0.2)";
     case "cut":     return isDark ? "rgba(255,152,218,0.3)"  : "rgba(22,24,28,0.2)";
     case "maybe":   return isDark ? "rgba(172,222,242,0.3)"  : "rgba(22,24,28,0.2)";
-    case "unrated": return isDark ? "#333941"                : "rgba(22,24,28,0.2)";
-    default:        return isDark ? "#333941"                : "rgba(22,24,28,0.2)";
+    case "unrated": return isDark ? "#2E343C"                : "rgba(22,24,28,0.2)";
+    default:        return isDark ? "#2E343C"                : "rgba(22,24,28,0.2)";
   }
 }
 
@@ -92,7 +92,7 @@ export function purgeOutlineBorder(tag: string, isDark: boolean): string {
     case "keep":  return isDark ? "rgba(62,152,66,0.55)"   : "rgba(62,152,66,0.55)";
     case "cut":   return isDark ? "rgba(255,152,218,0.5)"  : "rgba(154,32,124,0.45)";
     case "maybe": return isDark ? "rgba(172,222,242,0.5)"  : "rgba(0,71,108,0.45)";
-    default:      return isDark ? "#333941" : "#D7DADE";
+    default:      return isDark ? "#2E343C" : "#D7DADE";
   }
 }
 

@@ -42,26 +42,26 @@ export const lightTokens: Record<string, string> = {
 
 // Dark mode is a cool near-neutral gray family (v0.7 retheme — the navy family
 // was deprecated so the app/brand no longer reads as "blue"). The whole ramp is
-// derived in Oklab from one cool-gray anchor (#14171D — a hint of blue chroma,
+// derived in Oklab from one cool-gray anchor (#101318 — a hint of blue chroma,
 // deliberately not fully desaturated), preserving the a/b axes so every layer
 // carries the same subtle cool tint. Elevation is the same perceptual-step
 // hierarchy as before: --c-bg lowest, borders highest. Accent pops (yellow link,
 // pink destructive, cyan/pink/yellow accents) are unchanged — the color lives in
 // the accents, not the surfaces.
 export const darkTokens: Record<string, string> = {
-  "--c-bg": "oklab(from #14171D calc(l - 0.035) a b)",
-  "--c-surface": "#14171D",
-  "--c-surface-hover": "oklab(from #14171D calc(l + 0.04) a b)",
-  "--c-surface-alt": "oklab(from #14171D calc(l - 0.015) a b)",
+  "--c-bg": "oklab(from #101318 calc(l - 0.035) a b)",
+  "--c-surface": "#101318",
+  "--c-surface-hover": "oklab(from #101318 calc(l + 0.04) a b)",
+  "--c-surface-alt": "oklab(from #101318 calc(l - 0.015) a b)",
   "--c-text": "#E6E8EC",
   "--c-text-secondary": "#AAB0BA",
   "--c-text-tertiary": "#969CA6",
   "--c-text-muted": "#868C96",
   "--c-text-faint": "#727882",
-  "--c-border": "oklab(from #14171D calc(l + 0.06) a b)",
-  "--c-border-strong": "oklab(from #14171D calc(l + 0.14) a b)",
-  "--c-chip-bg": "oklab(from #14171D calc(l + 0.04) a b)",
-  "--c-input-bg": "oklab(from #14171D calc(l - 0.015) a b)",
+  "--c-border": "oklab(from #101318 calc(l + 0.06) a b)",
+  "--c-border-strong": "oklab(from #101318 calc(l + 0.14) a b)",
+  "--c-chip-bg": "oklab(from #101318 calc(l + 0.04) a b)",
+  "--c-input-bg": "oklab(from #101318 calc(l - 0.015) a b)",
   "--c-destructive": "#FF33B6",
   "--c-destructive-hover": "#E6009E",
   "--c-destructive-tint": "rgba(255, 51, 182, 0.08)",

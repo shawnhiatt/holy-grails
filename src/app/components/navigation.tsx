@@ -358,11 +358,11 @@ export function MobileHeader() {
 export function BottomTabBar() {
   const { screen, setScreen, isDarkMode } = useApp();
 
-  // Theme-aware bar surface. Dark gradient is derived from the dark app bg
-  // tokens (--c-surface-alt #191C22 → --c-bg #101318) so the bar sits with the
-  // darkened backgrounds; light is a near-white surface bar.
+  // Theme-aware bar surface. The dark gradient sits in the app's background
+  // family — a step above --c-surface-alt falling to just above --c-bg — so the
+  // bar reads as part of the canvas; light is a near-white surface bar.
   const barBackground = isDarkMode
-    ? "linear-gradient(to bottom in oklab, #191C22, #101318)"
+    ? "linear-gradient(to bottom in oklab, #14171D, #0C0F13)"
     : "linear-gradient(to bottom in oklab, #FFFFFF, #F9F9FA)";
   const barBorderTop = isDarkMode
     ? "1px solid rgba(226,232,240,0.08)"

@@ -1574,7 +1574,7 @@ function PopulatedFollowingView({
                   <div
                     className="w-[80px] h-[80px] rounded-full flex items-center justify-center"
                     style={{
-                      backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
+                      backgroundColor: isDarkMode ? "#252931" : "#ACDEF2",
                       border: `2.5px solid ${isDarkMode ? "rgba(172,222,242,0.25)" : "rgba(172,222,242,0.6)"}`,
                     }}
                   >
@@ -1593,7 +1593,7 @@ function PopulatedFollowingView({
                       bottom: "0px",
                       right: "0px",
                       backgroundColor: "#EBFD00",
-                      border: `2px solid ${isDarkMode ? "#101318" : "#F9F9FA"}`,
+                      border: `2px solid ${isDarkMode ? "#0C0F13" : "#F9F9FA"}`,
                     }}
                   >
                     <Disc3 size={12} color="#16181C" />
@@ -1684,7 +1684,7 @@ function PopulatedFollowingView({
                             width: "20px",
                             height: "20px",
                             borderRadius: "50%",
-                            backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
+                            backgroundColor: isDarkMode ? "#252931" : "#ACDEF2",
                           }}
                         >
                           {avatar ? (
@@ -1843,8 +1843,8 @@ function PopulatedFollowingView({
                       borderRadius: "50%",
                       bottom: "-6px",
                       left: "-6px",
-                      border: `2px solid ${isDarkMode ? "oklab(from #14171D l a b / 0.65)" : "rgba(255,255,255,0.65)"}`,
-                      backgroundColor: isDarkMode ? "#2A2E36" : "#ACDEF2",
+                      border: `2px solid ${isDarkMode ? "oklab(from #101318 l a b / 0.65)" : "rgba(255,255,255,0.65)"}`,
+                      backgroundColor: isDarkMode ? "#252931" : "#ACDEF2",
                     }}
                   >
                     {item.followedAvatar ? (

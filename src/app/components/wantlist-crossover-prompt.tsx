@@ -56,9 +56,9 @@ export function WantlistCrossoverPrompt() {
           style={{
             bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
             zIndex: 125,
-            backgroundColor: isDarkMode ? "#181B21" : "#FFFFFF",
+            backgroundColor: isDarkMode ? "#14161C" : "#FFFFFF",
             boxShadow: "var(--c-shadow-modal)",
-            border: `1px solid ${isDarkMode ? "#333941" : "#D7DADE"}`,
+            border: `1px solid ${isDarkMode ? "#2E343C" : "#D7DADE"}`,
             ...getContentTokens(isDarkMode),
           } as React.CSSProperties}
         >

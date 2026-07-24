@@ -167,10 +167,10 @@ export function StackPickerSheet() {
               style={{
                 pointerEvents: "auto",
                 width: 280,
-                backgroundColor: isDarkMode ? "#181B21" : "#FFFFFF",
+                backgroundColor: isDarkMode ? "#14161C" : "#FFFFFF",
                 boxShadow: "var(--c-card-shadow)",
                 borderRadius: 12,
-                border: `1px solid ${isDarkMode ? "#2A2E36" : "#D7DADE"}`,
+                border: `1px solid ${isDarkMode ? "#252931" : "#D7DADE"}`,
                 padding: 16,
                 ...getContentTokens(isDarkMode),
               } as React.CSSProperties}

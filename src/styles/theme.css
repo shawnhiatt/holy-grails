@@ -190,8 +190,8 @@ input, textarea, select {
 
 /* Dark mode */
 [data-sonner-toaster][data-sonner-theme="dark"] {
-  --normal-bg: #1B1E23;
-  --normal-border: #333941;
+  --normal-bg: #16191E;
+  --normal-border: #2E343C;
   --normal-text: #E2E8F0;
 
   --success-bg: #0D2B14;

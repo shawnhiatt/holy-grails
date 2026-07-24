@@ -1321,7 +1321,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                                               removePlay(entry._id, selectedAlbum.id, entry.played_at);
                                             }}
                                           >
-                                            <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingTop: "8px", paddingBottom: "8px", backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)" }}>
+                                            <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", paddingTop: "8px", paddingBottom: "8px", backgroundColor: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : "var(--c-surface)" }}>
                                               {formatDateShort(new Date(entry.played_at).toISOString())} at {new Date(entry.played_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                                             </div>
                                           </SwipeToDelete>
@@ -1604,7 +1604,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         )}
 
         {!isEditMode && (
-          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : undefined }}>
+          <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : undefined }}>
             {/* ═══ Community (enriched, 3-stat row) ═══ */}
             {isLoadingRelease ? (
               <div className="px-4 pb-6">
@@ -1651,7 +1651,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       position: "sticky",
                       top: 0,
                       zIndex: 10,
-                      backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)",
+                      backgroundColor: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : "var(--c-surface)",
                       borderBottom: "1px solid var(--c-border)",
                       paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                     }}
@@ -2561,7 +2561,7 @@ function WantItemDetailPanel({
           </div>
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : undefined }}>
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : undefined }}>
           {/* ═══ Community (enriched, 3-stat row) ═══ */}
           {isLoadingRelease ? (
             <div className="px-4 pb-6">
@@ -2605,7 +2605,7 @@ function WantItemDetailPanel({
                     position: "sticky",
                     top: 0,
                     zIndex: 10,
-                    backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)",
+                    backgroundColor: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : "var(--c-surface)",
                     borderBottom: "1px solid var(--c-border)",
                     paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                   }}
@@ -3143,7 +3143,7 @@ function ReleaseDetailPanel({
           </div>
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : undefined }}>
+        <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : undefined }}>
           {/* ═══ Community (enriched, 3-stat row) ═══ */}
           {isLoadingRelease ? (
             <div className="px-4 pb-6">
@@ -3200,7 +3200,7 @@ function ReleaseDetailPanel({
                     position: "sticky",
                     top: 0,
                     zIndex: 10,
-                    backgroundColor: hideHeader ? (isDarkMode ? "#181B21" : "#FFFFFF") : "var(--c-surface)",
+                    backgroundColor: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : "var(--c-surface)",
                     borderBottom: "1px solid var(--c-border)",
                     paddingTop: tabBarStuck && hideHeader ? "48px" : "0px",
                   }}
