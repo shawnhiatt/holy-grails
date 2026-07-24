@@ -598,10 +598,10 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       style={{ touchAction: "manipulation" }}
     >
       {ver.thumb ? (
-        <img src={ver.thumb} alt="" className="w-12 h-12 rounded-[6px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
+        <img src={ver.thumb} alt="" className="w-[72px] h-[72px] rounded-[8px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
       ) : (
-        <div className="w-12 h-12 rounded-[6px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
-          <Disc3 size={20} style={{ color: "var(--c-text-faint)" }} />
+        <div className="w-[72px] h-[72px] rounded-[8px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
+          <Disc3 size={28} style={{ color: "var(--c-text-faint)" }} />
         </div>
       )}
       <div className="flex-1 min-w-0">
@@ -778,7 +778,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                   <img
                     src={pickerMaster.cover || pickerMaster.thumb}
                     alt=""
-                    className="w-28 h-28 rounded-[10px] object-cover flex-shrink-0"
+                    className="w-32 h-32 rounded-[10px] object-cover flex-shrink-0"
                     style={{ border: "1px solid var(--c-border-strong)" }}
                   />
                 )}
@@ -926,10 +926,10 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                   style={{ touchAction: "manipulation" }}
                 >
                   {r.thumb ? (
-                    <img src={r.thumb} alt="" className="w-12 h-12 rounded-[6px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
+                    <img src={r.thumb} alt="" className="w-[72px] h-[72px] rounded-[8px] object-cover flex-shrink-0" style={{ border: "1px solid var(--c-border)" }} />
                   ) : (
-                    <div className="w-12 h-12 rounded-[6px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
-                      <Disc3 size={20} style={{ color: "var(--c-text-faint)" }} />
+                    <div className="w-[72px] h-[72px] rounded-[8px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: "var(--c-chip-bg)" }}>
+                      <Disc3 size={28} style={{ color: "var(--c-text-faint)" }} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
