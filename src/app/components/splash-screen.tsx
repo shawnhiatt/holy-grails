@@ -193,12 +193,12 @@ export function SplashScreen({
                   border: "1px solid rgba(255,51,182,0.2)",
                 }}
               >
-                <AlertTriangle size={14} style={{ color: "var(--c-destructive)", flexShrink: 0, marginTop: "1px" }} />
+                <AlertTriangle size={14} style={{ color: "var(--c-destructive-text)", flexShrink: 0, marginTop: "1px" }} />
                 <p
                   style={{
                     fontSize: "12px",
                     fontWeight: 400,
-                    color: "var(--c-destructive)",
+                    color: "var(--c-destructive-text)",
                     wordBreak: "break-word",
                     fontFamily: "'DM Sans', system-ui, sans-serif",
                     lineHeight: 1.5,

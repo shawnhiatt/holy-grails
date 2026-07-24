@@ -591,8 +591,8 @@ export function SettingsScreen() {
             </button>
             {syncError && (
               <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
-                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive)" }} />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive)", wordBreak: "break-word" }}>{syncError}</p>
+                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive-text)" }} />
+                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive-text)", wordBreak: "break-word" }}>{syncError}</p>
               </div>
             )}
             {lastSynced && (
@@ -836,7 +836,7 @@ export function SettingsScreen() {
             <button onClick={() => setConfirmAction("Followed users")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Followed Users</button>
             <button onClick={() => setConfirmAction("Wantlist priorities")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Wantlist Priorities</button>
             <div className="mt-1 pt-1" style={{ borderTop: "1px solid var(--c-border)" }}>
-              <button onClick={() => setConfirmAction("All data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive)" }}><Trash2 size={15} />Delete All My Data</button>
+              <button onClick={() => setConfirmAction("All data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive-text)" }}><Trash2 size={15} />Delete All My Data</button>
             </div>
           </div>
         </section>
@@ -898,7 +898,7 @@ export function SettingsScreen() {
               style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", boxShadow: "var(--c-shadow-modal)" }}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "var(--c-destructive-tint)" }}>
-                  <AlertTriangle size={20} style={{ color: "var(--c-destructive)" }} />
+                  <AlertTriangle size={20} style={{ color: "var(--c-destructive-text)" }} />
                 </div>
                 <div>
                   <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>

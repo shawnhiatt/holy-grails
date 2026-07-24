@@ -413,7 +413,7 @@ function StackDetail({
                   <button
                     onClick={() => onRemoveAlbum(album!.id)}
                     className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ color: "var(--c-destructive)" }}
+                    style={{ color: "var(--c-destructive-text)" }}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -465,7 +465,7 @@ function StackDetail({
             >
               <div className="flex flex-col items-center text-center">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: "var(--c-destructive-tint)" }}>
-                  <AlertTriangle size={22} style={{ color: "var(--c-destructive)" }} />
+                  <AlertTriangle size={22} style={{ color: "var(--c-destructive-text)" }} />
                 </div>
                 <p style={{ fontSize: "16px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)", marginBottom: "6px" }}>
                   Delete this session?
@@ -485,7 +485,7 @@ function StackDetail({
                 <button
                   onClick={handleConfirmDelete}
                   className="flex-1 py-2.5 rounded-[10px] tappable transition-colors"
-                  style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive)" }}
+                  style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive-text)" }}
                 >
                   Delete
                 </button>

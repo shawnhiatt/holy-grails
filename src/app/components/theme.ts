@@ -17,6 +17,12 @@ export const lightTokens: Record<string, string> = {
   "--c-destructive": "#FF33B6",
   "--c-destructive-hover": "#E6009E",
   "--c-destructive-tint": "rgba(255, 51, 182, 0.12)",
+  // Destructive as TEXT, not fill. #FF33B6 is built to carry white on top of
+  // it (buttons, badges) and only reaches 3.3:1 as ink on a light surface —
+  // 2.8:1 on its own tint. Same treatment as the light accents: the
+  // destructive hue dropped to Oklab L=0.52 (resolves #C40084), which clears
+  // 4.5:1 on surface, bg, chip, and tint. Fills keep --c-destructive.
+  "--c-destructive-text": "oklab(from #FF33B6 0.52 a b)",
   "--c-link": "#0078B4",
   "--c-link-hover": "#005F8E",
   "--c-card-shadow": "0 4px 20px rgba(22,24,28,0.08)",
@@ -59,6 +65,8 @@ export const darkTokens: Record<string, string> = {
   "--c-destructive": "#FF33B6",
   "--c-destructive-hover": "#E6009E",
   "--c-destructive-tint": "rgba(255, 51, 182, 0.08)",
+  // On the dark surfaces #FF33B6 already clears 4.5:1 as ink — no shift needed.
+  "--c-destructive-text": "#FF33B6",
   "--c-link": "#EBFD00",
   "--c-link-hover": "#d9e800",
   "--c-card-shadow": "0 4px 20px rgba(0,0,0,0.25)",

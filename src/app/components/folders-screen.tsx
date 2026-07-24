@@ -320,7 +320,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
                         onClick={() => setConfirmDeleteId(folder.id)}
                         disabled={isDeleting}
                         className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors"
-                        style={{ color: "var(--c-destructive)" }}
+                        style={{ color: "var(--c-destructive-text)" }}
                       >
                         {isDeleting ? (
                           <Disc3 size={14} className="disc-spinner" />
@@ -370,7 +370,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
                   className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
                   style={{ backgroundColor: "var(--c-destructive-tint)" }}
                 >
-                  <AlertTriangle size={22} style={{ color: "var(--c-destructive)" }} />
+                  <AlertTriangle size={22} style={{ color: "var(--c-destructive-text)" }} />
                 </div>
                 <p
                   style={{
@@ -398,7 +398,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
                 <button
                   onClick={handleConfirmDelete}
                   className="flex-1 py-2.5 rounded-[10px] tappable transition-colors"
-                  style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive)" }}
+                  style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive-text)" }}
                 >
                   Delete
                 </button>

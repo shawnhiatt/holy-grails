@@ -502,12 +502,15 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
                     {want.priority ? (
                       <Zap size={18}
                         weight="fill"
-                        color={isDarkMode ? "#EBFD00" : "#B8C900"}
+                        // Light mode takes the brass gold (--c-accent-yellow), not
+                        // #B8C900: that only reached 1.8:1 on the row surface, i.e.
+                        // the prioritized bolt read fainter than the unset one.
+                        color={isDarkMode ? "#EBFD00" : "#8C6800"}
                       />
                     ) : (
                       <Zap size={18}
                         weight="regular"
-                        color={isDarkMode ? "var(--c-text-faint)" : "var(--c-text-faint)"}
+                        color="var(--c-text-faint)"
                       />
                     )}
                   </motion.div>

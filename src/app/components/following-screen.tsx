@@ -351,7 +351,7 @@ export function FollowingScreen() {
                 </motion.p>
               )}
               {addError && (
-                <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-2 flex items-start gap-2" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-destructive)" }}>
+                <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-2 flex items-start gap-2" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-destructive-text)" }}>
                   <Lock size={14} className="flex-shrink-0 mt-0.5" />
                   {addError}
                 </motion.p>
@@ -947,7 +947,7 @@ function FollowedUserProfile({
             {filter === "they-want-you-cut" && theyWantYouCutCount > 0 && (
               <div className="mx-[16px] lg:mx-[24px] mt-3 p-3 rounded-[10px]"
                 style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-destructive)", lineHeight: 1.5 }}>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-destructive-text)", lineHeight: 1.5 }}>
                   {theyWantYouCutCount} album{theyWantYouCutCount !== 1 ? "s" : ""} you tagged as Purge that @{user.username} wants. Reach out!
                 </span>
               </div>
@@ -955,7 +955,7 @@ function FollowedUserProfile({
             {filter === "you-want-they-have" && youWantTheyHaveCount > 0 && (
               <div className="mx-[16px] lg:mx-[24px] mt-3 p-3 rounded-[10px]"
                 style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255, 51, 182, 0.15)" }}>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-destructive)", lineHeight: 1.5 }}>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-destructive-text)", lineHeight: 1.5 }}>
                   {youWantTheyHaveCount} album{youWantTheyHaveCount !== 1 ? "s" : ""} from your wantlist in @{user.username}&apos;s collection.
                 </span>
               </div>

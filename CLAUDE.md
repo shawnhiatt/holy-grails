@@ -345,7 +345,7 @@ Reference: https://bottosson.github.io/posts/oklab/
 
 6. **The `isDarkMode ? "#EBFD00" : "#0078B4"` ternary pattern is retired.** Always use `var(--c-link)` instead.
 
-7. **When adding a destructive action** (delete, remove, unfollow, confirm-destructive), always use `var(--c-destructive)`, `var(--c-destructive-hover)`, and `var(--c-destructive-tint)`. Never hardcode `#FF33B6`.
+7. **When adding a destructive action** (delete, remove, unfollow, confirm-destructive), always use `var(--c-destructive)`, `var(--c-destructive-hover)`, and `var(--c-destructive-tint)`. Never hardcode `#FF33B6`. **Fill vs. ink:** `--c-destructive` is the *fill* (solid buttons, badges — it is built to carry white on top of it). Destructive **text and its adjacent icons** use `var(--c-destructive-text)`, which in light mode is the same hue dropped to Oklab L=0.52 (`#C40084`) so 12–14px error copy clears 4.5:1 on surface, bg, chip, and on `--c-destructive-tint`; raw `#FF33B6` as ink only reaches 3.3:1 on white and 2.8:1 on its own tint. Dark mode keeps `#FF33B6` for both.
 
 8. **Always preserve the `a` and `b` axes when adjusting lightness in Oklab.** Use `oklab(from <color> calc(l ± X) a b)` — do not alter `a` or `b` unless intentionally shifting hue or chroma.
 
@@ -391,6 +391,7 @@ All content area colors use CSS custom properties defined in `theme.ts`:
 | `--c-destructive` | `#FF33B6` |
 | `--c-destructive-hover` | `#E6009E` |
 | `--c-destructive-tint` | `rgba(255, 51, 182, 0.12)` |
+| `--c-destructive-text` | `oklab(from #FF33B6 0.52 a b)` (≈ `#C40084`) — destructive **ink**, see Rule 7 |
 | `--c-link` | `#0078B4` (blue link — deliberately kept, a permitted accent) |
 | `--c-link-hover` | `#005F8E` |
 | `--c-card-shadow` | `0 4px 20px rgba(22,24,28,0.08)` |
@@ -422,6 +423,7 @@ The light-mode cyan/pink accents are the dark accents dropped to Oklab L=0.52 wi
 | `--c-destructive` | `#FF33B6` |
 | `--c-destructive-hover` | `#E6009E` |
 | `--c-destructive-tint` | `rgba(255, 51, 182, 0.08)` |
+| `--c-destructive-text` | `#FF33B6` (already clears 4.5:1 as ink on the dark surfaces) |
 | `--c-link` | `#EBFD00` |
 | `--c-link-hover` | `#d9e800` |
 | `--c-card-shadow` | `0 4px 20px rgba(0,0,0,0.25)` |
@@ -481,8 +483,7 @@ These are semantic colors tied to a specific meaning. Hardcoded because the hue 
 | `#0DB1F2` | Chart third accent (reports-screen chart constants) |
 | `#22C55E` | Success / confirmed state icon |
 | `#FF98DA` | Cut purge tag — dark mode (also used in progress gradient) |
-| `#B8C900` | Wantlist priority bolt — light mode (dark mode uses `#EBFD00`) |
-| `#8C6800` | Brass gold — light-mode `--c-accent-yellow` value; also the light-mode stroke edging the `#EBFD00` peak-decade bar and the light stop of the Shuffle gradient |
+| `#8C6800` | Brass gold — light-mode `--c-accent-yellow` value; also the light-mode wantlist priority bolt (dark mode uses `#EBFD00`; the former `#B8C900` was retired at 1.8:1 — it made the prioritized bolt read fainter than the unset one), the light-mode stroke edging the `#EBFD00` peak-decade bar, and the light stop of the Shuffle gradient |
 | `#1DB954` | Spotify brand green — Listen On button icon only (album-detail) |
 | `#FA243C` | Apple Music brand red — Listen On button icon only (album-detail) |
 | `#FF2D78` | DestructiveButton confirm-tap fill (album-detail) |
