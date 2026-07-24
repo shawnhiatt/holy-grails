@@ -1578,6 +1578,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               label={confirmRemove ? "Confirm Remove" : "Remove from Collection"}
               confirming={confirmRemove}
               loading={isRemoving}
+              isDarkMode={isDarkMode}
               onClick={async () => {
                 if (!confirmRemove) {
                   setConfirmRemove(true);
@@ -2049,12 +2050,14 @@ function DestructiveButton({
   loading,
   onClick,
   variant = "destructive",
+  isDarkMode = false,
 }: {
   label: string;
   confirming: boolean;
   loading: boolean;
   onClick: () => void;
   variant?: "destructive" | "neutral";
+  isDarkMode?: boolean;
 }) {
   const isNeutral = variant === "neutral";
   return (
@@ -2068,7 +2071,13 @@ function DestructiveButton({
         fontFamily: "'DM Sans', system-ui, sans-serif",
         border: isNeutral ? "1px solid var(--c-border-strong)" : "1px solid #FF2D78",
         backgroundColor: isNeutral ? "var(--c-surface)" : confirming ? "#FF2D78" : "transparent",
-        color: isNeutral ? "var(--c-text)" : "#FFFFFF",
+        // Unconfirmed destructive is an outline button — a white label vanishes
+        // on the light sheet, so light mode takes the pink the border already uses.
+        color: isNeutral
+          ? "var(--c-text)"
+          : confirming || isDarkMode
+            ? "#FFFFFF"
+            : "#FF2D78",
         minHeight: 45,
       }}
     >
