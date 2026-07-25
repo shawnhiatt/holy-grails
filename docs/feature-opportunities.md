@@ -17,8 +17,8 @@ The purge produces a Cut pile, then abandons the user at the finish line. Minimu
 ### 3. Duplicate detection — S
 Same `master_id` appearing on 2+ collection rows (different pressings). Already matchable with the existing master-id logic and Sets. Surface as an Insights line and a purge-candidate signal. (Note: the sync's one-copy-per-release dedup is per *release*; cross-pressing duplicates per *master* are untouched and real.)
 
-### 4. Personal star ratings — S/M
-Discogs collection instances carry a 0–5 `rating` HG never reads or writes, and `POST .../collection/folders/{folder}/releases/{release}/instances/{instance}` changes it (User Collection doc, "Change Rating Of Release"). Read it at sync (it's already in the payload), show/edit it in album-detail edit mode alongside conditions. A second, gentler curation axis beside the purge verdict — and it round-trips to Discogs, so the data outlives the app.
+### 4. Personal star ratings — ~~S/M~~ **SHIPPED (July 2026)**
+Landed with the Session Builder's free-data pass. The rating is read at sync and written back through `proxyUpdateCollectionInstance` (the "Change Rating Of Release" POST goes to the instance URL, the same shape `proxyMoveToFolder` uses). Surfaces: the purge evaluator, album detail's Your Copy row, a Rating sort, an Unrated filter, and a rating×purge line in Insights. See the Star Ratings section in CLAUDE.md.
 
 ## Tier 2 — social & shareable (the growth loop)
 
@@ -48,6 +48,20 @@ Full-collection CSV (pressing, condition, notes, folder, ask value). Adult-colle
 ### 12. Discogs Lists import — M
 User Lists endpoints are entirely unused. One-shot import of a Discogs list into a Session fits session-building; ongoing list sync probably isn't worth it. *Borderline database-browsing — the import framing keeps it in scope.*
 
+### 13. "3 records joined Late Night Jazz" — M
+The one deferred piece of the Session Builder (its plan's phase 7), and the only part of that feature that genuinely wants stored state.
+
+An auto session's membership is derived at read time and deliberately never stored, which is what makes auto-add free. The cost is that nothing knows what *changed*: to say "3 records joined," you need a membership snapshot to diff against, which means the one write path and the one background job the rest of the design avoids.
+
+Shape, if it's built:
+- A `stack_snapshots` table (`stack_id` + `release_ids` + `taken_at`), written after a sync completes rather than on every evaluation — the diff people care about is "since my collection changed," not "since I last opened the app."
+- Diff on read, surface as a badge on the Sessions row and/or a feed line. Keep it a *notice*, not a feed section: three collection-random sections already sit on the feed and CLAUDE.md warns against stacking them.
+- Only for sessions with a rule, obviously — and suppress it on a rotating session, where the set changing is the expected behavior rather than news.
+
+**Do not** let the snapshot become the source of truth for membership. It exists solely to answer "what's new," and `stackMembership` stays derived. If that boundary ever blurs, the drift the whole design avoids comes straight back.
+
+Worth doing only once there are real auto sessions with real churn to look at — on a collection that isn't growing, it has nothing to report.
+
 ## Flagged, not recommended now
 
 - **Cover-photo recognition** — ~~SCOPE DECISION~~ **decided and shipped (July 2026)**: built as the Look It Up scanner's Cover mode, powered by the Claude API (`convex/vision.ts`, `claude-sonnet-5`). Shawn approved the external-service dependency explicitly.
@@ -60,5 +74,6 @@ User Lists endpoints are entirely unused. One-shot import of a Discogs list into
 1. **#1 + #3** (one arc: purge intelligence) — pure derivation, deepens the moat immediately.
 2. **#9 + #10** (album-detail freebies riding existing fetches).
 3. **#5** (share cards) — then #6, #7 build on it.
-4. **#4** (ratings) when next touching album-detail edit mode.
+4. ~~**#4** (ratings)~~ — done, shipped with the Session Builder.
 5. **#8 + #11** as the utility pass; #2 alongside the next purge session.
+6. **#13** ("3 records joined") only after auto sessions have been in real use — it needs churn to have anything to say.

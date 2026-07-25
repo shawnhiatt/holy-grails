@@ -63,7 +63,7 @@ Five fields ride along on the collection/wantlist responses the sync already mak
 
 ### Session Builder (sessions that fill themselves)
 
-A session can define itself by criteria instead of by hand-picking — "jazz, before 1980, four stars and up" — and stay current as the collection changes. The model is Mailchimp audience segmentation: a saved query over data you already hold, not a list you push things into. Full plan in `docs/session-builder-plan.md`.
+A session can define itself by criteria instead of by hand-picking — "jazz, before 1980, four stars and up" — and stay current as the collection changes. The model is Mailchimp audience segmentation: a saved query over data you already hold, not a list you push things into. The implementation plan has been retired now that it shipped — this section is the spec. The one deferred follow-up is in the Backlog.
 
 **There is no second object type.** There are just Sessions; some are filled by hand, some fill themselves. That is a property (`kind`), not a category — one list, one mental model, no fork at creation. `kind: undefined` reads as manual, so every session predating this is already correct.
 
@@ -1088,6 +1088,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - `FollowingSkeletonRows` and `FollowedUserRow` components deleted in Phase 7 QA — replaced by partial hydration pattern introduced in Phase 7 Prompt 2a. Do not recreate these components.
 
 ### Backlog
+- **"3 records joined Late Night Jazz"** — the deferred Session Builder follow-up. It is the only part of that feature that needs stored state (a membership snapshot to diff), and therefore the only part that wants a background job. Full shape in `docs/feature-opportunities.md` #13. The hard constraint: a snapshot may answer "what's new" and nothing else — `stackMembership` stays derived, or the drift the design avoids comes back.
 - ~~One-off gray text colors~~ — DONE (v0.6.x color audit): crate-browser's `#9BA4B2`/`#3D5C77` migrated to `var(--c-text-faint)`/`var(--c-text-secondary)`; purge-tracker's `#6B7B8E` corrected to the token value `#5E6E80`.
 - Empty state standardization — icon sizes, vertical padding, and icon-to-text spacing are inconsistent across screens. Needs a dedicated design pass with visual references before normalizing.
 - Purge Cut confirmation icon — Minus vs X icon flagged during Phase 7 QA for visual review.
