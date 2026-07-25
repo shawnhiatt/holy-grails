@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
+import { evaluateStackRule, type RuleAlbum, type StackRule } from "./stackRules";
 
 export const getByUsername = query({
   args: { sessionToken: v.string() },
@@ -239,13 +240,112 @@ export const getShared = query({
 
     if (!stack) return null;
 
-    const albums: {
+    /** The whitelist. Adding a field here widens what a link exposes. */
+    const display = (row: {
       title: string;
       artist: string;
       year: number;
       cover: string;
-      thumb: string | null;
-    }[] = [];
+      thumb?: string;
+    }) => ({
+      title: row.title,
+      artist: row.artist,
+      year: row.year,
+      cover: row.cover,
+      thumb: row.thumb ?? null,
+    });
+
+    // ── An auto session has no stored ids: evaluate its rule server-side ──
+    //
+    // This is the reason the free-data pass wrote genres and rating into the
+    // Convex table rather than only onto the client `Album` type. The pure
+    // evaluator runs over both shapes, so a shared link shows exactly what
+    // the owner sees — including the same rotation roll, since the seeded
+    // bucket is a function of the session id and the clock, not of state.
+    if (stack.kind === "auto" && stack.rule) {
+      const rows = await ctx.db
+        .query("collection")
+        .withIndex("by_username", (q) =>
+          q.eq("discogsUsername", stack.discogs_username)
+        )
+        .collect();
+
+      // Purge tags and play history live in their own tables; a rule can key
+      // on either, so they are folded in the same way the client does.
+      const tags = await ctx.db
+        .query("purge_tags")
+        .withIndex("by_username", (q) =>
+          q.eq("discogs_username", stack.discogs_username)
+        )
+        .collect();
+      const tagByRelease = new Map(tags.map((t) => [t.release_id, t.tag]));
+
+      const plays = await ctx.db
+        .query("last_played")
+        .withIndex("by_username", (q) =>
+          q.eq("discogs_username", stack.discogs_username)
+        )
+        .collect();
+      const playCount = new Map<number, number>();
+      const lastPlayedAt = new Map<number, number>();
+      for (const p of plays) {
+        playCount.set(p.release_id, (playCount.get(p.release_id) ?? 0) + 1);
+        lastPlayedAt.set(
+          p.release_id,
+          Math.max(lastPlayedAt.get(p.release_id) ?? 0, p.played_at)
+        );
+      }
+
+      // Market values are only loaded when the rule actually asks for them —
+      // it is the one input that needs a whole-table read, and almost no
+      // session is built on price.
+      const usesMarketValue = stack.rule.conditions.some(
+        (c) => c.field === "marketValue"
+      );
+      const marketByRelease = new Map<number, number | null>();
+      if (usesMarketValue) {
+        for (const mv of await ctx.db.query("market_values").collect()) {
+          if (mv.value !== undefined) marketByRelease.set(mv.releaseId, mv.value);
+        }
+      }
+
+      const ruleAlbums: RuleAlbum[] = rows.map((row) => ({
+        releaseId: row.releaseId,
+        artist: row.artist,
+        artistIds: row.artistIds,
+        title: row.title,
+        label: row.label,
+        year: row.year,
+        genres: row.genres,
+        styles: row.styles,
+        format: row.format,
+        folder: row.folder,
+        mediaCondition: row.mediaCondition,
+        rating: row.rating,
+        dateAdded: row.dateAdded,
+        purgeTag: tagByRelease.get(row.releaseId) ?? null,
+        lastPlayedAt: lastPlayedAt.get(row.releaseId) ?? null,
+        playCount: playCount.get(row.releaseId) ?? 0,
+        marketValue: marketByRelease.get(row.releaseId),
+      }));
+
+      const result = evaluateStackRule(ruleAlbums, stack.rule as StackRule, {
+        stackId: stack.stack_id,
+        excludedIds: stack.excluded_ids,
+      });
+
+      const byRelease = new Map(rows.map((r) => [r.releaseId, r]));
+      return {
+        name: stack.name,
+        last_modified: stack.last_modified,
+        albums: result.albums
+          .map((a) => byRelease.get(a.releaseId))
+          .filter((r): r is NonNullable<typeof r> => !!r)
+          .map(display),
+      };
+    }
+
+    const albums: ReturnType<typeof display>[] = [];
 
     for (const releaseId of stack.album_ids) {
       const row = await ctx.db
@@ -258,13 +358,7 @@ export const getShared = query({
         .first();
       // Silently skip albums that have left the collection since sharing.
       if (!row) continue;
-      albums.push({
-        title: row.title,
-        artist: row.artist,
-        year: row.year,
-        cover: row.cover,
-        thumb: row.thumb ?? null,
-      });
+      albums.push(display(row));
     }
 
     return {
