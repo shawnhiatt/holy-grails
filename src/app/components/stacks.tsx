@@ -7,15 +7,43 @@ import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { AddAlbumsDrawer } from "./add-albums-drawer";
 import { SwipeToDelete } from "./swipe-to-delete";
+import { StackBuilder } from "./stack-builder";
+
+/**
+ * The badge on a session that fills itself. "AUTO" and not "SMART": this is
+ * saved logic, not intelligence, and "smart" would both overclaim and collide
+ * with VinylBox's Smart Folders.
+ */
+function AutoBadge() {
+  return (
+    <span
+      className="flex-shrink-0 px-1.5 py-0.5 rounded-[4px] uppercase"
+      style={{
+        fontSize: "9px",
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        backgroundColor: "var(--c-chip-bg)",
+        color: "var(--c-text-secondary)",
+      }}
+    >
+      Auto
+    </span>
+  );
+}
 
 export function Stacks() {
   const {
     stacks, albums, deleteStack, renameStack, createStackDirect, isAuthenticated,
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInStack, reorderStackAlbums,
-    setOnNewStack, shareStack, unshareStack,
+    setOnNewStack, shareStack, unshareStack, stackMembership, freezeStack, excludeFromStack,
   } = useApp();
 
   const [showNewStack, setShowNewStack] = useState(false);
+  // The "+" asks which kind of session first: hand-pick records, or set the
+  // rules and let it fill itself. One list, one mental model — the choice is
+  // about how it gets filled, not about what it is.
+  const [showKindChoice, setShowKindChoice] = useState(false);
+  const [showBuilder, setShowBuilder] = useState(false);
   const [newStackName, setNewStackName] = useState("");
   const [activeStackId, setActiveStackId] = useState<string | null>(null);
   const [showAddDrawer, setShowAddDrawer] = useState(false);
@@ -48,7 +76,7 @@ export function Stacks() {
 
   // Register header "+" callback
   useEffect(() => {
-    setOnNewStack(() => () => setShowNewStack(true));
+    setOnNewStack(() => () => setShowKindChoice(true));
     return () => setOnNewStack(null);
   }, [setOnNewStack]);
 
@@ -67,8 +95,22 @@ export function Stacks() {
           onRename={(name) => renameStack(activeStack.id, name)}
           onOpenDrawer={() => setShowAddDrawer(true)}
           onAlbumTap={(albumId) => { setSelectedAlbumId(albumId); setShowAlbumDetail(true); }}
-          onRemoveAlbum={(albumId) => toggleAlbumInStack(albumId, activeStack.id)}
+          onRemoveAlbum={(albumId) => {
+            // Removing from an auto session can't un-add it — the rule would
+            // just match it again. It records an exclusion instead.
+            if (stackMembership[activeStack.id]?.isAuto) {
+              excludeFromStack(activeStack.id, Number(albumId));
+            } else {
+              toggleAlbumInStack(albumId, activeStack.id);
+            }
+          }}
           onReorderAlbums={reorderStackAlbums}
+          memberIds={stackMembership[activeStack.id]?.albumIds ?? activeStack.albumIds}
+          isAuto={stackMembership[activeStack.id]?.isAuto ?? false}
+          onFreeze={() => {
+            freezeStack(activeStack.id);
+            toast.success("Session frozen.", { duration: 1500 });
+          }}
           isShared={!!activeStack.shareId}
           onShare={() => shareStack(activeStack.id)}
           onUnshare={() => unshareStack(activeStack.id)}
@@ -86,7 +128,7 @@ export function Stacks() {
     <div className="flex flex-col h-full">
       {/* FAB — new stack */}
       <button
-        onClick={() => setShowNewStack(true)}
+        onClick={() => setShowKindChoice(true)}
         className="lg:hidden fixed z-[105] flex items-center justify-center tappable"
         aria-label="New session"
         style={{
@@ -102,6 +144,43 @@ export function Stacks() {
       >
         <Plus size={24} />
       </button>
+
+      {/* How should this session get filled? */}
+      <AnimatePresence>
+        {showKindChoice && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }} className="overflow-hidden px-[16px] pt-[16px] pb-[0px]">
+            <div className="rounded-[12px] p-4 mb-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
+              <p className="mb-3" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>New Session</p>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => { setShowKindChoice(false); setShowNewStack(true); }}
+                  className="w-full rounded-[10px] p-3 text-left tappable transition-colors"
+                  style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)", touchAction: "manipulation" }}
+                >
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Add records</p>
+                  <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Pick them yourself.</p>
+                </button>
+                <button
+                  onClick={() => { setShowKindChoice(false); setShowBuilder(true); }}
+                  className="w-full rounded-[10px] p-3 text-left tappable transition-colors"
+                  style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)", touchAction: "manipulation" }}
+                >
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Set the rules</p>
+                  <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>This session fills itself.</p>
+                </button>
+              </div>
+              <button onClick={() => setShowKindChoice(false)} className="w-full mt-3 py-2 rounded-[8px] tappable transition-colors" style={{ fontSize: "13px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>Cancel</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {showBuilder && (
+        <StackBuilder
+          onClose={() => setShowBuilder(false)}
+          onCreated={(id) => { setShowBuilder(false); setActiveStackId(id); }}
+        />
+      )}
 
       {/* New stack input */}
       <AnimatePresence>
@@ -133,7 +212,7 @@ export function Stacks() {
         />
       ) : (
         <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
-          {stacks.length === 0 && !showNewStack ? (
+          {stacks.length === 0 && !showNewStack && !showKindChoice ? (
             <div className="flex-1 flex flex-col items-center justify-center">
               <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
               <p style={{ fontSize: "16px", fontWeight: 500, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text-secondary)" }}>Create your first Session</p>
@@ -142,7 +221,12 @@ export function Stacks() {
           ) : (
             <div className="flex flex-col gap-3">
               {sortedStacks.map((stack) => {
-                const stackAlbums = stack.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
+                // Auto sessions have no stored ids — their contents come from
+                // the membership map, which evaluates the rule against the
+                // live collection.
+                const membership = stackMembership[stack.id];
+                const memberIds = membership?.albumIds ?? stack.albumIds;
+                const stackAlbums = memberIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
                 return (
                   <SwipeToDelete
                     key={stack.id}
@@ -169,9 +253,12 @@ export function Stacks() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="line-clamp-2 text-left" style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text)" }}>{stack.name}</p>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="line-clamp-2 text-left min-w-0" style={{ fontSize: "15px", fontWeight: 500, color: "var(--c-text)" }}>{stack.name}</p>
+                          {membership?.isAuto && <AutoBadge />}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Disc3 size={11} />{stack.albumIds.length} album{stack.albumIds.length !== 1 ? "s" : ""}</span>
+                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Disc3 size={11} />{memberIds.length} album{memberIds.length !== 1 ? "s" : ""}</span>
                           <span style={{ color: "var(--c-border)" }}>&middot;</span>
                           <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Calendar size={11} />{new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                         </div>
@@ -194,7 +281,7 @@ export function Stacks() {
    ═══════════════════════════════════════════════════════════ */
 function StackDetail({
   stack, albums, onBack, onDelete, onRename, onOpenDrawer, onAlbumTap, onRemoveAlbum, onReorderAlbums,
-  isShared, onShare, onUnshare,
+  memberIds, isAuto, onFreeze, isShared, onShare, onUnshare,
 }: {
   stack: { id: string; name: string; albumIds: string[]; createdAt: string };
   albums: { id: string; title: string; artist: string; thumb?: string; cover: string }[];
@@ -205,6 +292,11 @@ function StackDetail({
   onAlbumTap: (albumId: string) => void;
   onRemoveAlbum: (albumId: string) => void;
   onReorderAlbums: (stackId: string, newOrder: string[]) => void;
+  /** What the session currently contains. For an auto session this is derived
+   *  from its rule, so it is passed in rather than read off `stack`. */
+  memberIds: string[];
+  isAuto: boolean;
+  onFreeze: () => void;
   isShared: boolean;
   onShare: () => Promise<string>;
   onUnshare: () => Promise<void>;
@@ -216,7 +308,7 @@ function StackDetail({
   const [shareBusy, setShareBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const stackAlbums = stack.albumIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
+  const stackAlbums = memberIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
 
   const handleStartEdit = () => {
     setEditName(stack.name);
@@ -350,7 +442,8 @@ function StackDetail({
           </button>
         </div>
         <p className="pl-10" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-          {stack.albumIds.length} album{stack.albumIds.length !== 1 ? "s" : ""} &middot; Created {new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          {isAuto && <span style={{ color: "var(--c-text-secondary)", fontWeight: 500 }}>Fills itself &middot; </span>}
+          {memberIds.length} album{memberIds.length !== 1 ? "s" : ""} &middot; Created {new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </p>
       </div>
 
@@ -364,16 +457,20 @@ function StackDetail({
               Nothing here yet.
             </p>
             <p className="mt-1 text-center" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-              Add albums to get started.
+              {isAuto
+                ? "Nothing in your collection matches these rules yet."
+                : "Add albums to get started."}
             </p>
-            <button
-              onClick={onOpenDrawer}
-              className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors"
-              style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
-            >
-              <Plus size={16} />
-              Add Albums
-            </button>
+            {!isAuto && (
+              <button
+                onClick={onOpenDrawer}
+                className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors"
+                style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
+              >
+                <Plus size={16} />
+                Add Albums
+              </button>
+            )}
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="mt-4 tappable transition-colors"
@@ -383,23 +480,29 @@ function StackDetail({
             </button>
           </div>
         ) : (
-          /* Album list with numbered positions */
+          /* Album list with numbered positions. An auto session renders the
+             same rows without drag handles — its running order comes from the
+             rule's sort, and hand-reordering a derived list would be a change
+             the next evaluation silently discards. */
           <div className="flex flex-col">
             <Reorder.Group
               axis="y"
-              values={stack.albumIds}
-              onReorder={(newOrder) => onReorderAlbums(stack.id, newOrder)}
+              values={memberIds}
+              onReorder={(newOrder) => { if (!isAuto) onReorderAlbums(stack.id, newOrder); }}
               className="flex flex-col gap-1.5"
             >
               {stackAlbums.map((album, i) => (
                 <Reorder.Item
                   key={album!.id}
                   value={album!.id}
+                  drag={isAuto ? false : "y"}
                   className="flex items-center gap-2.5 py-1.5 rounded-[10px] group"
                   style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", padding: "8px 10px" }}
                 >
                   <span className="w-5 text-center flex-shrink-0" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-faint)" }}>{i + 1}</span>
-                  <GripVertical size={14} style={{ color: "var(--c-text-faint)", cursor: "grab" }} className="flex-shrink-0" />
+                  {!isAuto && (
+                    <GripVertical size={14} style={{ color: "var(--c-text-faint)", cursor: "grab" }} className="flex-shrink-0" />
+                  )}
                   <button
                     onClick={() => onAlbumTap(album!.id)}
                     className="flex items-center gap-2.5 flex-1 min-w-0 text-left tappable"
@@ -412,6 +515,7 @@ function StackDetail({
                   </button>
                   <button
                     onClick={() => onRemoveAlbum(album!.id)}
+                    aria-label={isAuto ? `Exclude ${album!.title}` : `Remove ${album!.title}`}
                     className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
                     style={{ color: "var(--c-destructive-text)" }}
                   >
@@ -423,14 +527,33 @@ function StackDetail({
 
             {/* Inline action buttons below album list */}
             <div className="mt-6 flex flex-col items-center gap-3">
-              <button
-                onClick={onOpenDrawer}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors"
-                style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
-              >
-                <Plus size={16} />
-                Add Albums
-              </button>
+              {isAuto ? (
+                /* Freeze — keep this exact set and drop the rule. Earns its
+                   place under rotation: "I love today's roll, keep it." */
+                <button
+                  onClick={onFreeze}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full tappable transition-colors"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    backgroundColor: "var(--c-surface)",
+                    border: "1px solid var(--c-border-strong)",
+                    color: "var(--c-text)",
+                  }}
+                >
+                  Keep this set
+                </button>
+              ) : (
+                <button
+                  onClick={onOpenDrawer}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] tappable transition-colors"
+                  style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif" }}
+                >
+                  <Plus size={16} />
+                  Add Albums
+                </button>
+              )}
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="tappable transition-colors"

@@ -9,6 +9,8 @@
  *   - In-memory caches (market data, collection value)
  */
 
+import type { StackRule } from "../../../convex/stackRules";
+
 // ─── Domain types ───
 
 export type PurgeTag = "keep" | "cut" | "maybe" | null;
@@ -84,11 +86,21 @@ export interface WantItem {
 export interface Stack {
   id: string;
   name: string;
+  /** Hand-picked members. Always `[]` for an auto session — its membership is
+   *  derived from `rule` at read time, never stored (see `stackMembership`). */
   albumIds: string[];
   createdAt: string;
   lastModified: string;
   /** Capability-token share id when the session is shared; undefined otherwise. */
   shareId?: string;
+  /** "auto" = fills itself from `rule`. Undefined reads as "manual", so every
+   *  session that predates the Session Builder is already correct. */
+  kind?: "manual" | "auto";
+  rule?: StackRule;
+  /** Records kicked out of an auto session by hand, keyed on release_id. */
+  excludedIds?: number[];
+  /** Last title the generator produced; see the title-freeze rule. */
+  nameGenerated?: string;
 }
 
 export interface FollowedUser {
@@ -148,104 +160,28 @@ export interface CollectionValue {
 }
 
 
-// ─── Format classifier ───
+// ─── Format classifier / rating convention (re-exported) ───
 
 /**
- * UI media-type buckets. The raw Discogs format string is never discarded —
- * this classifier only groups it for badges, the filter drawer, Reports By
- * Format, and the `"vinyl"` display scope. A CD/CDr/SACD all read "CD" here.
+ * `mediaType`, `hasRating`, `RATING_VALUES` and `CONDITION_GRADES` moved to
+ * `convex/albumFields.ts` when the session rule engine landed: a rule must
+ * evaluate identically on the client and inside `stacks.getShared`, and Convex
+ * cannot import from `src/`. They are re-exported here so every existing
+ * `from "./discogs-api"` import site is unchanged and there is exactly one
+ * implementation. Import from either path; do not copy the logic back.
  */
-export type MediaType =
-  | "Vinyl"
-  | "Shellac"
-  | "CD"
-  | "Cassette"
-  | "Tape"
-  | "DVD"
-  | "Blu-ray"
-  | "Digital"
-  | "Box Set"
-  | "Other";
+export type { StackRule, StackRuleCondition, RuleAlbum } from "../../../convex/stackRules";
 
-/**
- * Classify a Discogs format string into a UI media-type bucket. First match
- * wins — order matters: the physical-medium checks come before "Box Set"/
- * "All Media" so "Box Set; Vinyl; LP" reads as Vinyl, not Box Set. Forgiving:
- * anything unmatched (including "") falls through to "Other", never throws.
- *
- * Mirrored deliberately in convex/discogs.ts if the server ever needs it — as
- * of the all-formats change nothing server-side classifies, so only this copy
- * exists. Keep them in sync if a mirror is added.
- */
-export function mediaType(format: string): MediaType {
-  const f = format.toLowerCase();
-  if (
-    f.includes("vinyl") ||
-    f.includes("flexi") ||
-    f.includes("lathe") ||
-    f.includes("acetate")
-  )
-    return "Vinyl";
-  if (
-    f.includes("shellac") ||
-    f.includes("pathé") ||
-    f.includes("pathe") ||
-    f.includes("edison") ||
-    f.includes("cylinder")
-  )
-    return "Shellac";
-  if (f.includes("blu-ray") || f.includes("bluray")) return "Blu-ray";
-  // "cd" also covers CDr/CDV/SACD; Minidisc has no "cd" substring so it's explicit.
-  if (f.includes("cd") || f.includes("minidisc")) return "CD";
-  if (
-    f.includes("cassette") ||
-    f.includes("cartridge") ||
-    f.includes("dcc") ||
-    f.includes("elcaset") ||
-    f.includes("playtape")
-  )
-    return "Cassette";
-  if (f.includes("reel") || f.includes("dat")) return "Tape";
-  if (f.includes("dvd") || f.includes("laserdisc") || f.includes("vhs"))
-    return "DVD";
-  if (f.includes("file") || f.includes("memory stick") || f.includes("floppy"))
-    return "Digital";
-  if (f.includes("box set")) return "Box Set";
-  return "Other";
-}
-
-// ─── Rating convention ───
-
-/**
- * Guard for the user's own star rating, mirroring the `hasYear` convention.
- *
- * Discogs sends `rating: 0` to mean UNRATED, not zero stars — the same trap as
- * year 0. The sync mapper strips the 0, so a stored rating is always a real
- * 1–5. This guard is the read-side half: never render a rating without it, and
- * never express "unrated" as `rating < 1` — say `!hasRating(...)`.
- *
- * Exported rather than redeclared per file (unlike `hasYear`) because the rule
- * engine needs the identical predicate on both client and server.
- */
-export const hasRating = (rating: number | null | undefined): rating is number =>
-  rating != null && rating > 0;
-
-/** Star values a rating can take, best first. */
-export const RATING_VALUES = [5, 4, 3, 2, 1] as const;
+export {
+  mediaType,
+  hasRating,
+  RATING_VALUES,
+  CONDITION_GRADES,
+  conditionRank,
+  type MediaType,
+} from "../../../convex/albumFields";
 
 // ─── Condition grade constants ───
-
-/** Condition grades in order from best to worst */
-export const CONDITION_GRADES = [
-  "Mint (M)",
-  "Near Mint (NM or M-)",
-  "Very Good Plus (VG+)",
-  "Very Good (VG)",
-  "Good Plus (G+)",
-  "Good (G)",
-  "Fair (F)",
-  "Poor (P)",
-];
 
 /** Short labels for display */
 export const CONDITION_SHORT: Record<string, string> = {

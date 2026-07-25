@@ -72,6 +72,46 @@ export default defineSchema({
     // Capability-token share link. Unset = not shared. The unguessable
     // share_id IS the capability — getShared is intentionally unauthenticated.
     share_id: v.optional(v.string()),
+
+    // ── Session Builder: sessions that fill themselves ──
+    // There is no second object type. A session is either hand-filled or
+    // rule-filled, and that is a property, not a category — undefined reads
+    // as "manual", so every pre-existing row is already correct.
+    kind: v.optional(v.union(v.literal("manual"), v.literal("auto"))),
+    // The saved query. `field`/`op` are loose strings on purpose (the same
+    // call as `view_mode`): a new operator ships without a schema deploy, and
+    // the pure evaluator ignores conditions it doesn't recognize.
+    //
+    // Membership is DERIVED from this, never stored: `album_ids` stays [] for
+    // an auto session so there is exactly one source of truth and a newly
+    // added record joins with no write path at all.
+    rule: v.optional(
+      v.object({
+        match: v.union(v.literal("all"), v.literal("any")),
+        conditions: v.array(
+          v.object({
+            field: v.string(),
+            op: v.string(),
+            value: v.optional(v.any()),
+          })
+        ),
+        sort: v.string(),
+        limit: v.optional(v.number()),
+        rotation: v.union(
+          v.literal("off"),
+          v.literal("daily"),
+          v.literal("weekly")
+        ),
+      })
+    ),
+    // Records kicked out of an auto session by hand. Keyed on release_id to
+    // match album_ids' semantics.
+    excluded_ids: v.optional(v.array(v.number())),
+    // The last title the generator produced. While `name` still equals it the
+    // title keeps regenerating as the rule is edited; the moment the user
+    // types their own it diverges and freezes. Stored rather than recomputed
+    // so the freeze survives a change to the generator.
+    name_generated: v.optional(v.string()),
   })
     .index("by_username", ["discogs_username"])
     .index("by_share_id", ["share_id"]),
@@ -237,6 +277,12 @@ export default defineSchema({
     // All-formats display scope: "all" (default) | "vinyl". Loose string, no
     // enum — undefined reads as "all". Applied client-side at the derive.
     format_scope: v.optional(v.string()),
+    // Session Builder defaults, both loose strings per the `view_mode`
+    // precedent (new values need no deploy). `session_cap` is one of
+    // "10"|"25"|"50"|"none"; `session_rotation` is "off"|"daily"|"weekly".
+    // A per-session override, when set, always wins over these.
+    session_cap: v.optional(v.string()),
+    session_rotation: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
 
   // Live progress for the server-side sync loop (discogs.syncSelf). One doc

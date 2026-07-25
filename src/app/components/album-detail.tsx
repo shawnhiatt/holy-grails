@@ -267,7 +267,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     isAlbumInAnyStack, mostRecentStackId,
     // Inline stack list
     stacks,
-    isInStack, toggleAlbumInStack, createStackDirect,
+    isInStack, toggleAlbumInStack, createStackDirect, stackMembership,
     // Edit
     isSyncing, discogsUsername, updateAlbum, rateAlbum, removeFromCollection,
     folders,
@@ -1503,14 +1503,20 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                         {[...stacks]
                           .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
                           .map((stack, i) => {
-                            const inStack = isInStack(selectedAlbum.id, stack.id);
+                            const membership = stackMembership[stack.id];
+                            const isAuto = membership?.isAuto ?? false;
                             return (
                               <div key={stack.id} style={{ borderTop: i > 0 ? "1px solid var(--c-border)" : "none" }}>
                                 <InlineStackRow
                                   label={stack.name}
-                                  count={stack.albumIds.length}
-                                  checked={inStack}
-                                  onToggle={() => toggleAlbumInStack(selectedAlbum.id, stack.id)}
+                                  count={(membership?.albumIds ?? stack.albumIds).length}
+                                  checked={isInStack(selectedAlbum.id, stack.id)}
+                                  // A session that fills itself can't be
+                                  // hand-added to. Locked, not hidden — a row
+                                  // that vanished would read as a bug.
+                                  locked={isAuto}
+                                  lockedReason="Fills itself"
+                                  onToggle={() => { if (!isAuto) toggleAlbumInStack(selectedAlbum.id, stack.id); }}
                                   isDarkMode={isDarkMode}
                                 />
                               </div>
@@ -2153,17 +2159,24 @@ function InlineStackRow({
   count,
   checked,
   onToggle,
+  locked = false,
+  lockedReason,
 }: {
   label: string;
   count: number;
   checked: boolean;
   onToggle: () => void;
   isDarkMode: boolean;
+  locked?: boolean;
+  lockedReason?: string;
 }) {
   return (
     <button
       onClick={onToggle}
+      disabled={locked}
+      aria-disabled={locked}
       className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors cursor-pointer"
+      style={locked ? { opacity: 0.55, cursor: "default" } : undefined}
     >
       {/* Label + count */}
       <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -2185,11 +2198,16 @@ function InlineStackRow({
             color: "var(--c-text-faint)",
           }}
         >
-          {count} {count === 1 ? "album" : "albums"}
+          {locked && lockedReason ? lockedReason : `${count} ${count === 1 ? "album" : "albums"}`}
         </span>
       </div>
 
-      {/* Checkbox */}
+      {locked ? (
+        <span className="flex-shrink-0" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+          {count}
+        </span>
+      ) : (
+      /* Checkbox */
       <div
         className="flex-shrink-0 flex items-center justify-center rounded-full transition-colors"
         style={{
@@ -2201,6 +2219,7 @@ function InlineStackRow({
       >
         {checked && <Check size={12} color="#16181C" weight="bold" />}
       </div>
+      )}
     </button>
   );
 }

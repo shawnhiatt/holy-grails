@@ -13,6 +13,16 @@ export function shuffle<T>(input: readonly T[]): T[] {
 }
 
 /**
+ * Seeded Fisher–Yates, re-exported from the pure rule-engine module.
+ *
+ * It lives in `convex/stackRules.ts` rather than here because Convex cannot
+ * import from `src/`, and session rotation has to produce the same order on
+ * the client and in the server-side share read. Client callers import it from
+ * here as usual.
+ */
+export { seededShuffle } from "../../../convex/stackRules";
+
+/**
  * Pick one random element. Callers guarantee a non-empty array — the
  * shared "rotate per app load" helper used by the feed's spotlight
  * sections and the identity block's collection fact.

@@ -20,6 +20,11 @@ import {
 import { initiateDiscogsOAuth, oauthInFlight } from "./oauth-helpers";
 import { recordScreen } from "../lib/screen-trail";
 import {
+  evaluateStackRule,
+  type RuleAlbum,
+  type StackRule,
+} from "../../../convex/stackRules";
+import {
   type StoredAccount,
   parseAccounts,
   upsertAccount,
@@ -40,6 +45,17 @@ function getOrCreateContext(): React.Context<AppState | null> {
     g[APP_CONTEXT_KEY] = createContext<AppState | null>(null);
   }
   return g[APP_CONTEXT_KEY];
+}
+
+/** What a session currently contains, for both kinds of session. */
+export interface StackMembership {
+  /** Release ids as strings, matching `Stack.albumIds` and `Album.id`. */
+  albumIds: string[];
+  /** How many records match before the cap — the "of M" in "25 of 148". */
+  poolSize: number;
+  /** True only when a cap is set AND rotation actually engaged this period. */
+  rotating: boolean;
+  isAuto: boolean;
 }
 
 export type Screen = "crate" | "purge" | "stacks" | "wants" | "following" | "settings" | "reports" | "feed";
@@ -184,6 +200,18 @@ interface AppState {
   isInStack: (albumId: string, stackId: string) => boolean;
   toggleAlbumInStack: (albumId: string, stackId: string) => void;
   createStackDirect: (name: string, initialAlbumIds?: string[]) => string;
+  // ── Session Builder ──
+  /** Current contents of every session, auto or manual, keyed by session id.
+   *  Read this instead of `stack.albumIds` so neither kind needs special
+   *  casing at the call site. */
+  stackMembership: Record<string, StackMembership>;
+  createAutoStack: (name: string, rule: StackRule, nameGenerated?: string) => string;
+  updateStackRule: (stackId: string, rule: StackRule, name?: string, nameGenerated?: string) => void;
+  excludeFromStack: (stackId: string, releaseId: number) => void;
+  /** Materialize an auto session's current contents and drop its rule. */
+  freezeStack: (stackId: string) => void;
+  /** Evaluate an unsaved rule — the builder's live match count. */
+  previewStackRule: (rule: StackRule, excludedIds?: number[]) => ReturnType<typeof evaluateStackRule>;
   isAlbumInAnyStack: (albumId: string) => boolean;
   mostRecentStackId: string | null;
   firstStackJustCreated: boolean;
@@ -453,6 +481,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createStackMut = useMutation(api.stacks.create);
   const updateStackMut = useMutation(api.stacks.update);
   const removeStackMut = useMutation(api.stacks.remove);
+  const freezeStackMut = useMutation(api.stacks.freeze);
   const enableShareMut = useMutation(api.stacks.enableShare);
   const disableShareMut = useMutation(api.stacks.disableShare);
   const logPlayMut = useMutation(api.last_played.logPlay);
@@ -858,6 +887,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(s.created_at).toISOString().split("T")[0],
           lastModified: new Date(s.last_modified).toISOString(),
           shareId: s.share_id,
+          kind: s.kind,
+          rule: s.rule as Stack["rule"],
+          excludedIds: s.excluded_ids,
+          nameGenerated: s.name_generated,
         })));
       }
     }
@@ -2227,10 +2260,192 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFirstStackJustCreated(false);
   }, []);
 
+  // ── Auto sessions: membership is derived, never stored ──
+  //
+  // The rule is the only source of truth. Because `albums` already re-derives
+  // from the Convex collection subscription, a record added by a sync drops
+  // into every session whose rule it satisfies on the very next render — no
+  // cron, no recompute-on-write, no drift between the rule and a stored id
+  // list. This memo is the entire "auto-add" feature.
+
+  /** The collection in the shape the rule engine reads, with the purge tags
+   *  and play history the engine needs folded in from their own sources. */
+  const ruleAlbums = useMemo<RuleAlbum[]>(
+    () =>
+      albums.map((a) => ({
+        releaseId: a.release_id,
+        artist: a.artist,
+        artistIds: a.artistIds,
+        title: a.title,
+        label: a.label,
+        year: a.year,
+        genres: a.genres,
+        styles: a.styles,
+        format: a.format,
+        folder: a.folder,
+        mediaCondition: a.mediaCondition,
+        rating: a.rating,
+        dateAdded: a.dateAdded,
+        purgeTag: a.purgeTag,
+        lastPlayedAt: lastPlayed[a.id] ? new Date(lastPlayed[a.id]).getTime() : null,
+        playCount: playCounts[a.id] ?? 0,
+        marketValue: a.marketValue,
+      })),
+    [albums, lastPlayed, playCounts]
+  );
+
+  /**
+   * Every session's current contents, keyed by session id. Manual sessions
+   * report their own stored ids; auto sessions report what their rule matches
+   * right now. Consumers read this instead of `stack.albumIds` so neither kind
+   * needs special-casing at the call site.
+   */
+  const stackMembership = useMemo<Record<string, StackMembership>>(() => {
+    const out: Record<string, StackMembership> = {};
+    for (const stack of stacks) {
+      if (stack.kind !== "auto" || !stack.rule) {
+        out[stack.id] = {
+          albumIds: stack.albumIds,
+          poolSize: stack.albumIds.length,
+          rotating: false,
+          isAuto: false,
+        };
+        continue;
+      }
+      const result = evaluateStackRule(ruleAlbums, stack.rule, {
+        stackId: stack.id,
+        excludedIds: stack.excludedIds,
+      });
+      out[stack.id] = {
+        albumIds: result.albums.map((a) => String(a.releaseId)),
+        poolSize: result.poolSize,
+        rotating: result.rotating,
+        isAuto: true,
+      };
+    }
+    return out;
+  }, [stacks, ruleAlbums]);
+
+  /** Run a rule that hasn't been saved yet — powers the builder's live match
+   *  count. Same evaluator, so the preview cannot disagree with the result. */
+  const previewStackRule = useCallback(
+    (rule: StackRule, excludedIds?: number[]) =>
+      evaluateStackRule(ruleAlbums, rule, { stackId: "preview", excludedIds }),
+    [ruleAlbums]
+  );
+
+  const createAutoStack = useCallback(
+    (name: string, rule: StackRule, nameGenerated?: string) => {
+      const now = new Date().toISOString();
+      const stackId = "s" + Date.now();
+      const newStack: Stack = {
+        id: stackId,
+        name,
+        albumIds: [],
+        createdAt: now.split("T")[0],
+        lastModified: now,
+        kind: "auto",
+        rule,
+        nameGenerated,
+      };
+      setStacks((prev) => [newStack, ...prev]);
+      if (sessionToken) {
+        createStackMut({
+          sessionToken,
+          stack_id: stackId,
+          name,
+          album_ids: [],
+          kind: "auto",
+          rule,
+          ...(nameGenerated && { name_generated: nameGenerated }),
+        }).catch(console.error);
+      }
+      return stackId;
+    },
+    [sessionToken, createStackMut]
+  );
+
+  const updateStackRule = useCallback(
+    (stackId: string, rule: StackRule, name?: string, nameGenerated?: string) => {
+      setStacks((prev) =>
+        prev.map((s) =>
+          s.id === stackId
+            ? {
+                ...s,
+                rule,
+                ...(name !== undefined && { name }),
+                ...(nameGenerated !== undefined && { nameGenerated }),
+                lastModified: new Date().toISOString(),
+              }
+            : s
+        )
+      );
+      if (sessionToken) {
+        updateStackMut({
+          sessionToken,
+          stack_id: stackId,
+          rule,
+          ...(name !== undefined && { name }),
+          ...(nameGenerated !== undefined && { name_generated: nameGenerated }),
+        }).catch(console.error);
+      }
+    },
+    [sessionToken, updateStackMut]
+  );
+
+  /** Kick one record out of an auto session without touching its rule. */
+  const excludeFromStack = useCallback(
+    (stackId: string, releaseId: number) => {
+      let next: number[] = [];
+      setStacks((prev) =>
+        prev.map((s) => {
+          if (s.id !== stackId) return s;
+          next = [...new Set([...(s.excludedIds || []), releaseId])];
+          return { ...s, excludedIds: next, lastModified: new Date().toISOString() };
+        })
+      );
+      if (sessionToken) {
+        updateStackMut({ sessionToken, stack_id: stackId, excluded_ids: next }).catch(console.error);
+      }
+    },
+    [sessionToken, updateStackMut]
+  );
+
+  /**
+   * Freeze: keep what the session plays right now and drop the rule. The ids
+   * come from the membership map rather than being re-derived server-side, so
+   * the user keeps exactly the set they were looking at.
+   */
+  const freezeStack = useCallback(
+    (stackId: string) => {
+      const ids = (stackMembership[stackId]?.albumIds || []).map(Number);
+      setStacks((prev) =>
+        prev.map((s) =>
+          s.id === stackId
+            ? {
+                ...s,
+                albumIds: ids.map(String),
+                kind: "manual" as const,
+                rule: undefined,
+                excludedIds: undefined,
+                nameGenerated: undefined,
+                lastModified: new Date().toISOString(),
+              }
+            : s
+        )
+      );
+      if (sessionToken) {
+        freezeStackMut({ sessionToken, stack_id: stackId, album_ids: ids }).catch(console.error);
+      }
+    },
+    [sessionToken, freezeStackMut, stackMembership]
+  );
+
   const isInStack = useCallback((albumId: string, stackId: string) => {
-    const stack = stacks.find((s) => s.id === stackId);
-    return stack ? stack.albumIds.includes(albumId) : false;
-  }, [stacks]);
+    // Reads through the membership map so an auto session reports what its
+    // rule currently matches, not its (always empty) stored id list.
+    return stackMembership[stackId]?.albumIds.includes(albumId) ?? false;
+  }, [stackMembership]);
 
   const toggleAlbumInStack = useCallback((albumId: string, stackId: string) => {
     setStacks((prev) => {
@@ -2238,6 +2453,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (stackIndex === -1) return prev;
 
       const stack = prev[stackIndex];
+      // You cannot hand-add to a query. The pickers hide auto sessions behind
+      // a locked row, so this is a backstop rather than the primary guard —
+      // but writing ids onto an auto session would create a second, silently
+      // ignored source of truth, so it is refused outright.
+      if (stack.kind === "auto") return prev;
       const now = new Date().toISOString();
       const albumIndex = stack.albumIds.indexOf(albumId);
       let newAlbumIds: string[];
@@ -2296,8 +2516,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [sessionToken, createStackMut]);
 
   const isAlbumInAnyStack = useCallback((albumId: string) => {
-    return stacks.some((s) => s.albumIds.includes(albumId));
-  }, [stacks]);
+    return Object.values(stackMembership).some((m) => m.albumIds.includes(albumId));
+  }, [stackMembership]);
 
   const mostRecentStackId = useMemo(() => {
     if (stacks.length === 0) return null;
@@ -2513,6 +2733,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isInStack,
       toggleAlbumInStack,
       createStackDirect,
+      stackMembership,
+      createAutoStack,
+      updateStackRule,
+      excludeFromStack,
+      freezeStack,
+      previewStackRule,
       isAlbumInAnyStack,
       mostRecentStackId,
       firstStackJustCreated,
@@ -2595,6 +2821,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       connectDiscogsRequested, requestConnectDiscogs, clearConnectDiscogsRequest,
       stackPickerAlbumId, openStackPicker, closeStackPicker,
       isInStack, toggleAlbumInStack, createStackDirect,
+      stackMembership, createAutoStack, updateStackRule, excludeFromStack, freezeStack, previewStackRule,
       isAlbumInAnyStack, mostRecentStackId, firstStackJustCreated,
       updateAlbum, rateAlbum, removeFromCollection,
       selectedWantItem, selectedFeedAlbum, followingActivityTabIntent, addToCollection,

@@ -15,12 +15,36 @@ export const getByUsername = query({
   },
 });
 
+/**
+ * A session's saved query. Loose `field`/`op` strings so a new operator ships
+ * without a schema deploy — the pure evaluator in stackRules.ts ignores what
+ * it doesn't recognize.
+ */
+const ruleValidator = v.object({
+  match: v.union(v.literal("all"), v.literal("any")),
+  conditions: v.array(
+    v.object({
+      field: v.string(),
+      op: v.string(),
+      value: v.optional(v.any()),
+    })
+  ),
+  sort: v.string(),
+  limit: v.optional(v.number()),
+  rotation: v.union(v.literal("off"), v.literal("daily"), v.literal("weekly")),
+});
+
 export const create = mutation({
   args: {
     sessionToken: v.string(),
     stack_id: v.string(),
     name: v.string(),
     album_ids: v.array(v.number()),
+    // Session Builder. Omitted entirely for a hand-filled session, which is
+    // why `kind` is optional rather than defaulted — undefined reads manual.
+    kind: v.optional(v.union(v.literal("manual"), v.literal("auto"))),
+    rule: v.optional(ruleValidator),
+    name_generated: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -29,9 +53,15 @@ export const create = mutation({
       discogs_username: user.discogs_username,
       stack_id: args.stack_id,
       name: args.name,
-      album_ids: args.album_ids,
+      // An auto session stores no ids: membership is derived from the rule at
+      // read time, so a cached copy here would be a second source of truth
+      // that drifts the moment the collection changes.
+      album_ids: args.kind === "auto" ? [] : args.album_ids,
       created_at: now,
       last_modified: now,
+      ...(args.kind && { kind: args.kind }),
+      ...(args.rule && { rule: args.rule }),
+      ...(args.name_generated && { name_generated: args.name_generated }),
     });
   },
 });
@@ -42,6 +72,9 @@ export const update = mutation({
     stack_id: v.string(),
     name: v.optional(v.string()),
     album_ids: v.optional(v.array(v.number())),
+    rule: v.optional(ruleValidator),
+    excluded_ids: v.optional(v.array(v.number())),
+    name_generated: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -60,9 +93,54 @@ export const update = mutation({
     const updates: Record<string, unknown> = { last_modified: Date.now() };
     if (args.name !== undefined) updates.name = args.name;
     if (args.album_ids !== undefined) updates.album_ids = args.album_ids;
+    if (args.rule !== undefined) updates.rule = args.rule;
+    if (args.excluded_ids !== undefined) updates.excluded_ids = args.excluded_ids;
+    if (args.name_generated !== undefined) updates.name_generated = args.name_generated;
 
     await ctx.db.patch(existing._id, updates);
     return existing._id;
+  },
+});
+
+/**
+ * Freeze an auto session: materialize the records it currently plays into
+ * `album_ids` and drop the rule, leaving an ordinary hand-filled session.
+ *
+ * The caller passes the ids because it has already evaluated the rule for
+ * display — re-deriving them here would mean duplicating the client's purge
+ * tags and play history server-side, and could disagree with what the user is
+ * looking at. This is the "I love today's roll — keep it" escape hatch from
+ * rotation, and it is deliberately one-way: unfreezing is just building a new
+ * rule.
+ */
+export const freeze = mutation({
+  args: {
+    sessionToken: v.string(),
+    stack_id: v.string(),
+    album_ids: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const existing = await ctx.db
+      .query("stacks")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", user.discogs_username)
+      )
+      .filter((q) => q.eq(q.field("stack_id"), args.stack_id))
+      .first();
+
+    if (!existing) {
+      throw new Error(`Stack ${args.stack_id} not found`);
+    }
+
+    await ctx.db.patch(existing._id, {
+      album_ids: args.album_ids,
+      kind: "manual",
+      rule: undefined,
+      excluded_ids: undefined,
+      name_generated: undefined,
+      last_modified: Date.now(),
+    });
   },
 });
 
