@@ -77,6 +77,33 @@ export interface RuleAlbum {
   marketValue?: number | null;
 }
 
+// ─── Caps ───
+
+/**
+ * How long a session runs, named in listening terms rather than in numbers.
+ *
+ * A cap is on by default because sessions are listening sets, not query
+ * results — "148 records match" is a search, not an evening. The names are the
+ * point: nobody thinks "I want 25 records," they think "I've got an evening."
+ */
+export const CAP_TIERS = [
+  { value: "10", limit: 10, label: "One sitting" },
+  { value: "25", limit: 25, label: "An evening" },
+  { value: "50", limit: 50, label: "A deep dig" },
+  { value: "none", limit: undefined, label: "No cap" },
+] as const;
+
+export type CapValue = (typeof CAP_TIERS)[number]["value"];
+
+/** The tier used when a user has never set one. */
+export const DEFAULT_CAP: CapValue = "25";
+
+/** Turn a stored cap preference into a rule `limit`. Unknown → the default. */
+export function capToLimit(cap: string | undefined): number | undefined {
+  const tier = CAP_TIERS.find((t) => t.value === (cap ?? DEFAULT_CAP));
+  return (tier ?? CAP_TIERS.find((t) => t.value === DEFAULT_CAP)!).limit;
+}
+
 // ─── Rotation ───
 
 const DAY_MS = 86_400_000;

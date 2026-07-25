@@ -110,6 +110,8 @@ export function Stacks() {
           memberIds={stackMembership[activeStack.id]?.albumIds ?? activeStack.albumIds}
           isAuto={stackMembership[activeStack.id]?.isAuto ?? false}
           rule={activeStack.rule}
+          rotating={stackMembership[activeStack.id]?.rotating ?? false}
+          poolSize={stackMembership[activeStack.id]?.poolSize ?? activeStack.albumIds.length}
           onFreeze={() => {
             freezeStack(activeStack.id);
             toast.success("Session frozen.", { duration: 1500 });
@@ -261,7 +263,16 @@ export function Stacks() {
                           {membership?.isAuto && <AutoBadge />}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Disc3 size={11} />{memberIds.length} album{memberIds.length !== 1 ? "s" : ""}</span>
+                          <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                            <Disc3 size={11} />
+                            {/* Rotation has to be visible where the session
+                                lives, permanently. Without it, someone who saw
+                                a record in here yesterday and can't find it
+                                today concludes the app lost it. */}
+                            {membership?.rotating
+                              ? `In rotation · ${memberIds.length} of ${membership.poolSize}`
+                              : `${memberIds.length} album${memberIds.length !== 1 ? "s" : ""}`}
+                          </span>
                           <span style={{ color: "var(--c-border)" }}>&middot;</span>
                           <span className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}><Calendar size={11} />{new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                         </div>
@@ -284,7 +295,7 @@ export function Stacks() {
    ═══════════════════════════════════════════════════════════ */
 function StackDetail({
   stack, albums, onBack, onDelete, onRename, onOpenDrawer, onAlbumTap, onRemoveAlbum, onReorderAlbums,
-  memberIds, isAuto, rule, onFreeze, isShared, onShare, onUnshare,
+  memberIds, isAuto, rule, rotating, poolSize, onFreeze, isShared, onShare, onUnshare,
 }: {
   stack: { id: string; name: string; albumIds: string[]; createdAt: string };
   albums: { id: string; title: string; artist: string; thumb?: string; cover: string }[];
@@ -301,6 +312,10 @@ function StackDetail({
   isAuto: boolean;
   /** The session's rule, when it has one — rendered as criteria chips. */
   rule?: StackRule;
+  /** True when a cap is set and rotation actually engaged this period. */
+  rotating: boolean;
+  /** How many records match before the cap — the "of M" in "25 of 148". */
+  poolSize: number;
   onFreeze: () => void;
   isShared: boolean;
   onShare: () => Promise<string>;
@@ -449,7 +464,9 @@ function StackDetail({
         </div>
         <p className="pl-10" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
           {isAuto && <span style={{ color: "var(--c-text-secondary)", fontWeight: 500 }}>Fills itself &middot; </span>}
-          {memberIds.length} album{memberIds.length !== 1 ? "s" : ""} &middot; Created {new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          {rotating
+            ? `In rotation · ${memberIds.length} of ${poolSize}`
+            : `${memberIds.length} album${memberIds.length !== 1 ? "s" : ""}`} &middot; Created {new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </p>
       </div>
 
@@ -564,7 +581,7 @@ function StackDetail({
                     color: "var(--c-text)",
                   }}
                 >
-                  Keep this set
+                  {rotating ? "Keep today's set" : "Keep this set"}
                 </button>
               ) : (
                 <button

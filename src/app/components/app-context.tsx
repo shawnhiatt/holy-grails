@@ -20,7 +20,10 @@ import {
 import { initiateDiscogsOAuth, oauthInFlight } from "./oauth-helpers";
 import { recordScreen } from "../lib/screen-trail";
 import {
+  capToLimit,
   evaluateStackRule,
+  DEFAULT_CAP,
+  type CapValue,
   type RuleAlbum,
   type StackRule,
 } from "../../../convex/stackRules";
@@ -61,6 +64,9 @@ export interface StackMembership {
 export type Screen = "crate" | "purge" | "stacks" | "wants" | "following" | "settings" | "reports" | "feed";
 export type ViewMode = "grid" | "grid3" | "list";
 export type FormatScope = "all" | "vinyl";
+
+/** Session Builder defaults. See CAP_TIERS in convex/stackRules.ts. */
+export type SessionRotation = "off" | "daily" | "weekly";
 export type SortOption =
   | "artist-az"
   | "artist-za"
@@ -158,6 +164,13 @@ interface AppState {
   setDefaultCollectionSort: (s: SortOption) => void;
   // Format display scope (all-formats): "all" (default) | "vinyl"
   formatScope: FormatScope;
+  /** Session Builder defaults (Settings → Sessions). Applied to new sessions
+   *  only; an existing session keeps the rule it was built with. */
+  sessionCap: CapValue;
+  setSessionCap: (c: CapValue) => void;
+  sessionRotation: SessionRotation;
+  setSessionRotation: (r: SessionRotation) => void;
+  sessionRuleDefaults: { limit: number | undefined; rotation: SessionRotation };
   setFormatScope: (s: FormatScope) => void;
   // Discogs privacy: collection/wantlist "browse" is off, so the read 403s
   collectionPrivate: boolean;
@@ -402,6 +415,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
   const [defaultCollectionSort, setDefaultCollectionSortRaw] = useState<SortOption>("added-new");
   const [formatScope, setFormatScopeRaw] = useState<FormatScope>("all");
+  // Session Builder defaults, applied to newly built sessions only — changing
+  // them never rewrites a session that already has its own rule.
+  const [sessionCap, setSessionCapRaw] = useState<CapValue>(DEFAULT_CAP);
+  // Rotation defaults ON for capped sessions and OFF when there is no cap.
+  // That default is only honest because the builder states it up front and
+  // every rotating session carries an "In rotation" line — on-by-default
+  // without the disclosure would be the worst of both.
+  const [sessionRotation, setSessionRotationRaw] = useState<SessionRotation>("daily");
   const [folders, setFolders] = useState<{ id: number; name: string; count: number }[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   // Background sync runs without taking over the screen — the app stays
@@ -940,6 +961,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (convexPreferences.format_scope === "vinyl") {
         setFormatScopeRaw("vinyl");
       }
+      if (convexPreferences.session_cap) {
+        setSessionCapRaw(convexPreferences.session_cap as CapValue);
+      }
+      if (convexPreferences.session_rotation) {
+        setSessionRotationRaw(convexPreferences.session_rotation as SessionRotation);
+      }
     }
   }, [convexPreferences]);
 
@@ -1084,6 +1111,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       upsertPreferencesMut({ sessionToken, view_mode: v });
     }
   }, [sessionToken, upsertPreferencesMut]);
+
+  const setSessionCap = useCallback((c: CapValue) => {
+    setSessionCapRaw(c);
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, session_cap: c });
+    }
+  }, [sessionToken, upsertPreferencesMut]);
+
+  const setSessionRotation = useCallback((r: SessionRotation) => {
+    setSessionRotationRaw(r);
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, session_rotation: r });
+    }
+  }, [sessionToken, upsertPreferencesMut]);
+
+  /** The rule defaults a newly built session starts from. Rotation only
+   *  applies when there is a cap — there is nothing to rotate through
+   *  otherwise, and the engine ignores it anyway. */
+  const sessionRuleDefaults = useMemo(() => {
+    const limit = capToLimit(sessionCap);
+    return {
+      limit,
+      rotation: limit ? sessionRotation : ("off" as SessionRotation),
+    };
+  }, [sessionCap, sessionRotation]);
 
   const setFormatScope = useCallback((s: FormatScope) => {
     setFormatScopeRaw(s);
@@ -2690,6 +2742,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDefaultCollectionSort,
       // Format display scope
       formatScope,
+      sessionCap,
+      setSessionCap,
+      sessionRotation,
+      setSessionRotation,
+      sessionRuleDefaults,
       setFormatScope,
       // Discogs privacy state
       collectionPrivate,
@@ -2808,6 +2865,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       defaultScreen, setDefaultScreen,
       defaultCollectionSort, setDefaultCollectionSort,
       formatScope, setFormatScope,
+      sessionCap, setSessionCap, sessionRotation, setSessionRotation, sessionRuleDefaults,
       collectionPrivate, wantlistPrivate,
       folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,

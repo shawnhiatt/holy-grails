@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useApp } from "./app-context";
-import type { Screen, SortOption, FormatScope } from "./app-context";
+import type { Screen, SortOption, FormatScope, SessionRotation } from "./app-context";
+import { CAP_TIERS, type CapValue } from "../../../convex/stackRules";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { version as APP_VERSION } from "../../../package.json";
 import { checkForUpdates } from "../lib/pwa-update";
@@ -37,6 +38,20 @@ const DEFAULT_COLLECTION_SORT_OPTIONS: { value: SortOption; label: string }[] = 
 const FORMAT_SCOPE_OPTIONS: { value: FormatScope; label: string }[] = [
   { value: "all", label: "All formats" },
   { value: "vinyl", label: "Vinyl only" },
+];
+
+/** Cap tiers, named in listening terms — see CAP_TIERS in stackRules.ts. */
+const SESSION_CAP_OPTIONS: { value: CapValue; label: string; sub: string }[] =
+  CAP_TIERS.map((t) => ({
+    value: t.value,
+    label: t.label,
+    sub: t.limit ? `${t.limit} records` : "Everything that matches",
+  }));
+
+const SESSION_ROTATION_OPTIONS: { value: SessionRotation; label: string; sub: string }[] = [
+  { value: "daily", label: "Daily", sub: "A new set each morning" },
+  { value: "weekly", label: "Weekly", sub: "A new set each week" },
+  { value: "off", label: "Off", sub: "Always the same records" },
 ];
 
 export function SettingsScreen() {
@@ -73,6 +88,10 @@ export function SettingsScreen() {
     defaultCollectionSort,
     setDefaultCollectionSort,
     formatScope,
+    sessionCap,
+    setSessionCap,
+    sessionRotation,
+    setSessionRotation,
     setFormatScope,
     executePurgeCut,
     stacks,
@@ -106,6 +125,8 @@ export function SettingsScreen() {
   const [showDefaultScreenPicker, setShowDefaultScreenPicker] = useState(false);
   const [showDefaultSortPicker, setShowDefaultSortPicker] = useState(false);
   const [showFormatScopePicker, setShowFormatScopePicker] = useState(false);
+  const [showSessionCapPicker, setShowSessionCapPicker] = useState(false);
+  const [showSessionRotationPicker, setShowSessionRotationPicker] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   const handleCheckUpdates = useCallback(async () => {
@@ -806,6 +827,56 @@ export function SettingsScreen() {
           </div>
         </section>
 
+        {/* Sessions — the defaults a newly built session starts from. This
+            section is a precondition for rotation defaulting on, not a
+            follow-up: on-by-default is only honest if the setting is somewhere
+            findable, next to Gestures and Formats where people already look. */}
+        <section className="mt-6">
+          <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Sessions</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Session length</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>How much a session that fills itself plays</p>
+              </div>
+              <button
+                onClick={() => setShowSessionCapPicker(true)}
+                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
+              >
+                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {SESSION_CAP_OPTIONS.find((o) => o.value === sessionCap)?.label ?? "An evening"}
+                </span>
+                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Rotation</p>
+                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {sessionCap === "none"
+                    ? "Only applies when a session has a length"
+                    : "Swap in a different set when there's more than fits"}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSessionRotationPicker(true)}
+                disabled={sessionCap === "none"}
+                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer disabled:opacity-40"
+              >
+                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+                  {sessionCap === "none"
+                    ? "Off"
+                    : SESSION_ROTATION_OPTIONS.find((o) => o.value === sessionRotation)?.label ?? "Daily"}
+                </span>
+                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
+              </button>
+            </div>
+            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: 1.45 }}>
+              These apply to new sessions. Ones you've already built keep their own rules.
+            </p>
+          </div>
+        </section>
+
         <section className="mt-6">
           <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
             <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Gestures</h3>
@@ -1197,8 +1268,111 @@ export function SettingsScreen() {
       </AnimatePresence>
 
       <AnimatePresence>
+        {showSessionCapPicker && (
+          <SlideOutPanel
+            title="Session length"
+            onClose={() => setShowSessionCapPicker(false)}
+            backdropZIndex={80}
+            sheetZIndex={85}
+          >
+            <div className="px-4 py-2">
+              {SESSION_CAP_OPTIONS.map((option, idx) => (
+                <OptionRow
+                  key={option.value}
+                  label={option.label}
+                  sub={option.sub}
+                  selected={sessionCap === option.value}
+                  isLast={idx === SESSION_CAP_OPTIONS.length - 1}
+                  isDarkMode={isDarkMode}
+                  onSelect={() => {
+                    setSessionCap(option.value);
+                    setShowSessionCapPicker(false);
+                  }}
+                />
+              ))}
+            </div>
+          </SlideOutPanel>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSessionRotationPicker && (
+          <SlideOutPanel
+            title="Rotation"
+            onClose={() => setShowSessionRotationPicker(false)}
+            backdropZIndex={80}
+            sheetZIndex={85}
+          >
+            <div className="px-4 py-2">
+              <p className="pt-1 pb-3" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.45 }}>
+                When more records match than a session plays, rotation swaps in
+                a different set each period. The same set holds all period, so
+                nothing changes mid-listen.
+              </p>
+              {SESSION_ROTATION_OPTIONS.map((option, idx) => (
+                <OptionRow
+                  key={option.value}
+                  label={option.label}
+                  sub={option.sub}
+                  selected={sessionRotation === option.value}
+                  isLast={idx === SESSION_ROTATION_OPTIONS.length - 1}
+                  isDarkMode={isDarkMode}
+                  onSelect={() => {
+                    setSessionRotation(option.value);
+                    setShowSessionRotationPicker(false);
+                  }}
+                />
+              ))}
+            </div>
+          </SlideOutPanel>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {showBugReport && <BugReportSheet onClose={() => setShowBugReport(false)} />}
       </AnimatePresence>
     </div>
+  );
+}
+/** Option row for the Sessions pickers — label, one line of what it means. */
+function OptionRow({
+  label,
+  sub,
+  selected,
+  isLast,
+  isDarkMode,
+  onSelect,
+}: {
+  label: string;
+  sub: string;
+  selected: boolean;
+  isLast: boolean;
+  isDarkMode: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      aria-pressed={selected}
+      className="w-full flex items-center justify-between py-3 cursor-pointer text-left"
+      style={{ borderBottom: !isLast ? "1px solid var(--c-border)" : undefined }}
+    >
+      <div className="flex-1 min-w-0">
+        <span
+          style={{
+            fontSize: "15px",
+            fontWeight: selected ? 600 : 400,
+            color: selected ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text)",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+          }}
+        >
+          {label}
+        </span>
+        <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
+          {sub}
+        </p>
+      </div>
+      {selected && <Check size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />}
+    </button>
   );
 }

@@ -25,15 +25,29 @@ export interface StackPreset {
   matchCount: number;
 }
 
-/** Default cap and rotation for a preset-built session. */
-const DEFAULT_LIMIT = 25;
+/**
+ * Cap and rotation come from the user's Settings defaults, threaded in rather
+ * than hardcoded, so a preset session obeys the same "an evening" choice a
+ * hand-built one does.
+ */
+export interface RuleDefaults {
+  limit: number | undefined;
+  rotation: "off" | "daily" | "weekly";
+}
 
-function rule(
+function makeRule(
+  defaults: RuleDefaults,
   conditions: StackRule["conditions"],
   sort: string,
   match: "all" | "any" = "all"
 ): StackRule {
-  return { match, conditions, sort, limit: DEFAULT_LIMIT, rotation: "off" };
+  return {
+    match,
+    conditions,
+    sort,
+    ...(defaults.limit ? { limit: defaults.limit } : {}),
+    rotation: defaults.rotation,
+  };
 }
 
 /** A preset has to be worth tapping — below this it isn't a session. */
@@ -48,9 +62,15 @@ const MIN_MATCHES = 5;
  */
 export function buildStackPresets(
   albums: Album[],
-  lastPlayed: Record<string, string>
+  lastPlayed: Record<string, string>,
+  defaults: RuleDefaults
 ): StackPreset[] {
   const out: StackPreset[] = [];
+  const rule = (
+    conditions: StackRule["conditions"],
+    sort: string,
+    match: "all" | "any" = "all"
+  ) => makeRule(defaults, conditions, sort, match);
   const count = (fn: (a: Album) => boolean) => albums.filter(fn).length;
   const now = Date.now();
   const DAY = 86_400_000;

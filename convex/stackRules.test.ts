@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  capToLimit,
+  CAP_TIERS,
+  DEFAULT_CAP,
   evaluateCondition,
   evaluateStackRule,
   matchesRule,
@@ -383,5 +386,34 @@ describe("evaluateStackRule", () => {
     const after = [...before, jazz(2, 1961)];
     expect(evaluateStackRule(before, r, { stackId: "s1", now: NOW }).albums).toHaveLength(1);
     expect(evaluateStackRule(after, r, { stackId: "s1", now: NOW }).albums).toHaveLength(2);
+  });
+});
+
+describe("cap tiers", () => {
+  it("maps each stored value to its limit", () => {
+    expect(capToLimit("10")).toBe(10);
+    expect(capToLimit("25")).toBe(25);
+    expect(capToLimit("50")).toBe(50);
+  });
+
+  it("treats 'no cap' as no limit, not as a large one", () => {
+    expect(capToLimit("none")).toBeUndefined();
+  });
+
+  it("falls back to the default for an unset or unrecognized value", () => {
+    // Loose strings, so an older client can write a value this build doesn't
+    // know. It must land on the default rather than producing no cap.
+    const fallback = CAP_TIERS.find((t) => t.value === DEFAULT_CAP)!.limit;
+    expect(capToLimit(undefined)).toBe(fallback);
+    expect(capToLimit("an-afternoon")).toBe(fallback);
+  });
+
+  it("names the tiers in listening terms, not in numbers", () => {
+    expect(CAP_TIERS.map((t) => t.label)).toEqual([
+      "One sitting",
+      "An evening",
+      "A deep dig",
+      "No cap",
+    ]);
   });
 });
