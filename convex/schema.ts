@@ -72,6 +72,46 @@ export default defineSchema({
     // Capability-token share link. Unset = not shared. The unguessable
     // share_id IS the capability — getShared is intentionally unauthenticated.
     share_id: v.optional(v.string()),
+
+    // ── Session Builder: sessions that fill themselves ──
+    // There is no second object type. A session is either hand-filled or
+    // rule-filled, and that is a property, not a category — undefined reads
+    // as "manual", so every pre-existing row is already correct.
+    kind: v.optional(v.union(v.literal("manual"), v.literal("auto"))),
+    // The saved query. `field`/`op` are loose strings on purpose (the same
+    // call as `view_mode`): a new operator ships without a schema deploy, and
+    // the pure evaluator ignores conditions it doesn't recognize.
+    //
+    // Membership is DERIVED from this, never stored: `album_ids` stays [] for
+    // an auto session so there is exactly one source of truth and a newly
+    // added record joins with no write path at all.
+    rule: v.optional(
+      v.object({
+        match: v.union(v.literal("all"), v.literal("any")),
+        conditions: v.array(
+          v.object({
+            field: v.string(),
+            op: v.string(),
+            value: v.optional(v.any()),
+          })
+        ),
+        sort: v.string(),
+        limit: v.optional(v.number()),
+        rotation: v.union(
+          v.literal("off"),
+          v.literal("daily"),
+          v.literal("weekly")
+        ),
+      })
+    ),
+    // Records kicked out of an auto session by hand. Keyed on release_id to
+    // match album_ids' semantics.
+    excluded_ids: v.optional(v.array(v.number())),
+    // The last title the generator produced. While `name` still equals it the
+    // title keeps regenerating as the rule is edited; the moment the user
+    // types their own it diverges and freezes. Stored rather than recomputed
+    // so the freeze survives a change to the generator.
+    name_generated: v.optional(v.string()),
   })
     .index("by_username", ["discogs_username"])
     .index("by_share_id", ["share_id"]),
@@ -154,6 +194,19 @@ export default defineSchema({
       options: v.optional(v.array(v.string())),
     }))),
     dateAdded: v.string(),
+    // ── Free data (Session Builder phase 1) ──
+    // All five arrive on the collection response the sync already makes and
+    // were previously discarded. All optional: a row synced before this
+    // change simply reads undefined, and backfills on that user's next sync.
+    // Styles ("Hard Bop") are the session-shaped half; genres ("Jazz") are
+    // the coarse one. `rating` is the user's own 1–5 stars — Discogs sends 0
+    // for UNRATED and the mapper drops it, so undefined means unrated and a
+    // stored value is always a real star count (never write 0 here).
+    genres: v.optional(v.array(v.string())),
+    styles: v.optional(v.array(v.string())),
+    rating: v.optional(v.number()),
+    discCount: v.optional(v.number()),
+    artistIds: v.optional(v.array(v.number())),
     // LEGACY (Spec 6A → 6A.1): market value used to live per-user on the
     // collection row. It now lives once per release in the `market_values`
     // table (see below) — a release's lowest ask is the same for everyone who
@@ -194,6 +247,12 @@ export default defineSchema({
     // Raw Discogs format string (all-formats change). Optional: rows synced
     // before it read undefined → no badge, no vinyl assumption.
     format: v.optional(v.string()),
+    // Free data (Session Builder phase 1), same as `collection` above minus
+    // `rating` — Discogs only rates copies you own, so a want has none.
+    genres: v.optional(v.array(v.string())),
+    styles: v.optional(v.array(v.string())),
+    discCount: v.optional(v.number()),
+    artistIds: v.optional(v.array(v.number())),
     priority: v.boolean(),
   })
     .index("by_username", ["discogs_username"])
@@ -218,6 +277,12 @@ export default defineSchema({
     // All-formats display scope: "all" (default) | "vinyl". Loose string, no
     // enum — undefined reads as "all". Applied client-side at the derive.
     format_scope: v.optional(v.string()),
+    // Session Builder defaults, both loose strings per the `view_mode`
+    // precedent (new values need no deploy). `session_cap` is one of
+    // "10"|"25"|"50"|"none"; `session_rotation` is "off"|"daily"|"weekly".
+    // A per-session override, when set, always wins over these.
+    session_cap: v.optional(v.string()),
+    session_rotation: v.optional(v.string()),
   }).index("by_username", ["discogs_username"]),
 
   // Live progress for the server-side sync loop (discogs.syncSelf). One doc

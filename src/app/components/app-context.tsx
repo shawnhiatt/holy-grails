@@ -20,6 +20,14 @@ import {
 import { initiateDiscogsOAuth, oauthInFlight } from "./oauth-helpers";
 import { recordScreen } from "../lib/screen-trail";
 import {
+  capToLimit,
+  evaluateStackRule,
+  DEFAULT_CAP,
+  type CapValue,
+  type RuleAlbum,
+  type StackRule,
+} from "../../../convex/stackRules";
+import {
   type StoredAccount,
   parseAccounts,
   upsertAccount,
@@ -42,9 +50,23 @@ function getOrCreateContext(): React.Context<AppState | null> {
   return g[APP_CONTEXT_KEY];
 }
 
+/** What a session currently contains, for both kinds of session. */
+export interface StackMembership {
+  /** Release ids as strings, matching `Stack.albumIds` and `Album.id`. */
+  albumIds: string[];
+  /** How many records match before the cap — the "of M" in "25 of 148". */
+  poolSize: number;
+  /** True only when a cap is set AND rotation actually engaged this period. */
+  rotating: boolean;
+  isAuto: boolean;
+}
+
 export type Screen = "crate" | "purge" | "stacks" | "wants" | "following" | "settings" | "reports" | "feed";
 export type ViewMode = "grid" | "grid3" | "list";
 export type FormatScope = "all" | "vinyl";
+
+/** Session Builder defaults. See CAP_TIERS in convex/stackRules.ts. */
+export type SessionRotation = "off" | "daily" | "weekly";
 export type SortOption =
   | "artist-az"
   | "artist-za"
@@ -54,7 +76,8 @@ export type SortOption =
   | "added-new"
   | "added-old"
   | "label-az"
-  | "last-played-oldest";
+  | "last-played-oldest"
+  | "rating-high";
 
 export interface FollowingFeedEntry {
   followed_username: string;
@@ -121,6 +144,9 @@ interface AppState {
   setNeverPlayedFilter: (v: boolean) => void;
   playsRecordedFilter: boolean;
   setPlaysRecordedFilter: (v: boolean) => void;
+  /** Transient quick filter: records the user has never rated. */
+  unratedFilter: boolean;
+  setUnratedFilter: (v: boolean) => void;
   // Media-type filter (all-formats) — transient, single-select; null = all
   formatFilter: MediaType | null;
   setFormatFilter: (v: MediaType | null) => void;
@@ -138,6 +164,13 @@ interface AppState {
   setDefaultCollectionSort: (s: SortOption) => void;
   // Format display scope (all-formats): "all" (default) | "vinyl"
   formatScope: FormatScope;
+  /** Session Builder defaults (Settings → Sessions). Applied to new sessions
+   *  only; an existing session keeps the rule it was built with. */
+  sessionCap: CapValue;
+  setSessionCap: (c: CapValue) => void;
+  sessionRotation: SessionRotation;
+  setSessionRotation: (r: SessionRotation) => void;
+  sessionRuleDefaults: { limit: number | undefined; rotation: SessionRotation };
   setFormatScope: (s: FormatScope) => void;
   // Discogs privacy: collection/wantlist "browse" is off, so the read 403s
   collectionPrivate: boolean;
@@ -180,11 +213,25 @@ interface AppState {
   isInStack: (albumId: string, stackId: string) => boolean;
   toggleAlbumInStack: (albumId: string, stackId: string) => void;
   createStackDirect: (name: string, initialAlbumIds?: string[]) => string;
+  // ── Session Builder ──
+  /** Current contents of every session, auto or manual, keyed by session id.
+   *  Read this instead of `stack.albumIds` so neither kind needs special
+   *  casing at the call site. */
+  stackMembership: Record<string, StackMembership>;
+  createAutoStack: (name: string, rule: StackRule, nameGenerated?: string) => string;
+  updateStackRule: (stackId: string, rule: StackRule, name?: string, nameGenerated?: string) => void;
+  excludeFromStack: (stackId: string, releaseId: number) => void;
+  /** Materialize an auto session's current contents and drop its rule. */
+  freezeStack: (stackId: string) => void;
+  /** Evaluate an unsaved rule — the builder's live match count. */
+  previewStackRule: (rule: StackRule, excludedIds?: number[]) => ReturnType<typeof evaluateStackRule>;
   isAlbumInAnyStack: (albumId: string) => boolean;
   mostRecentStackId: string | null;
   firstStackJustCreated: boolean;
   // Album instance editing
   updateAlbum: (albumId: string, fields: Partial<Album>) => void;
+  /** Set the user's own 1-5 star rating on an owned copy; 0 clears it. */
+  rateAlbum: (albumId: string, rating: number) => Promise<void>;
   removeFromCollection: (albumId: string) => Promise<void>;
   // Wantlist detail panel
   selectedWantItem: WantItem | null;
@@ -362,11 +409,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
   const [formatFilter, setFormatFilter] = useState<MediaType | null>(null);
   const [playsRecordedFilter, setPlaysRecordedFilter] = useState(false);
+  const [unratedFilter, setUnratedFilter] = useState(false);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
   const [defaultCollectionSort, setDefaultCollectionSortRaw] = useState<SortOption>("added-new");
   const [formatScope, setFormatScopeRaw] = useState<FormatScope>("all");
+  // Session Builder defaults, applied to newly built sessions only — changing
+  // them never rewrites a session that already has its own rule.
+  const [sessionCap, setSessionCapRaw] = useState<CapValue>(DEFAULT_CAP);
+  // Rotation defaults ON for capped sessions and OFF when there is no cap.
+  // That default is only honest because the builder states it up front and
+  // every rotating session carries an "In rotation" line — on-by-default
+  // without the disclosure would be the worst of both.
+  const [sessionRotation, setSessionRotationRaw] = useState<SessionRotation>("daily");
   const [folders, setFolders] = useState<{ id: number; name: string; count: number }[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   // Background sync runs without taking over the screen — the app stays
@@ -446,6 +502,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createStackMut = useMutation(api.stacks.create);
   const updateStackMut = useMutation(api.stacks.update);
   const removeStackMut = useMutation(api.stacks.remove);
+  const freezeStackMut = useMutation(api.stacks.freeze);
   const enableShareMut = useMutation(api.stacks.enableShare);
   const disableShareMut = useMutation(api.stacks.disableShare);
   const logPlayMut = useMutation(api.last_played.logPlay);
@@ -488,6 +545,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const proxyDeleteFolder = useAction(api.discogs.proxyDeleteFolder);
   const proxyUpdateProfile = useAction(api.discogs.proxyUpdateProfile);
   const proxyAddToCollection = useAction(api.discogs.proxyAddToCollection);
+  const proxyUpdateInstance = useAction(api.discogs.proxyUpdateCollectionInstance);
   const addCollectionItemMut = useMutation(api.collection.addItem);
   const removeCollectionItemMut = useMutation(api.collection.removeItem);
 
@@ -649,6 +707,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notes: row.notes,
         customFields: row.customFields,
         dateAdded: row.dateAdded,
+        // Free data off the collection response (Session Builder phase 1).
+        // Undefined until the user's next sync backfills the cached row.
+        genres: (row as any).genres || undefined,
+        styles: (row as any).styles || undefined,
+        rating: (row as any).rating || undefined,
+        discCount: (row as any).discCount || undefined,
+        artistIds: (row as any).artistIds || undefined,
         // marketValue is no longer on the collection row — it lives once per
         // release in `market_values` (Spec 6A.1) and is merged in by the
         // Insights value sections (Session B) via market_values.getForUser.
@@ -688,6 +753,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         cover: row.cover,
         label: row.label,
         format: (row as any).format || undefined,
+        genres: (row as any).genres || undefined,
+        styles: (row as any).styles || undefined,
+        discCount: (row as any).discCount || undefined,
+        artistIds: (row as any).artistIds || undefined,
         priority: prioMap.get(row.release_id) || false,
       }));
     setWants((prev) => {
@@ -839,6 +908,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(s.created_at).toISOString().split("T")[0],
           lastModified: new Date(s.last_modified).toISOString(),
           shareId: s.share_id,
+          kind: s.kind,
+          rule: s.rule as Stack["rule"],
+          excludedIds: s.excluded_ids,
+          nameGenerated: s.name_generated,
         })));
       }
     }
@@ -887,6 +960,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (convexPreferences.format_scope === "vinyl") {
         setFormatScopeRaw("vinyl");
+      }
+      if (convexPreferences.session_cap) {
+        setSessionCapRaw(convexPreferences.session_cap as CapValue);
+      }
+      if (convexPreferences.session_rotation) {
+        setSessionRotationRaw(convexPreferences.session_rotation as SessionRotation);
       }
     }
   }, [convexPreferences]);
@@ -1033,6 +1112,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionToken, upsertPreferencesMut]);
 
+  const setSessionCap = useCallback((c: CapValue) => {
+    setSessionCapRaw(c);
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, session_cap: c });
+    }
+  }, [sessionToken, upsertPreferencesMut]);
+
+  const setSessionRotation = useCallback((r: SessionRotation) => {
+    setSessionRotationRaw(r);
+    if (sessionToken) {
+      upsertPreferencesMut({ sessionToken, session_rotation: r });
+    }
+  }, [sessionToken, upsertPreferencesMut]);
+
+  /** The rule defaults a newly built session starts from. Rotation only
+   *  applies when there is a cap — there is nothing to rotate through
+   *  otherwise, and the engine ignores it anyway. */
+  const sessionRuleDefaults = useMemo(() => {
+    const limit = capToLimit(sessionCap);
+    return {
+      limit,
+      rotation: limit ? sessionRotation : ("off" as SessionRotation),
+    };
+  }, [sessionCap, sessionRotation]);
+
   const setFormatScope = useCallback((s: FormatScope) => {
     setFormatScopeRaw(s);
     if (sessionToken) {
@@ -1088,6 +1192,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removePurgeTagMut({ sessionToken, release_id: releaseId });
     }
   }, [sessionToken, removePurgeTagMut]);
+
+  /**
+   * Set (or clear) the user's own star rating on an owned copy.
+   *
+   * Unlike purge tags, ratings live on Discogs, so this writes there first and
+   * mirrors into local state + the Convex cache on success — an optimistic
+   * local update would show a star the server never accepted. Pass 0 to clear;
+   * Discogs uses 0 as its own "unrated" write value, and the Convex mutation
+   * turns it back into the field's absence.
+   */
+  const rateAlbum = useCallback(async (albumId: string, rating: number): Promise<void> => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    const album = albums.find((a) => a.id === albumId);
+    if (!album) throw new Error("Album not found");
+
+    await proxyUpdateInstance({
+      sessionToken,
+      username: discogsUsername,
+      folderId: album.folder_id,
+      releaseId: album.release_id,
+      instanceId: album.instance_id,
+      fields: { rating },
+    });
+
+    setAlbums((prev) =>
+      prev.map((a) =>
+        a.id === albumId ? { ...a, rating: rating > 0 ? rating : undefined } : a
+      )
+    );
+    updateInstanceMut({
+      sessionToken,
+      releaseId: album.release_id,
+      rating,
+    }).catch((e) => console.warn("[Convex] Rating cache write failed:", e));
+  }, [albums, sessionToken, discogsUsername, proxyUpdateInstance, updateInstanceMut]);
 
   const updateAlbum = useCallback((albumId: string, fields: Partial<Album>) => {
     setAlbums((prev) =>
@@ -1189,6 +1328,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       thumb: result.thumb || undefined,
       label: result.label,
       format: result.format || undefined,
+      genres: result.genres || undefined,
+      styles: result.styles || undefined,
+      discCount: result.discCount || undefined,
+      artistIds: result.artistIds || undefined,
       priority: result.priority,
     }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
@@ -1222,6 +1365,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // action so they're editable immediately, not only after the next sync
       customFields: result.customFields,
       dateAdded: result.dateAdded ?? new Date().toISOString(),
+      // Free data rides along on the add so the record is matchable by
+      // session rules immediately, not only after the next sync.
+      genres: result.genres || undefined,
+      styles: result.styles || undefined,
+      discCount: result.discCount || undefined,
+      artistIds: result.artistIds || undefined,
       discogsUrl: result.discogsUrl ?? `https://www.discogs.com/release/${releaseId}`,
       purgeTag: null,
     };
@@ -1250,6 +1399,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notes: newAlbum.notes,
       customFields: newAlbum.customFields,
       dateAdded: newAlbum.dateAdded,
+      genres: newAlbum.genres,
+      styles: newAlbum.styles,
+      discCount: newAlbum.discCount,
+      artistIds: newAlbum.artistIds,
     }).catch((e) => console.warn("[Convex] Collection add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToCollection, addCollectionItemMut, folders]);
 
@@ -2159,10 +2312,192 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFirstStackJustCreated(false);
   }, []);
 
+  // ── Auto sessions: membership is derived, never stored ──
+  //
+  // The rule is the only source of truth. Because `albums` already re-derives
+  // from the Convex collection subscription, a record added by a sync drops
+  // into every session whose rule it satisfies on the very next render — no
+  // cron, no recompute-on-write, no drift between the rule and a stored id
+  // list. This memo is the entire "auto-add" feature.
+
+  /** The collection in the shape the rule engine reads, with the purge tags
+   *  and play history the engine needs folded in from their own sources. */
+  const ruleAlbums = useMemo<RuleAlbum[]>(
+    () =>
+      albums.map((a) => ({
+        releaseId: a.release_id,
+        artist: a.artist,
+        artistIds: a.artistIds,
+        title: a.title,
+        label: a.label,
+        year: a.year,
+        genres: a.genres,
+        styles: a.styles,
+        format: a.format,
+        folder: a.folder,
+        mediaCondition: a.mediaCondition,
+        rating: a.rating,
+        dateAdded: a.dateAdded,
+        purgeTag: a.purgeTag,
+        lastPlayedAt: lastPlayed[a.id] ? new Date(lastPlayed[a.id]).getTime() : null,
+        playCount: playCounts[a.id] ?? 0,
+        marketValue: a.marketValue,
+      })),
+    [albums, lastPlayed, playCounts]
+  );
+
+  /**
+   * Every session's current contents, keyed by session id. Manual sessions
+   * report their own stored ids; auto sessions report what their rule matches
+   * right now. Consumers read this instead of `stack.albumIds` so neither kind
+   * needs special-casing at the call site.
+   */
+  const stackMembership = useMemo<Record<string, StackMembership>>(() => {
+    const out: Record<string, StackMembership> = {};
+    for (const stack of stacks) {
+      if (stack.kind !== "auto" || !stack.rule) {
+        out[stack.id] = {
+          albumIds: stack.albumIds,
+          poolSize: stack.albumIds.length,
+          rotating: false,
+          isAuto: false,
+        };
+        continue;
+      }
+      const result = evaluateStackRule(ruleAlbums, stack.rule, {
+        stackId: stack.id,
+        excludedIds: stack.excludedIds,
+      });
+      out[stack.id] = {
+        albumIds: result.albums.map((a) => String(a.releaseId)),
+        poolSize: result.poolSize,
+        rotating: result.rotating,
+        isAuto: true,
+      };
+    }
+    return out;
+  }, [stacks, ruleAlbums]);
+
+  /** Run a rule that hasn't been saved yet — powers the builder's live match
+   *  count. Same evaluator, so the preview cannot disagree with the result. */
+  const previewStackRule = useCallback(
+    (rule: StackRule, excludedIds?: number[]) =>
+      evaluateStackRule(ruleAlbums, rule, { stackId: "preview", excludedIds }),
+    [ruleAlbums]
+  );
+
+  const createAutoStack = useCallback(
+    (name: string, rule: StackRule, nameGenerated?: string) => {
+      const now = new Date().toISOString();
+      const stackId = "s" + Date.now();
+      const newStack: Stack = {
+        id: stackId,
+        name,
+        albumIds: [],
+        createdAt: now.split("T")[0],
+        lastModified: now,
+        kind: "auto",
+        rule,
+        nameGenerated,
+      };
+      setStacks((prev) => [newStack, ...prev]);
+      if (sessionToken) {
+        createStackMut({
+          sessionToken,
+          stack_id: stackId,
+          name,
+          album_ids: [],
+          kind: "auto",
+          rule,
+          ...(nameGenerated && { name_generated: nameGenerated }),
+        }).catch(console.error);
+      }
+      return stackId;
+    },
+    [sessionToken, createStackMut]
+  );
+
+  const updateStackRule = useCallback(
+    (stackId: string, rule: StackRule, name?: string, nameGenerated?: string) => {
+      setStacks((prev) =>
+        prev.map((s) =>
+          s.id === stackId
+            ? {
+                ...s,
+                rule,
+                ...(name !== undefined && { name }),
+                ...(nameGenerated !== undefined && { nameGenerated }),
+                lastModified: new Date().toISOString(),
+              }
+            : s
+        )
+      );
+      if (sessionToken) {
+        updateStackMut({
+          sessionToken,
+          stack_id: stackId,
+          rule,
+          ...(name !== undefined && { name }),
+          ...(nameGenerated !== undefined && { name_generated: nameGenerated }),
+        }).catch(console.error);
+      }
+    },
+    [sessionToken, updateStackMut]
+  );
+
+  /** Kick one record out of an auto session without touching its rule. */
+  const excludeFromStack = useCallback(
+    (stackId: string, releaseId: number) => {
+      let next: number[] = [];
+      setStacks((prev) =>
+        prev.map((s) => {
+          if (s.id !== stackId) return s;
+          next = [...new Set([...(s.excludedIds || []), releaseId])];
+          return { ...s, excludedIds: next, lastModified: new Date().toISOString() };
+        })
+      );
+      if (sessionToken) {
+        updateStackMut({ sessionToken, stack_id: stackId, excluded_ids: next }).catch(console.error);
+      }
+    },
+    [sessionToken, updateStackMut]
+  );
+
+  /**
+   * Freeze: keep what the session plays right now and drop the rule. The ids
+   * come from the membership map rather than being re-derived server-side, so
+   * the user keeps exactly the set they were looking at.
+   */
+  const freezeStack = useCallback(
+    (stackId: string) => {
+      const ids = (stackMembership[stackId]?.albumIds || []).map(Number);
+      setStacks((prev) =>
+        prev.map((s) =>
+          s.id === stackId
+            ? {
+                ...s,
+                albumIds: ids.map(String),
+                kind: "manual" as const,
+                rule: undefined,
+                excludedIds: undefined,
+                nameGenerated: undefined,
+                lastModified: new Date().toISOString(),
+              }
+            : s
+        )
+      );
+      if (sessionToken) {
+        freezeStackMut({ sessionToken, stack_id: stackId, album_ids: ids }).catch(console.error);
+      }
+    },
+    [sessionToken, freezeStackMut, stackMembership]
+  );
+
   const isInStack = useCallback((albumId: string, stackId: string) => {
-    const stack = stacks.find((s) => s.id === stackId);
-    return stack ? stack.albumIds.includes(albumId) : false;
-  }, [stacks]);
+    // Reads through the membership map so an auto session reports what its
+    // rule currently matches, not its (always empty) stored id list.
+    return stackMembership[stackId]?.albumIds.includes(albumId) ?? false;
+  }, [stackMembership]);
 
   const toggleAlbumInStack = useCallback((albumId: string, stackId: string) => {
     setStacks((prev) => {
@@ -2170,6 +2505,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (stackIndex === -1) return prev;
 
       const stack = prev[stackIndex];
+      // You cannot hand-add to a query. The pickers hide auto sessions behind
+      // a locked row, so this is a backstop rather than the primary guard —
+      // but writing ids onto an auto session would create a second, silently
+      // ignored source of truth, so it is refused outright.
+      if (stack.kind === "auto") return prev;
       const now = new Date().toISOString();
       const albumIndex = stack.albumIds.indexOf(albumId);
       let newAlbumIds: string[];
@@ -2228,8 +2568,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [sessionToken, createStackMut]);
 
   const isAlbumInAnyStack = useCallback((albumId: string) => {
-    return stacks.some((s) => s.albumIds.includes(albumId));
-  }, [stacks]);
+    return Object.values(stackMembership).some((m) => m.albumIds.includes(albumId));
+  }, [stackMembership]);
 
   const mostRecentStackId = useMemo(() => {
     if (stacks.length === 0) return null;
@@ -2381,6 +2721,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markPlayedAt,
       removePlay,
       neverPlayedFilter,
+      unratedFilter,
+      setUnratedFilter,
       setNeverPlayedFilter,
       playsRecordedFilter,
       setPlaysRecordedFilter,
@@ -2400,6 +2742,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setDefaultCollectionSort,
       // Format display scope
       formatScope,
+      sessionCap,
+      setSessionCap,
+      sessionRotation,
+      setSessionRotation,
+      sessionRuleDefaults,
       setFormatScope,
       // Discogs privacy state
       collectionPrivate,
@@ -2443,11 +2790,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isInStack,
       toggleAlbumInStack,
       createStackDirect,
+      stackMembership,
+      createAutoStack,
+      updateStackRule,
+      excludeFromStack,
+      freezeStack,
+      previewStackRule,
       isAlbumInAnyStack,
       mostRecentStackId,
       firstStackJustCreated,
       // Album instance editing
       updateAlbum,
+      rateAlbum,
       removeFromCollection,
       // Wantlist detail panel
       selectedWantItem,
@@ -2504,13 +2858,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
       lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,
-      playsRecordedFilter,
+      playsRecordedFilter, unratedFilter,
       formatFilter, setFormatFilter,
       hidePurgeIndicators, setHidePurgeIndicators,
       shakeToRandom, setShakeToRandom,
       defaultScreen, setDefaultScreen,
       defaultCollectionSort, setDefaultCollectionSort,
       formatScope, setFormatScope,
+      sessionCap, setSessionCap, sessionRotation, setSessionRotation, sessionRuleDefaults,
       collectionPrivate, wantlistPrivate,
       folders, createFolder, renameFolder, deleteFolder, fetchFolders,
       sessionToken,
@@ -2524,8 +2879,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       connectDiscogsRequested, requestConnectDiscogs, clearConnectDiscogsRequest,
       stackPickerAlbumId, openStackPicker, closeStackPicker,
       isInStack, toggleAlbumInStack, createStackDirect,
+      stackMembership, createAutoStack, updateStackRule, excludeFromStack, freezeStack, previewStackRule,
       isAlbumInAnyStack, mostRecentStackId, firstStackJustCreated,
-      updateAlbum, removeFromCollection,
+      updateAlbum, rateAlbum, removeFromCollection,
       selectedWantItem, selectedFeedAlbum, followingActivityTabIntent, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, accounts, switchAccount, addAccount, isAuthenticated, isAuthLoading, isNewUser,

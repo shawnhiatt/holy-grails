@@ -29,6 +29,11 @@ export const upsert = mutation({
     default_collection_sort: v.optional(v.string()),
     recent_searches: v.optional(v.array(v.string())),
     format_scope: v.optional(v.string()),
+    // Session Builder defaults. Loose strings per the `view_mode` precedent —
+    // "10"|"25"|"50"|"none" and "off"|"daily"|"weekly" — so new tiers ship
+    // without a schema deploy.
+    session_cap: v.optional(v.string()),
+    session_rotation: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -52,6 +57,8 @@ export const upsert = mutation({
       if (args.default_collection_sort !== undefined) updates.default_collection_sort = args.default_collection_sort;
       if (args.recent_searches !== undefined) updates.recent_searches = args.recent_searches;
       if (args.format_scope !== undefined) updates.format_scope = args.format_scope;
+      if (args.session_cap !== undefined) updates.session_cap = args.session_cap;
+      if (args.session_rotation !== undefined) updates.session_rotation = args.session_rotation;
 
       await ctx.db.patch(existing._id, updates);
       return existing._id;
@@ -64,6 +71,8 @@ export const upsert = mutation({
       shake_to_random: args.shake_to_random ?? false,
       ...(args.recent_searches !== undefined ? { recent_searches: args.recent_searches } : {}),
       ...(args.format_scope !== undefined ? { format_scope: args.format_scope } : {}),
+      ...(args.session_cap !== undefined ? { session_cap: args.session_cap } : {}),
+      ...(args.session_rotation !== undefined ? { session_rotation: args.session_rotation } : {}),
     });
   },
 });

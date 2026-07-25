@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, useMotionValue, animate, type MotionStyle } from "motion/react";
 import { X, Plus, Check } from "./icons";
-import { useApp } from "./app-context";
+import { useApp, type StackMembership } from "./app-context";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { getContentTokens } from "./theme";
 
@@ -27,6 +27,7 @@ export function StackPickerSheet() {
     isDarkMode,
     mostRecentStackId,
     firstStackJustCreated,
+    stackMembership,
   } = useApp();
 
   const [isDesktop, setIsDesktop] = useState(false);
@@ -55,7 +56,9 @@ export function StackPickerSheet() {
     if (hasAutoCheckedRef.current === stackPickerAlbumId) return;
     hasAutoCheckedRef.current = stackPickerAlbumId;
 
-    const inAnyStack = stacks.some((s) => s.albumIds.includes(stackPickerAlbumId));
+    const inAnyStack = Object.values(stackMembership).some((m) =>
+      m.albumIds.includes(stackPickerAlbumId)
+    );
 
     if (!inAnyStack && mostRecentStackId) {
       toggleAlbumInStack(stackPickerAlbumId, mostRecentStackId);
@@ -139,6 +142,7 @@ export function StackPickerSheet() {
       newStackInputRef={newStackInputRef}
       handleCreateStack={handleCreateStack}
       firstStackJustCreated={firstStackJustCreated}
+      stackMembership={stackMembership}
     />
   );
 
@@ -205,6 +209,7 @@ function PickerContent({
   newStackInputRef,
   handleCreateStack,
   firstStackJustCreated,
+  stackMembership,
 }: {
   album: { title: string; artist: string };
   albumId: string;
@@ -220,6 +225,7 @@ function PickerContent({
   newStackInputRef: React.RefObject<HTMLInputElement>;
   handleCreateStack: () => void;
   firstStackJustCreated: boolean;
+  stackMembership: Record<string, StackMembership>;
 }) {
   return (
     <div>
@@ -283,14 +289,20 @@ function PickerContent({
       <div className="mt-3 max-h-[320px] overflow-y-auto">
         {/* All stacks sorted by recency */}
         {stacks.map((stack) => {
-          const inStack = isInStack(albumId, stack.id);
+          const membership = stackMembership[stack.id];
+          const isAuto = membership?.isAuto ?? false;
           return (
             <StackRow
               key={stack.id}
               label={stack.name}
-              count={stack.albumIds.length}
-              checked={inStack}
-              onToggle={() => toggleAlbumInStack(albumId, stack.id)}
+              count={(membership?.albumIds ?? stack.albumIds).length}
+              checked={isInStack(albumId, stack.id)}
+              // You cannot hand-add to a query. Shown locked with a reason
+              // rather than hidden — a session that silently vanished from the
+              // picker would read as a bug.
+              locked={isAuto}
+              lockedReason="Fills itself"
+              onToggle={() => { if (!isAuto) toggleAlbumInStack(albumId, stack.id); }}
               isDarkMode={isDarkMode}
             />
           );
@@ -366,17 +378,25 @@ function StackRow({
   count,
   checked,
   onToggle,
+  locked = false,
+  lockedReason,
 }: {
   label: string;
   count: number;
   checked: boolean;
   onToggle: () => void;
   isDarkMode: boolean;
+  /** Auto sessions can't be hand-added to; the row stays visible but inert. */
+  locked?: boolean;
+  lockedReason?: string;
 }) {
   return (
     <button
       onClick={onToggle}
+      disabled={locked}
+      aria-disabled={locked}
       className="w-full flex items-center gap-2.5 py-2.5 px-1 tappable rounded-lg transition-colors cursor-pointer"
+      style={locked ? { opacity: 0.55, cursor: "default" } : undefined}
     >
       {/* Label + count */}
       <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -398,11 +418,17 @@ function StackRow({
             color: "var(--c-text-faint)",
           }}
         >
-          {count} {count === 1 ? "album" : "albums"}
+          {locked && lockedReason ? lockedReason : `${count} ${count === 1 ? "album" : "albums"}`}
         </span>
       </div>
 
-      {/* Checkbox */}
+      {/* Checkbox — a locked row shows the count instead, since there is
+          nothing to check: membership is decided by the rule. */}
+      {locked ? (
+        <span className="flex-shrink-0" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+          {count}
+        </span>
+      ) : (
       <div
         className="flex-shrink-0 flex items-center justify-center rounded-full transition-colors"
         style={{
@@ -414,6 +440,7 @@ function StackRow({
       >
         {checked && <Check size={13} color="#16181C" weight="bold" />}
       </div>
+      )}
     </button>
   );
 }

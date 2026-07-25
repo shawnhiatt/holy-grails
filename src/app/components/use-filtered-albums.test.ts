@@ -157,3 +157,56 @@ describe("filterAndSortAlbums", () => {
     expect(result.map((a) => a.artist)).toEqual(["Alice Coltrane"]);
   });
 });
+
+describe("rating filter and sort", () => {
+  // Discogs sends `rating: 0` for unrated. The mapper strips it, but the
+  // filter must not reintroduce the trap by testing `rating < 1`.
+  it("unratedFilter keeps only records with no rating", () => {
+    const albums = [
+      makeAlbum({ artist: "Rated", rating: 3 }),
+      makeAlbum({ artist: "Unrated" }),
+      makeAlbum({ artist: "One star", rating: 1 }),
+    ];
+    const out = run({ albums, unratedFilter: true });
+    expect(out.map((a) => a.artist)).toEqual(["Unrated"]);
+  });
+
+  it("unratedFilter treats a stray 0 as unrated, not as a rating", () => {
+    const albums = [makeAlbum({ artist: "Zero", rating: 0 })];
+    expect(run({ albums, unratedFilter: true })).toHaveLength(1);
+  });
+
+  it("unratedFilter off leaves ratings alone", () => {
+    const albums = [makeAlbum({ rating: 4 }), makeAlbum()];
+    expect(run({ albums })).toHaveLength(2);
+  });
+
+  it("rating-high sorts highest first", () => {
+    const albums = [
+      makeAlbum({ artist: "Two", rating: 2 }),
+      makeAlbum({ artist: "Five", rating: 5 }),
+      makeAlbum({ artist: "Four", rating: 4 }),
+    ];
+    const out = run({ albums, effectiveSortOption: "rating-high" });
+    expect(out.map((a) => a.artist)).toEqual(["Five", "Four", "Two"]);
+  });
+
+  it("rating-high sinks unrated below one-star — unrated is not zero stars", () => {
+    const albums = [
+      makeAlbum({ artist: "Unrated" }),
+      makeAlbum({ artist: "One", rating: 1 }),
+    ];
+    const out = run({ albums, effectiveSortOption: "rating-high" });
+    expect(out.map((a) => a.artist)).toEqual(["One", "Unrated"]);
+  });
+
+  it("combines the unrated filter with a folder filter", () => {
+    const albums = [
+      makeAlbum({ artist: "A", folder: "Jazz" }),
+      makeAlbum({ artist: "B", folder: "Jazz", rating: 5 }),
+      makeAlbum({ artist: "C", folder: "Rock" }),
+    ];
+    const out = run({ albums, unratedFilter: true, activeFolder: "Jazz" });
+    expect(out.map((a) => a.artist)).toEqual(["A"]);
+  });
+});

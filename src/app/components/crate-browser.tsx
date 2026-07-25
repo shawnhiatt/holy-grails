@@ -80,6 +80,8 @@ export function CrateBrowser() {
     collectionPrivate,
     isAuthenticated,
     defaultCollectionSort,
+    unratedFilter,
+    setUnratedFilter,
   } = useApp();
 
   // Search state is screen-local: a keystroke re-renders this screen only,
@@ -92,6 +94,7 @@ export function CrateBrowser() {
     searchQuery,
     neverPlayedFilter,
     playsRecordedFilter,
+    unratedFilter,
     formatFilter,
     lastPlayed,
   });
@@ -165,7 +168,7 @@ export function CrateBrowser() {
   const fmtVal = (n: number) =>
     "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter || !!formatFilter;
+  const hasActiveFilters = activeFolder !== "All" || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
 
   // Shared filter chip component
   const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
@@ -255,6 +258,7 @@ export function CrateBrowser() {
             {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
             {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
+            {unratedFilter && <FilterChip label="Unrated" onClear={() => setUnratedFilter(false)} />}
             {formatFilter && <FilterChip label={formatFilter} onClear={() => setFormatFilter(null)} />}
           </div>
         )}

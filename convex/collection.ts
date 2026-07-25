@@ -15,6 +15,20 @@ export const getByUsername = query({
   },
 });
 
+/**
+ * Free data (Session Builder phase 1): fields the Discogs collection response
+ * already returns and the app used to discard. All optional — rows written
+ * before this change read undefined and backfill on the user's next sync.
+ * `rating` is never 0 here: the mapper drops Discogs' 0-means-unrated.
+ */
+const freeDataFields = {
+  genres: v.optional(v.array(v.string())),
+  styles: v.optional(v.array(v.string())),
+  rating: v.optional(v.number()),
+  discCount: v.optional(v.number()),
+  artistIds: v.optional(v.array(v.number())),
+};
+
 export const replaceAll = mutation({
   args: {
     sessionToken: v.string(),
@@ -46,6 +60,7 @@ export const replaceAll = mutation({
           }))
         ),
         dateAdded: v.string(),
+        ...freeDataFields,
       })
     ),
   },
@@ -98,6 +113,7 @@ const albumFields = {
     }))
   ),
   dateAdded: v.string(),
+  ...freeDataFields,
 };
 
 // Fields compared to decide whether an existing row needs patching during a
@@ -121,6 +137,11 @@ type AlbumInput = {
   notes: string;
   customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
   dateAdded: string;
+  genres?: string[];
+  styles?: string[];
+  rating?: number;
+  discCount?: number;
+  artistIds?: number[];
 };
 
 function albumSignature(a: AlbumInput | Record<string, unknown>): string {
@@ -142,6 +163,15 @@ function albumSignature(a: AlbumInput | Record<string, unknown>): string {
     (a as AlbumInput).notes,
     (a as AlbumInput).customFields ?? null,
     (a as AlbumInput).dateAdded,
+    // Free data must be in the signature, not just in the write: it is how
+    // already-cached rows get backfilled. Left out, applyDiff would see an
+    // unchanged signature and skip the patch, so genres/styles/rating would
+    // only ever appear on records added after this shipped.
+    (a as AlbumInput).genres ?? null,
+    (a as AlbumInput).styles ?? null,
+    (a as AlbumInput).rating ?? null,
+    (a as AlbumInput).discCount ?? null,
+    (a as AlbumInput).artistIds ?? null,
   ]);
 }
 
@@ -222,6 +252,11 @@ export const updateInstance = mutation({
       type: v.optional(v.string()),
       options: v.optional(v.array(v.string())),
     }))),
+    // The user's 1–5 star rating. The only free-data field that is editable —
+    // genres/styles/discCount/artistIds come from Discogs and are sync-only.
+    // Pass 0 to clear the rating (stored as the field's absence, since 0 is
+    // Discogs' "unrated" sentinel and must never be written as a value).
+    rating: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -242,6 +277,7 @@ export const updateInstance = mutation({
       folderId?: number;
       instanceId?: number;
       customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
+      rating?: number;
     } = {};
     if (args.mediaCondition !== undefined) patch.mediaCondition = args.mediaCondition;
     if (args.sleeveCondition !== undefined) patch.sleeveCondition = args.sleeveCondition;
@@ -250,6 +286,9 @@ export const updateInstance = mutation({
     if (args.folderId !== undefined) patch.folderId = args.folderId;
     if (args.instanceId !== undefined) patch.instanceId = args.instanceId;
     if (args.customFields !== undefined) patch.customFields = args.customFields;
+    // 0 clears the rating: patching a field to undefined removes it, which is
+    // exactly how "unrated" is represented.
+    if (args.rating !== undefined) patch.rating = args.rating > 0 ? args.rating : undefined;
 
     await ctx.db.patch(row._id, patch);
   },
@@ -331,6 +370,7 @@ export const addItem = mutation({
       }))
     ),
     dateAdded: v.string(),
+    ...freeDataFields,
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -354,6 +394,11 @@ export const addItem = mutation({
       notes: args.notes,
       customFields: args.customFields,
       dateAdded: args.dateAdded,
+      genres: args.genres,
+      styles: args.styles,
+      rating: args.rating,
+      discCount: args.discCount,
+      artistIds: args.artistIds,
     });
   },
 });

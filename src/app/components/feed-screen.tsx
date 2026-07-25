@@ -21,10 +21,11 @@ import { toast } from "sonner";
 import { useApp } from "./app-context";
 import type { FollowingFeedEntry } from "./app-context";
 import type { Screen } from "./app-context";
-import { getCachedCollectionValue, type Album } from "./discogs-api";
+import { getCachedCollectionValue, hasRating, type Album } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { purgeIndicatorColor, purgeTagColor, purgeToast } from "./purge-colors";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
+import { StarRating } from "./star-rating";
 import { safeTap } from "../lib/safe-tap";
 import { EASE_IN_OUT, EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
@@ -1958,6 +1959,15 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                   {[hasYear(purgeEvalAlbum.year) ? String(purgeEvalAlbum.year) : "", purgeEvalAlbum.folder || ""].filter(Boolean).join(" \u00B7 ")}
                 </p>
               </div>
+              {/* Your own rating, while deciding. Read-only here — this card
+                  asks for one decision, and rating is a second one; the tap
+                  target lives in album detail. Hidden when unrated so an
+                  empty row of stars doesn't add noise to the verdict. */}
+              {hasRating(purgeEvalAlbum.rating) && (
+                <div style={{ marginTop: "8px" }}>
+                  <StarRating rating={purgeEvalAlbum.rating} size={15} isDark={isDarkMode} />
+                </div>
+              )}
               {/* Buttons */}
               <div style={{ marginTop: "12px" }}>
                 <PurgeVerdictButtons activeTag={purgeEvalAlbum.purgeTag} onSelect={handlePurgeDecision} isDark={isDarkMode} />
@@ -2056,6 +2066,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                       {[hasYear(purgeEvalAlbum.year) ? String(purgeEvalAlbum.year) : "", purgeEvalAlbum.folder || ""].filter(Boolean).join(" \u00B7 ")}
                     </p>
                   </div>
+                  {hasRating(purgeEvalAlbum.rating) && (
+                    <div style={{ marginTop: "10px", display: "flex", justifyContent: "center" }}>
+                      <StarRating rating={purgeEvalAlbum.rating} size={15} isDark={isDarkMode} />
+                    </div>
+                  )}
                   {/* Button row */}
                   <div style={{ width: "100%", marginTop: "12px" }}>
                     <PurgeVerdictButtons activeTag={purgeEvalAlbum.purgeTag} onSelect={handlePurgeDecision} isDark={isDarkMode} />

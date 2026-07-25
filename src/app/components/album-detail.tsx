@@ -10,6 +10,7 @@ import { useApp } from "./app-context";
 import { purgeTagColor as getPurgeColor, purgeToast, purgeClearToast } from "./purge-colors";
 import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
+import { StarRating } from "./star-rating";
 import { formatDateShort, isToday, playCountLabel, playMonthLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
@@ -266,9 +267,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     isAlbumInAnyStack, mostRecentStackId,
     // Inline stack list
     stacks,
-    isInStack, toggleAlbumInStack, createStackDirect,
+    isInStack, toggleAlbumInStack, createStackDirect, stackMembership,
     // Edit
-    isSyncing, discogsUsername, updateAlbum, removeFromCollection,
+    isSyncing, discogsUsername, updateAlbum, rateAlbum, removeFromCollection,
     folders,
     // Wantlist detail
     selectedWantItem, setSelectedWantItem,
@@ -285,6 +286,27 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   const [selectedPastDate, setSelectedPastDate] = useState("");
   const [selectedPastTime, setSelectedPastTime] = useState("");
   const [isLoggingPastPlay, setIsLoggingPastPlay] = useState(false);
+  const [isRating, setIsRating] = useState(false);
+
+  // Genres/styles straight off the cached collection row (free-data pass), so
+  // they paint with the panel instead of after the lazy release fetch. Falls
+  // back to the enriched fetch for rows synced before that landed.
+  const cachedTags = useMemo(
+    () => [...(selectedAlbum?.genres || []), ...(selectedAlbum?.styles || [])],
+    [selectedAlbum?.genres, selectedAlbum?.styles]
+  );
+
+  const handleRate = useCallback(async (rating: number) => {
+    if (!selectedAlbum || isRating) return;
+    setIsRating(true);
+    try {
+      await rateAlbum(selectedAlbum.id, rating);
+    } catch {
+      toast.error("Couldn't save rating.");
+    } finally {
+      setIsRating(false);
+    }
+  }, [selectedAlbum, isRating, rateAlbum]);
 
   // Play history query — only fires when album is selected
   const playHistory = useQuery(
@@ -1393,8 +1415,21 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                     <div className="rounded-[4px] animate-pulse" style={{ width: "56px", height: "12px", backgroundColor: "var(--c-border)", marginTop: "2px" }} />
                   </div>
                 ) : null}
-                {/* Genres / Styles pills */}
-                {(releaseData?.genres?.length || releaseData?.styles?.length) ? (
+                {/* Genres / Styles pills. Prefers the cached collection fields
+                    (free-data pass) so they paint instantly, falling back to
+                    the enriched release fetch for rows not yet re-synced. */}
+                {(cachedTags.length > 0) ? (
+                  <div className="flex items-start gap-3">
+                    <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "3px" }}>Genres</span>
+                    <div className="flex flex-wrap gap-1.5 flex-1">
+                      {cachedTags.map((g, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full" style={{ fontSize: "11px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}>
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (releaseData?.genres?.length || releaseData?.styles?.length) ? (
                   <div className="flex items-start gap-3">
                     <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "3px" }}>Genres</span>
                     <div className="flex flex-wrap gap-1.5 flex-1">
@@ -1421,6 +1456,19 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 )}
                 <DetailRow label="Media" value={selectedAlbum.mediaCondition} valueColor={conditionColor(selectedAlbum.mediaCondition, isDarkMode)} />
                 <DetailRow label="Sleeve" value={selectedAlbum.sleeveCondition} valueColor={conditionColor(selectedAlbum.sleeveCondition, isDarkMode)} />
+                {/* The user's own rating — always tappable, no edit mode needed:
+                    it is a one-tap write, not a form field. Sits beside the
+                    condition grades because it is the same kind of judgment
+                    about this copy. Distinct from the community average in the
+                    Community row below. */}
+                <DetailSlot label="Your Rating" align="0px">
+                  <StarRating
+                    rating={selectedAlbum.rating}
+                    onRate={handleRate}
+                    disabled={isRating}
+                    isDark={isDarkMode}
+                  />
+                </DetailSlot>
                 {selectedAlbum.customFields?.filter(cf => cf.value).map((cf, i) => (
                   <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} />
                 ))}
@@ -1455,14 +1503,20 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                         {[...stacks]
                           .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
                           .map((stack, i) => {
-                            const inStack = isInStack(selectedAlbum.id, stack.id);
+                            const membership = stackMembership[stack.id];
+                            const isAuto = membership?.isAuto ?? false;
                             return (
                               <div key={stack.id} style={{ borderTop: i > 0 ? "1px solid var(--c-border)" : "none" }}>
                                 <InlineStackRow
                                   label={stack.name}
-                                  count={stack.albumIds.length}
-                                  checked={inStack}
-                                  onToggle={() => toggleAlbumInStack(selectedAlbum.id, stack.id)}
+                                  count={(membership?.albumIds ?? stack.albumIds).length}
+                                  checked={isInStack(selectedAlbum.id, stack.id)}
+                                  // A session that fills itself can't be
+                                  // hand-added to. Locked, not hidden — a row
+                                  // that vanished would read as a bug.
+                                  locked={isAuto}
+                                  lockedReason="Fills itself"
+                                  onToggle={() => { if (!isAuto) toggleAlbumInStack(selectedAlbum.id, stack.id); }}
                                   isDarkMode={isDarkMode}
                                 />
                               </div>
@@ -2035,6 +2089,16 @@ function EnrichedSkeleton({ label, rows }: { label: string; rows: number }) {
 
 /* ─── Shared detail row ─── */
 
+/** DetailRow's layout with an arbitrary control in the value slot. */
+function DetailSlot({ label, children, align = "1px" }: { label: string; children: React.ReactNode; align?: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: align }}>{label}</span>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
 function DetailRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <div className="flex items-start gap-3">
@@ -2095,17 +2159,24 @@ function InlineStackRow({
   count,
   checked,
   onToggle,
+  locked = false,
+  lockedReason,
 }: {
   label: string;
   count: number;
   checked: boolean;
   onToggle: () => void;
   isDarkMode: boolean;
+  locked?: boolean;
+  lockedReason?: string;
 }) {
   return (
     <button
       onClick={onToggle}
+      disabled={locked}
+      aria-disabled={locked}
       className="w-full flex items-center gap-2 py-2 px-1 tappable rounded-lg transition-colors cursor-pointer"
+      style={locked ? { opacity: 0.55, cursor: "default" } : undefined}
     >
       {/* Label + count */}
       <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -2127,11 +2198,16 @@ function InlineStackRow({
             color: "var(--c-text-faint)",
           }}
         >
-          {count} {count === 1 ? "album" : "albums"}
+          {locked && lockedReason ? lockedReason : `${count} ${count === 1 ? "album" : "albums"}`}
         </span>
       </div>
 
-      {/* Checkbox */}
+      {locked ? (
+        <span className="flex-shrink-0" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
+          {count}
+        </span>
+      ) : (
+      /* Checkbox */
       <div
         className="flex-shrink-0 flex items-center justify-center rounded-full transition-colors"
         style={{
@@ -2143,6 +2219,7 @@ function InlineStackRow({
       >
         {checked && <Check size={12} color="#16181C" weight="bold" />}
       </div>
+      )}
     </button>
   );
 }

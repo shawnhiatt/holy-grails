@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useApp, type SortOption } from "./app-context";
-import { mediaType, type MediaType } from "./discogs-api";
+import { hasRating, mediaType, type MediaType } from "./discogs-api";
 import { SlideOutPanel } from "./slide-out-panel";
 
 // Display order for the Format section chips — common media first.
@@ -22,10 +22,16 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "added-new", label: "Date Added: Newest" },
   { value: "added-old", label: "Date Added: Oldest" },
   { value: "last-played-oldest", label: "Last Played: Oldest First" },
+  { value: "rating-high", label: "Rating: Highest First" },
 ];
 
 export function FilterDrawer() {
-  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, albums, formatFilter, setFormatFilter } = useApp();
+  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, unratedFilter, setUnratedFilter, albums, formatFilter, setFormatFilter } = useApp();
+
+  // The rating chips only make sense once something is rated — before the
+  // free-data backfill reaches this user, every record reads unrated and an
+  // "Unrated" filter that matches the whole collection is just noise.
+  const hasAnyRatings = useMemo(() => albums.some((a) => hasRating(a.rating)), [albums]);
 
   // Media types actually present in the collection, in display order. The
   // Format section hides entirely for a single-type (all-vinyl) collection.
@@ -35,13 +41,14 @@ export function FilterDrawer() {
     return MEDIA_TYPE_ORDER.filter((t) => present.has(t));
   }, [albums]);
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || !!formatFilter;
+  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
 
   const handleReset = () => {
     setActiveFolder("All");
     setSortOption("artist-az");
     setNeverPlayedFilter(false);
     setPlaysRecordedFilter(false);
+    setUnratedFilter(false);
     setFormatFilter(null);
   };
 
@@ -146,13 +153,26 @@ export function FilterDrawer() {
             >
               Plays Recorded
             </button>
+            {hasAnyRatings && (
+              <button
+                onClick={() => setUnratedFilter(!unratedFilter)}
+                aria-pressed={unratedFilter}
+                className="px-3 py-1.5 rounded-full transition-all"
+                style={!unratedFilter
+                  ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
+                  : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
+                }
+              >
+                Unrated
+              </button>
+            )}
           </div>
         </div>
 
         <div>
           <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Sort By</p>
           <div className="flex flex-col gap-0.5">
-            {SORT_OPTIONS.map((opt) => (
+            {SORT_OPTIONS.filter((opt) => opt.value !== "rating-high" || hasAnyRatings).map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setSortOption(opt.value)}
