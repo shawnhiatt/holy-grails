@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { mediaType, type Album, type MediaType } from "./discogs-api";
+import { hasRating, mediaType, type Album, type MediaType } from "./discogs-api";
 import type { SortOption } from "./app-context";
 
 /**
@@ -17,6 +17,9 @@ export interface FilterAlbumsOptions {
   searchQuery: string;
   neverPlayedFilter: boolean;
   playsRecordedFilter: boolean;
+  /** Records the user has never rated. Expressed via hasRating, never as
+   *  `rating < 1` — Discogs' 0 means unrated and is stripped at the mapper. */
+  unratedFilter?: boolean;
   /** Single-select media-type filter (all-formats), null = all formats. */
   formatFilter?: MediaType | null;
   lastPlayed: Record<string, string>;
@@ -25,7 +28,7 @@ export interface FilterAlbumsOptions {
 
 /** Pure filter + sort — the hook wraps this in useMemo. Exported for tests. */
 export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
-  const { albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, formatFilter, lastPlayed, effectiveSortOption } = opts;
+  const { albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed, effectiveSortOption } = opts;
   let result = [...albums];
 
   if (activeFolder !== "All") {
@@ -42,6 +45,10 @@ export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
 
   if (playsRecordedFilter) {
     result = result.filter((a) => !!lastPlayed[a.id]);
+  }
+
+  if (unratedFilter) {
+    result = result.filter((a) => !hasRating(a.rating));
   }
 
   if (searchQuery.trim()) {
@@ -85,6 +92,11 @@ export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
     case "label-az":
       result.sort((a, b) => a.label.localeCompare(b.label));
       break;
+    case "rating-high":
+      // Highest first, unrated last — an unrated record is not a zero-star
+      // record, so it sorts to the bottom rather than competing with 1-stars.
+      result.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+      break;
     case "last-played-oldest":
       result.sort((a, b) => {
         const aDate = lastPlayed[a.id] ? new Date(lastPlayed[a.id]).getTime() : 0;
@@ -104,16 +116,17 @@ export function useFilteredAlbums(opts: {
   searchQuery: string;
   neverPlayedFilter: boolean;
   playsRecordedFilter: boolean;
+  unratedFilter?: boolean;
   formatFilter?: MediaType | null;
   lastPlayed: Record<string, string>;
 }): { filteredAlbums: Album[]; effectiveSortOption: SortOption } {
-  const { albums, activeFolder, sortOption, searchQuery, neverPlayedFilter, playsRecordedFilter, formatFilter = null, lastPlayed } = opts;
+  const { albums, activeFolder, sortOption, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter = false, formatFilter = null, lastPlayed } = opts;
 
   const effectiveSortOption: SortOption = searchQuery.trim() ? "artist-az" : sortOption;
 
   const filteredAlbums = useMemo(
-    () => filterAndSortAlbums({ albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, formatFilter, lastPlayed, effectiveSortOption }),
-    [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, formatFilter, lastPlayed]
+    () => filterAndSortAlbums({ albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed, effectiveSortOption }),
+    [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed]
   );
 
   return { filteredAlbums, effectiveSortOption };

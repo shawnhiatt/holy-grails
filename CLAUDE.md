@@ -268,6 +268,7 @@ src/
       stacks.tsx         # Sessions screen (file/identifier names keep stack* — see Sessions naming note). Per-session Share affordance (header icon → modal: Create/Share link via navigator.share or clipboard, Copy as text, Stop sharing) calls the context shareStack/unshareStack helpers.
       settings-screen.tsx
       splash-screen.tsx
+      star-rating.tsx    # Shared star-rating control for the user's OWN Discogs rating (free-data pass). Read-only without `onRate`, tappable with it (tap the active star to clear → 0). Amber #FFC107 fill / light outline. Used by album detail (Your Copy row, always tappable — a one-tap write, not a form field, so no edit mode) and the feed purge evaluator (read-only, hidden when unrated: that card asks for one decision). Never render a rating without hasRating.
       sync-status-line.tsx  # "Synced Xm ago" / "Up to date." line under the Collection/Wantlist search row; tappable manual sync probe
       slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork. Blurs the active element on mount (`document.activeElement?.blur()`) to dismiss the iOS software keyboard whenever a panel opens over an active text input. App-wide — no individual tap handlers need to handle this.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in stacks.tsx. Use this for any future list item deletion on mobile.
@@ -723,6 +724,16 @@ Do not move the app-root height back to an inline `100dvh` — that reintroduces
 ### Input Font Size (iOS Auto-Zoom Prevention)
 All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zooms on inputs smaller than 16px. This is a hard rule.
 
+### Star Ratings (the user's own)
+
+The Discogs 1–5 star rating on an owned copy, surfaced from the free-data pass. **Not** the community average rating album detail shows from the enriched release fetch — different number, different meaning, and they sit near each other, so this one is always labeled as yours.
+
+- **Write path**: `rateAlbum(albumId, rating)` in `app-context.tsx` — Discogs first (via `proxyUpdateCollectionInstance`), then local state + the Convex cache on success. Deliberately not optimistic: a star the server rejected must never appear. `0` clears.
+- **The Discogs call is not a custom-field write.** "Change Rating Of Release" POSTs `{rating}` to the **instance** URL (no `/fields/{id}` segment) — the same endpoint and call shape `proxyMoveToFolder` uses. It rides along inside `proxyUpdateCollectionInstance` after the custom-field loop so "edit this copy" stays one action; do not give it an action of its own.
+- **`0` is write-only.** Discogs accepts 0 to clear a rating but also *returns* 0 to mean unrated, so it is never stored: `collection.updateInstance` maps `rating: 0` to the field's absence. Read through `hasRating`.
+- **Surfaces**: the purge evaluator (read-only, hidden when unrated — that card asks for one decision), album detail's Your Copy row (tappable, no edit mode — it's a one-tap write), the `rating-high` sort, and an "Unrated" quick filter. The sort option and the filter chip both **hide until the collection has any ratings at all**, so they don't appear as no-op controls before the free-data backfill reaches that user.
+- **Insights shows rating × purge, not a ratings histogram** — "You've rated N records two stars or lower and never tagged them," gated at 3, in the Purge Progress card. A histogram is vanity; this is a decision prompt.
+
 ### Album Detail Edit Mode
 The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCondition`, `sleeveCondition`, `notes`, and `folder`. Key patterns:
 - Edit mode is entered via a `Pencil` (16px) icon button. On mobile, the edit button sits in the "YOUR COPY" card header row (right-aligned). On desktop (`hideHeader=false`) it sits beside the X close button in the panel header.
@@ -1013,7 +1024,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - Discogs OAuth 1.0a authentication (real login via Discogs)
 - Live Discogs API sync via server-side Convex proxy actions (collection, folders, wantlist, collection value)
 - All Holy Grails-exclusive data persisted in Convex (purge tags, sessions, last played, want priorities, following, preferences)
-- Album instance editing (media/sleeve condition, notes, folder) from album detail panel
+- Album instance editing (media/sleeve condition, notes, folder, star rating) from album detail panel
 - Folder management (create, rename, delete) from Settings > Tools > Folders via `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`
 - Discogs profile personalization in Settings — enriched profile data (location, bio, buyer/seller ratings, member since, contributions) fetched from `/users/{username}`, editable profile text and location via `proxyUpdateProfile`
 - Wantlist write operations (`proxyAddToWantlist`, `proxyRemoveFromWantlist`) via Convex proxy actions

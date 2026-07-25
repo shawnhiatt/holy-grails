@@ -8,7 +8,7 @@ import { ChevronRight, Disc3, ImageSquare } from "./icons";
 import { motion, AnimatePresence, useInView, useReducedMotion } from "motion/react";
 import { DURATION_FAST, DURATION_NORMAL, DURATION_SLOW, EASE_OUT } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";
-import { mediaType, type Album, type MediaType } from "./discogs-api";
+import { hasRating, mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
 import { bucketAddsByYear, cumulativeAddsByYear } from "../utils/insights";
@@ -1508,7 +1508,14 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
     const cutValue = albums
       .filter((a) => a.purgeTag === "cut" && hasMarketValue(a))
       .reduce((sum, a) => sum + (a.marketValue as number), 0);
-    return { keep, cut, maybe, unrated, total, rated, pct, cutValue };
+    // Rating x purge (free-data pass): records you rated poorly and never
+    // made a call on. Not a ratings histogram — that is vanity. This is a
+    // decision prompt, which is what the purge flow is for. `hasRating`
+    // guards the Discogs 0-means-unrated trap.
+    const lowRatedUntagged = albums.filter(
+      (a) => hasRating(a.rating) && a.rating! <= 2 && a.purgeTag === null
+    ).length;
+    return { keep, cut, maybe, unrated, total, rated, pct, cutValue, lowRatedUntagged };
   }, [albums]);
 
   // Verdict segments for the progress bar (evaluated portion, left-aligned)
@@ -1651,6 +1658,15 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
       {stats.rated === 0 && (
         <p className="mt-3" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
           No verdicts yet. Open Purge to start.
+        </p>
+      )}
+
+      {/* Rating x purge — the records you already told us you don't love,
+          still sitting undecided. Gated at 3 so a single stray two-star
+          record doesn't produce a callout. */}
+      {stats.lowRatedUntagged >= 3 && (
+        <p className="mt-3" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
+          {`You've rated ${stats.lowRatedUntagged} records two stars or lower and never tagged them.`}
         </p>
       )}
 

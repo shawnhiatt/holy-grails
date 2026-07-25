@@ -1257,6 +1257,9 @@ export const proxyUpdateCollectionInstance = action({
       mediaCondition: v.optional(v.string()),
       sleeveCondition: v.optional(v.string()),
       notes: v.optional(v.string()),
+      /** 1–5 stars, or 0 to clear the rating. Unlike the other three this is
+       *  NOT a custom field — see the instance POST at the end of the handler. */
+      rating: v.optional(v.number()),
     }),
     customFields: v.optional(v.array(v.object({
       fieldId: v.number(),
@@ -1320,6 +1323,30 @@ export const proxyUpdateCollectionInstance = action({
         const body = await res.text().catch(() => "");
         throw new Error(
           `Failed to update field ${update.fieldId} for instance ${args.instanceId} (${res.status})${body ? ": " + body : ""}`
+        );
+      }
+    }
+
+    // Rating is not a custom field: Discogs' "Change Rating Of Release" posts
+    // to the INSTANCE url (no /fields/{id} segment) — the same endpoint and
+    // call shape proxyMoveToFolder uses to move a record between folders. So
+    // it rides along here as one more write in the same "edit this copy"
+    // action rather than needing an action of its own.
+    if (args.fields.rating !== undefined) {
+      const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.folderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
+      const res = await discogsFetch(
+        "POST",
+        url,
+        creds.access_token,
+        creds.token_secret,
+        // 0 is Discogs' own "clear the rating" value on the write side, even
+        // though it must never be stored as a rating on the read side.
+        JSON.stringify({ rating: args.fields.rating })
+      );
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(
+          `Failed to rate release ${args.releaseId} (${res.status})${body ? ": " + body : ""}`
         );
       }
     }

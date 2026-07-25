@@ -54,7 +54,8 @@ export type SortOption =
   | "added-new"
   | "added-old"
   | "label-az"
-  | "last-played-oldest";
+  | "last-played-oldest"
+  | "rating-high";
 
 export interface FollowingFeedEntry {
   followed_username: string;
@@ -121,6 +122,9 @@ interface AppState {
   setNeverPlayedFilter: (v: boolean) => void;
   playsRecordedFilter: boolean;
   setPlaysRecordedFilter: (v: boolean) => void;
+  /** Transient quick filter: records the user has never rated. */
+  unratedFilter: boolean;
+  setUnratedFilter: (v: boolean) => void;
   // Media-type filter (all-formats) — transient, single-select; null = all
   formatFilter: MediaType | null;
   setFormatFilter: (v: MediaType | null) => void;
@@ -185,6 +189,8 @@ interface AppState {
   firstStackJustCreated: boolean;
   // Album instance editing
   updateAlbum: (albumId: string, fields: Partial<Album>) => void;
+  /** Set the user's own 1-5 star rating on an owned copy; 0 clears it. */
+  rateAlbum: (albumId: string, rating: number) => Promise<void>;
   removeFromCollection: (albumId: string) => Promise<void>;
   // Wantlist detail panel
   selectedWantItem: WantItem | null;
@@ -362,6 +368,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
   const [formatFilter, setFormatFilter] = useState<MediaType | null>(null);
   const [playsRecordedFilter, setPlaysRecordedFilter] = useState(false);
+  const [unratedFilter, setUnratedFilter] = useState(false);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
@@ -488,6 +495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const proxyDeleteFolder = useAction(api.discogs.proxyDeleteFolder);
   const proxyUpdateProfile = useAction(api.discogs.proxyUpdateProfile);
   const proxyAddToCollection = useAction(api.discogs.proxyAddToCollection);
+  const proxyUpdateInstance = useAction(api.discogs.proxyUpdateCollectionInstance);
   const addCollectionItemMut = useMutation(api.collection.addItem);
   const removeCollectionItemMut = useMutation(api.collection.removeItem);
 
@@ -1099,6 +1107,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removePurgeTagMut({ sessionToken, release_id: releaseId });
     }
   }, [sessionToken, removePurgeTagMut]);
+
+  /**
+   * Set (or clear) the user's own star rating on an owned copy.
+   *
+   * Unlike purge tags, ratings live on Discogs, so this writes there first and
+   * mirrors into local state + the Convex cache on success — an optimistic
+   * local update would show a star the server never accepted. Pass 0 to clear;
+   * Discogs uses 0 as its own "unrated" write value, and the Convex mutation
+   * turns it back into the field's absence.
+   */
+  const rateAlbum = useCallback(async (albumId: string, rating: number): Promise<void> => {
+    if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
+    const album = albums.find((a) => a.id === albumId);
+    if (!album) throw new Error("Album not found");
+
+    await proxyUpdateInstance({
+      sessionToken,
+      username: discogsUsername,
+      folderId: album.folder_id,
+      releaseId: album.release_id,
+      instanceId: album.instance_id,
+      fields: { rating },
+    });
+
+    setAlbums((prev) =>
+      prev.map((a) =>
+        a.id === albumId ? { ...a, rating: rating > 0 ? rating : undefined } : a
+      )
+    );
+    updateInstanceMut({
+      sessionToken,
+      releaseId: album.release_id,
+      rating,
+    }).catch((e) => console.warn("[Convex] Rating cache write failed:", e));
+  }, [albums, sessionToken, discogsUsername, proxyUpdateInstance, updateInstanceMut]);
 
   const updateAlbum = useCallback((albumId: string, fields: Partial<Album>) => {
     setAlbums((prev) =>
@@ -2406,6 +2449,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markPlayedAt,
       removePlay,
       neverPlayedFilter,
+      unratedFilter,
+      setUnratedFilter,
       setNeverPlayedFilter,
       playsRecordedFilter,
       setPlaysRecordedFilter,
@@ -2473,6 +2518,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       firstStackJustCreated,
       // Album instance editing
       updateAlbum,
+      rateAlbum,
       removeFromCollection,
       // Wantlist detail panel
       selectedWantItem,
@@ -2529,7 +2575,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
       lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,
-      playsRecordedFilter,
+      playsRecordedFilter, unratedFilter,
       formatFilter, setFormatFilter,
       hidePurgeIndicators, setHidePurgeIndicators,
       shakeToRandom, setShakeToRandom,
@@ -2550,7 +2596,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stackPickerAlbumId, openStackPicker, closeStackPicker,
       isInStack, toggleAlbumInStack, createStackDirect,
       isAlbumInAnyStack, mostRecentStackId, firstStackJustCreated,
-      updateAlbum, removeFromCollection,
+      updateAlbum, rateAlbum, removeFromCollection,
       selectedWantItem, selectedFeedAlbum, followingActivityTabIntent, addToCollection,
       collectionCrossoverQueue, dismissCrossover,
       loginWithOAuth, signOut, accounts, switchAccount, addAccount, isAuthenticated, isAuthLoading, isNewUser,
