@@ -78,9 +78,18 @@ export function PurgeTracker() {
       ) : (
       <>
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[16px]">
-        <div className="flex items-center justify-between mb-1.5">
-          <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>{ratedCount} of {totalCount} evaluated — {Math.round(progress)}%</span>
-          <span style={{ fontSize: "14px", fontWeight: 600, color: purgeTagColor("cut", isDarkMode) }}>{unratedCount > 0 ? `${unratedCount} still waiting for a verdict.` : "Every record evaluated. Check back when you add to your collection."}</span>
+        {/* Count and percentage only — both short, so they can share a row.
+            The status sentence goes full-width under the bar instead: it ran
+            up to 66 characters, and pairing it with the count here wrapped
+            BOTH of them (the count broke across three lines at 100%). Same
+            headline shape as the Insights Purge Progress card. */}
+        <div className="flex items-center justify-between gap-3 mb-1.5">
+          <span className="min-w-0" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>
+            {ratedCount} of {totalCount} evaluated
+          </span>
+          <span className="flex-shrink-0" style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)" }}>
+            {Math.round(progress)}%
+          </span>
         </div>
         <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--c-chip-bg)" }}>
           <motion.div
@@ -92,6 +101,22 @@ export function PurgeTracker() {
             <div className="h-full rounded-full" style={{ background: "linear-gradient(to right, #FF98DA, #ACDEF2, #3E9842)", width: `${progress > 0 ? (100 / progress) * 100 : 100}%` }} />
           </motion.div>
         </div>
+        {/* Cut pink while there's still work to do — it's a nudge. Keep green
+            once everything's evaluated, because that's a finished state, not
+            an outstanding one. */}
+        <p
+          className="mt-1.5"
+          style={{
+            fontSize: "13px",
+            fontWeight: 500,
+            lineHeight: 1.45,
+            color: purgeTagColor(unratedCount > 0 ? "cut" : "keep", isDarkMode),
+          }}
+        >
+          {unratedCount > 0
+            ? `${unratedCount} still waiting for a verdict.`
+            : "Every record evaluated. Check back when you add to your collection."}
+        </p>
       </div>
 
       <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[8px]">

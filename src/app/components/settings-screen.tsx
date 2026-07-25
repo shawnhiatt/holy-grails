@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Disc3, Trash2, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus, RefreshCw, Bug, Lightbulb, Tray } from "./icons";
+import { Disc3, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus, RefreshCw, Bug, Lightbulb } from "./icons";
 import { getInitial, formatSyncedAgo } from "../utils/format";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
@@ -16,6 +16,12 @@ import { CAP_TIERS, type CapValue } from "../../../convex/stackRules";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { version as APP_VERSION } from "../../../package.json";
 import { checkForUpdates } from "../lib/pwa-update";
+
+const COLOR_MODE_OPTIONS: { value: "light" | "dark" | "system"; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+];
 
 const DEFAULT_SCREEN_OPTIONS: { value: Screen; label: string }[] = [
   { value: "feed", label: "Feed" },
@@ -124,7 +130,6 @@ export function SettingsScreen() {
   const [showPurgeCutDialog, setShowPurgeCutDialog] = useState(false);
   const [showDefaultScreenPicker, setShowDefaultScreenPicker] = useState(false);
   const [showDefaultSortPicker, setShowDefaultSortPicker] = useState(false);
-  const [showFormatScopePicker, setShowFormatScopePicker] = useState(false);
   const [showSessionCapPicker, setShowSessionCapPicker] = useState(false);
   const [showSessionRotationPicker, setShowSessionRotationPicker] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -325,20 +330,24 @@ export function SettingsScreen() {
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
         <section className="mt-4">
-          <div className="rounded-[12px] p-4 flex flex-col gap-4" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <div className="flex items-center justify-between">
-              <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Discogs Profile</h3>
-              {userProfile && (
+          <SettingsCard
+            title="Discogs Profile"
+            headerAction={
+              userProfile ? (
                 <button
                   onClick={isEditingProfile ? () => setIsEditingProfile(false) : startEditProfile}
-                  className="flex items-center justify-center cursor-pointer transition-opacity hover:opacity-70"
-                  style={{ padding: "4px" }}
+                  className="flex items-center justify-center cursor-pointer transition-opacity hover:opacity-70 flex-shrink-0"
+                  style={{ padding: "4px", marginRight: "-4px" }}
                   aria-label={isEditingProfile ? "Cancel editing" : "Edit profile"}
                 >
                   <Pencil size={16} style={{ color: isEditingProfile ? "var(--c-text-faint)" : "var(--c-text-secondary)" }} />
                 </button>
-              )}
-            </div>
+              ) : undefined
+            }
+          >
+          {/* This card's body is a profile, not a list of settings, so it keeps
+              its own denser stack rather than the hairline row anatomy. */}
+          <div className="px-4 py-4 flex flex-col gap-4" style={ROW_BORDER}>
 
             {/* Avatar + username + member since */}
             <div className="flex items-center gap-3">
@@ -478,14 +487,14 @@ export function SettingsScreen() {
                 </div>
               </div>
             )}
+          </div>
 
             {/* Contributions accordion */}
             {userProfile && (userProfile.releasesContributed > 0 || userProfile.releasesRated > 0 || userProfile.numLists > 0) && (
-              <>
-                <div style={{ borderTop: "1px solid var(--c-border)" }} />
+              <div className="px-4 py-3" style={ROW_BORDER}>
                 <button
                   onClick={() => setShowContributions(!showContributions)}
-                  className="flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
+                  className="w-full flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
                 >
                   <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Contributions</span>
                   <ChevronDown
@@ -498,7 +507,7 @@ export function SettingsScreen() {
                   />
                 </button>
                 {showContributions && (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 mt-3">
                     {userProfile.releasesContributed > 0 && (
                       <div className="flex items-center justify-between">
                         <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>Releases contributed</span>
@@ -525,16 +534,15 @@ export function SettingsScreen() {
                     )}
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {/* Accounts accordion — switch between signed-in Discogs accounts, or add one */}
             {isAuthenticated && (
-              <>
-                <div style={{ borderTop: "1px solid var(--c-border)" }} />
+              <div className="px-4 py-3" style={ROW_BORDER}>
                 <button
                   onClick={() => setShowAccounts(!showAccounts)}
-                  className="flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
+                  className="w-full flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
                 >
                   <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Accounts</span>
                   <ChevronDown
@@ -547,7 +555,7 @@ export function SettingsScreen() {
                   />
                 </button>
                 {showAccounts && (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1 mt-2">
                 {accounts.map((a) => {
                   const active = a.username === discogsUsername;
                   const switching = switchingTo === a.username;
@@ -609,57 +617,57 @@ export function SettingsScreen() {
                 </button>
                   </div>
                 )}
-              </>
-            )}
-
-            {/* Divider before sync section */}
-            <div style={{ borderTop: "1px solid var(--c-border)" }} />
-
-            {/* Collection stats row */}
-            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
-              {syncStats
-                ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
-                : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
-              }
-            </p>
-
-            <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
-              style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(22,24,28,0.25)" }}>
-              <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
-              {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
-            </button>
-            {syncError && (
-              <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
-                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive-text)" }} />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive-text)", wordBreak: "break-word" }}>{syncError}</p>
-              </div>
-            )}
-            {lastSynced && (
-              <div className="flex items-center justify-center gap-1.5">
-                <CheckCircle2 size={13} className="text-[#22C55E]" />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
               </div>
             )}
 
-            {/* Sign out — visible when authenticated */}
-            {isAuthenticated && (
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors cursor-pointer"
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  color: "var(--c-text-secondary)",
-                  backgroundColor: "var(--c-chip-bg)",
-                  border: "1px solid var(--c-border)",
-                }}
-              >
-                <LogOut size={15} />
-                Sign out
+            {/* Sync + sign out. The stats line and "Last synced" stay centered
+                on purpose — they read as captions on the Sync Now button. */}
+            <div className="px-4 py-4 flex flex-col gap-4" style={ROW_BORDER}>
+              <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
+                {syncStats
+                  ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
+                  : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
+                }
+              </p>
+
+              <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
+                style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(22,24,28,0.25)" }}>
+                <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
+                {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
               </button>
-            )}
-          </div>
+              {syncError && (
+                <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
+                  <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive-text)" }} />
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive-text)", wordBreak: "break-word" }}>{syncError}</p>
+                </div>
+              )}
+              {lastSynced && (
+                <div className="flex items-center justify-center gap-1.5">
+                  <CheckCircle2 size={13} className="text-[#22C55E]" />
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
+                </div>
+              )}
+
+              {/* Sign out — visible when authenticated */}
+              {isAuthenticated && (
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors cursor-pointer"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "var(--c-text-secondary)",
+                    backgroundColor: "var(--c-chip-bg)",
+                    border: "1px solid var(--c-border)",
+                  }}
+                >
+                  <LogOut size={15} />
+                  Sign out
+                </button>
+              )}
+            </div>
+          </SettingsCard>
         </section>
 
         {/* Tools section — 3-column icon grid */}
@@ -714,117 +722,61 @@ export function SettingsScreen() {
         </section>
 
         <section className="mt-6">
-          <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Appearance</h3>
-            <div className="flex items-center justify-between gap-3">
-              <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Color mode</p>
-              <div
-                className="flex rounded-[8px] flex-shrink-0"
-                style={{ border: "1px solid var(--c-border)", backgroundColor: isDarkMode ? "rgba(158,175,194,0.08)" : "rgba(22,24,28,0.04)" }}
-              >
-                {(["Light", "Dark", "System"] as const).map((label) => {
-                  const value = label.toLowerCase() as "light" | "dark" | "system";
-                  const isActive = colorMode === value;
-                  return (
-                    <button
-                      key={value}
-                      onClick={() => setColorMode(value)}
-                      className="cursor-pointer transition-colors"
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: isActive ? 600 : 400,
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                        padding: "6px 12px",
-                        borderRadius: "7px",
-                        backgroundColor: isActive
-                          ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
-                          : "transparent",
-                        color: isActive
-                          ? (isDarkMode ? "#ACDEF2" : "#00527A")
-                          : "var(--c-text-secondary)",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Hide purge indicators</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Remove Keep/Maybe/Cut dots from collection views</p>
-              </div>
-              <button
-                onClick={() => setHidePurgeIndicators(!hidePurgeIndicators)}
-                className="relative flex items-center rounded-full cursor-pointer transition-colors flex-shrink-0 ml-3"
-                style={{
-                  width: "44px",
-                  height: "24px",
-                  backgroundColor: hidePurgeIndicators ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(22,24,28,0.12)"),
+          <SettingsCard title="Appearance">
+            <SettingRow title="Color mode">
+              <Segmented
+                ariaLabel="Color mode"
+                options={COLOR_MODE_OPTIONS}
+                value={colorMode}
+                onChange={setColorMode}
+                isDarkMode={isDarkMode}
+              />
+            </SettingRow>
+            <SettingRow
+              title="Hide purge indicators"
+              description="Remove Keep/Maybe/Cut dots from collection views"
+            >
+              <Toggle
+                label="Hide purge indicators"
+                checked={hidePurgeIndicators}
+                onChange={() => setHidePurgeIndicators(!hidePurgeIndicators)}
+                isDarkMode={isDarkMode}
+              />
+            </SettingRow>
+            <SettingRow
+              title="Default screen"
+              description="The first screen shown when you open the app"
+              onClick={() => setShowDefaultScreenPicker(true)}
+            >
+              <RowValue>
+                {DEFAULT_SCREEN_OPTIONS.find((o) => o.value === defaultScreen)?.label ?? "Feed"}
+              </RowValue>
+            </SettingRow>
+            <SettingRow
+              title="Default collection sort"
+              description="The default sort order for your collection"
+              onClick={() => setShowDefaultSortPicker(true)}
+            >
+              <RowValue>
+                {DEFAULT_COLLECTION_SORT_OPTIONS.find((o) => o.value === defaultCollectionSort)?.label ?? "Recently Added"}
+              </RowValue>
+            </SettingRow>
+            {/* Two options, so it's an inline choice rather than a drill-in
+                sheet — a full-screen panel to pick between two things was more
+                taps than the setting is worth. */}
+            <SettingRow title="Formats" description="Which formats from Discogs show up here">
+              <Segmented
+                ariaLabel="Formats"
+                options={FORMAT_SCOPE_OPTIONS}
+                value={formatScope}
+                onChange={(value) => {
+                  setFormatScope(value);
+                  toast.success(value === "vinyl" ? "Showing vinyl only." : "Showing all formats.");
                 }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "2px",
-                    left: hidePurgeIndicators ? "22px" : "2px",
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    backgroundColor: hidePurgeIndicators ? "#00527A" : (isDarkMode ? "#AAB0BA" : "#868B93"),
-                    transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
-                    boxShadow: "var(--c-shadow-sm)",
-                  }}
-                />
-              </button>
-            </div>
-             <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Default screen</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>The first screen shown when you open the app</p>
-              </div>
-              <button
-                onClick={() => setShowDefaultScreenPicker(true)}
-                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
-              >
-                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {DEFAULT_SCREEN_OPTIONS.find((o) => o.value === defaultScreen)?.label ?? "Feed"}
-                </span>
-                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
-              </button>
-            </div>
-             <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Default collection sort</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>The default sort order for your collection</p>
-              </div>
-              <button
-                onClick={() => setShowDefaultSortPicker(true)}
-                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
-              >
-                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {DEFAULT_COLLECTION_SORT_OPTIONS.find((o) => o.value === defaultCollectionSort)?.label ?? "Recently Added"}
-                </span>
-                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
-              </button>
-            </div>
-             <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Formats</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Which formats from Discogs show up here</p>
-              </div>
-              <button
-                onClick={() => setShowFormatScopePicker(true)}
-                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
-              >
-                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {FORMAT_SCOPE_OPTIONS.find((o) => o.value === formatScope)?.label ?? "All formats"}
-                </span>
-                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
-              </button>
-            </div>
-          </div>
+                isDarkMode={isDarkMode}
+              />
+            </SettingRow>
+          </SettingsCard>
         </section>
 
         {/* Sessions — the defaults a newly built session starts from. This
@@ -832,109 +784,83 @@ export function SettingsScreen() {
             follow-up: on-by-default is only honest if the setting is somewhere
             findable, next to Gestures and Formats where people already look. */}
         <section className="mt-6">
-          <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Sessions</h3>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Session length</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>How much a session that fills itself plays</p>
-              </div>
-              <button
-                onClick={() => setShowSessionCapPicker(true)}
-                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer"
-              >
-                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {SESSION_CAP_OPTIONS.find((o) => o.value === sessionCap)?.label ?? "An evening"}
-                </span>
-                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
-              </button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Rotation</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {sessionCap === "none"
-                    ? "Only applies when a session has a length"
-                    : "Swap in a different set when there's more than fits"}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowSessionRotationPicker(true)}
-                disabled={sessionCap === "none"}
-                className="flex items-center gap-1.5 flex-shrink-0 ml-3 cursor-pointer disabled:opacity-40"
-              >
-                <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  {sessionCap === "none"
-                    ? "Off"
-                    : SESSION_ROTATION_OPTIONS.find((o) => o.value === sessionRotation)?.label ?? "Daily"}
-                </span>
-                <ChevronRight size={16} style={{ color: "var(--c-text-muted)" }} />
-              </button>
-            </div>
-            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)", lineHeight: 1.45 }}>
+          <SettingsCard title="Sessions">
+            <SettingRow
+              title="Session length"
+              description="How much a session that fills itself plays"
+              onClick={() => setShowSessionCapPicker(true)}
+            >
+              <RowValue>
+                {SESSION_CAP_OPTIONS.find((o) => o.value === sessionCap)?.label ?? "An evening"}
+              </RowValue>
+            </SettingRow>
+            <SettingRow
+              title="Rotation"
+              description={
+                sessionCap === "none"
+                  ? "Only applies when a session has a length"
+                  : "Swap in a different set when there's more than fits"
+              }
+              onClick={() => setShowSessionRotationPicker(true)}
+              disabled={sessionCap === "none"}
+            >
+              <RowValue>
+                {sessionCap === "none"
+                  ? "Off"
+                  : SESSION_ROTATION_OPTIONS.find((o) => o.value === sessionRotation)?.label ?? "Daily"}
+              </RowValue>
+            </SettingRow>
+            <RowNote>
               These apply to new sessions. Ones you've already built keep their own rules.
-            </p>
-          </div>
+            </RowNote>
+          </SettingsCard>
         </section>
 
         <section className="mt-6">
-          <div className="rounded-[12px] p-4 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Gestures</h3>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Shake for random</p>
-                <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Shake your device to open a random album</p>
-                {motionDenied && (
-                  <p className="mt-1" style={{ fontSize: "12px", fontWeight: 400, color: isDarkMode ? "#FF98DA" : "#9A207C" }}>
-                    Motion access denied. Enable in iOS Settings.
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={handleShakeToggle}
-                className="relative flex items-center rounded-full cursor-pointer transition-colors flex-shrink-0 ml-3"
-                style={{
-                  width: "44px",
-                  height: "24px",
-                  backgroundColor: shakeToRandom ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(22,24,28,0.12)"),
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "2px",
-                    left: shakeToRandom ? "22px" : "2px",
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    backgroundColor: shakeToRandom ? "#00527A" : (isDarkMode ? "#AAB0BA" : "#868B93"),
-                    transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
-                    boxShadow: "var(--c-shadow-sm)",
-                  }}
-                />
-              </button>
-            </div>
-          </div>
+          <SettingsCard title="Gestures">
+            <SettingRow
+              title="Shake for random"
+              description={
+                <>
+                  Shake your device to open a random album
+                  {motionDenied && (
+                    <span
+                      className="block mt-1"
+                      style={{ color: isDarkMode ? "#FF98DA" : "#9A207C" }}
+                    >
+                      Motion access denied. Enable in iOS Settings.
+                    </span>
+                  )}
+                </>
+              }
+            >
+              <Toggle
+                label="Shake for random"
+                checked={shakeToRandom}
+                onChange={handleShakeToggle}
+                isDarkMode={isDarkMode}
+              />
+            </SettingRow>
+          </SettingsCard>
         </section>
 
         <section className="mt-6">
-          <div className="rounded-[12px] p-4 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Data</h3>
-            <button onClick={() => setConfirmAction("Purge data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Purge Data</button>
-            <button onClick={() => setConfirmAction("Sessions")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Sessions</button>
-            <button onClick={() => setConfirmAction("Play history")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Play History</button>
-            <button onClick={() => setConfirmAction("Followed users")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Followed Users</button>
-            <button onClick={() => setConfirmAction("Wantlist priorities")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}><Trash2 size={15} />Clear Wantlist Priorities</button>
-            <div className="mt-1 pt-1" style={{ borderTop: "1px solid var(--c-border)" }}>
-              <button onClick={() => setConfirmAction("All data")} className="w-full flex items-center gap-2 py-2.5 rounded-[8px] transition-colors text-left" style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-destructive-text)" }}><Trash2 size={15} />Delete All My Data</button>
-            </div>
-          </div>
+          <SettingsCard title="Data">
+            <ActionRow label="Clear Purge Data" onClick={() => setConfirmAction("Purge data")} />
+            <ActionRow label="Clear Sessions" onClick={() => setConfirmAction("Sessions")} />
+            <ActionRow label="Clear Play History" onClick={() => setConfirmAction("Play history")} />
+            <ActionRow label="Clear Followed Users" onClick={() => setConfirmAction("Followed users")} />
+            <ActionRow label="Clear Wantlist Priorities" onClick={() => setConfirmAction("Wantlist priorities")} />
+            <ActionRow label="Delete All My Data" onClick={() => setConfirmAction("All data")} destructive />
+          </SettingsCard>
         </section>
 
         <section className="mt-6">
-          <div className="rounded-[12px] p-4 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Your data</h3>
-            <div className="flex flex-col gap-2.5" style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.6 }}>
+          <SettingsCard title="Your data">
+            <div
+              className="px-4 py-3 flex flex-col gap-2.5"
+              style={{ ...ROW_BORDER, fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.6, textWrap: "pretty" }}
+            >
               <p style={{ margin: 0 }}>
                 Holy Grails connects to your Discogs account with OAuth — we store the access token and a cached copy of your collection and wantlist so the app loads fast. Purge tags, sessions, plays, and follows exist only in Holy Grails.
               </p>
@@ -947,58 +873,44 @@ export function SettingsScreen() {
               <p style={{ margin: 0 }}>
                 When you report a problem, we send your note along with your app version, device, and a few counts — you can see the full list before sending.
               </p>
+              {/* Non-breaking spaces around the arrows keep the whole
+                  discogs.com -> Settings -> Applications path on one line, so
+                  an arrow can never orphan at the start of a line. It fits the
+                  column down to a 320px viewport. */}
               <p style={{ margin: 0 }}>
-                Want out? Delete All My Data above removes everything on our side, and you can revoke access anytime at discogs.com → Settings → Applications.
+                Want out? Delete All My Data above removes everything on our side, and you can revoke access anytime at discogs.com{" → "}Settings{" → "}Applications.
               </p>
             </div>
-          </div>
+          </SettingsCard>
         </section>
 
         <section className="mt-6">
-          <div className="rounded-[12px] p-4 flex flex-col gap-2" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", letterSpacing: "-0.3px", color: "var(--c-text)" }}>Feedback</h3>
-
-            <button
+          <SettingsCard title="Feedback">
+            <SettingRow
+              title="Report a problem"
+              description="Something broke, or an idea. Sends what version and device you're on."
               onClick={() => setShowBugReport(true)}
-              className="w-full flex items-center justify-between gap-3 py-2.5 text-left cursor-pointer"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <Bug size={15} style={{ color: "var(--c-text-secondary)", flexShrink: 0 }} />
-                <div className="min-w-0">
-                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Report a problem</p>
-                  <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                    Something broke, or an idea. Sends what version and device you're on.
-                  </p>
-                </div>
-              </div>
-              <ChevronRight size={16} style={{ color: "var(--c-text-muted)", flexShrink: 0 }} />
-            </button>
+              <RowChevron />
+            </SettingRow>
 
             {isAdmin && (
-              <button
-                onClick={() => setShowBugInbox(true)}
-                className="w-full flex items-center justify-between gap-3 py-2.5 text-left cursor-pointer"
-                style={{ borderTop: "1px solid var(--c-border)" }}
-              >
-                <div className="flex items-center gap-2">
-                  <Tray size={15} style={{ color: "var(--c-text-secondary)" }} />
-                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Reports inbox</p>
-                  {inboxNewCount > 0 && (
-                    <span
-                      className="px-2 py-0.5 rounded-full"
-                      style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive-text)" }}
-                    >
-                      {inboxNewCount} new
-                    </span>
-                  )}
-                </div>
-                <ChevronRight size={16} style={{ color: "var(--c-text-muted)", flexShrink: 0 }} />
-              </button>
+              <SettingRow title="Reports inbox" onClick={() => setShowBugInbox(true)}>
+                {inboxNewCount > 0 && (
+                  <span
+                    className="px-2 py-0.5 rounded-full"
+                    style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "var(--c-destructive-tint)", color: "var(--c-destructive-text)" }}
+                  >
+                    {inboxNewCount} new
+                  </span>
+                )}
+                <RowChevron />
+              </SettingRow>
             )}
 
             {myReports && myReports.length > 0 && (
-              <div className="mt-1 pt-1 flex flex-col" style={{ borderTop: "1px solid var(--c-border)" }}>
-                <p className="py-1.5" style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--c-text-faint)" }}>
+              <div className="px-4 py-3 flex flex-col" style={ROW_BORDER}>
+                <p className="pb-1.5" style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--c-text-faint)" }}>
                   Your reports
                 </p>
                 {myReports.slice(0, 5).map((report) => {
@@ -1049,7 +961,7 @@ export function SettingsScreen() {
                 })}
               </div>
             )}
-          </div>
+          </SettingsCard>
         </section>
 
         <section className="mt-6 mb-4">
@@ -1218,56 +1130,6 @@ export function SettingsScreen() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showFormatScopePicker && (
-          <SlideOutPanel
-            title="Formats"
-            onClose={() => setShowFormatScopePicker(false)}
-            backdropZIndex={80}
-            sheetZIndex={85}
-          >
-            <div className="px-4 py-2">
-              {FORMAT_SCOPE_OPTIONS.map((option, idx) => {
-                const isSelected = formatScope === option.value;
-                const isLast = idx === FORMAT_SCOPE_OPTIONS.length - 1;
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      setFormatScope(option.value);
-                      setShowFormatScopePicker(false);
-                      toast.success(
-                        option.value === "vinyl" ? "Showing vinyl only." : "Showing all formats."
-                      );
-                    }}
-                    className="w-full flex items-center justify-between py-3 cursor-pointer"
-                    style={{
-                      borderBottom: !isLast ? "1px solid var(--c-border)" : undefined,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "15px",
-                        fontWeight: isSelected ? 600 : 400,
-                        color: isSelected
-                          ? (isDarkMode ? "#ACDEF2" : "#00527A")
-                          : "var(--c-text)",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                      }}
-                    >
-                      {option.label}
-                    </span>
-                    {isSelected && (
-                      <Check size={18} style={{ color: isDarkMode ? "#ACDEF2" : "#00527A" }} />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </SlideOutPanel>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {showSessionCapPicker && (
           <SlideOutPanel
             title="Session length"
@@ -1334,6 +1196,269 @@ export function SettingsScreen() {
     </div>
   );
 }
+// ── Settings row anatomy ──────────────────────────────────────────────────
+// One shape for every setting: the control sits on the TITLE's line, and the
+// description gets its own full-width line beneath. Sharing the title's line
+// with the control is what used to starve the description of width (it wrapped
+// early even though the space under the control was empty) and what made the
+// control's vertical position drift with each description's line count.
+// Rows are separated by hairlines, each row drawing its own borderTop — the
+// same convention as the album-detail sections.
+
+const ROW_TITLE: React.CSSProperties = { fontSize: "14px", fontWeight: 500, color: "var(--c-text)" };
+const ROW_DESC: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 400,
+  color: "var(--c-text-muted)",
+  lineHeight: 1.45,
+  textWrap: "pretty",
+};
+const ROW_BORDER: React.CSSProperties = { borderTop: "1px solid var(--c-border)" };
+
+/** Card shell — heading block, then hairline-separated rows. */
+function SettingsCard({
+  title,
+  headerAction,
+  children,
+}: {
+  title: string;
+  headerAction?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="rounded-[12px] overflow-hidden"
+      style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+    >
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-3">
+        <h3
+          style={{
+            fontSize: "20px",
+            fontWeight: 600,
+            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            letterSpacing: "-0.3px",
+            color: "var(--c-text)",
+          }}
+        >
+          {title}
+        </h3>
+        {headerAction}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One setting. Pass `onClick` for a drill-in row — the whole row becomes the
+ * target rather than just the value text beside the chevron.
+ */
+function SettingRow({
+  title,
+  description,
+  onClick,
+  disabled,
+  children,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  children?: React.ReactNode;
+}) {
+  const body = (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <p style={ROW_TITLE}>{title}</p>
+        {children && (
+          <div
+            className="flex items-center gap-1.5 flex-shrink-0"
+            style={disabled ? { opacity: 0.4 } : undefined}
+          >
+            {children}
+          </div>
+        )}
+      </div>
+      {description && (
+        <p className="mt-1" style={ROW_DESC}>
+          {description}
+        </p>
+      )}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className="w-full px-4 py-3 text-left tappable"
+        style={{ ...ROW_BORDER, touchAction: "manipulation" }}
+      >
+        {body}
+      </button>
+    );
+  }
+  return (
+    <div className="px-4 py-3" style={ROW_BORDER}>
+      {body}
+    </div>
+  );
+}
+
+/** Drill-in affordance. The negative right margin cancels the chevron glyph's
+ *  side bearing so its optical right edge lines up with the toggles and
+ *  segmented controls above it. */
+function RowChevron() {
+  return <ChevronRight size={16} style={{ color: "var(--c-text-muted)", marginRight: "-2px" }} />;
+}
+
+/** Current value + chevron for a drill-in row. */
+function RowValue({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)" }}>{children}</span>
+      <RowChevron />
+    </>
+  );
+}
+
+/** A card-level footnote — its own hairline block so it can't be misread as
+ *  the description of the row above it. */
+function RowNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-4 py-3" style={ROW_BORDER}>
+      <p style={ROW_DESC}>{children}</p>
+    </div>
+  );
+}
+
+/** Action row (the Data card) — a label, no control, no leading icon. */
+function ActionRow({
+  label,
+  onClick,
+  destructive,
+}: {
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full px-4 py-3 text-left tappable"
+      style={{
+        ...ROW_BORDER,
+        touchAction: "manipulation",
+        fontSize: "14px",
+        fontWeight: destructive ? 500 : 400,
+        color: destructive ? "var(--c-destructive-text)" : "var(--c-text-secondary)",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+/** Inline segmented control — for a short, mutually exclusive set of options
+ *  where a drill-in sheet would be more taps than the choice is worth. */
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  isDarkMode,
+  ariaLabel,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  isDarkMode: boolean;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="flex rounded-[8px] flex-shrink-0"
+      style={{
+        border: "1px solid var(--c-border)",
+        backgroundColor: isDarkMode ? "rgba(158,175,194,0.08)" : "rgba(22,24,28,0.04)",
+      }}
+    >
+      {options.map((option) => {
+        const isActive = value === option.value;
+        return (
+          <button
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            role="radio"
+            aria-checked={isActive}
+            className="cursor-pointer transition-colors"
+            style={{
+              fontSize: "13px",
+              fontWeight: isActive ? 600 : 400,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              padding: "6px 12px",
+              borderRadius: "7px",
+              backgroundColor: isActive
+                ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
+                : "transparent",
+              color: isActive
+                ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                : "var(--c-text-secondary)",
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** On/off switch. `role="switch"` + `aria-checked` rather than `aria-pressed`
+ *  — this is a setting's state, not a pressed button. */
+function Toggle({
+  checked,
+  onChange,
+  label,
+  isDarkMode,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  isDarkMode: boolean;
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      className="relative flex items-center rounded-full cursor-pointer transition-colors flex-shrink-0"
+      style={{
+        width: "44px",
+        height: "24px",
+        backgroundColor: checked ? "#ACDEF2" : (isDarkMode ? "rgba(158,175,194,0.2)" : "rgba(22,24,28,0.12)"),
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: "2px",
+          left: checked ? "22px" : "2px",
+          width: "20px",
+          height: "20px",
+          borderRadius: "50%",
+          backgroundColor: checked ? "#00527A" : (isDarkMode ? "#AAB0BA" : "#868B93"),
+          transition: "left 200ms var(--ease-out), background-color 200ms var(--ease-out)",
+          boxShadow: "var(--c-shadow-sm)",
+        }}
+      />
+    </button>
+  );
+}
+
 /** Option row for the Sessions pickers — label, one line of what it means. */
 function OptionRow({
   label,
