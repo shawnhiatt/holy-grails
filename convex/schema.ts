@@ -154,6 +154,19 @@ export default defineSchema({
       options: v.optional(v.array(v.string())),
     }))),
     dateAdded: v.string(),
+    // ── Free data (Session Builder phase 1) ──
+    // All five arrive on the collection response the sync already makes and
+    // were previously discarded. All optional: a row synced before this
+    // change simply reads undefined, and backfills on that user's next sync.
+    // Styles ("Hard Bop") are the session-shaped half; genres ("Jazz") are
+    // the coarse one. `rating` is the user's own 1–5 stars — Discogs sends 0
+    // for UNRATED and the mapper drops it, so undefined means unrated and a
+    // stored value is always a real star count (never write 0 here).
+    genres: v.optional(v.array(v.string())),
+    styles: v.optional(v.array(v.string())),
+    rating: v.optional(v.number()),
+    discCount: v.optional(v.number()),
+    artistIds: v.optional(v.array(v.number())),
     // LEGACY (Spec 6A → 6A.1): market value used to live per-user on the
     // collection row. It now lives once per release in the `market_values`
     // table (see below) — a release's lowest ask is the same for everyone who
@@ -194,6 +207,12 @@ export default defineSchema({
     // Raw Discogs format string (all-formats change). Optional: rows synced
     // before it read undefined → no badge, no vinyl assumption.
     format: v.optional(v.string()),
+    // Free data (Session Builder phase 1), same as `collection` above minus
+    // `rating` — Discogs only rates copies you own, so a want has none.
+    genres: v.optional(v.array(v.string())),
+    styles: v.optional(v.array(v.string())),
+    discCount: v.optional(v.number()),
+    artistIds: v.optional(v.array(v.number())),
     priority: v.boolean(),
   })
     .index("by_username", ["discogs_username"])

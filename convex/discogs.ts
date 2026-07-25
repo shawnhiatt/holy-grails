@@ -135,15 +135,18 @@ interface DiscogsRelease {
   id: number;
   instance_id: number;
   folder_id: number;
+  /** The user's own 1–5 star rating. 0 means UNRATED, not zero stars. */
   rating: number;
   basic_information: {
     id: number;
     master_id?: number;
     title: string;
     year: number;
-    artists: { name: string; anv: string }[];
+    artists: { id?: number; name: string; anv: string }[];
     labels: { name: string; catno: string }[];
     formats: { name: string; qty: string; descriptions?: string[] }[];
+    genres?: string[];
+    styles?: string[];
     cover_image: string;
     thumb: string;
   };
@@ -163,9 +166,11 @@ interface DiscogsWant {
     master_id?: number;
     title: string;
     year: number;
-    artists: { name: string; anv: string }[];
+    artists: { id?: number; name: string; anv: string }[];
     labels: { name: string; catno: string }[];
     formats?: { name: string; qty: string; descriptions?: string[] }[];
+    genres?: string[];
+    styles?: string[];
     cover_image: string;
     thumb: string;
   };
@@ -246,6 +251,17 @@ interface ProxyAlbum {
   notes: string;
   customFields?: { name: string; value: string; fieldId: number; type: string; options?: string[] }[];
   dateAdded: string;
+  /** Discogs genres/styles, straight off basic_information. Omitted when empty
+   *  so a row synced before this change is indistinguishable from a release
+   *  Discogs has no genre data for. */
+  genres?: string[];
+  styles?: string[];
+  /** The user's 1–5 star rating. Omitted when Discogs returns 0 (= unrated). */
+  rating?: number;
+  /** Total disc/media count summed across formats (a 2×LP reads 2). */
+  discCount?: number;
+  /** Discogs artist ids — exact matching without the " (2)" suffix dance. */
+  artistIds?: number[];
   discogsUrl: string;
 }
 
@@ -260,6 +276,46 @@ function flattenFormats(
     parts.push([fmt.name, ...(fmt.descriptions || [])].filter(Boolean).join(", "));
   }
   return parts.join("; ");
+}
+
+/** Sum `formats[].qty` into a disc count. Discogs sends qty as a string and
+ *  omits it on some releases; anything unparseable counts as 1 disc so a
+ *  single LP never reads as 0. Returns undefined for an empty formats array —
+ *  "we don't know", not "zero discs". */
+function discCountOf(
+  formats: { qty?: string }[] | undefined
+): number | undefined {
+  if (!formats || formats.length === 0) return undefined;
+  let total = 0;
+  for (const fmt of formats) {
+    const n = parseInt(fmt.qty ?? "", 10);
+    total += Number.isFinite(n) && n > 0 ? n : 1;
+  }
+  return total;
+}
+
+/** Discogs artist ids, deduped and stripped of missing/zero ids. Undefined
+ *  when none survive so the field stays absent rather than an empty array. */
+function artistIdsOf(
+  artists: { id?: number }[] | undefined
+): number[] | undefined {
+  const ids = [
+    ...new Set((artists || []).map((a) => a.id).filter((id): id is number => !!id)),
+  ];
+  return ids.length > 0 ? ids : undefined;
+}
+
+/** Discogs sends `rating: 0` for an UNRATED release — the same trap as year 0.
+ *  Normalize it away at the boundary so nothing downstream has to know. */
+function ratingOf(rating: number | undefined): number | undefined {
+  return rating && rating > 0 ? rating : undefined;
+}
+
+/** Non-empty string array, or undefined. Keeps genres/styles absent rather
+ *  than empty so "not synced yet" and "no data" read the same downstream. */
+function tagListOf(list: string[] | undefined): string[] | undefined {
+  const clean = (list || []).filter((s) => !!s);
+  return clean.length > 0 ? clean : undefined;
 }
 
 function mapRelease(
@@ -349,6 +405,11 @@ function mapRelease(
     notes: noteValues.join(" · "),
     customFields: customFields.length > 0 ? customFields : undefined,
     dateAdded: r.date_added ? r.date_added.split("T")[0] : "",
+    genres: tagListOf(bi.genres),
+    styles: tagListOf(bi.styles),
+    rating: ratingOf(r.rating),
+    discCount: discCountOf(bi.formats),
+    artistIds: artistIdsOf(bi.artists),
     discogsUrl: `https://www.discogs.com/release/${bi.id}`,
   };
 }
@@ -522,6 +583,12 @@ interface ProxyWant {
   cover: string;
   label: string;
   format: string;
+  /** Same free-data fields as ProxyAlbum. A want has no user rating —
+   *  Discogs only rates owned copies — so `rating` is deliberately absent. */
+  genres?: string[];
+  styles?: string[];
+  discCount?: number;
+  artistIds?: number[];
   priority: boolean;
 }
 
@@ -571,6 +638,10 @@ async function fetchWantlistInternal(
         cover: bi.cover_image || bi.thumb || "",
         label: bi.labels?.[0]?.name || "Unknown",
         format: flattenFormats(bi.formats),
+        genres: tagListOf(bi.genres),
+        styles: tagListOf(bi.styles),
+        discCount: discCountOf(bi.formats),
+        artistIds: artistIdsOf(bi.artists),
         priority: false,
       });
     }
@@ -1365,6 +1436,10 @@ export const proxyAddToWantlist = action({
       cover: bi?.cover_image || bi?.thumb || "",
       label: bi?.labels?.[0]?.name || "Unknown",
       format: flattenFormats(bi?.formats) || undefined,
+      genres: tagListOf(bi?.genres),
+      styles: tagListOf(bi?.styles),
+      discCount: discCountOf(bi?.formats),
+      artistIds: artistIdsOf(bi?.artists),
       priority: false,
     };
   },
@@ -1858,6 +1933,13 @@ export const proxyAddToCollection = action({
       label,
       catalogNumber: catno,
       format: formatParts.join(", "),
+      // Same free-data fields the sync mapper writes, so a fresh add is
+      // immediately matchable by session rules instead of waiting a sync.
+      // No rating — a record you just added has never been rated.
+      genres: tagListOf(rd.genres),
+      styles: tagListOf(rd.styles),
+      discCount: discCountOf(rd.formats),
+      artistIds: artistIdsOf(rd.artists),
       dateAdded: new Date().toISOString(),
       discogsUrl: rd.uri ? `https://www.discogs.com${rd.uri.replace("https://api.discogs.com", "")}` : `https://www.discogs.com/release/${args.releaseId}`,
     };

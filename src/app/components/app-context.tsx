@@ -649,6 +649,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notes: row.notes,
         customFields: row.customFields,
         dateAdded: row.dateAdded,
+        // Free data off the collection response (Session Builder phase 1).
+        // Undefined until the user's next sync backfills the cached row.
+        genres: (row as any).genres || undefined,
+        styles: (row as any).styles || undefined,
+        rating: (row as any).rating || undefined,
+        discCount: (row as any).discCount || undefined,
+        artistIds: (row as any).artistIds || undefined,
         // marketValue is no longer on the collection row — it lives once per
         // release in `market_values` (Spec 6A.1) and is merged in by the
         // Insights value sections (Session B) via market_values.getForUser.
@@ -688,6 +695,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         cover: row.cover,
         label: row.label,
         format: (row as any).format || undefined,
+        genres: (row as any).genres || undefined,
+        styles: (row as any).styles || undefined,
+        discCount: (row as any).discCount || undefined,
+        artistIds: (row as any).artistIds || undefined,
         priority: prioMap.get(row.release_id) || false,
       }));
     setWants((prev) => {
@@ -1189,6 +1200,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       thumb: result.thumb || undefined,
       label: result.label,
       format: result.format || undefined,
+      genres: result.genres || undefined,
+      styles: result.styles || undefined,
+      discCount: result.discCount || undefined,
+      artistIds: result.artistIds || undefined,
       priority: result.priority,
     }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
@@ -1222,6 +1237,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // action so they're editable immediately, not only after the next sync
       customFields: result.customFields,
       dateAdded: result.dateAdded ?? new Date().toISOString(),
+      // Free data rides along on the add so the record is matchable by
+      // session rules immediately, not only after the next sync.
+      genres: result.genres || undefined,
+      styles: result.styles || undefined,
+      discCount: result.discCount || undefined,
+      artistIds: result.artistIds || undefined,
       discogsUrl: result.discogsUrl ?? `https://www.discogs.com/release/${releaseId}`,
       purgeTag: null,
     };
@@ -1250,6 +1271,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notes: newAlbum.notes,
       customFields: newAlbum.customFields,
       dateAdded: newAlbum.dateAdded,
+      genres: newAlbum.genres,
+      styles: newAlbum.styles,
+      discCount: newAlbum.discCount,
+      artistIds: newAlbum.artistIds,
     }).catch((e) => console.warn("[Convex] Collection add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToCollection, addCollectionItemMut, folders]);
 

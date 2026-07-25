@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFieldMap, mediaType, type DiscogsCustomField } from "./discogs-api";
+import { buildFieldMap, hasRating, mediaType, type DiscogsCustomField } from "./discogs-api";
 
 describe("mediaType", () => {
   it("classifies the common vinyl and CD/cassette formats", () => {
@@ -81,5 +81,26 @@ describe("buildFieldMap", () => {
     expect(map.mediaConditionId).toBeNull();
     expect(map.otherFields.get(5)).toEqual({ name: "Acquired From", type: "text", options: undefined });
     expect(map.otherFields.get(6)?.options).toEqual(["Clean", "Dirty"]);
+  });
+});
+
+describe("hasRating", () => {
+  // Discogs sends `rating: 0` for UNRATED, not zero stars — the same trap as
+  // year 0. The guard exists so nothing downstream writes `rating < 1`.
+  it("treats 0 as unrated, not as a rating", () => {
+    expect(hasRating(0)).toBe(false);
+  });
+
+  it("treats missing values as unrated", () => {
+    expect(hasRating(undefined)).toBe(false);
+    expect(hasRating(null)).toBe(false);
+  });
+
+  it("accepts every real star value", () => {
+    for (const n of [1, 2, 3, 4, 5]) expect(hasRating(n)).toBe(true);
+  });
+
+  it("rejects negatives rather than passing them through", () => {
+    expect(hasRating(-1)).toBe(false);
   });
 });

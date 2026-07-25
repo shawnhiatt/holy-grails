@@ -34,6 +34,22 @@ export interface Album {
   /** Arbitrary user-defined Discogs custom fields (e.g. "Acquired From", "Last Cleaned") */
   customFields?: { name: string; value: string; fieldId?: number; type?: string; options?: string[] }[];
   dateAdded: string;
+  /** Discogs genres ("Jazz") and the more specific styles ("Hard Bop"). Both
+   *  ride along on the collection response — no extra request. Undefined on
+   *  rows synced before the free-data pass; backfills on the next sync. */
+  genres?: string[];
+  styles?: string[];
+  /** The user's own 1–5 star Discogs rating. **Undefined means UNRATED** —
+   *  never 0. Same footgun as `year: 0`; guard with `hasRating`, and never
+   *  test `rating < 1` to find unrated records. Distinct from the community
+   *  average rating album detail shows from the enriched release fetch. */
+  rating?: number;
+  /** Disc count summed from `formats[].qty` — a 2×LP reads 2. Stored but
+   *  deliberately unsurfaced (D10); it exists for rules and future use. */
+  discCount?: number;
+  /** Discogs artist ids, for exact matching without the " (2)" suffix dance.
+   *  Also unsurfaced infrastructure. */
+  artistIds?: number[];
   /** Lowest ask from the shared market-value drip (Spec 6A.1), merged in by the
    *  Insights value sections (Session B) from `market_values` keyed on
    *  `release_id`. `null` = fetched, no listings; `undefined` = not yet fetched. */
@@ -56,6 +72,12 @@ export interface WantItem {
   /** Raw Discogs format string; may be undefined for rows synced before the
    *  all-formats change captured format on the wantlist. Powers badges. */
   format?: string;
+  /** Free data, as on `Album` — minus `rating`, which Discogs only keeps for
+   *  copies you own. */
+  genres?: string[];
+  styles?: string[];
+  discCount?: number;
+  artistIds?: number[];
   priority: boolean;
 }
 
@@ -191,6 +213,25 @@ export function mediaType(format: string): MediaType {
   if (f.includes("box set")) return "Box Set";
   return "Other";
 }
+
+// ─── Rating convention ───
+
+/**
+ * Guard for the user's own star rating, mirroring the `hasYear` convention.
+ *
+ * Discogs sends `rating: 0` to mean UNRATED, not zero stars — the same trap as
+ * year 0. The sync mapper strips the 0, so a stored rating is always a real
+ * 1–5. This guard is the read-side half: never render a rating without it, and
+ * never express "unrated" as `rating < 1` — say `!hasRating(...)`.
+ *
+ * Exported rather than redeclared per file (unlike `hasYear`) because the rule
+ * engine needs the identical predicate on both client and server.
+ */
+export const hasRating = (rating: number | null | undefined): rating is number =>
+  rating != null && rating > 0;
+
+/** Star values a rating can take, best first. */
+export const RATING_VALUES = [5, 4, 3, 2, 1] as const;
 
 // ─── Condition grade constants ───
 

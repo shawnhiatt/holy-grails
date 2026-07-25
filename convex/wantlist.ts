@@ -15,6 +15,19 @@ export const getByUsername = query({
   },
 });
 
+/**
+ * Free data (Session Builder phase 1): genres/styles/disc count/artist ids off
+ * the wantlist response the sync already makes. All optional — rows written
+ * before this change read undefined and backfill on the next sync. No
+ * `rating`: Discogs only rates copies you own.
+ */
+const freeDataFields = {
+  genres: v.optional(v.array(v.string())),
+  styles: v.optional(v.array(v.string())),
+  discCount: v.optional(v.number()),
+  artistIds: v.optional(v.array(v.number())),
+};
+
 export const replaceAll = mutation({
   args: {
     sessionToken: v.string(),
@@ -29,6 +42,7 @@ export const replaceAll = mutation({
         thumb: v.optional(v.string()),
         label: v.string(),
         format: v.optional(v.string()),
+        ...freeDataFields,
         priority: v.boolean(),
       })
     ),
@@ -65,6 +79,10 @@ type WantInput = {
   thumb?: string;
   label: string;
   format?: string;
+  genres?: string[];
+  styles?: string[];
+  discCount?: number;
+  artistIds?: number[];
   priority: boolean;
 };
 
@@ -78,6 +96,12 @@ function wantSignature(w: WantInput | Record<string, unknown>): string {
     (w as WantInput).thumb ?? null,
     (w as WantInput).label,
     (w as WantInput).format ?? null,
+    // In the signature so already-cached rows backfill: without these,
+    // applyDiff sees an unchanged row and never patches the new fields in.
+    (w as WantInput).genres ?? null,
+    (w as WantInput).styles ?? null,
+    (w as WantInput).discCount ?? null,
+    (w as WantInput).artistIds ?? null,
     (w as WantInput).priority,
   ]);
 }
@@ -101,6 +125,7 @@ export const applyDiff = mutation({
         thumb: v.optional(v.string()),
         label: v.string(),
         format: v.optional(v.string()),
+        ...freeDataFields,
         priority: v.boolean(),
       })
     ),
@@ -158,6 +183,7 @@ export const addItem = mutation({
     thumb: v.optional(v.string()),
     label: v.string(),
     format: v.optional(v.string()),
+    ...freeDataFields,
     priority: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -183,6 +209,10 @@ export const addItem = mutation({
       thumb: args.thumb,
       label: args.label,
       format: args.format,
+      genres: args.genres,
+      styles: args.styles,
+      discCount: args.discCount,
+      artistIds: args.artistIds,
       priority: args.priority,
     });
   },
