@@ -487,14 +487,14 @@ export function SettingsScreen() {
                 </div>
               </div>
             )}
+          </div>
 
             {/* Contributions accordion */}
             {userProfile && (userProfile.releasesContributed > 0 || userProfile.releasesRated > 0 || userProfile.numLists > 0) && (
-              <>
-                <div style={{ borderTop: "1px solid var(--c-border)" }} />
+              <div className="px-4 py-3" style={ROW_BORDER}>
                 <button
                   onClick={() => setShowContributions(!showContributions)}
-                  className="flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
+                  className="w-full flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
                 >
                   <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Contributions</span>
                   <ChevronDown
@@ -507,7 +507,7 @@ export function SettingsScreen() {
                   />
                 </button>
                 {showContributions && (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 mt-3">
                     {userProfile.releasesContributed > 0 && (
                       <div className="flex items-center justify-between">
                         <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)" }}>Releases contributed</span>
@@ -534,16 +534,15 @@ export function SettingsScreen() {
                     )}
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {/* Accounts accordion — switch between signed-in Discogs accounts, or add one */}
             {isAuthenticated && (
-              <>
-                <div style={{ borderTop: "1px solid var(--c-border)" }} />
+              <div className="px-4 py-3" style={ROW_BORDER}>
                 <button
                   onClick={() => setShowAccounts(!showAccounts)}
-                  className="flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
+                  className="w-full flex items-center justify-between cursor-pointer transition-opacity hover:opacity-70"
                 >
                   <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Accounts</span>
                   <ChevronDown
@@ -556,7 +555,7 @@ export function SettingsScreen() {
                   />
                 </button>
                 {showAccounts && (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1 mt-2">
                 {accounts.map((a) => {
                   const active = a.username === discogsUsername;
                   const switching = switchingTo === a.username;
@@ -618,57 +617,56 @@ export function SettingsScreen() {
                 </button>
                   </div>
                 )}
-              </>
-            )}
-
-            {/* Divider before sync section */}
-            <div style={{ borderTop: "1px solid var(--c-border)" }} />
-
-            {/* Collection stats row */}
-            <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
-              {syncStats
-                ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
-                : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
-              }
-            </p>
-
-            <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
-              style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(22,24,28,0.25)" }}>
-              <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
-              {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
-            </button>
-            {syncError && (
-              <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
-                <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive-text)" }} />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive-text)", wordBreak: "break-word" }}>{syncError}</p>
-              </div>
-            )}
-            {lastSynced && (
-              <div className="flex items-center justify-center gap-1.5">
-                <CheckCircle2 size={13} className="text-[#22C55E]" />
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
               </div>
             )}
 
-            {/* Sign out — visible when authenticated */}
-            {isAuthenticated && (
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors cursor-pointer"
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  color: "var(--c-text-secondary)",
-                  backgroundColor: "var(--c-chip-bg)",
-                  border: "1px solid var(--c-border)",
-                }}
-              >
-                <LogOut size={15} />
-                Sign out
+            {/* Sync + sign out. The stats line and "Last synced" stay centered
+                on purpose — they read as captions on the Sync Now button. */}
+            <div className="px-4 py-4 flex flex-col gap-4" style={ROW_BORDER}>
+              <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
+                {syncStats
+                  ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
+                  : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
+                }
+              </p>
+
+              <button onClick={handleSync} disabled={isSyncing || isBackgroundSyncing}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-[#EBFD00] text-[#16181C] hover:bg-[#d9e800] transition-colors disabled:opacity-60 cursor-pointer"
+                style={{ fontSize: "14px", fontWeight: 600, border: "1px solid rgba(22,24,28,0.25)" }}>
+                <Disc3 size={16} className={(isSyncing || isBackgroundSyncing) ? "disc-spinner" : ""} />
+                {(isSyncing || isBackgroundSyncing) ? (syncProgress || "Syncing...") : "Sync Now"}
               </button>
-            )}
-          </div>
+              {syncError && (
+                <div className="rounded-[8px] p-3 flex items-start gap-2" style={{ backgroundColor: "var(--c-destructive-tint)", border: "1px solid rgba(255,51,182,0.2)" }}>
+                  <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--c-destructive-text)" }} />
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-destructive-text)", wordBreak: "break-word" }}>{syncError}</p>
+                </div>
+              )}
+              {lastSynced && (
+                <div className="flex items-center justify-center gap-1.5">
+                  <CheckCircle2 size={13} className="text-[#22C55E]" />
+                  <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Last synced {lastSynced}</p>
+                </div>
+              )}
+
+              {/* Sign out — visible when authenticated */}
+              {isAuthenticated && (
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors cursor-pointer"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "var(--c-text-secondary)",
+                    backgroundColor: "var(--c-chip-bg)",
+                    border: "1px solid var(--c-border)",
+                  }}
+                >
+                  <LogOut size={15} />
+                  Sign out
+                </button>
+              )}
+            </div>
           </SettingsCard>
         </section>
 
