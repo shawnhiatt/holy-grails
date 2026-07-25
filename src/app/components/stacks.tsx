@@ -8,6 +8,8 @@ import { NoDiscogsCard } from "./no-discogs-card";
 import { AddAlbumsDrawer } from "./add-albums-drawer";
 import { SwipeToDelete } from "./swipe-to-delete";
 import { StackBuilder } from "./stack-builder";
+import { describeRule } from "../utils/stack-rule-labels";
+import type { StackRule } from "../../../convex/stackRules";
 
 /**
  * The badge on a session that fills itself. "AUTO" and not "SMART": this is
@@ -107,6 +109,7 @@ export function Stacks() {
           onReorderAlbums={reorderStackAlbums}
           memberIds={stackMembership[activeStack.id]?.albumIds ?? activeStack.albumIds}
           isAuto={stackMembership[activeStack.id]?.isAuto ?? false}
+          rule={activeStack.rule}
           onFreeze={() => {
             freezeStack(activeStack.id);
             toast.success("Session frozen.", { duration: 1500 });
@@ -281,7 +284,7 @@ export function Stacks() {
    ═══════════════════════════════════════════════════════════ */
 function StackDetail({
   stack, albums, onBack, onDelete, onRename, onOpenDrawer, onAlbumTap, onRemoveAlbum, onReorderAlbums,
-  memberIds, isAuto, onFreeze, isShared, onShare, onUnshare,
+  memberIds, isAuto, rule, onFreeze, isShared, onShare, onUnshare,
 }: {
   stack: { id: string; name: string; albumIds: string[]; createdAt: string };
   albums: { id: string; title: string; artist: string; thumb?: string; cover: string }[];
@@ -296,6 +299,8 @@ function StackDetail({
    *  from its rule, so it is passed in rather than read off `stack`. */
   memberIds: string[];
   isAuto: boolean;
+  /** The session's rule, when it has one — rendered as criteria chips. */
+  rule?: StackRule;
   onFreeze: () => void;
   isShared: boolean;
   onShare: () => Promise<string>;
@@ -309,6 +314,7 @@ function StackDetail({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const stackAlbums = memberIds.map((id) => albums.find((a) => a.id === id)).filter(Boolean);
+  const ruleChips = useMemo(() => (rule ? describeRule(rule) : []), [rule]);
 
   const handleStartEdit = () => {
     setEditName(stack.name);
@@ -446,6 +452,22 @@ function StackDetail({
           {memberIds.length} album{memberIds.length !== 1 ? "s" : ""} &middot; Created {new Date(stack.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </p>
       </div>
+
+      {/* The rule, in full. The generated title only carries the first two or
+          three criteria, so the chips are where nothing is hidden. */}
+      {isAuto && ruleChips.length > 0 && (
+        <div className="px-[16px] pb-3 flex flex-wrap gap-1.5">
+          {ruleChips.map((chip, i) => (
+            <span
+              key={i}
+              className="px-2 py-0.5 rounded-full"
+              style={{ fontSize: "11px", fontWeight: 500, backgroundColor: "var(--c-chip-bg)", color: "var(--c-text-secondary)" }}
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
