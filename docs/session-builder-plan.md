@@ -1,7 +1,25 @@
 # Session Builder — Implementation Plan
 
-**Status: PLANNED — not started. Product decisions in §0 confirmed by Shawn
-2026-07-25. No code written yet.**
+**Status: PHASES 1–6 SHIPPED (2026-07-25). Product decisions in §0 confirmed by
+Shawn the same day. Phase 7 ("3 records joined Late Night Jazz") remains
+deferred — it is the only part that genuinely needs stored state.**
+
+**Deviations from the plan as written, all deliberate:**
+- The pure evaluator needed `mediaType` and `hasRating`, which lived in the
+  client-only `discogs-api.ts`. Rather than mirror them (CLAUDE.md contemplates
+  a mirror; two copies of a classifier is a bug waiting for an untested format
+  string), they moved whole into a new pure `convex/albumFields.ts` that
+  `discogs-api.ts` re-exports — no import site changed. `seededShuffle` landed
+  in `stackRules.ts` for the same reason, re-exported from `utils/shuffle.ts`.
+- §3.1's rule shape is unchanged, but the engine reads a normalized `RuleAlbum`
+  rather than `Album` or a Convex row directly: the two disagree on casing and
+  on where purge tags and play history live, so each side adapts into one shape.
+- Rating gets a dedicated `rateAlbum` context function rather than riding
+  through `updateAlbum`'s `Partial<Album>` spread — clearing a rating can't be
+  expressed as `rating: undefined` through that path, and the write is not
+  optimistic (a star the server rejected must never appear).
+- §10 Q1 answered as recommended: **global cap only**, no per-session override.
+- §10 Q2: the rotation offset shipped at the proposed ~10h, unchanged.
 
 **Audience: an executing Claude Code session. Written to be followed phase by
 phase. Read CLAUDE.md first — this plan amends it (Sessions, Data
