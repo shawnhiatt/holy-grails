@@ -23,6 +23,7 @@ import { purgeTagColor } from "./purge-colors";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { safeTap } from "../lib/safe-tap";
+import { ActivityRow } from "./activity-row";
 
 const hasYear = (year: number | null | undefined): year is number =>
   year != null && year !== 0;
@@ -1798,152 +1799,35 @@ function PopulatedFollowingView({
             const inCollection = ownReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && ownMasterIds.has(item.albumMasterId));
             const inWantList = wantReleaseIds.has(item.albumReleaseId) || !!(item.albumMasterId && wantMasterIds.has(item.albumMasterId));
             return (
-              <div
+              <ActivityRow
                 key={item.id}
-                className="flex items-center gap-[12px] px-[16px] lg:px-[24px] py-[12px]"
-                style={{
-                  borderColor: "var(--c-border)",
-                  borderTopWidth: "1px",
-                  borderTopStyle: "solid" as const,
+                item={item}
+                verb={activityTab === "wantlist" ? " added to wantlist" : " added to collection"}
+                isDarkMode={isDarkMode}
+                paddingClassName="px-[16px] lg:px-[24px]"
+                onOpenAlbum={() => {
+                  if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
+                    const rid = Number(item.albumReleaseId);
+                    const match = albums.find((a) => Number(a.release_id) === rid) ||
+                      (item.albumMasterId && item.albumMasterId > 0 ? albums.find((a) => a.master_id === item.albumMasterId) : undefined);
+                    if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
+                  }
+                  setSelectedFeedAlbum({
+                    release_id: item.albumReleaseId,
+                    master_id: item.albumMasterId,
+                    title: item.albumTitle,
+                    artist: item.albumArtist,
+                    year: item.albumYear,
+                    thumb: item.albumCover,
+                    cover: item.albumCover,
+                    label: item.albumLabel,
+                    dateAdded: item.date || "",
+                  });
+                  setShowAlbumDetail(true);
                 }}
-              >
-                {/* Album cover with avatar overlay */}
-                <div
-                  className="relative flex-shrink-0 cursor-pointer"
-                  style={{ width: "60px", height: "60px", touchAction: "manipulation" }}
-                  {...safeTap(() => {
-                    if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
-                      const rid = Number(item.albumReleaseId);
-                      const match = albums.find((a) => Number(a.release_id) === rid) ||
-                        (item.albumMasterId && item.albumMasterId > 0 ? albums.find((a) => a.master_id === item.albumMasterId) : undefined);
-                      if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-                    }
-                    setSelectedFeedAlbum({
-                      release_id: item.albumReleaseId,
-                      master_id: item.albumMasterId,
-                      title: item.albumTitle,
-                      artist: item.albumArtist,
-                      year: item.albumYear,
-                      thumb: item.albumCover,
-                      cover: item.albumCover,
-                      label: item.albumLabel,
-                      dateAdded: item.date || "",
-                    });
-                    setShowAlbumDetail(true);
-                  })}
-                >
-                  <img loading="lazy" decoding="async"
-                    src={item.albumCover}
-                    alt={item.albumTitle}
-                    className="w-full h-full rounded-[8px] object-cover"
-                  />
-                  {/* Avatar overlay — bottom-left corner */}
-                  <div
-                    className="absolute flex items-center justify-center overflow-hidden"
-                    style={{
-                      width: "22px",
-                      height: "22px",
-                      borderRadius: "50%",
-                      bottom: "-6px",
-                      left: "-6px",
-                      border: `2px solid ${isDarkMode ? "oklab(from #101318 l a b / 0.65)" : "rgba(255,255,255,0.65)"}`,
-                      backgroundColor: isDarkMode ? "#252931" : "#ACDEF2",
-                    }}
-                  >
-                    {item.followedAvatar ? (
-                      <img loading="lazy" decoding="async"
-                        src={item.followedAvatar}
-                        alt={item.followedUsername}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: "9px",
-                          fontWeight: 700,
-                          color: isDarkMode ? "#ACDEF2" : "#16181C",
-                          fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                          lineHeight: 1,
-                        }}
-                      >
-                        {getInitial(item.followedUsername)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Text block */}
-                <div className="flex-1" style={{ minWidth: 0, overflow: "hidden" }}>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 400,
-                      color: "var(--c-text-secondary)",
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                      lineHeight: 1.35,
-                      display: "block",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      WebkitTextOverflow: "ellipsis",
-                      maxWidth: "100%",
-                    } as React.CSSProperties}
-                  >
-                    <span style={{ fontWeight: 600, color: "var(--c-text)" }}>{item.followedUsername}</span>
-                    {activityTab === "wantlist" ? " added to wantlist" : " added to collection"}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "var(--c-text)",
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                      lineHeight: 1.35,
-                      marginTop: "2px",
-                      display: "block",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      WebkitTextOverflow: "ellipsis",
-                      maxWidth: "100%",
-                    } as React.CSSProperties}
-                  >
-                    {item.albumTitle}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 400,
-                      color: "var(--c-text-muted)",
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                      lineHeight: 1.35,
-                      marginTop: "2px",
-                      display: "block",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      WebkitTextOverflow: "ellipsis",
-                      maxWidth: "100%",
-                    } as React.CSSProperties}
-                  >
-                    {item.albumArtist}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 400,
-                      color: "var(--c-text-faint)",
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
-                      lineHeight: 1.35,
-                      marginTop: "2px",
-                    }}
-                  >
-                    {item.displayDate}
-                  </p>
-                </div>
-
-                {/* Heart / collection icon indicator — collection tab only */}
-                {activityTab === "collection" && (
+                /* Trailing control — wantlist heart / In Collection marker.
+                   Collection tab only. */
+                action={activityTab === "collection" ? (
                   inCollection ? (
                     <span
                       className="flex-shrink-0 flex items-center gap-1.5"
@@ -2001,8 +1885,8 @@ function PopulatedFollowingView({
                       )}
                     </button>
                   )
-                )}
-              </div>
+                ) : null}
+              />
             );
           })}
           {hasMore && (
