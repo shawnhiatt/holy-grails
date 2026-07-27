@@ -68,6 +68,11 @@ Worth doing only once there are real auto sessions with real churn to look at �
 - **Artist/label discography pages** (Artist/Label endpoints): explicitly out of scope (database browsing). The Look It Up master/versions flow already covers the add-and-price path.
 - **Listening logs beyond last-played**: explicitly out of scope; #1/#7 deliberately use only the existing `playCounts`/`last_played` data.
 - **Push notifications**: real PWA capability (iOS 16.4+), but a scope and infra decision (service, permissions UX) — decide alongside #8, not inside it.
+- **Spotify / Apple Music playlist export** — **deferred, assessed (July 2026)**. Attempted once before and abandoned as complex; the assessment below concluded that judgment was correct. Spotify is feasible, Apple Music is materially harder, and neither is a feature — it's a project:
+  - **Two OAuth systems.** Spotify supports Authorization Code + PKCE from a pure client (no secret; a Settings "Connect Spotify" is architecturally clean, tokens stored in Convex like Discogs creds). Apple Music (MusicKit JS) *additionally* needs a paid Apple Developer membership and a server-minted developer JWT — Convex can sign it, but that's real key management before any user auth happens.
+  - **The matching problem is the actual work.** A session is a list of *vinyl releases*; a playlist is a list of *streaming tracks*. Per album: search the catalog by artist+title (normalizing Discogs' disambiguation suffixes), disambiguate remasters/deluxe/regional/compilation results, fetch the tracklist, append. Expect a real miss rate and therefore a review-before-create UI ("12 of 15 matched — review") — **that UI is most of the feature**.
+  - **Scope-creep risk** into "streaming integration" (playback, an expanded Listen On), which the app has deliberately kept to two dumb brand-icon buttons.
+  - **Recommendation: park it.** If picked up: Spotify only, as its own multi-session project with a dedicated plan doc, phased as (1) PKCE connect + token storage, (2) match engine + review UI, (3) playlist creation. Apple Music only if the Spotify version earns it. Note the session-share page already covers a chunk of the underlying want — getting a session out of the app and into the room — at roughly 5% of the cost.
 
 ## Suggested sequencing
 
