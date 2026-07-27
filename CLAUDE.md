@@ -962,7 +962,7 @@ Wordmark is the only screen where the logo appears in the header.
 Screen title `<h1>` left (Bricolage Grotesque 700, 28px, truncating).
 Users icon + avatar right.
 
-**Variant C — Sessions**
+**Variant C — Sessions (list view)**
 Screen title left. Yellow Plus button (w-8 h-8 rounded-full bg-[#EBFD00]) +
 users icon + avatar right. Plus button calls `onNewStack` from context.
 
@@ -976,6 +976,22 @@ Muted UserMinus button (var(--c-text-muted), NOT destructive red) right.
 Back calls `onBackFromProfile`. Unfollow calls `onUnfollowUser` (triggers
 existing confirmation modal — does not unfollow directly).
 
+**Variant F — Session detail (stacks screen, `stackDetailOpen === true`)**
+Renders **nothing** — `return null`. `StackDetail` already draws its own full
+header (back chevron + editable session name + share), and unlike `MobileHeader`
+(which is `lg:hidden`) it does so at **every** breakpoint. Moving those controls
+into a mobile-only header variant would leave desktop with no back button and no
+title, which is exactly the gap the followed-user profile has on desktop today.
+Suppressing the row instead leaves the session's own name as the sole heading —
+"Sessions" at 28px directly above a 28px session name made the *less* informative
+line the dominant one, and the screen is already identified three times over (lit
+nav tab, the tap that got you here, the name itself). Reclaims ~58px.
+Safe-area top padding lives on the header **wrapper** in `App.tsx`, not inside
+`MobileHeader`, so returning null does not push content under the status bar —
+verify that still holds before giving any other screen a null header.
+`stackDetailOpen` is registered by the Sessions screen through context, mirroring
+`followedUserProfile` (the `activeStackId` that drives it is local to `Stacks()`).
+
 The shared right-side button group (`navButtons`, used by Variants A–D)
 leads with the sync chip (when syncing — it sits at the far left of the
 group so it never splits the button cluster; on the Feed screen it is
@@ -983,8 +999,10 @@ suppressed during collection syncs since the identity block's SYNC
 control already shows that state, but still appears there for
 following-feed syncs), then a **Search button** that opens the "Look It
 Up" sheet via `setShowDiscogsSearch(true)` — present on every screen
-except the Following profile sub-view, so the record-store lookup is one
-tap from a cold open. Then the Users icon and avatar.
+except the two sub-views (Following profile, session detail), so the
+record-store lookup is one tap from a cold open. Then the Users icon and
+avatar. Both sub-views deliberately trade that group away for a header
+that belongs to the thing you drilled into; each keeps a back affordance.
 
 Title truncation on all variants: `white-space: nowrap`,
 `overflow: hidden`, `text-overflow: ellipsis`, `min-width: 0`,

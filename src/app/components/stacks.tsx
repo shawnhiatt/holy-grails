@@ -38,6 +38,7 @@ export function Stacks() {
     stacks, albums, deleteStack, renameStack, createStackDirect, isAuthenticated,
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInStack, reorderStackAlbums,
     setOnNewStack, shareStack, unshareStack, stackMembership, freezeStack, excludeFromStack,
+    setStackDetailOpen,
   } = useApp();
 
   const [showNewStack, setShowNewStack] = useState(false);
@@ -81,6 +82,13 @@ export function Stacks() {
     setOnNewStack(() => () => setShowKindChoice(true));
     return () => setOnNewStack(null);
   }, [setOnNewStack]);
+
+  // Tell MobileHeader a session is open so it can drop the "Sessions" title —
+  // the session's own name is the heading on this sub-view.
+  useEffect(() => {
+    setStackDetailOpen(activeStackId !== null);
+    return () => setStackDetailOpen(false);
+  }, [activeStackId, setStackDetailOpen]);
 
   if (activeStack) {
     return (
@@ -404,7 +412,7 @@ function StackDetail({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[12px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[8px] lg:pb-[12px]">
         <div className="flex items-center gap-2">
           <button onClick={onBack} className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors flex-shrink-0" style={{ color: "var(--c-text-muted)", border: "1px solid var(--c-border-strong)" }}>
             <ChevronLeft size={18} />

@@ -276,6 +276,11 @@ interface AppState {
   setOnAddFollowedUser: (fn: (() => void) | null) => void;
   followedUserProfile: { username: string; avatarUrl?: string } | null;
   setFollowedUserProfile: (profile: { username: string; avatarUrl?: string } | null) => void;
+  /** True while the Sessions screen has a single session open. Lets MobileHeader
+   *  drop the "Sessions" title on the sub-view — the session's own name is the
+   *  heading there. Registered by the Sessions screen, same as the callbacks above. */
+  stackDetailOpen: boolean;
+  setStackDetailOpen: (open: boolean) => void;
   onBackFromProfile: (() => void) | null;
   setOnBackFromProfile: (fn: (() => void) | null) => void;
   onUnfollowUser: (() => void) | null;
@@ -448,6 +453,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [onNewStack, setOnNewStack] = useState<(() => void) | null>(null);
   const [onAddFollowedUser, setOnAddFollowedUser] = useState<(() => void) | null>(null);
   const [followedUserProfile, setFollowedUserProfile] = useState<{ username: string; avatarUrl?: string } | null>(null);
+  const [stackDetailOpen, setStackDetailOpen] = useState(false);
   const [onBackFromProfile, setOnBackFromProfile] = useState<(() => void) | null>(null);
   const [onUnfollowUser, setOnUnfollowUser] = useState<(() => void) | null>(null);
 
@@ -2839,6 +2845,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setOnAddFollowedUser,
       followedUserProfile,
       setFollowedUserProfile,
+      stackDetailOpen,
+      setStackDetailOpen,
       onBackFromProfile,
       setOnBackFromProfile,
       onUnfollowUser,
@@ -2887,7 +2895,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loginWithOAuth, signOut, accounts, switchAccount, addAccount, isAuthenticated, isAuthLoading, isNewUser,
       shareActivity, showSharePrompt, setShareActivity,
       followingFeed, followingAvatars, cachedSyncStats,
-      onNewStack, onAddFollowedUser, followedUserProfile, onBackFromProfile, onUnfollowUser,
+      onNewStack, onAddFollowedUser, followedUserProfile, stackDetailOpen, onBackFromProfile, onUnfollowUser,
     ]
   );
 
