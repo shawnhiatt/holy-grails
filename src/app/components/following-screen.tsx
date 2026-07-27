@@ -811,8 +811,11 @@ function FollowedUserProfile({
       </div>
       )}
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto overlay-scroll">
+      {/* Content area — all three tabs (collection / wantlist / insights) scroll
+          inside this one container, so the nav clearance belongs here rather
+          than on each inner view. Without it the fixed bottom tab bar overlays
+          the last ~88px with no scroll range to reach it. */}
+      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
         {tab === "insights" && showRecentlyPlayed && (
           <div className="px-[16px] lg:px-[24px] pt-3 pb-4">
             {topPlayed.length > 0 && (
