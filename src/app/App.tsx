@@ -419,7 +419,13 @@ function AppContent() {
   // AuthCallback is rendered headless (returns null) alongside a single
   // LoadingScreen instance so the progress bar never resets mid-sequence.
   if (isAuthCallback || isAuthLoading || loadPhase === 'syncing' || loadPhase === 'syncing_following' || loadPhase === 'complete') {
-    const loadingMessage = syncProgress || authCallbackMessage || (isAuthCallback ? "Authenticating" : "Syncing collection");
+    // "Loading collection" is the boot fallback, and it is deliberately not
+    // "Syncing collection": this screen is gated on isAuthLoading, which covers
+    // session restore and Convex cache hydration and makes zero Discogs
+    // requests. On a warm open inside the 24h TTL no sync runs at all. Once a
+    // real sync starts, syncProgress takes over with the honest per-page
+    // message ("Syncing collection (150 of 300)"). Do not unify the two.
+    const loadingMessage = syncProgress || authCallbackMessage || (isAuthCallback ? "Authenticating" : "Loading collection");
     return (
       <>
         {isAuthCallback && (

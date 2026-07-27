@@ -39,9 +39,15 @@ export function formatDateShort(isoDate: string): string {
 }
 
 /**
- * Label for the play-history disclosure row: "1 play", "3 plays this month",
- * "10 plays since May", "10 plays since May 2025". Falls back to a bare count
- * when the first play is unknown (history still loading).
+ * Label for the play-history disclosure row: "1 play last week", "1 play in
+ * March", "3 plays this month", "10 plays since May", "10 plays since May
+ * 2025". Falls back to a bare count when the first play is unknown (history
+ * still loading).
+ *
+ * A single play gets its own ladder rather than dead-ending at "1 play". It
+ * says "in March", never "since March" — "since" implies a span, and one play
+ * has none. Recent plays read relatively ("last week"), older ones absolutely
+ * ("in March"), which is where a bare relative string stops being useful.
  */
 export function playCountLabel(
   count: number,
@@ -49,28 +55,35 @@ export function playCountLabel(
   now: number = Date.now()
 ): string {
   if (count <= 0) return "No plays";
-  if (count === 1) return "1 play";
-  if (!firstPlayedAt) return `${count} plays`;
+  if (!firstPlayedAt) return count === 1 ? "1 play" : `${count} plays`;
 
   const first = new Date(firstPlayedAt);
   const today = new Date(now);
-  if (
-    first.getFullYear() === today.getFullYear() &&
-    first.getMonth() === today.getMonth()
-  ) {
-    return `${count} plays this month`;
+  const sameYear = first.getFullYear() === today.getFullYear();
+  const sameMonth = sameYear && first.getMonth() === today.getMonth();
+  const month = first.toLocaleDateString("en-US", { month: "long" });
+
+  if (count === 1) {
+    const days = Math.floor((now - firstPlayedAt) / 86400000);
+    if (days <= 0) return "1 play today";
+    if (days === 1) return "1 play yesterday";
+    if (days < 7) return "1 play this week";
+    if (days < 14) return "1 play last week";
+    if (sameMonth) return "1 play this month";
+    return sameYear ? `1 play in ${month}` : `1 play in ${month} ${first.getFullYear()}`;
   }
 
-  const month = first.toLocaleDateString("en-US", { month: "short" });
-  return first.getFullYear() === today.getFullYear()
+  if (sameMonth) return `${count} plays this month`;
+  return sameYear
     ? `${count} plays since ${month}`
     : `${count} plays since ${month} ${first.getFullYear()}`;
 }
 
-/** Format a timestamp as "Jun 2026" — month grouping header for play history */
+/** Format a timestamp as "June 2026" — month grouping header for play history.
+ *  Spelled out to match the disclosure row it sits under. */
 export function playMonthLabel(ts: number): string {
   return new Date(ts).toLocaleDateString("en-US", {
-    month: "short",
+    month: "long",
     year: "numeric",
   });
 }
