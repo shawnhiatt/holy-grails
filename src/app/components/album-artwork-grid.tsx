@@ -82,7 +82,7 @@ export function AlbumArtwork<T extends ArtworkGridItem = Album>(props: AlbumArtw
   const grid = (
     <div
       className="px-[16px] lg:px-[24px] pt-3 grid grid-cols-4 lg:grid-cols-8 gap-2 lg:gap-[10px]"
-      style={!props.bare ? { paddingBottom: "calc(16px + var(--nav-clearance, 0px))" } : undefined}
+      style={!props.bare ? { paddingBottom: "var(--scroll-bottom-pad)" } : undefined}
     >
       {items.map((item) => (
         <div

@@ -776,7 +776,7 @@ function ArtistsSection({ albums }: { albums: Album[] }) {
         </button>
       )}
       <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
-        Artists with 2+ records
+        Artists with 2+ releases
       </p>
     </div>
   );
@@ -874,7 +874,7 @@ function LabelsSection({ albums }: { albums: Album[] }) {
         ))}
       </motion.div>
       <p className="mt-3" style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)" }}>
-        Labels with 2+ records
+        Labels with 2+ releases
       </p>
     </div>
   );
@@ -1195,15 +1195,17 @@ function ListeningActivitySection({
       .slice(0, 10);
   }, [albums, lastPlayed]);
 
-  // Tabbed lists — replaces the old stacked Top Played / Recently Played /
-  // No Spins scroll. Only tabs with data appear; if the stored tab loses its
-  // data (e.g. hydration order), fall to the first available.
-  const [tab, setTab] = useState<ListeningTab>("top");
+  // Tabbed lists — replaces the old stacked Recently Played / Top Played /
+  // No Plays scroll. Only tabs with data appear; if the stored tab loses its
+  // data (e.g. hydration order), fall to the first available. The default is
+  // "recent" so the first chip is also the one selected on open — the
+  // has-no-data fallback alone would not do that.
+  const [tab, setTab] = useState<ListeningTab>("recent");
   const listTabs = useMemo(() => {
     const t: { id: ListeningTab; label: string }[] = [];
-    if (topPlayed.length >= 5) t.push({ id: "top", label: "Top Played" });
     if (recentlyPlayed.length > 0) t.push({ id: "recent", label: "Recently Played" });
-    if (neglected.length > 0) t.push({ id: "unplayed", label: "No Spins" });
+    if (topPlayed.length >= 5) t.push({ id: "top", label: "Top Played" });
+    if (neglected.length > 0) t.push({ id: "unplayed", label: "No Plays" });
     return t;
   }, [topPlayed, recentlyPlayed, neglected]);
   const activeTab = listTabs.some((t) => t.id === tab) ? tab : listTabs[0]?.id;
@@ -1394,7 +1396,7 @@ function ListeningActivitySection({
         </motion.div>
       )}
 
-      {/* Tabbed lists — Top Played / Recently Played / No Spins. One list at
+      {/* Tabbed lists — Recently Played / Top Played / No Plays. One list at
           a time instead of the old triple-stacked scroll. */}
       {listTabs.length > 0 && activeTab && (
         <div className="mt-5">
@@ -1458,7 +1460,7 @@ function ListeningActivitySection({
           </AnimatePresence>
 
           {/* Show more expands the shared container (up to 10 rows) — the
-              expansion carries across tabs. No Spins keeps its jump into the
+              expansion carries across tabs. No Plays keeps its jump into the
               filtered Collection view. */}
           {(activeFullCount > 5 || (activeTab === "unplayed" && neverPlayedCount > neglected.length)) && (
             <div className="mt-3 flex items-center gap-5">
@@ -1666,7 +1668,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
           record doesn't produce a callout. */}
       {stats.lowRatedUntagged >= 3 && (
         <p className="mt-3" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
-          {`You've rated ${stats.lowRatedUntagged} records two stars or lower and never tagged them.`}
+          {`You've rated ${stats.lowRatedUntagged} releases two stars or lower and never tagged them.`}
         </p>
       )}
 
@@ -1676,7 +1678,7 @@ function PurgeProgressSection({ albums }: { albums: Album[] }) {
         <p className="mt-3" style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
           {stats.cutValue > 0
             ? `Cutting deadweight: ${stats.cut} tagged Cut, ~${formatWhole(stats.cutValue)} at lowest ask.`
-            : `Cutting deadweight: ${stats.cut} records tagged Cut.`}
+            : `Cutting deadweight: ${stats.cut} releases tagged Cut.`}
         </p>
       )}
     </div>
@@ -1798,7 +1800,7 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
                       tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
                       allowDecimals={false}
                     />
-                    <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} records`} />} />
+                    <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} releases`} />} />
                     <Area
                       type="monotone"
                       dataKey="total"
@@ -1827,10 +1829,10 @@ function CollectionGrowthSection({ albums }: { albums: Album[] }) {
       >
         <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)", lineHeight: 1.4, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
           {growthTab === "all"
-            ? `${allTimeTotal} records deep.`
+            ? `${allTimeTotal} releases deep.`
             : peak.year === currentYear
               ? "Your biggest year yet"
-              : `${peak.count} records added in ${peak.year}`}
+              : `${peak.count} releases added in ${peak.year}`}
         </p>
       </div>
     </div>
@@ -1995,7 +1997,7 @@ export function ReportsScreen() {
       {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
           heading="No data yet."
-          subtext="Connect your Discogs collection to see insights about your records."
+          subtext="Connect your Discogs collection to see insights about your collection."
         />
       ) : albums.length === 0 ? (
         /* Connected but no collection to analyze (empty or private on Discogs)
@@ -2008,7 +2010,7 @@ export function ReportsScreen() {
             No insights yet.
           </p>
           <p className="mt-1" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "center" }}>
-            Sync your Discogs collection to see stats about your records.
+            Sync your Discogs collection to see stats about your collection.
           </p>
           <button
             onClick={() => setScreen("settings")}
@@ -2020,7 +2022,7 @@ export function ReportsScreen() {
         </div>
       ) : (
       /* Scrollable content */
-      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "calc(32px + var(--nav-clearance, 0px))" }}>
+      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
         {/* Desktop 2x2 grid / Mobile vertical stack */}
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-5 lg:gap-6">
           {/* Collection Value — full width */}
@@ -2028,15 +2030,8 @@ export function ReportsScreen() {
             <CollectionValueSection albums={albums} />
           </div>
 
-          {/* Top Shelf — most valuable records (hidden until 10+ are priced) */}
-          <div className="lg:col-span-2">
-            <TopShelfSection
-              albums={albums}
-              onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
-            />
-          </div>
-
-          {/* Listening Activity */}
+          {/* Listening Activity — above Top Shelf: what you actually play is a
+              better second beat than what your collection is worth. */}
           <div className="lg:col-span-2">
             <ListeningActivitySection
               albums={albums}
@@ -2046,6 +2041,14 @@ export function ReportsScreen() {
               isDarkMode={isDarkMode}
               markPlayed={markPlayed}
               onNeverPlayedTap={() => { setNeverPlayedFilter(true); setScreen("crate"); }}
+              onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
+            />
+          </div>
+
+          {/* Top Shelf — most valuable releases (hidden until 10+ are priced) */}
+          <div className="lg:col-span-2">
+            <TopShelfSection
+              albums={albums}
               onAlbumTap={(id) => { setSelectedAlbumId(id); setShowAlbumDetail(true); }}
             />
           </div>

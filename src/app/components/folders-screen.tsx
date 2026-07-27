@@ -153,7 +153,7 @@ export function FoldersScreen({ onBack }: FoldersScreenProps) {
       {/* Content */}
       <div
         className="flex-1 overflow-y-auto overlay-scroll p-[16px]"
-        style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}
+        style={{ paddingBottom: "var(--scroll-bottom-pad)" }}
       >
         {/* New folder input */}
         <AnimatePresence>

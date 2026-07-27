@@ -38,6 +38,7 @@ export function Stacks() {
     stacks, albums, deleteStack, renameStack, createStackDirect, isAuthenticated,
     setSelectedAlbumId, setShowAlbumDetail, toggleAlbumInStack, reorderStackAlbums,
     setOnNewStack, shareStack, unshareStack, stackMembership, freezeStack, excludeFromStack,
+    setStackDetailOpen,
   } = useApp();
 
   const [showNewStack, setShowNewStack] = useState(false);
@@ -81,6 +82,13 @@ export function Stacks() {
     setOnNewStack(() => () => setShowKindChoice(true));
     return () => setOnNewStack(null);
   }, [setOnNewStack]);
+
+  // Tell MobileHeader a session is open so it can drop the "Sessions" title —
+  // the session's own name is the heading on this sub-view.
+  useEffect(() => {
+    setStackDetailOpen(activeStackId !== null);
+    return () => setStackDetailOpen(false);
+  }, [activeStackId, setStackDetailOpen]);
 
   if (activeStack) {
     return (
@@ -162,7 +170,7 @@ export function Stacks() {
                   className="w-full rounded-[10px] p-3 text-left tappable transition-colors"
                   style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)", touchAction: "manipulation" }}
                 >
-                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Add records</p>
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Add releases</p>
                   <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Pick them yourself.</p>
                 </button>
                 <button
@@ -216,7 +224,7 @@ export function Stacks() {
           subtext="Connect your Discogs collection to start building sessions."
         />
       ) : (
-        <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+        <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
           {stacks.length === 0 && !showNewStack && !showKindChoice ? (
             <div className="flex-1 flex flex-col items-center justify-center">
               <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
@@ -267,7 +275,7 @@ export function Stacks() {
                             <Disc3 size={11} />
                             {/* Rotation has to be visible where the session
                                 lives, permanently. Without it, someone who saw
-                                a record in here yesterday and can't find it
+                                a release in here yesterday and can't find it
                                 today concludes the app lost it. */}
                             {membership?.rotating
                               ? `In rotation · ${memberIds.length} of ${membership.poolSize}`
@@ -404,7 +412,7 @@ function StackDetail({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[12px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[8px] lg:pb-[12px]">
         <div className="flex items-center gap-2">
           <button onClick={onBack} className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors flex-shrink-0" style={{ color: "var(--c-text-muted)", border: "1px solid var(--c-border-strong)" }}>
             <ChevronLeft size={18} />
@@ -487,7 +495,7 @@ function StackDetail({
       )}
 
       {/* Content */}
-      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
         {stackAlbums.length === 0 ? (
           /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center">

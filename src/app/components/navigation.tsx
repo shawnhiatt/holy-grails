@@ -162,7 +162,7 @@ const SCREEN_TITLES: Partial<Record<Screen, string>> = {
 export function MobileHeader() {
   const {
     screen, setScreen, isDarkMode, userAvatar,
-    followedUserProfile, onBackFromProfile, onUnfollowUser,
+    followedUserProfile, onBackFromProfile, onUnfollowUser, stackDetailOpen,
     isBackgroundSyncing, isSyncingFollowing, setShowDiscogsSearch,
   } = useApp();
 
@@ -173,6 +173,14 @@ export function MobileHeader() {
   const activeAccent = isDarkMode ? "#EBFD00" : "#16181C";
 
   const isProfileView = screen === "following" && followedUserProfile !== null;
+  // Session detail sub-view: render no header at all. StackDetail already draws
+  // a full header (back + session name + share) and — unlike this component,
+  // which is lg:hidden — it does so at every breakpoint, so moving those into a
+  // mobile-only variant would strand desktop with no back button. Suppressing
+  // the row instead leaves the session name as the sole heading and reclaims
+  // ~58px. Safe-area top padding lives on the wrapper in App.tsx, not here, so
+  // returning null does not push content under the status bar.
+  const isStackDetailView = screen === "stacks" && stackDetailOpen;
   // On the feed, the identity block's SYNC control already shows the
   // collection sync — the chip there would be redundant. It still shows on
   // the feed for following-feed syncs, which the SYNC control doesn't cover.
@@ -250,6 +258,9 @@ export function MobileHeader() {
       </button>
     </div>
   );
+
+  // Variant F — Session detail sub-view (no header; StackDetail owns it)
+  if (isStackDetailView) return null;
 
   // Variant E — Followed user profile sub-view
   if (isProfileView) {

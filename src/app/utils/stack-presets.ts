@@ -84,7 +84,7 @@ export function buildStackPresets(
     {
       id: "never-played",
       name: "Never played",
-      blurb: "Records with no spins on file.",
+      blurb: "Nothing logged yet.",
       rule: rule([{ field: "lastPlayed", op: "never" }], "added-old"),
     },
     count((a) => !lastPlayed[a.id])

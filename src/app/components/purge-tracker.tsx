@@ -73,7 +73,7 @@ export function PurgeTracker() {
       {albums.length === 0 && !isAuthenticated ? (
         <NoDiscogsCard
           heading="Nothing to evaluate."
-          subtext="Connect your Discogs collection to start rating your records."
+          subtext="Connect your Discogs collection to start rating your collection."
         />
       ) : (
       <>
@@ -115,7 +115,7 @@ export function PurgeTracker() {
         >
           {unratedCount > 0
             ? `${unratedCount} still waiting for a verdict.`
-            : "Every record evaluated. Check back when you add to your collection."}
+            : "Every release evaluated. Check back when you add to your collection."}
         </p>
       </div>
 
@@ -141,7 +141,7 @@ export function PurgeTracker() {
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: (purgeFilter === "cut" && cutCount > 0 && !purgeProgress) ? "24px" : "calc(24px + var(--nav-clearance, 0px))" }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: (purgeFilter === "cut" && cutCount > 0 && !purgeProgress) ? "24px" : "var(--scroll-bottom-pad)" }}>
         {filteredAlbums.length === 0 ? (
           <div className="flex items-center justify-center py-16">
             <p style={{ fontSize: "14px", color: "var(--c-text-muted)" }}>

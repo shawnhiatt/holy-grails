@@ -87,7 +87,7 @@ export function BugInboxScreen({ onBack }: BugInboxScreenProps) {
   const newCount = reports?.filter((r) => r.status === "new").length ?? 0;
 
   return (
-    <div className="w-full" style={{ paddingBottom: "var(--nav-clearance)" }}>
+    <div className="w-full" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
       <div className="px-4 pt-4 flex items-center gap-2">
         <button
           onClick={onBack}

@@ -284,7 +284,7 @@ src/
       purge-colors.ts
       purge-tracker.tsx
       purge-verdict-buttons.tsx  # Shared Keep/Maybe/Cut verdict button row — solid fill = selected verdict, tag-colored outline = unselected, icons Check/HelpCircle/StackMinus (weight bold). Used by the feed evaluator and album detail Rate for Purge; any new verdict UI must use this component, never bespoke buttons.
-      loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens.
+      loading-screen.tsx   # Four-phase loading state machine (`'idle' | 'syncing' | 'syncing_following' | 'complete'`) with UnicornScene WebGL background, Disc3 spinner, and animated ellipsis message. `syncing_following` shows "Syncing users you follow (X of Y)" during startup following feed sync. Use this for all full-screen loading states — do not create new loading screens. **The boot fallback message is "Loading collection", NOT "Syncing collection"** — the screen is gated on `isAuthLoading`, which covers session restore and Convex cache hydration and issues zero Discogs requests (on a warm open inside the 24h TTL no sync runs at all). Once a real sync starts, `syncProgress` overrides it with `formatSyncStatus`'s honest per-page copy. The two strings differ on purpose; do not unify them.
       reports-screen.tsx
       share-activity-prompt.tsx  # Full-screen, non-dismissable shareActivity opt-in prompt (see Cross-User Data Pattern)
       shared-session-page.tsx  # Public, logged-out read-only view of a shared session (route /s/{shareId}). Rendered by App.tsx INSTEAD of the app for /s/ paths, outside AppProvider (no auth/sync). System-theme only (prefers-color-scheme). Reads convex/stacks.getShared (unauthenticated). No nav, no discogs.com links.
@@ -706,7 +706,10 @@ For the same detached reason, these components also hardcode the dark-mode **bor
 ### App-Level CSS Custom Properties
 
 - `--app-bg` — set dynamically in App.tsx as the scroll-fade gradient base color. Dark: `#0A0C0F`, Light: `#E4E7EA` (v0.7 gray retheme — was navy `#081A31` / cyan `#ACDEF2`). Used for the top-of-screen scroll fade overlay. (The app root also paints a radial gradient — dark: `#101214` → `#060708`, light: `#FFF` → `#E4E7EA` — and syncs the `<html>` background to `#060708`/`#F9F9FA`; these are the true outermost canvas colors.)
-- `--nav-clearance` — `calc(84px + env(safe-area-inset-bottom, 0px))` — bottom padding calc used across 16+ screen components to clear the fixed navigation bar. Set in App.tsx or navigation.tsx.
+- `--nav-clearance` — `calc(84px + env(safe-area-inset-bottom, 0px))` on mobile, `0px` on desktop — the height the fixed bottom nav overlays. Set in `App.tsx` on the per-screen wrapper that renders `renderScreen()`, so every screen inherits it and the declared fallbacks never actually fire.
+- `--scroll-bottom-pad` — `calc(32px + var(--nav-clearance))`, set alongside it. **Every scrolling container uses this**, so the gap between the last row of content and the nav is identical on every screen. Before it was centralized, scroll containers used four different bases (0/16/24/32px) and one — the followed-user profile — had none at all, which put its last row permanently under the nav with no scroll range to reach it. Do not hand-roll `calc(Npx + var(--nav-clearance))` on a scroll container; a new screen that forgets the token should look obviously wrong rather than plausibly-but-subtly off.
+  - Two deliberate exceptions keep bare `--nav-clearance`: **centered empty states** (`album-grid`, `album-list`, `wantlist`, `feed-screen`, `reports-screen`, `private-data-card`), where the padding defines the band a block centers in and a base offset would decenter it; and **`purge-tracker.tsx`**, whose pinned footer supplies its own clearance, so the scroll area drops to a bare `24px` while that footer is showing.
+  - The browser-vs-installed-PWA difference is handled entirely by `env(safe-area-inset-bottom)` inside `--nav-clearance` and by the `.app-viewport` height rule (see Full-Screen Viewport Height). `--scroll-bottom-pad` only adds a static base on top; do not try to fix a standalone-mode spacing bug by changing it.
 - `--slide-panel-footer-pb` — `84px` (mobile) / `16px` (desktop) — bottom padding for pinned sheet footers.
 - WantlistCrossoverPrompt bottom offset: `calc(72px + env(safe-area-inset-bottom, 0px))`
 - Scroll fade overlay height: `calc(128px + env(safe-area-inset-bottom, 0px))`
@@ -896,10 +899,10 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
    - *By Format*: media-type-aware (all-formats). Groups by `mediaType()` first. A single-medium collection shows the descriptor stat grid (LP, 12", 7", Box Set …) unchanged; when one medium dominates (≥90% — the common mostly-vinyl case) the descriptor grid stays with a "plus N CDs, M cassettes" footer; genuinely mixed media show a media-type stat grid with the majority-medium descriptor breakdown beneath. The descriptor tokenizer splits on comma/semicolon and strips a fixed word set ("Album", "All Media", "Reissue", "Compilation", "Stereo", "Mono", "Promo", "Limited Edition", "Deluxe Edition", "Remaster", "Special Edition", "Club Edition", "Transcription", "Unofficial Release", "White Label", "Record Store Day") plus any token classifying as the majority medium (so "Vinyl"/"CD" never dominate their own breakdown).
 5. **Top Artists**: Ranked list (#1–#10). Filters to artists with 2+ albums. Hidden if fewer than 3 qualify. Excludes "Various", "Various Artists", "Unknown Artist", "Unknown". #1 rank in #EBFD00, #2–3 in var(--c-text-muted), #4+ in var(--c-text-faint). Disambig suffixes (e.g. " (2)") stripped before grouping.
 6. **Top Labels**: Lollipop chart (thin stem + dot). Filters to labels with 2+ albums, cap 10. Hidden if fewer than 3 qualify. Dot color: CHART_BLUE (#0DB1F2).
-7. **Listening Activity**: Stats grid (played this month in green Keep styling, days since last played, no plays recorded count), "No Spins on File" neglected album list, "Recently Played" list (max 5, hidden entirely if no plays logged).
+7. **Listening Activity**: Stats grid (played this month in green Keep styling, days since last played, no plays recorded count) above a chip-tab list — **Recently Played · Top Played · No Plays**, in that order. Only tabs with data render; the `tab` state defaults to `"recent"` so the first chip is also the selected one on open (the lose-your-data fallback to `listTabs[0]` does not achieve that on its own). Rendered **before** Top Shelf — what you actually play is a better second beat than what the collection is worth.
 8. **Purge Progress**: A horizontal headline (`{rated} of {total} evaluated` + `{pct}%`, replacing the old radial ring's stacked center text), a full-width **segmented progress bar** (Keep/Maybe/Cut verdict slices over a neutral `--c-chip-bg` unrated track — the colored slice reads as "how far into the purge," left-aligned), and a **legend row** carrying the exact counts (Keep/Maybe/Cut/Unrated, colored dots via `purgeTagColor`; unrated dot uses `var(--c-text-muted)`) that replaced the old 2×2 stat grid. Empty-state nudge when nothing's evaluated. When a cached collection value exists and 3+ albums are tagged Cut, a "Cutting deadweight: …" callout line — count-only ("{N} records tagged Cut.") until the drip has priced the Cut records, then upgraded to "{N} tagged Cut, ~${X} at lowest ask." (Spec 6B, summing `marketValue` over Cut albums).
 9. **Collection Growth**: recharts BarChart of records added per year (from `dateAdded`), capped to the last 10 years, current-year bar in #EBFD00 (edged brass gold in light mode, matching the peak-decade convention). Yellow callout pill: "{N} records added in {year}" for the biggest year, or "Your biggest year yet" when the biggest year is the current one. Derived via `bucketAddsByYear` in `utils/insights.ts`. Rendered after Breakdown, before Top Artists.
-10. **Top Shelf** (Spec 6B): The five most valuable records by lowest marketplace ask, from the shared market-value drip. Own card rendered directly after Collection Value; rows show 40px artwork + title/artist + green `~$X` and tap through to album detail. Subtitle "Your priciest pressings by lowest marketplace ask." Hidden until 10+ of the collection's releases are priced.
+10. **Top Shelf** (Spec 6B): The five most valuable releases by lowest marketplace ask, from the shared market-value drip. Own card rendered after Listening Activity; rows show 40px artwork + title/artist + green `~$X` and tap through to album detail. Subtitle "Your priciest pressings by lowest marketplace ask." Hidden until 10+ of the collection's releases are priced.
 
 *(A **Spending** section — total/avg/most-expensive from `pricePaid` — was removed: `pricePaid` was never populated (Discogs exposes price paid only as a per-user custom field, not universal data), so it was permanently inert. It has since been **dropped end-to-end** — the `Album` type field, the sync mapping, the collection cache mutations, and all client plumbing are gone; the Convex `collection.pricePaid` schema field is now `v.optional` legacy pending a clear-then-redeploy pass. Do not rebuild it or any feature on price paid. `parsePricePaid`/`deriveSpending` were deleted from `utils/insights.ts` with the Spending section.)*
 
@@ -959,7 +962,7 @@ Wordmark is the only screen where the logo appears in the header.
 Screen title `<h1>` left (Bricolage Grotesque 700, 28px, truncating).
 Users icon + avatar right.
 
-**Variant C — Sessions**
+**Variant C — Sessions (list view)**
 Screen title left. Yellow Plus button (w-8 h-8 rounded-full bg-[#EBFD00]) +
 users icon + avatar right. Plus button calls `onNewStack` from context.
 
@@ -973,6 +976,22 @@ Muted UserMinus button (var(--c-text-muted), NOT destructive red) right.
 Back calls `onBackFromProfile`. Unfollow calls `onUnfollowUser` (triggers
 existing confirmation modal — does not unfollow directly).
 
+**Variant F — Session detail (stacks screen, `stackDetailOpen === true`)**
+Renders **nothing** — `return null`. `StackDetail` already draws its own full
+header (back chevron + editable session name + share), and unlike `MobileHeader`
+(which is `lg:hidden`) it does so at **every** breakpoint. Moving those controls
+into a mobile-only header variant would leave desktop with no back button and no
+title, which is exactly the gap the followed-user profile has on desktop today.
+Suppressing the row instead leaves the session's own name as the sole heading —
+"Sessions" at 28px directly above a 28px session name made the *less* informative
+line the dominant one, and the screen is already identified three times over (lit
+nav tab, the tap that got you here, the name itself). Reclaims ~58px.
+Safe-area top padding lives on the header **wrapper** in `App.tsx`, not inside
+`MobileHeader`, so returning null does not push content under the status bar —
+verify that still holds before giving any other screen a null header.
+`stackDetailOpen` is registered by the Sessions screen through context, mirroring
+`followedUserProfile` (the `activeStackId` that drives it is local to `Stacks()`).
+
 The shared right-side button group (`navButtons`, used by Variants A–D)
 leads with the sync chip (when syncing — it sits at the far left of the
 group so it never splits the button cluster; on the Feed screen it is
@@ -980,8 +999,10 @@ suppressed during collection syncs since the identity block's SYNC
 control already shows that state, but still appears there for
 following-feed syncs), then a **Search button** that opens the "Look It
 Up" sheet via `setShowDiscogsSearch(true)` — present on every screen
-except the Following profile sub-view, so the record-store lookup is one
-tap from a cold open. Then the Users icon and avatar.
+except the two sub-views (Following profile, session detail), so the
+record-store lookup is one tap from a cold open. Then the Users icon and
+avatar. Both sub-views deliberately trade that group away for a header
+that belongs to the thing you drilled into; each keeps a back affordance.
 
 Title truncation on all variants: `white-space: nowrap`,
 `overflow: hidden`, `text-overflow: ellipsis`, `min-width: 0`,
@@ -1133,7 +1154,9 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 ## Key UX Writing Rules
 
 - Short. Shorter than you think.
-- Use vinyl vocabulary naturally: pressing, crate, grail, side A, VG+
+- **"Release" is the noun for an item in the collection** — never "record". The app syncs every format Discogs supports (see Formats), and a CD, cassette, or file is not a record. This is a counted noun: "3 releases match", "459 releases deep", "12 releases tagged Cut". Where a possessive would read stiffly ("stats about your releases"), say **"your collection"** instead. Do not reintroduce "record" as the generic; it was swept out of the UI wholesale.
+- **Vinyl idiom only where the surface is genuinely vinyl-scoped.** "Spins" is retired app-wide — the Insights tab is **No Plays**, not No Spins, and plays are "plays". Format Spotlight's own category headers (45 RPMs, Test Pressings, Mono Pressings) are vinyl by definition and stay. So do Discogs' own field names — **Pressing Notes** is theirs, not ours. "Crate" survives as a route key and the Collection screen's identity, not as a synonym for the collection in copy.
+- Vinyl vocabulary that still reads as format-neutral is fine: "pressing" for a specific edition, "in rotation", "grail", "VG+".
 - No exclamation points, no emoji, no "Hey there!" energy
 - Avoid: "seamlessly," "powerful," "experience," "journey"
 - Toast notifications: under 4 words where possible, no punctuation except a period for emphasis. Album-specific toasts include the full title with no truncation: `"[Title]" kept.` / `"[Title]" added to Wantlist.` / `"[Title]" removed.` Error toasts, session toasts, sync toasts, and settings toasts remain generic.
