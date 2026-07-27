@@ -313,7 +313,7 @@ export function Wantlist() {
               {wants.length === 0
                 ? "Your wantlist is empty. Sync your Discogs account to get started."
                 : wantFilter === "priority"
-                ? "No priority wants marked. Tap the heart on any record to flag it."
+                ? "No priority wants marked. Tap the heart on any release to flag it."
                 : "No items found"}
             </p>
             {wants.length === 0 && (

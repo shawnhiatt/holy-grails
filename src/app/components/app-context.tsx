@@ -1716,9 +1716,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const { collDiff, wantDiff } = result;
         let msg: string | null = null;
         if (collDiff.added > 0 && collDiff.removed === 0) {
-          msg = `${collDiff.added} ${collDiff.added === 1 ? "record" : "records"} added.`;
+          msg = `${collDiff.added} ${collDiff.added === 1 ? "release" : "releases"} added.`;
         } else if (collDiff.removed > 0 && collDiff.added === 0) {
-          msg = `${collDiff.removed} ${collDiff.removed === 1 ? "record" : "records"} removed.`;
+          msg = `${collDiff.removed} ${collDiff.removed === 1 ? "release" : "releases"} removed.`;
         } else if (collDiff.added > 0 || collDiff.removed > 0) {
           msg = "Collection updated.";
         } else if (wantDiff.added > 0 || wantDiff.removed > 0) {
@@ -2590,7 +2590,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const stats: string[] = [];
 
     // 1. Total records
-    stats.push(`You own ${cc.length} records`);
+    stats.push(`You own ${cc.length} releases`);
 
     // 2. Wantlist count
     const wantCount = convexWantlist?.length ?? 0;

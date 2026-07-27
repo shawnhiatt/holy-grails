@@ -486,7 +486,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     if (syncInFlight) return;
     try {
       const stats = await syncFromDiscogs();
-      toast.success(`Synced \u2014 ${stats.albums} records \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} wantlist items`);
+      toast.success(`Synced \u2014 ${stats.albums} releases \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} wantlist items`);
     } catch (err: unknown) {
       const msg = (err as Error)?.message || "Sync failed. Try again.";
       console.error("[Discogs Sync Error]", err);
@@ -1661,7 +1661,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
         <InsightRow
           icon={<Broom size={16} style={{ color: "var(--c-text-muted)" }} />}
-          label={`${unratedCount} record${unratedCount !== 1 ? "s" : ""} still unrated`}
+          label={`${unratedCount} release${unratedCount !== 1 ? "s" : ""} still unrated`}
           isDarkMode={isDarkMode}
           onTap={() => {
             setPurgeFilter("unrated");
@@ -1672,7 +1672,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
         <InsightRow
           icon={<Disc3 size={16} style={{ color: "var(--c-text-muted)" }} />}
-          label={`${neverPlayedCount} record${neverPlayedCount !== 1 ? "s" : ""} with no play recorded`}
+          label={`${neverPlayedCount} release${neverPlayedCount !== 1 ? "s" : ""} with no play recorded`}
           isDarkMode={isDarkMode}
           onTap={() => {
             setNeverPlayedFilter(true);
@@ -1890,7 +1890,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 lineHeight: 1.4,
               }}
             >
-              Every record evaluated. Check back when you add to your collection.
+              Every release evaluated. Check back when you add to your collection.
             </p>
           </div>
         ) : purgeEvalAlbum ? (

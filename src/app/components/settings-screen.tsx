@@ -51,13 +51,13 @@ const SESSION_CAP_OPTIONS: { value: CapValue; label: string; sub: string }[] =
   CAP_TIERS.map((t) => ({
     value: t.value,
     label: t.label,
-    sub: t.limit ? `${t.limit} records` : "Everything that matches",
+    sub: t.limit ? `${t.limit} releases` : "Everything that matches",
   }));
 
 const SESSION_ROTATION_OPTIONS: { value: SessionRotation; label: string; sub: string }[] = [
   { value: "daily", label: "Daily", sub: "A new set each morning" },
   { value: "weekly", label: "Weekly", sub: "A new set each week" },
-  { value: "off", label: "Off", sub: "Always the same records" },
+  { value: "off", label: "Off", sub: "Always the same releases" },
 ];
 
 export function SettingsScreen() {
@@ -234,7 +234,7 @@ export function SettingsScreen() {
     setSyncError(null);
     try {
       const stats = await syncFromDiscogs();
-      toast.success(`Synced \u2014 ${stats.albums} records \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} wantlist items`);
+      toast.success(`Synced \u2014 ${stats.albums} releases \u00b7 ${stats.folders} folders \u00b7 ${stats.wants} wantlist items`);
     } catch (err: any) {
       const msg = err?.message || "Sync failed. Check your token and try again.";
       console.error("[Discogs Sync Error]", err);
@@ -625,8 +625,8 @@ export function SettingsScreen() {
             <div className="px-4 py-4 flex flex-col gap-4" style={ROW_BORDER}>
               <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-secondary)", textAlign: "center" }}>
                 {syncStats
-                  ? `${syncStats.albums} records \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
-                  : `${albums.length} records \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
+                  ? `${syncStats.albums} releases \u00b7 ${syncStats.folders} folders \u00b7 ${syncStats.wants} wantlist items`
+                  : `${albums.length} releases \u00b7 ${folders.filter((f) => f.name !== "All").length} folders \u00b7 ${wants.length} wantlist items`
                 }
               </p>
 
@@ -1167,7 +1167,7 @@ export function SettingsScreen() {
           >
             <div className="px-4 py-2">
               <p className="pt-1 pb-3" style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.45 }}>
-                When more records match than a session plays, rotation swaps in
+                When more releases match than a session plays, rotation swaps in
                 a different set each period. The same set holds all period, so
                 nothing changes mid-listen.
               </p>

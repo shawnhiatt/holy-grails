@@ -93,7 +93,7 @@ export function StackBuilder({
           className="mb-4"
           style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", lineHeight: 1.45 }}
         >
-          A session built from rules fills itself. Add a record to your
+          A session built from rules fills itself. Add a release to your
           collection and it lands here on its own.
         </p>
 
@@ -335,10 +335,10 @@ function CustomRuleBuilder({ onCreated }: { onCreated: (stackId: string) => void
           {/* Live match count — the same evaluator the session will use —
               followed by the rotation disclosure. Rotation defaults ON, which
               is only honest if it is stated before saving, not discovered
-              later when a record has apparently gone missing. Read here as
+              later when a release has apparently gone missing. Read here as
               part of the readback they are already reading. */}
           <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
-            {preview.poolSize} record{preview.poolSize === 1 ? "" : "s"} match
+            {preview.poolSize} release{preview.poolSize === 1 ? "" : "s"} match
             {preview.poolSize === 1 ? "es" : ""}.
             {rule.limit && preview.poolSize > rule.limit ? (
               preview.rotating ? (

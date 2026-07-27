@@ -94,8 +94,8 @@ export function BugReportSheet({ onClose }: BugReportSheetProps) {
       },
       { label: "Theme", value: `${colorMode} (${isDarkMode ? "dark" : "light"})` },
       { label: "Formats", value: formatScope },
-      { label: "Collection", value: `${albums.length} records` },
-      { label: "Wantlist", value: `${wants.length} records` },
+      { label: "Collection", value: `${albums.length} releases` },
+      { label: "Wantlist", value: `${wants.length} releases` },
       {
         label: "Last synced",
         value: formatSyncedAgo(lastSyncedAt) ?? "never",
@@ -424,7 +424,7 @@ export function BugReportSheet({ onClose }: BugReportSheetProps) {
                   </div>
                 )}
                 <p className="mt-1" style={{ fontSize: "12px", color: "var(--c-text-muted)", lineHeight: 1.5 }}>
-                  Your records, notes, and Discogs login are never included.
+                  Your collection, notes, and Discogs login are never included.
                 </p>
               </motion.div>
             )}

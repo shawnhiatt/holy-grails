@@ -89,7 +89,7 @@ export function SharedSessionPage() {
               {data.name}
             </h1>
             <p style={{ marginTop: "6px", fontSize: "13px", fontWeight: 500, color: "var(--c-text-muted)" }}>
-              {data.albums.length} record{data.albums.length !== 1 ? "s" : ""}
+              {data.albums.length} release{data.albums.length !== 1 ? "s" : ""}
             </p>
 
             <div className="flex flex-col" style={{ marginTop: "20px", gap: "10px" }}>

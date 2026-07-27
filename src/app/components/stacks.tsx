@@ -162,7 +162,7 @@ export function Stacks() {
                   className="w-full rounded-[10px] p-3 text-left tappable transition-colors"
                   style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border)", touchAction: "manipulation" }}
                 >
-                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Add records</p>
+                  <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--c-text)" }}>Add releases</p>
                   <p className="mt-0.5" style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>Pick them yourself.</p>
                 </button>
                 <button
@@ -267,7 +267,7 @@ export function Stacks() {
                             <Disc3 size={11} />
                             {/* Rotation has to be visible where the session
                                 lives, permanently. Without it, someone who saw
-                                a record in here yesterday and can't find it
+                                a release in here yesterday and can't find it
                                 today concludes the app lost it. */}
                             {membership?.rotating
                               ? `In rotation · ${memberIds.length} of ${membership.poolSize}`
