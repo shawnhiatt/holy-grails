@@ -194,7 +194,7 @@ export function AlbumList({ albums, showPurgeIndicator = true, sortOption = "art
       <div
         ref={scrollRef}
         className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px]`}
-        style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
+        style={{ paddingBottom: "var(--scroll-bottom-pad)" }}
       >
         <div className="flex flex-col">
           {renderItems.map((item) => {

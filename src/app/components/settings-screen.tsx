@@ -328,7 +328,7 @@ export function SettingsScreen() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
+      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[0px]" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
         <section className="mt-4">
           <SettingsCard
             title="Discogs Profile"

@@ -362,7 +362,7 @@ export function FollowingScreen() {
       </AnimatePresence>
 
       {/* Content */}
-      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll" style={{ paddingBottom: "var(--nav-clearance, 84px)" }}>
+      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
         {followedUsers.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8">
             <Users size={48} style={{ color: "var(--c-text-faint)" }} />
@@ -815,7 +815,7 @@ function FollowedUserProfile({
           inside this one container, so the nav clearance belongs here rather
           than on each inner view. Without it the fixed bottom tab bar overlays
           the last ~88px with no scroll range to reach it. */}
-      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+      <div className="flex-1 overflow-y-auto overlay-scroll" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
         {tab === "insights" && showRecentlyPlayed && (
           <div className="px-[16px] lg:px-[24px] pt-3 pb-4">
             {topPlayed.length > 0 && (

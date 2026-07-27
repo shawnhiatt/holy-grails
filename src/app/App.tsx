@@ -28,7 +28,11 @@ import { OfflineBanner } from "./components/offline-banner";
 import { ShareActivityPrompt } from "./components/share-activity-prompt";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
-/* nav-clearance: scroll containers consume --nav-clearance for bottom padding */
+/* nav-clearance: the height the fixed bottom nav overlays.
+   scroll-bottom-pad: nav-clearance + a uniform base, for scrolling content.
+   Every scroll container uses --scroll-bottom-pad so the final gap above the
+   nav is identical on every screen; --nav-clearance is used bare only by
+   centered empty states, where a base offset would decenter the block. */
 
 // Code-split the two heaviest modules off the critical path:
 //  - reports-screen pulls in Recharts (+d3) — ~450 kB min, only needed on Insights
@@ -359,6 +363,10 @@ function AppContent() {
   };
 
   const mobilePaddingBottom = isDesktop ? "0px" : "calc(84px + env(safe-area-inset-bottom, 0px))";
+  // Uniform breathing room between the last row of scrolling content and the
+  // nav clearance zone. 32px is the largest base any screen shipped before
+  // this was centralized, so no screen lost room when they were unified.
+  const scrollBottomPad = `calc(32px + ${mobilePaddingBottom})`;
   const contentTokens = useMemo(() => getContentTokens(isDarkMode), [isDarkMode]);
 
   // Sync html background with JS dark mode so overscroll/transparent areas don't show stale light color
@@ -501,7 +509,10 @@ function AppContent() {
               animate={{ opacity: 1 }}
               transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
               className="flex-1 flex flex-col overflow-hidden"
-              style={{ "--nav-clearance": mobilePaddingBottom } as React.CSSProperties}
+              style={{
+                "--nav-clearance": mobilePaddingBottom,
+                "--scroll-bottom-pad": scrollBottomPad,
+              } as React.CSSProperties}
             >
               {renderScreen()}
             </motion.div>

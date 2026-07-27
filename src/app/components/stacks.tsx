@@ -216,7 +216,7 @@ export function Stacks() {
           subtext="Connect your Discogs collection to start building sessions."
         />
       ) : (
-        <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+        <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
           {stacks.length === 0 && !showNewStack && !showKindChoice ? (
             <div className="flex-1 flex flex-col items-center justify-center">
               <Headphones size={48} style={{ color: "var(--c-text-faint)" }} className="mb-4" />
@@ -487,7 +487,7 @@ function StackDetail({
       )}
 
       {/* Content */}
-      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "calc(16px + var(--nav-clearance, 0px))" }}>
+      <div className="flex-1 flex flex-col overflow-y-auto overlay-scroll p-[16px]" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
         {stackAlbums.length === 0 ? (
           /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center">

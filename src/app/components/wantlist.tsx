@@ -372,7 +372,7 @@ function WantGridView({ wants, togglePriority, onSelect, compact }: { wants: Wan
   return (
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
-        <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
+        <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
           {wantRenderItems.map((item) => {
             if (item.kind === "divider") {
               return (
@@ -454,7 +454,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
       <div
         ref={scrollRef}
         className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px]`}
-        style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}
+        style={{ paddingBottom: "var(--scroll-bottom-pad)" }}
       >
         <div className="flex flex-col">
           {wantRenderItems.map((item) => {

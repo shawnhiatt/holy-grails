@@ -2020,7 +2020,7 @@ export function ReportsScreen() {
         </div>
       ) : (
       /* Scrollable content */
-      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "calc(32px + var(--nav-clearance, 0px))" }}>
+      <div className="flex-1 overflow-y-auto overlay-scroll px-[16px] lg:px-[24px] pt-[16px]" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
         {/* Desktop 2x2 grid / Mobile vertical stack */}
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-5 lg:gap-6">
           {/* Collection Value — full width */}

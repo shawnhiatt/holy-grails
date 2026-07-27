@@ -2363,7 +2363,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       ) : (
       /* Scrollable content */
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={handleFeedScroll}>
-        <div className="flex flex-col" style={{ paddingBottom: "calc(24px + var(--nav-clearance, 0px))" }}>
+        <div className="flex flex-col" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
 
           {/* ═══ DESKTOP LAYOUT ═══ */}
           <div className="hidden lg:block px-[24px] pt-[16px]">
