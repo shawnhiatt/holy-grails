@@ -1625,7 +1625,7 @@ function PopulatedFollowingView({
                 fontSize: "32px",
                 fontWeight: 400,
                 color: "var(--c-text)",
-                fontFamily: "'Manufacturing Consent', system-ui, sans-serif",
+                fontFamily: "'Manufacturing Consent', serif",
                 margin: 0,
               }}
             >

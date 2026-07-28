@@ -4,6 +4,8 @@ What the data already collected — plus unused Discogs API surface (see `docs/D
 
 **Ranking lens:** the moat is decision-making and curation (purge, sessions). Features that deepen the moat outrank features that add breadth.
 
+**Companion doc:** `docs/ai-opportunities.md` covers what the Claude API integration (shipped for the Cover scan) could be used for beyond it — plus the gamification direction, which is mostly plain derivation and belongs on this list once it's shaped.
+
 ---
 
 ## Tier 1 — deepen the moat (do these first)
@@ -48,10 +50,10 @@ Full-collection CSV (pressing, condition, notes, folder, ask value). Adult-colle
 ### 12. Discogs Lists import — M
 User Lists endpoints are entirely unused. One-shot import of a Discogs list into a Session fits session-building; ongoing list sync probably isn't worth it. *Borderline database-browsing — the import framing keeps it in scope.*
 
-### 13. "3 records joined Late Night Jazz" — M
+### 13. "3 releases joined Late Night Jazz" — M
 The one deferred piece of the Session Builder (its plan's phase 7), and the only part of that feature that genuinely wants stored state.
 
-An auto session's membership is derived at read time and deliberately never stored, which is what makes auto-add free. The cost is that nothing knows what *changed*: to say "3 records joined," you need a membership snapshot to diff against, which means the one write path and the one background job the rest of the design avoids.
+An auto session's membership is derived at read time and deliberately never stored, which is what makes auto-add free. The cost is that nothing knows what *changed*: to say "3 releases joined," you need a membership snapshot to diff against, which means the one write path and the one background job the rest of the design avoids.
 
 Shape, if it's built:
 - A `stack_snapshots` table (`stack_id` + `release_ids` + `taken_at`), written after a sync completes rather than on every evaluation — the diff people care about is "since my collection changed," not "since I last opened the app."
@@ -106,5 +108,5 @@ Asked for as one feature ("favorite songs, add songs to a session — build play
 3. **#5** (share cards) — then #6, #7 build on it.
 4. ~~**#4** (ratings)~~ — done, shipped with the Session Builder.
 5. **#8 + #11** as the utility pass; #2 alongside the next purge session.
-6. **#13** ("3 records joined") only after auto sessions have been in real use — it needs churn to have anything to say.
+6. **#13** ("3 releases joined") only after auto sessions have been in real use — it needs churn to have anything to say.
 7. **#14a + #14b** (track favorites, then the session pull list) as one arc — 14b is most of the value and costs little once 14a lands. Settle the icon collision in a design pass first. The `favoriteTrackCount` rule field folds in cheaply alongside. #14c stays parked.

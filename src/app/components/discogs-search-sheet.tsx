@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties }
 import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { motion } from "motion/react";
-import { Disc3, ArrowLeft, Camera, Check, X, Scan, ScanBarcode, History, SlidersHorizontal } from "./icons";
+import { Disc3, ArrowLeft, Camera, Check, X, Scan, ScanBarcode, History, SlidersHorizontal, ImageSquare } from "./icons";
 import { toast } from "sonner";
 // Bundled locally so the decoder never fetches from a CDN (PWA/CSP-safe);
 // the module itself is dynamic-imported only when the scanner opens
@@ -1107,7 +1107,15 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
   onClose: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const guideRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [cameraError, setCameraError] = useState(false);
+  // Ultra-wide (0.5×) is a separate camera device on iOS, not a zoom value —
+  // so this is a deviceId swap, not a constraint. Progressive enhancement:
+  // the toggle only renders if enumerateDevices actually reports one, which
+  // it can only do after permission is granted (labels are blank before).
+  const [ultraWideId, setUltraWideId] = useState<string | null>(null);
+  const [useUltraWide, setUseUltraWide] = useState(false);
   const [mode, setMode] = useState<"barcode" | "cover">("barcode");
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -1140,13 +1148,34 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
           },
         });
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
+          video: useUltraWide && ultraWideId
+            ? { deviceId: { exact: ultraWideId } }
+            : { facingMode: "environment" },
         });
         if (stopped) return;
         const video = videoRef.current;
         if (!video) return;
         video.srcObject = stream;
         await video.play();
+
+        // Device labels are only populated once permission has been granted,
+        // so this has to run after getUserMedia, not before. Nothing renders
+        // if no ultra-wide is reported — which is the expected outcome on
+        // browsers that don't expose the individual back cameras.
+        if (!ultraWideId) {
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const ultra = devices.find(
+              (d) =>
+                d.kind === "videoinput" &&
+                /ultra|0\.5/i.test(d.label) &&
+                !/front/i.test(d.label)
+            );
+            if (ultra && !stopped) setUltraWideId(ultra.deviceId);
+          } catch {
+            // Enumeration unsupported or blocked — no toggle, no harm
+          }
+        }
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         const tick = async () => {
@@ -1182,30 +1211,66 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
       if (timer) clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [onDetect]);
+    // Switching lenses re-acquires the stream (and restarts the decode loop).
+    // Deliberately unlike the Barcode/Cover toggle, which never restarts it —
+    // a different camera is a different stream, there's no way around it.
+  }, [onDetect, useUltraWide, ultraWideId]);
 
-  // Shutter: grab the largest centered SQUARE of the current frame (the
-  // framing guide is a centered square, and object-cover centers the video,
-  // so a centered-square crop is what's inside the guide) and downscale to
-  // ≤1280px. Cropping to the square instead of sending the whole 4:3/16:9
-  // frame makes the cover fill the image, and 1280 (up from 768) keeps small
-  // stylized cover type legible — both matter because most scans are read by
-  // OCR, not recognized. Pause the preview while the action runs, resume on
-  // failure so the user can reframe.
-  const handleShutter = useCallback(async () => {
+  // Shutter: send exactly what the framing guide shows, downscaled to <=1280px.
+  //
+  // This used to crop the largest centered square of the *source* frame, on
+  // the assumption that object-cover made that the same rectangle as the
+  // guide. It isn't: iOS delivers landscape frames (e.g. 1280x720) into a
+  // portrait element, so object-cover crops the sides away — the visible slice
+  // is far narrower than min(w, h). The captured square therefore included a
+  // wide band of room the user never saw, leaving the cover floating in it,
+  // which is the opposite of the intent (the cover should fill the image,
+  // because most scans are read by OCR rather than recognized).
+  //
+  // Mapping the guide rect back through the object-cover transform makes what
+  // you frame what actually gets sent.
+  const captureGuideSquare = useCallback((): string | null => {
     const video = videoRef.current;
-    if (!video || video.readyState < 2 || video.videoWidth === 0 || isIdentifying) return;
-    const side = Math.min(video.videoWidth, video.videoHeight);
-    const sx = (video.videoWidth - side) / 2;
-    const sy = (video.videoHeight - side) / 2;
-    const target = Math.min(1280, side);
+    const guide = guideRef.current;
+    if (!video || video.videoWidth === 0) return null;
+
+    const vW = video.videoWidth;
+    const vH = video.videoHeight;
+    const el = video.getBoundingClientRect();
+
+    // Fall back to the largest centered square if the guide isn't measurable
+    let side = Math.min(vW, vH);
+    let sx = (vW - side) / 2;
+    let sy = (vH - side) / 2;
+
+    if (guide && el.width > 0 && el.height > 0) {
+      const g = guide.getBoundingClientRect();
+      // object-cover: one uniform scale, overflow centered and clipped
+      const scale = Math.max(el.width / vW, el.height / vH);
+      const offsetX = (el.width - vW * scale) / 2;
+      const offsetY = (el.height - vH * scale) / 2;
+      const rawSide = Math.min(g.width, g.height) / scale;
+      side = Math.min(rawSide, vW, vH);
+      sx = Math.max(0, Math.min((g.left - el.left - offsetX) / scale, vW - side));
+      sy = Math.max(0, Math.min((g.top - el.top - offsetY) / scale, vH - side));
+    }
+
+    const target = Math.min(1280, Math.round(side));
     const canvas = document.createElement("canvas");
     canvas.width = target;
     canvas.height = target;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return null;
     ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
-    const imageBase64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    return canvas.toDataURL("image/jpeg", 0.85).split(",")[1] || null;
+  }, []);
+
+  // Pause the preview while the action runs, resume on failure so the user
+  // can reframe.
+  const handleShutter = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || video.videoWidth === 0 || isIdentifying) return;
+    const imageBase64 = captureGuideSquare();
     if (!imageBase64) return;
     video.pause();
     setIsIdentifying(true);
@@ -1213,6 +1278,41 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
     if (!handled) {
       setIsIdentifying(false);
       video.play().catch(() => { /* stream may already be gone on unmount */ });
+    }
+  }, [onCoverCapture, isIdentifying, captureGuideSquare]);
+
+  // Photo path: the native picker offers the photo library *and* the OS
+  // camera — and the OS camera has the ultra-wide control, flash, and HDR that
+  // a getUserMedia preview can't reach. A picked photo has no framing guide,
+  // so it takes the largest centered square.
+  const handleFilePick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || isIdentifying) return;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const side = Math.min(bitmap.width, bitmap.height);
+      const target = Math.min(1280, side);
+      const canvas = document.createElement("canvas");
+      canvas.width = target;
+      canvas.height = target;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(
+        bitmap,
+        (bitmap.width - side) / 2,
+        (bitmap.height - side) / 2,
+        side, side, 0, 0, target, target
+      );
+      bitmap.close?.();
+      const imageBase64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+      if (!imageBase64) return;
+      setIsIdentifying(true);
+      const handled = await onCoverCapture(imageBase64);
+      if (!handled) setIsIdentifying(false);
+    } catch {
+      setIsIdentifying(false);
+      toast.error("Couldn't read that photo.");
     }
   }, [onCoverCapture, isIdentifying]);
 
@@ -1247,9 +1347,13 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
         <>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <div
+              ref={guideRef}
               style={{
-                width: "78%",
-                maxWidth: "360px",
+                // Cover mode runs wider than barcode: a 12" sleeve at arm's
+                // length is the hard case, and the capture now matches this
+                // box exactly, so every pixel of it is usable.
+                width: mode === "cover" ? "92%" : "78%",
+                maxWidth: mode === "cover" ? "420px" : "360px",
                 aspectRatio: mode === "barcode" ? "1.9" : "1",
                 border: "2px solid rgba(255,255,255,0.9)",
                 borderRadius: "14px",
@@ -1305,22 +1409,86 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
             {modePill("barcode", "Barcode", <ScanBarcode size={16} weight={mode === "barcode" ? "bold" : "light"} />)}
             {modePill("cover", "Cover", <Camera size={16} weight={mode === "cover" ? "bold" : "light"} />)}
           </div>
-          {mode === "cover" && (
-            <button
-              onClick={handleShutter}
-              disabled={isIdentifying}
-              className="absolute left-1/2 rounded-full tappable cursor-pointer"
+          {/* Lens toggle — only rendered when the browser actually reported an
+              ultra-wide camera. Sits apart from the mode pill: this one
+              restarts the stream, that one never does. */}
+          {ultraWideId && (
+            <div
+              className="absolute left-1/2 flex rounded-full"
               style={{
-                bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)",
+                bottom: "calc(env(safe-area-inset-bottom, 0px) + 172px)",
                 transform: "translateX(-50%)",
-                width: "64px",
-                height: "64px",
-                border: "4px solid rgba(255,255,255,0.9)",
-                backgroundColor: isIdentifying ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
-                touchAction: "manipulation",
+                backgroundColor: "rgba(0,0,0,0.45)",
+                backdropFilter: "blur(6px)",
+                padding: "3px",
               }}
-              aria-label="Capture cover"
-            />
+            >
+              {([false, true] as const).map((ultra) => (
+                <button
+                  key={String(ultra)}
+                  onClick={() => setUseUltraWide(ultra)}
+                  className="rounded-full tappable cursor-pointer"
+                  style={{
+                    padding: "5px 12px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: useUltraWide === ultra ? "#16181C" : "rgba(255,255,255,0.9)",
+                    backgroundColor: useUltraWide === ultra ? "#FFFFFF" : "transparent",
+                    touchAction: "manipulation",
+                  }}
+                  aria-pressed={useUltraWide === ultra}
+                  aria-label={ultra ? "Ultra wide lens" : "Standard lens"}
+                >
+                  {ultra ? "0.5×" : "1×"}
+                </button>
+              ))}
+            </div>
+          )}
+          {mode === "cover" && (
+            <>
+              <button
+                onClick={handleShutter}
+                disabled={isIdentifying}
+                className="absolute left-1/2 rounded-full tappable cursor-pointer"
+                style={{
+                  bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)",
+                  transform: "translateX(-50%)",
+                  width: "64px",
+                  height: "64px",
+                  border: "4px solid rgba(255,255,255,0.9)",
+                  backgroundColor: isIdentifying ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
+                  touchAction: "manipulation",
+                }}
+                aria-label="Capture cover"
+              />
+              {/* No `capture` attribute: omitting it is what keeps both the
+                  photo library and the OS camera on the native sheet. */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFilePick}
+              />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={isIdentifying}
+                className="absolute rounded-full flex items-center justify-center tappable cursor-pointer"
+                style={{
+                  bottom: "calc(env(safe-area-inset-bottom, 0px) + 108px)",
+                  right: "40px",
+                  width: "40px",
+                  height: "40px",
+                  backgroundColor: "rgba(0,0,0,0.45)",
+                  backdropFilter: "blur(6px)",
+                  color: "#FFFFFF",
+                  touchAction: "manipulation",
+                }}
+                aria-label="Choose a photo"
+              >
+                <ImageSquare size={20} weight="light" />
+              </button>
+            </>
           )}
           {isIdentifying && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ backgroundColor: "rgba(0,0,0,0.35)" }}>

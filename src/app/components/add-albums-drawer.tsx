@@ -489,7 +489,7 @@ function MobileDrawerSheet({
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         role="dialog"
         aria-modal="true"
-        aria-label="Add albums"
+        aria-label="Add releases"
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.6 }}

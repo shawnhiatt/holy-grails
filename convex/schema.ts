@@ -247,6 +247,11 @@ export default defineSchema({
     // Raw Discogs format string (all-formats change). Optional: rows synced
     // before it read undefined → no badge, no vinyl assumption.
     format: v.optional(v.string()),
+    // Discogs `date_added`, normalized to "YYYY-MM-DD" so it matches the shape
+    // `collection` stores and one parser serves both. Optional: rows synced
+    // before this read undefined and simply don't count toward the recent-adds
+    // delta until the next sync backfills them.
+    dateAdded: v.optional(v.string()),
     // Free data (Session Builder phase 1), same as `collection` above minus
     // `rating` — Discogs only rates copies you own, so a want has none.
     genres: v.optional(v.array(v.string())),

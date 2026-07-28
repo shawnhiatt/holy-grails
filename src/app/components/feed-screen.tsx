@@ -1,10 +1,8 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
-  Broom,
   Disc3,
   ChevronRight,
   ChevronDown,
-  TrendingUp,
   GalleryVerticalEnd,
   Grid2x2,
   Square,
@@ -32,8 +30,10 @@ import { EASE_IN_OUT, EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-
 import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial, formatSyncedAgo } from "../utils/format";
-import { shuffle, pickRandom } from "../utils/shuffle";
+import { shuffle, pickRandom, seededShuffle, getDailySeed } from "../utils/shuffle";
 import { deriveCollectionFacts, type CollectionFact } from "../utils/collection-facts";
+import { countAddedWithin } from "../utils/insights";
+import { deriveStreaks, daysSinceLastPlay, albumsPlayedThisMonth } from "../utils/listening";
 import { FormatSpotlight } from "./format-spotlight";
 
 const hasYear = (year: number | null | undefined): year is number =>
@@ -299,6 +299,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setSelectedFeedAlbum,
     isInCollection,
     playCounts,
+    allPlayTimestamps,
+    markPlayed,
     setFollowingActivityTabIntent,
     accounts,
     switchAccount,
@@ -434,12 +436,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   const collectionValue = useMemo(() => getCachedCollectionValue(), [albums]);
   const hasCollectionValue = collectionValue !== null;
 
-  // Growth: records added in last 3 months
-  const recentGrowthCount = useMemo(() => {
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    return albums.filter((a) => new Date(a.dateAdded) >= threeMonthsAgo).length;
-  }, [albums]);
+  // Recent adds — the "+N in 30 days" delta under each identity-block count.
+  // Adds only: nothing records a removal (Discogs doesn't expose one and the
+  // caches are faithful mirrors), so a net change isn't derivable without a
+  // stored ledger. Wantlist rows cached before `dateAdded` existed simply
+  // don't count until the next sync backfills them.
+  const RECENT_ADD_DAYS = 30;
+  const recentAlbumAdds = useMemo(() => countAddedWithin(albums, RECENT_ADD_DAYS), [albums]);
+  const recentWantAdds = useMemo(() => countAddedWithin(wants, RECENT_ADD_DAYS), [wants]);
 
   // Purge evaluator — pick next album to rate
   const getNextPurgeAlbum = useCallback((excludeId?: string) => {
@@ -461,18 +465,49 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
   const purgeComplete = !purgeEvalAlbum && albums.length > 0;
 
+  // Prefetch the cover the evaluator will show next, while the user is still
+  // deciding on the current one. A verdict takes seconds; the fetch takes
+  // milliseconds — so by the time they tap, the swap is a cache hit instead of
+  // a cold 500px request.
+  useEffect(() => {
+    if (!purgeEvalAlbum) return;
+    const next = getNextPurgeAlbum(purgeEvalAlbum.id);
+    if (!next?.cover) return;
+    const img = new Image();
+    img.src = next.cover;
+  }, [purgeEvalAlbum, getNextPurgeAlbum]);
+
   const handlePurgeDecision = useCallback((tag: "keep" | "cut" | "maybe") => {
     if (!purgeEvalAlbum) return;
     setPurgeTag(purgeEvalAlbum.id, tag);
     purgeToast(tag, isDarkMode, purgeEvalAlbum.title);
 
-    // Crossfade to next album
+    // Crossfade to the next album. The fade-back-in is gated on the new cover
+    // being decoded rather than fired on a timer: an <img> keeps painting its
+    // previous bitmap until the new src loads, so a blind fade-in showed the
+    // *old* artwork under the *new* title until the network caught up. In
+    // practice the decode is instant — the next cover was prefetched while
+    // this one was being decided (see the prefetch effect below) — and the
+    // 400ms cap keeps a slow or broken image from stalling the card.
     setPurgeEvalFading(true);
     setTimeout(() => {
       const next = getNextPurgeAlbum(purgeEvalAlbum.id);
       setPurgeEvalAlbumId(next?.id ?? null);
-      setPurgeEvalFading(false);
-    }, 150);
+      if (!next?.cover) {
+        setPurgeEvalFading(false);
+        return;
+      }
+      let settled = false;
+      const reveal = () => {
+        if (settled) return;
+        settled = true;
+        setPurgeEvalFading(false);
+      };
+      const img = new Image();
+      img.src = next.cover;
+      (img.decode ? img.decode() : Promise.resolve()).then(reveal).catch(reveal);
+      window.setTimeout(reveal, 400);
+    }, DURATION_FAST * 1000);
   }, [purgeEvalAlbum, setPurgeTag, getNextPurgeAlbum, isDarkMode]);
 
   const hasData = albums.length > 0;
@@ -633,7 +668,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             <button
               onClick={() => setShuffleSingle(false)}
               title="Grid"
-              aria-label="Shuffle a grid of albums"
+              aria-label="Shuffle a grid of releases"
               className="w-[34px] h-[34px] flex items-center justify-center transition-all"
               style={{
                 backgroundColor: !shuffleSingle ? "var(--c-surface-hover)" : undefined,
@@ -1174,7 +1209,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           fontWeight: 400,
           lineHeight: 1.2,
           color: "var(--c-text)",
-          fontFamily: "'Manufacturing Consent', system-ui, sans-serif",
+          fontFamily: "'Manufacturing Consent', serif",
           margin: 0,
         }}>Following Activity</h2>
         {hasFollowing && (
@@ -1341,7 +1376,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             fontSize: "32px",
             fontWeight: 400,
             color: "var(--c-text)",
-            fontFamily: "'Manufacturing Consent', system-ui, sans-serif",
+            fontFamily: "'Manufacturing Consent', serif",
             margin: 0,
           }}
         >
@@ -1395,13 +1430,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </div>
   );
 
-  /* ─────────────── INSIGHTS card content ─────────────── */
-  // Collection facts — real data doing the personality work. Derived once
-  // when albums hydrate; the derivation itself is stable. Order is shuffled
-  // for the identity-block ticker so it leads with a different fact each
-  // open; the Insights card below picks one at random for its fact line.
-  // Rendered as a horizontal ticker, or a single centered line under
-  // reduced-motion / sparse data.
+  /* ─────────────── COLLECTION FACTS (identity ticker) ─────────────── */
+  // Real data doing the personality work. Derived once when albums hydrate;
+  // the derivation itself is stable. Order is shuffled so the ticker leads
+  // with a different fact each open. Rendered as a horizontal ticker, or a
+  // single centered line under reduced-motion / sparse data.
   const [collectionFacts, setCollectionFacts] = useState<CollectionFact[]>([]);
   useEffect(() => {
     if (collectionFacts.length > 0 || albums.length === 0) return;
@@ -1425,14 +1458,147 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
     [collectionFacts]
   );
-  // The Insights card's own fact — drawn from the same pool but picked
-  // independently, so it usually differs from the ticker's lead fact.
-  const insightsCardFact = useMemo(
-    () => (collectionFacts.length > 0 ? pickRandom(collectionFacts) : null),
-    [collectionFacts]
+  /* ─────────────── LISTENING card content ─────────────── */
+  // Replaced the Insights card, whose four pieces all had better homes: value
+  // and growth moved to the identity block, unrated was already a Purge
+  // Tracker chip, and the fact line duplicated the ticker above. What was left
+  // — "no play recorded" — is the seed of this card.
+  //
+  // Everything below reads the play log the app already keeps. No new
+  // tracking, and no new queries: lastPlayed / playCounts / allPlayTimestamps
+  // are already on the context.
+  const playedThisMonth = useMemo(
+    () => albumsPlayedThisMonth(albums, lastPlayed),
+    [albums, lastPlayed]
+  );
+  const { currentStreak } = useMemo(() => deriveStreaks(allPlayTimestamps), [allPlayTimestamps]);
+  const daysSincePlay = useMemo(() => daysSinceLastPlay(allPlayTimestamps), [allPlayTimestamps]);
+  const hasPlays = allPlayTimestamps.length > 0;
+
+  // One never-played release to offer, rotating daily. Seeded so it holds
+  // still while the user is looking at it rather than changing under them on
+  // every render.
+  const suggestedPlay = useMemo(() => {
+    const pool = albums.filter((a) => !lastPlayed[a.id]);
+    if (pool.length === 0) return null;
+    return seededShuffle(pool, String(getDailySeed()))[0] ?? null;
+  }, [albums, lastPlayed]);
+
+  const [markingPlay, setMarkingPlay] = useState(false);
+  const handleMarkSuggestedPlayed = useCallback(() => {
+    if (!suggestedPlay || markingPlay) return;
+    setMarkingPlay(true);
+    markPlayed(suggestedPlay.id);
+    toast.success(`"${suggestedPlay.title}" logged.`);
+    // The suggestion re-derives the moment lastPlayed updates; this flag only
+    // guards a double-tap in the gap before that lands.
+    window.setTimeout(() => setMarkingPlay(false), 400);
+  }, [suggestedPlay, markingPlay, markPlayed]);
+
+  const listeningStatCell = (value: string, label: string) => (
+    <div
+      className="flex flex-col items-center justify-center py-[14px]"
+      style={{ backgroundColor: "var(--c-surface-alt)" }}
+    >
+      <span
+        style={{
+          fontSize: "24px",
+          fontWeight: 700,
+          fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+          color: "var(--c-text)",
+          letterSpacing: "-0.5px",
+          lineHeight: 1.1,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </span>
+      <span
+        style={{
+          fontSize: "11px",
+          fontWeight: 500,
+          color: "var(--c-text-muted)",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
+          marginTop: "4px",
+        }}
+      >
+        {label}
+      </span>
+    </div>
   );
 
-  const InsightsCard = (
+  // The suggestion block — the one tap that converts an empty card into a
+  // filled one. Shown in both states; it is the whole pitch in the empty one.
+  const playSuggestion = suggestedPlay ? (
+    <div
+      className="flex items-center gap-3 px-[16px] py-[12px]"
+      style={{ borderTop: "1px solid var(--c-border)" }}
+    >
+      <img
+        loading="lazy"
+        decoding="async"
+        src={suggestedPlay.thumb || suggestedPlay.cover}
+        alt={`${suggestedPlay.title} by ${suggestedPlay.artist}`}
+        className="rounded-[6px] object-cover flex-shrink-0 cursor-pointer"
+        style={{ width: 48, height: 48 }}
+        {...safeTap(() => { setSelectedAlbumId(suggestedPlay.id); setShowAlbumDetail(true); })}
+      />
+      <div className="flex-1" style={{ minWidth: 0 }}>
+        <p
+          style={{
+            fontSize: "14px",
+            fontWeight: 600,
+            color: "var(--c-text)",
+            fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            display: "block",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            WebkitTextOverflow: "ellipsis",
+            maxWidth: "100%",
+          } as React.CSSProperties}
+        >
+          {suggestedPlay.title}
+        </p>
+        <p
+          style={{
+            fontSize: "12px",
+            fontWeight: 400,
+            color: "var(--c-text-secondary)",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            display: "block",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            WebkitTextOverflow: "ellipsis",
+            maxWidth: "100%",
+          } as React.CSSProperties}
+        >
+          {suggestedPlay.artist}
+        </p>
+      </div>
+      <button
+        onClick={handleMarkSuggestedPlayed}
+        disabled={markingPlay}
+        className="rounded-full cursor-pointer flex-shrink-0 tappable"
+        style={{
+          padding: "7px 14px",
+          fontSize: "12px",
+          fontWeight: 600,
+          fontFamily: "'DM Sans', system-ui, sans-serif",
+          backgroundColor: hasPlays ? "var(--c-chip-bg)" : "#EBFD00",
+          color: hasPlays ? "var(--c-text)" : "#16181C",
+          border: "none",
+          opacity: markingPlay ? 0.6 : 1,
+          touchAction: "manipulation",
+        }}
+      >
+        Mark as Played
+      </button>
+    </div>
+  ) : null;
+
+  const ListeningCard = (
     <div className="rounded-[12px] overflow-hidden h-full" style={cardStyle}>
       {/* Section header inside card */}
       <div className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px]">
@@ -1445,7 +1611,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             margin: 0,
           }}
         >
-          Insights
+          Listening
         </h2>
         <button
           onClick={() => setScreen("reports")}
@@ -1464,146 +1630,63 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         </button>
       </div>
 
-      {/* Value & Growth summary */}
-      <div
-        className="grid grid-cols-2 gap-[1px] mx-[16px] mb-[12px] rounded-[10px] overflow-hidden"
-        style={{ backgroundColor: "var(--c-border)" }}
-      >
-        {/* Collection Value */}
-        <button
-          onClick={() => setScreen("reports")}
-          className="flex flex-col items-center justify-center py-[14px] cursor-pointer transition-opacity hover:opacity-80"
-          style={{
-            backgroundColor: "var(--c-surface-alt)",
-            border: "none",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "24px",
-              fontWeight: 700,
-              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              color: hasCollectionValue ? "#009A32" : "var(--c-text-muted)",
-              letterSpacing: "-0.5px",
-              lineHeight: 1.1,
-            }}
+      {hasPlays ? (
+        <>
+          {/* Two-cell stat grid. The streak falls back to days-since when the
+              streak is broken — a "0 day streak" scolds, "6 days since" is an
+              observation. */}
+          <div
+            className="grid grid-cols-2 gap-[1px] mx-[16px] mb-[12px] rounded-[10px] overflow-hidden"
+            style={{ backgroundColor: "var(--c-border)" }}
           >
-            {hasCollectionValue ? formatCurrency(collectionValue!.median) : "\u2014"}
-          </span>
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 500,
-              color: "var(--c-text-muted)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              marginTop: "4px",
+            {listeningStatCell(String(playedThisMonth), "Played this month")}
+            {currentStreak > 0
+              ? listeningStatCell(String(currentStreak), currentStreak === 1 ? "Day streak" : "Day streak")
+              : listeningStatCell(String(daysSincePlay ?? 0), "Days since last play")}
+          </div>
+
+          <InsightRow
+            icon={<Disc3 size={16} style={{ color: "var(--c-text-muted)" }} />}
+            label={`${neverPlayedCount} release${neverPlayedCount !== 1 ? "s" : ""} with no play recorded`}
+            isDarkMode={isDarkMode}
+            onTap={() => {
+              setNeverPlayedFilter(true);
+              setScreen("crate");
             }}
-          >
-            {hasCollectionValue ? "Est. collection value" : "Value unavailable"}
-          </span>
-        </button>
-
-        {/* Growth */}
-        <button
-          onClick={() => setScreen("reports")}
-          className="flex flex-col items-center justify-center py-[14px] cursor-pointer transition-opacity hover:opacity-80"
-          style={{
-            backgroundColor: "var(--c-surface-alt)",
-            border: "none",
-          }}
-        >
-          <span className="flex items-center gap-[4px]">
-            <TrendingUp size={16} style={{ color: isDarkMode ? "#ACDEF2" : "#0078B4" }} />
-            <span
-              style={{
-                fontSize: "24px",
-                fontWeight: 700,
-                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-                color: "var(--c-text)",
-                letterSpacing: "-0.5px",
-                lineHeight: 1.1,
-              }}
-            >
-              {recentGrowthCount}
-            </span>
-          </span>
-          <span
+            showDivider={false}
+          />
+        </>
+      ) : (
+        /* Nothing logged yet — the card's job here is to earn the first tap,
+           which is why the suggestion below carries the yellow CTA. */
+        <div className="px-[16px] pb-[14px]">
+          <p
             style={{
-              fontSize: "11px",
-              fontWeight: 500,
-              color: "var(--c-text-muted)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              marginTop: "4px",
-            }}
-          >
-            Added last 3 months
-          </span>
-        </button>
-      </div>
-
-      {/* Unrated + No play recorded — side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-        <InsightRow
-          icon={<Broom size={16} style={{ color: "var(--c-text-muted)" }} />}
-          label={`${unratedCount} release${unratedCount !== 1 ? "s" : ""} still unrated`}
-          isDarkMode={isDarkMode}
-          onTap={() => {
-            setPurgeFilter("unrated");
-            setScreen("purge");
-          }}
-          showDivider={false}
-        />
-
-        <InsightRow
-          icon={<Disc3 size={16} style={{ color: "var(--c-text-muted)" }} />}
-          label={`${neverPlayedCount} release${neverPlayedCount !== 1 ? "s" : ""} with no play recorded`}
-          isDarkMode={isDarkMode}
-          onTap={() => {
-            setNeverPlayedFilter(true);
-            setScreen("crate");
-          }}
-          showDivider={false}
-        />
-      </div>
-
-      {/* Rotating collection fact — same eyebrow/value treatment as the
-          identity-block ticker, one fact per open. */}
-      {insightsCardFact && (
-        <div
-          className="flex items-baseline px-[16px] pt-[10px] pb-[14px]"
-          style={{ borderTop: "1px solid var(--c-border)" }}
-        >
-          <span
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--c-text-faint)",
-              marginRight: "7px",
-              flexShrink: 0,
-            }}
-          >
-            {insightsCardFact.label}
-          </span>
-          <span
-            style={{
-              fontSize: "13px",
+              fontSize: "16px",
               fontWeight: 600,
               color: "var(--c-text)",
-              minWidth: 0,
-              display: "block",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              WebkitTextOverflow: "ellipsis",
-            } as React.CSSProperties}
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              lineHeight: 1.3,
+            }}
           >
-            {insightsCardFact.value}
-          </span>
+            Nothing logged yet.
+          </p>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 400,
+              color: "var(--c-text-secondary)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              lineHeight: 1.45,
+              marginTop: "4px",
+            }}
+          >
+            Mark what you play. Streaks and rotation start here.
+          </p>
         </div>
       )}
 
+      {playSuggestion}
     </div>
   );
 
@@ -1784,11 +1867,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               className="lg:hidden px-[16px] pt-[14px] pb-[16px]"
               style={{
                 opacity: purgeEvalFading ? 0 : 1,
-                transition: "opacity 150ms cubic-bezier(0.76, 0, 0.24, 1)",
+                transition: `opacity ${DURATION_FAST}s cubic-bezier(${EASE_IN_OUT.join(", ")})`,
               }}
             >
               {/* Artwork full width */}
-              <img loading="lazy" decoding="async"
+              {/* key: a reused <img> paints the previous album's bitmap until
+                  the new src decodes, which put stale artwork under the new
+                  title. A fresh element cannot do that. */}
+              <img key={purgeEvalAlbum.id} loading="eager" decoding="async"
                 src={purgeEvalAlbum.cover}
                 alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                 className="w-full aspect-square rounded-[8px] object-cover cursor-pointer"
@@ -1866,7 +1952,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 alignItems: "center",
                 justifyContent: "center",
                 opacity: purgeEvalFading ? 0 : 1,
-                transition: "opacity 150ms cubic-bezier(0.76, 0, 0.24, 1)",
+                transition: `opacity ${DURATION_FAST}s cubic-bezier(${EASE_IN_OUT.join(", ")})`,
               }}
             >
               <div
@@ -1880,7 +1966,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 }}
               >
                 {/* Album cover — 60% width */}
-                <img loading="lazy" decoding="async"
+                <img key={purgeEvalAlbum.id} loading="eager" decoding="async"
                   src={purgeEvalAlbum.cover}
                   alt={`${purgeEvalAlbum.title} by ${purgeEvalAlbum.artist}`}
                   className="cursor-pointer"
@@ -1977,7 +2063,12 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   // Full-width band, no card container — rows separated by hairline
   // dividers. Cells are tappable shortcuts (Collection → crate,
   // Med. Value → reports, Wantlist → wants).
-  const statCell = (value: string, label: string, onTap: () => void, opts?: { color?: string; divider?: boolean; padding?: string }) => (
+  const statCell = (
+    value: string,
+    label: string,
+    onTap: () => void,
+    opts?: { color?: string; divider?: boolean; padding?: string; delta?: number }
+  ) => (
     <button
       key={label}
       onClick={onTap}
@@ -1988,7 +2079,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         minWidth: 0,
         borderLeft: opts?.divider ? "1px solid var(--c-border)" : undefined,
       }}
-      aria-label={label}
+      aria-label={
+        opts?.delta
+          ? `${label}, ${opts.delta} added in the last ${RECENT_ADD_DAYS} days`
+          : label
+      }
     >
       <span
         style={{
@@ -2013,6 +2108,21 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         }}
       >
         {label}
+      </span>
+      {/* Recent-adds delta. Rendered on every cell — hidden rather than
+          removed when there's nothing to report — so the three cells keep a
+          common baseline (same reasoning as the year-display convention). */}
+      <span
+        style={{
+          fontSize: "10px",
+          fontWeight: 600,
+          color: "#009A32",
+          marginTop: "3px",
+          visibility: opts?.delta ? "visible" : "hidden",
+          whiteSpace: "nowrap",
+        }}
+      >
+        +{opts?.delta ?? 0} in {RECENT_ADD_DAYS} days
       </span>
     </button>
   );
@@ -2129,9 +2239,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     const cellPad = isMobile ? "12px 8px" : "4px 22px";
     const statCells = (
       <>
-        {statCell(albums.length.toLocaleString(), "In Collection", () => setScreen("crate"), { padding: cellPad })}
+        {statCell(albums.length.toLocaleString(), "In Collection", () => setScreen("crate"), { padding: cellPad, delta: recentAlbumAdds })}
         {hasCollectionValue && statCell(formatCurrency(collectionValue!.median), "Med. Value", () => setScreen("reports"), { color: "#009A32", divider: true, padding: cellPad })}
-        {statCell(wants.length.toLocaleString(), "In Wantlist", () => setScreen("wants"), { divider: true, padding: cellPad })}
+        {statCell(wants.length.toLocaleString(), "In Wantlist", () => setScreen("wants"), { divider: true, padding: cellPad, delta: recentWantAdds })}
       </>
     );
 
@@ -2265,10 +2375,11 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 {/* 3. Following Activity */}
                 {FollowingActivityCard}
 
-                {/* 4. Purge Tracker + Insights */}
+                {/* 4. Purge Tracker + Listening — the two cards that ask for
+                    something: a verdict, and a play */}
                 <div className="grid grid-cols-2 gap-6">
                   <div>{PurgeTrackerCard}</div>
-                  <div>{InsightsCard}</div>
+                  <div>{ListeningCard}</div>
                 </div>
 
                 {/* 5. Format Spotlight */}
@@ -2312,19 +2423,22 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 <div className="px-[16px]">{PurgeTrackerCard}</div>
               )}
 
-              {/* 5. Format Spotlight */}
+              {/* 5. Listening — sits with Purge Tracker rather than at the
+                  end-cap the Insights card held: a card whose job is to earn
+                  the first logged play can't do that from the bottom of a
+                  nine-section feed. */}
+              {hasData && (
+                <div className="px-[16px]">{ListeningCard}</div>
+              )}
+
+              {/* 6. Format Spotlight */}
               {hasData && <FormatSpotlight onAlbumTap={handleAlbumTap} />}
 
-              {/* 6. On the Hunt */}
+              {/* 7. On the Hunt */}
               {hasData && OnTheHuntSection}
 
-              {/* 7. Decades */}
+              {/* 8. Decades */}
               {hasData && DecadesSection}
-
-              {/* 8. Insights */}
-              {hasData && (
-                <div className="px-[16px]">{InsightsCard}</div>
-              )}
             </div>
           </div>
         </div>
