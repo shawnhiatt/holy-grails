@@ -10,7 +10,7 @@ Not a Discogs clone. Not a general-purpose music tracker. Just a decision-making
 
 ## What it does
 
-**Purge workflow** — Flip through your collection and tag each record Keep, Cut, or Maybe.
+**Purge workflow** — Flip through your collection and tag each release Keep, Cut, or Maybe.
 
 **Sessions** — Build ordered playlists from your collection. Name them, reorder them, track what you've played.
 
@@ -20,7 +20,7 @@ Not a Discogs clone. Not a general-purpose music tracker. Just a decision-making
 
 **Following** — Follow other Discogs users, browse their collections, and see their recent additions in your feed.
 
-**Discogs sync** — Real OAuth 1.0a auth. Pulls your full collection, folders, wantlist, and collection value. Purge tags, sessions, and wantlist priorities are Holy Grails-exclusive so your Discogs data stays clean.
+**Discogs sync** — Real OAuth 1.0a auth. Pulls your full collection, folders, wantlist, and collection value, in every format Discogs supports — vinyl, CD, cassette, shellac, box sets. Purge tags, sessions, and wantlist priorities are Holy Grails-exclusive so your Discogs data stays clean.
 
 ---
 
@@ -50,6 +50,6 @@ npm run build       # production build
 
 ## Status
 
-v0.6.0 — Beta-ready, active development. GitHub: @shawnhiatt — Discogs: catxdad19
+v0.7.0 — Beta-ready, active development. GitHub: @shawnhiatt — Discogs: catxdad19
 
 Live at [holygrails.app](https://holygrails.app). See `docs/BETA-PLAYBOOK.md` for the road to inviting testers and `CHANGELOG.md` for history.

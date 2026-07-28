@@ -30,7 +30,7 @@ Per-user row footprint (15 tables): the collection cache dominates — one row p
 |---|---|---|
 | ~100 users | ≲200k rows | Free tier territory (per BETA-PLAYBOOK Stage 2's projection advice — watch the dashboard, not estimates) |
 | ~1k users | ~1–2M rows | Convex paid tier (~$25/mo class); still no architectural changes |
-| ~10k users | ~10–20M rows + the two cliffs below | Paid tier + the fixes below; also revisit list virtualization (AUDIT-2026-07 §5.2) for whale collections |
+| ~10k users | ~10–20M rows + the two cliffs below | Paid tier + the fixes below; also revisit rendering for whale collections (the collection grid is windowed to ~60 items with an IntersectionObserver sentinel, but `album-list.tsx` still relies on `content-visibility` alone) |
 
 **Cliff 1 — `followed_items` duplication.** Rows are stored **per (follower, followed-user) pair** — two followers of the same collector store his collection twice (cleanup-on-unfollow confirms the keying). At 1k users × 10 follows × 500 records that's ~5M rows of duplicated mirrors, the largest table by far. Fix inside the current design: key followed mirrors by followed-username alone (shared, like `market_values` did for prices) with a follower-count refcount for cleanup. Not urgent below ~1k users; write the spec when Stage 2 of the beta starts.
 
