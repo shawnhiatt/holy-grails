@@ -134,8 +134,8 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
   filters the view without touching what's stored. Non-vinyl items carry a
   small format badge (CD, Cassette, 78, …); vinyl stays unbadged. Look It Up
   search is all-formats with a Format facet chip in the pressing picker;
-  Reports "By Format" and Format Spotlight understand mixed media. See
-  `docs/all-formats-plan.md`.
+  Reports "By Format" and Format Spotlight understand mixed media. See the
+  Formats section of `CLAUDE.md`.
 - **Backfill on next sync (no migration)** — the Convex caches hold only vinyl
   rows today. After this ships, each user's non-vinyl records appear on their
   **next sync** (24h TTL or a manual SYNC) via the normal add path — a user

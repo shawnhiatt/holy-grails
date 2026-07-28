@@ -25,7 +25,7 @@ This is why the project is weeks, not a year:
 1. **The entire backend.** Every Convex function — auth sessions, the 25 Discogs proxy actions, server-side sync loops, purge tags, listening sessions, following, preferences — is client-agnostic. The native app is *another subscriber*, via Convex's official Swift client ([convex-swift](https://github.com/get-convex/convex-swift)). **Zero Discogs API code gets written in Swift.** No OAuth signing, no rate limiting, no pagination — all of it stays server-side where it already lives.
 2. **The per-device session model.** `auth_sessions` was built for exactly this: the iPhone app is just another device row. Logging in on native never disturbs the PWA session, and all auth guards work unchanged.
 3. **The design.** Screens, hierarchy, tokens, type scale, motion values, UX copy, product decisions — all settled. This is a port, not a redesign.
-4. **The product judgment.** Vinyl-only filter, purge workflow semantics, wantlist conventions, the out-of-scope list — every decision transfers.
+4. **The product judgment.** All-formats scope (display-only, never a data-layer filter), purge workflow semantics, wantlist conventions, the out-of-scope list — every decision transfers.
 
 What gets rebuilt: the view layer, in SwiftUI. That's the whole project.
 

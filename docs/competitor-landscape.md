@@ -46,7 +46,7 @@ The Aug 2025 redesign generated sustained complaints that are directly Holy Grai
 ## Where Holy Grails loses (today)
 
 1. **No native app / App Store presence.** Every competitor is installable from the store; PWA discovery is near zero. (Native is a planned post-1.0 separate project — `docs/native-app-plan.md`.)
-2. **Camera-first cataloging.** Record Scanner/Groovv lead with cover-photo recognition; HG has barcode scan only inside Look It Up. Cover recognition is the category's table-stakes race right now.
+2. **Camera-first cataloging.** Record Scanner/Groovv lead with cover-photo recognition. HG has since shipped it — Look It Up's scanner does barcode *and* cover, so this gap is closed at parity rather than as a lead. Camera-first *bulk* cataloging (scan a shelf, add many) is still theirs.
 3. **Discogs dependency** as a single point of failure — shared with SnapVinyl/Discographic, but CLZ/MusicBuddy own their databases. (Mitigation, not escape: cached mirrors in Convex already soften API outages.)
 4. **Offline** — the caches help reads, but competitors with local-first databases work fully offline in a basement record fair. Real-world digging happens in dead zones.
 5. **No lending, no storage-location, no custom-field editing** — CLZ's power-collector features. Deliberate scope, but it's where heavy catalogers land.
