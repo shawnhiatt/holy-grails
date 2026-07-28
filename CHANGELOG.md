@@ -4,6 +4,63 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Recent-adds delta on the feed** — the In Collection and In Wantlist counts
+  in the identity block now carry a `+N in 30 days` line, so the numbers read
+  as moving rather than fixed. Adds only: nothing anywhere records a removal,
+  so a net change isn't derivable without a stored ledger, and Med. Value has
+  no history to compare against either. The wantlist cache now stores Discogs'
+  `date_added` to make its half possible — existing wantlist rows backfill on
+  the next sync.
+- **Listening card on the feed**, replacing the Insights card. Played this
+  month and a day streak (falling back to days-since-last-play when the streak
+  is broken), the "no play recorded" count, and one never-played release
+  offered with a Mark as Played button. With nothing logged it becomes a pitch
+  for logging the first play — the tap that fills the card. No new tracking and
+  no new queries: it reads the play log the app already keeps.
+- **Photo option for the cover scanner** — Cover mode can now take an image
+  from the photo library or the OS camera, which reaches the ultra-wide lens,
+  flash, and HDR that a browser camera preview can't.
+- **0.5× lens toggle in the scanner**, shown only when the browser actually
+  reports an ultra-wide camera.
+- `docs/ai-opportunities.md` — a brainstorming dock for what the Claude API
+  integration could do beyond the cover scan, and what it deliberately won't.
+
+### Changed
+- **Missing Details (Insights)** is a fixed two-up grid instead of a horizontal
+  scroller, with the count as the headline and the icon removed. There were
+  only ever two categories, and two 240px tiles never fit on a phone.
+- **Cover scans now capture exactly what the framing guide shows.** The crop
+  previously took the largest centered square of the camera frame, which on a
+  portrait phone is much wider than the visible area — so scans included a band
+  of room the user never saw, with the cover floating in the middle of it. The
+  cover guide is also wider now, so a 12″ sleeve fits without a full arm's
+  reach.
+- Listening stats are derived once in `utils/listening.ts` and shared by the
+  feed and the Insights screen, so the two can't report different numbers for
+  the same play log.
+- Blackletter headings now fall back to `serif` everywhere (three of them fell
+  back to a sans-serif).
+- CLAUDE.md: the format-neutral copy rule is now its own section with an
+  explicit test and a substitution table, and the typography rule states which
+  display face a heading gets and why.
+
+### Fixed
+- **Purge evaluator artwork lagged behind the verdict.** Tapping Keep/Maybe/Cut
+  swapped the title and artist immediately but left the previous album's
+  artwork on screen for a second or two — a reused `<img>` keeps painting its
+  old image until the new one loads. The next cover is now prefetched while
+  you're deciding, and the card fades back in once it's actually ready.
+- The wantlist sync silently dropped genres, styles, disc count, and artist ids
+  before writing to the cache, so the wantlist half of the free-data pass never
+  actually landed.
+- Three user-facing strings still said "albums" or implied a vinyl-only
+  collection.
+
+---
+
 ## [0.7.0] — 2026-07-24
 
 ### Added

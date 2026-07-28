@@ -80,6 +80,9 @@ export interface WantItem {
   styles?: string[];
   discCount?: number;
   artistIds?: number[];
+  /** Discogs `date_added`, "YYYY-MM-DD". Optional: rows cached before the
+   *  wantlist started storing it read undefined until the next sync. */
+  dateAdded?: string;
   priority: boolean;
 }
 

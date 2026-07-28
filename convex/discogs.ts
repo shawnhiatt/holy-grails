@@ -589,6 +589,9 @@ interface ProxyWant {
   styles?: string[];
   discCount?: number;
   artistIds?: number[];
+  /** Discogs `date_added`, normalized to "YYYY-MM-DD" to match the shape the
+   *  collection stores, so one parser reads both. */
+  dateAdded?: string;
   priority: boolean;
 }
 
@@ -642,6 +645,7 @@ async function fetchWantlistInternal(
         styles: tagListOf(bi.styles),
         discCount: discCountOf(bi.formats),
         artistIds: artistIdsOf(bi.artists),
+        dateAdded: w.date_added ? w.date_added.split("T")[0] : undefined,
         priority: false,
       });
     }
@@ -1056,6 +1060,15 @@ export const syncSelf = action({
             thumb: w.thumb || undefined,
             label: w.label,
             format: w.format || undefined,
+            // Free data + date added. These were mapped by
+            // fetchWantlistInternal but dropped by this projection, so they
+            // never reached the cache — the wantlist half of the free-data
+            // pass has been inert since it shipped.
+            genres: w.genres,
+            styles: w.styles,
+            discCount: w.discCount,
+            artistIds: w.artistIds,
+            dateAdded: w.dateAdded,
             priority: w.priority,
           })),
         });
@@ -1467,6 +1480,9 @@ export const proxyAddToWantlist = action({
       styles: tagListOf(bi?.styles),
       discCount: discCountOf(bi?.formats),
       artistIds: artistIdsOf(bi?.artists),
+      // The PUT response carries `date_added`; fall back to today so a fresh
+      // add counts toward the recent-adds delta before the next sync.
+      dateAdded: (data?.date_added || new Date().toISOString()).split("T")[0],
       priority: false,
     };
   },

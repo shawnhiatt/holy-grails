@@ -3,6 +3,7 @@ import {
   parseAddedYear,
   bucketAddsByYear,
   cumulativeAddsByYear,
+  countAddedWithin,
 } from "./insights";
 import { makeAlbum } from "../../test/factories";
 
@@ -83,5 +84,57 @@ describe("cumulativeAddsByYear", () => {
   it("returns empty for albums with no parseable dates", () => {
     expect(cumulativeAddsByYear([makeAlbum({ dateAdded: "" })])).toEqual([]);
     expect(cumulativeAddsByYear([])).toEqual([]);
+  });
+});
+
+describe("countAddedWithin", () => {
+  // Fixed "now" so the window boundaries are exact rather than clock-dependent
+  const now = Date.parse("2026-07-28T12:00:00Z");
+
+  it("counts items added inside the window", () => {
+    const items = [
+      { dateAdded: "2026-07-20" },
+      { dateAdded: "2026-07-01" },
+      { dateAdded: "2026-05-01" },
+    ];
+    expect(countAddedWithin(items, 30, now)).toBe(2);
+  });
+
+  it("reads both stored shapes — date-only and full ISO", () => {
+    const items = [
+      { dateAdded: "2026-07-27" },
+      { dateAdded: "2026-07-26T18:30:00-07:00" },
+    ];
+    expect(countAddedWithin(items, 30, now)).toBe(2);
+  });
+
+  it("skips empty and unparseable dates rather than counting them", () => {
+    // This is what makes the wantlist backfill graceful: rows cached before
+    // dateAdded existed read undefined and simply don't count yet.
+    const items = [
+      { dateAdded: "" },
+      { dateAdded: null },
+      { dateAdded: undefined },
+      { dateAdded: "not a date" },
+      { dateAdded: "2026-07-27" },
+    ];
+    expect(countAddedWithin(items, 30, now)).toBe(1);
+  });
+
+  it("returns 0 for an empty collection", () => {
+    expect(countAddedWithin([], 30, now)).toBe(0);
+  });
+
+  it("excludes an item exactly outside the window and includes one on the edge", () => {
+    const inside = new Date(now - 30 * 86400000 + 1000).toISOString();
+    const outside = new Date(now - 30 * 86400000 - 1000).toISOString();
+    expect(countAddedWithin([{ dateAdded: inside }], 30, now)).toBe(1);
+    expect(countAddedWithin([{ dateAdded: outside }], 30, now)).toBe(0);
+  });
+
+  it("honours the window length", () => {
+    const items = [{ dateAdded: "2026-06-01" }];
+    expect(countAddedWithin(items, 30, now)).toBe(0);
+    expect(countAddedWithin(items, 90, now)).toBe(1);
   });
 });

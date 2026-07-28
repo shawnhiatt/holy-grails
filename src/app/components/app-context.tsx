@@ -763,6 +763,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         styles: (row as any).styles || undefined,
         discCount: (row as any).discCount || undefined,
         artistIds: (row as any).artistIds || undefined,
+        dateAdded: (row as any).dateAdded || undefined,
         priority: prioMap.get(row.release_id) || false,
       }));
     setWants((prev) => {
@@ -1338,6 +1339,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       styles: result.styles || undefined,
       discCount: result.discCount || undefined,
       artistIds: result.artistIds || undefined,
+      dateAdded: result.dateAdded || undefined,
       priority: result.priority,
     }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);

@@ -4,7 +4,7 @@ import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
-import { ChevronRight, Disc3, ImageSquare } from "./icons";
+import { ChevronRight } from "./icons";
 import { motion, AnimatePresence, useInView, useReducedMotion } from "motion/react";
 import { DURATION_FAST, DURATION_NORMAL, DURATION_SLOW, EASE_OUT } from "./motion-tokens";
 import { useApp, type Screen } from "./app-context";
@@ -12,6 +12,8 @@ import { hasRating, mediaType, type Album, type MediaType } from "./discogs-api"
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
 import { bucketAddsByYear, cumulativeAddsByYear } from "../utils/insights";
+import { deriveStreaks, daysSinceLastPlay, albumsPlayedThisMonth } from "../utils/listening";
+import { getDailySeed } from "../utils/shuffle";
 import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
 import { formatSyncedAgo } from "../utils/format";
@@ -36,11 +38,6 @@ function seededShuffle<T>(array: T[], seed: number): T[] {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
-}
-
-function getDailySeed(): number {
-  const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 }
 
 /* ─── Track which screen opened Reports ─── */
@@ -1074,93 +1071,23 @@ function ListeningActivitySection({
   onNeverPlayedTap: () => void;
   onAlbumTap: (id: string) => void;
 }) {
-  // Played this month
-  const playedThisMonth = useMemo(() => {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    return albums.filter((a) => {
-      const lp = lastPlayed[a.id];
-      return lp && new Date(lp).getTime() >= monthStart;
-    }).length;
-  }, [albums, lastPlayed]);
+  // Played this month / streaks / last listened — all from utils/listening.ts,
+  // shared with the feed's Listening card so the two surfaces cannot report
+  // different numbers for the same play log.
+  const playedThisMonth = useMemo(
+    () => albumsPlayedThisMonth(albums, lastPlayed),
+    [albums, lastPlayed]
+  );
 
-  // Streak calculation — consecutive days with at least one play
-  const { currentStreak, longestStreak } = useMemo(() => {
-    if (allPlayTimestamps.length === 0) return { currentStreak: 0, longestStreak: 0 };
+  const { currentStreak, longestStreak } = useMemo(
+    () => deriveStreaks(allPlayTimestamps),
+    [allPlayTimestamps]
+  );
 
-    // Collect unique calendar days (YYYY-MM-DD) from all play timestamps
-    const daySet = new Set<string>();
-    for (const ts of allPlayTimestamps) {
-      const d = new Date(ts);
-      daySet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
-    }
-
-    // Sort days descending
-    const sortedDays = Array.from(daySet).sort().reverse();
-
-    // Walk backward from today for current streak
-    const now = new Date();
-    const dayMs = 86400000;
-
-    let current = 0;
-    let checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    // Allow streak to start from today or yesterday
-    const checkStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
-    if (!daySet.has(checkStr)) {
-      // Check yesterday — streak can still count if you haven't played today yet
-      checkDate = new Date(checkDate.getTime() - dayMs);
-      const yStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
-      if (!daySet.has(yStr)) {
-        // No play today or yesterday — current streak is 0
-      } else {
-        current = 1;
-        checkDate = new Date(checkDate.getTime() - dayMs);
-      }
-    } else {
-      current = 1;
-      checkDate = new Date(checkDate.getTime() - dayMs);
-    }
-    if (current > 0) {
-      while (true) {
-        const s = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
-        if (!daySet.has(s)) break;
-        current++;
-        checkDate = new Date(checkDate.getTime() - dayMs);
-      }
-    }
-
-    // Longest streak — scan all sorted days for max consecutive run
-    let longest = 0;
-    if (sortedDays.length > 0) {
-      let run = 1;
-      for (let i = 1; i < sortedDays.length; i++) {
-        const prev = new Date(sortedDays[i - 1]).getTime();
-        const curr = new Date(sortedDays[i]).getTime();
-        if (prev - curr === dayMs) {
-          run++;
-        } else {
-          longest = Math.max(longest, run);
-          run = 1;
-        }
-      }
-      longest = Math.max(longest, run);
-    }
-
-    return { currentStreak: current, longestStreak: longest };
-  }, [allPlayTimestamps]);
-
-  // Last listened
-  const lastListenedInfo = useMemo(() => {
-    const dates = Object.values(lastPlayed).map((d) => new Date(d).getTime()).sort((a, b) => b - a);
-    if (dates.length === 0) return { lastDaysAgo: null as number | null };
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const dayMs = 86400000;
-    const lastDate = new Date(dates[0]);
-    const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate()).getTime();
-    const lastDaysAgo = Math.round((today - lastDay) / dayMs);
-    return { lastDaysAgo };
-  }, [lastPlayed]);
+  const lastListenedInfo = useMemo(
+    () => ({ lastDaysAgo: daysSinceLastPlay(allPlayTimestamps) }),
+    [allPlayTimestamps]
+  );
 
   // Never played count
   const neverPlayedCount = useMemo(() => {
@@ -1850,8 +1777,8 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
   const categories = useMemo(() => {
     const unset = (v?: string) => !v || !v.trim();
     const list = [
-      { id: "media", label: "Media Condition", Icon: Disc3, items: albums.filter((a) => unset(a.mediaCondition)) },
-      { id: "sleeve", label: "Sleeve Condition", Icon: ImageSquare, items: albums.filter((a) => unset(a.sleeveCondition)) },
+      { id: "media", label: "Media Condition", items: albums.filter((a) => unset(a.mediaCondition)) },
+      { id: "sleeve", label: "Sleeve Condition", items: albums.filter((a) => unset(a.sleeveCondition)) },
     ];
     return list.filter((c) => c.items.length > 0);
   }, [albums]);
@@ -1873,31 +1800,68 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
     >
       <p style={sectionHeaderStyle} className="mb-3">Missing Details</p>
 
-      <div className="flex gap-2.5 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
-        {categories.map(({ id, label, Icon, items }) => {
+      {/* Two categories, always — a fixed pair fits side by side at every
+          width, so this is a grid rather than the horizontal scroller it used
+          to be (240px tiles could not fit two on a phone). The count is the
+          hero: number first, label under it in the identity-block stat-cell
+          treatment, meaning last. The icon is gone — it carried no
+          information the label wasn't already carrying. */}
+      <div className="grid grid-cols-2 gap-2.5">
+        {categories.map(({ id, label, items }) => {
           const isActive = id === activeId;
           return (
             <button
               key={id}
               onClick={() => setActiveId(isActive ? null : id)}
-              className="flex-shrink-0 flex items-center gap-3 rounded-[10px] p-3 transition-colors text-left"
+              className="flex flex-col rounded-[10px] p-3 lg:p-4 transition-colors text-left"
               style={{
-                width: "240px",
                 backgroundColor: isActive ? tileBg : (isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(22,24,28,0.04)"),
                 border: `1px solid ${isActive ? accent : "transparent"}`,
                 touchAction: "manipulation",
               }}
+              aria-expanded={isActive}
             >
-              <div className="flex items-center justify-center rounded-[10px] flex-shrink-0" style={{ width: 40, height: 40, backgroundColor: tileBg, color: accent }}>
-                <Icon size={20} />
+              <div className="flex items-start justify-between w-full gap-2">
+                <span
+                  className="text-[36px] lg:text-[44px]"
+                  style={{
+                    fontWeight: 700,
+                    fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                    color: accent,
+                    letterSpacing: "-1px",
+                    lineHeight: 1,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {items.length}
+                </span>
+                <ChevronRight
+                  size={16}
+                  style={{
+                    color: "var(--c-text-faint)",
+                    flexShrink: 0,
+                    marginTop: "2px",
+                    transform: isActive ? "rotate(90deg)" : "none",
+                    transition: "transform 0.15s",
+                  }}
+                />
               </div>
-              <div className="flex-1" style={{ minWidth: 0 }}>
-                <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--c-text)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", WebkitTextOverflow: "ellipsis", maxWidth: "100%" } as React.CSSProperties}>{label}</p>
-                <p style={{ fontSize: "12px", fontWeight: 400, color: "var(--c-text-muted)" }}>
-                  Not set for {items.length} {items.length === 1 ? "album" : "albums"}
-                </p>
-              </div>
-              <ChevronRight size={18} style={{ color: "var(--c-text-faint)", flexShrink: 0, transform: isActive ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--c-text-muted)",
+                  marginTop: "10px",
+                  lineHeight: 1.3,
+                }}
+              >
+                {label}
+              </span>
+              <span style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-faint)", marginTop: "2px" }}>
+                Not set
+              </span>
             </button>
           );
         })}

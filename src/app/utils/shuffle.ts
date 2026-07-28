@@ -23,6 +23,16 @@ export function shuffle<T>(input: readonly T[]): T[] {
 export { seededShuffle } from "../../../convex/stackRules";
 
 /**
+ * Seed that holds steady for a calendar day — pair with `seededShuffle` for a
+ * selection that rotates daily but stays put while the user is looking at it.
+ * Shared so the feed and the Insights screen (a lazy chunk it cannot import
+ * from) rotate on the same schedule.
+ */
+export function getDailySeed(now: Date = new Date()): number {
+  return now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+}
+
+/**
  * Pick one random element. Callers guarantee a non-empty array — the
  * shared "rotate per app load" helper used by the feed's spotlight
  * sections and the identity block's collection fact.

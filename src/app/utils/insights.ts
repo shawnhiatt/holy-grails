@@ -18,6 +18,35 @@ export function parseAddedYear(dateAdded: string | null | undefined): number | n
   return year >= 1900 && year <= 3000 ? year : null;
 }
 
+/**
+ * How many items were added within the last `days` days.
+ *
+ * Powers the identity block's "+N in 30 days" delta on the collection and
+ * wantlist counts. Deliberately counts *adds only* — nothing anywhere records
+ * a removal (Discogs doesn't expose one and the caches are faithful mirrors),
+ * so a net change is not derivable without a stored ledger.
+ *
+ * Handles both stored shapes: the collection's "YYYY-MM-DD" and any full ISO
+ * timestamp. Empty and unparseable values are skipped, which is also what
+ * makes the wantlist backfill graceful — rows cached before `dateAdded`
+ * existed simply don't count until the next sync.
+ */
+export function countAddedWithin(
+  items: Array<{ dateAdded?: string | null }>,
+  days: number,
+  now: number = Date.now()
+): number {
+  const cutoff = now - days * 86400000;
+  let count = 0;
+  for (const item of items) {
+    if (!item.dateAdded) continue;
+    const ms = Date.parse(item.dateAdded);
+    if (Number.isNaN(ms)) continue;
+    if (ms >= cutoff) count++;
+  }
+  return count;
+}
+
 export interface YearBucket {
   year: number;
   count: number;

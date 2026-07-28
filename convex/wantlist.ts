@@ -26,6 +26,10 @@ const freeDataFields = {
   styles: v.optional(v.array(v.string())),
   discCount: v.optional(v.number()),
   artistIds: v.optional(v.array(v.number())),
+  /** Discogs `date_added`, "YYYY-MM-DD" (same shape `collection` stores).
+   *  Powers the identity block's recent-adds delta. Optional for the same
+   *  reason as the rest of this block: legacy rows backfill on next sync. */
+  dateAdded: v.optional(v.string()),
 };
 
 export const replaceAll = mutation({
@@ -83,6 +87,7 @@ type WantInput = {
   styles?: string[];
   discCount?: number;
   artistIds?: number[];
+  dateAdded?: string;
   priority: boolean;
 };
 
@@ -102,6 +107,7 @@ function wantSignature(w: WantInput | Record<string, unknown>): string {
     (w as WantInput).styles ?? null,
     (w as WantInput).discCount ?? null,
     (w as WantInput).artistIds ?? null,
+    (w as WantInput).dateAdded ?? null,
     (w as WantInput).priority,
   ]);
 }
@@ -213,6 +219,7 @@ export const addItem = mutation({
       styles: args.styles,
       discCount: args.discCount,
       artistIds: args.artistIds,
+      dateAdded: args.dateAdded,
       priority: args.priority,
     });
   },
