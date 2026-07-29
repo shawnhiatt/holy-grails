@@ -16,7 +16,9 @@
       "Bash(mkdir -p \"C:/Users/sshaw/.claude/skills/pwa/references\" && cp \"C:/Users/sshaw/OneDrive/Documents/Projects/Skills/pwa/SKILL.md\" \"C:/Users/sshaw/.claude/skills/pwa/SKILL.md\" && cp \"C:/Users/sshaw/OneDrive/Documents/Projects/Skills/pwa/references/\"*.md \"C:/Users/sshaw/.claude/skills/pwa/references/\")",
       "Bash(claude mcp:*)",
       "mcp__figma-remote-mcp__whoami",
-      "mcp__figma-remote-mcp__use_figma"
+      "mcp__figma-remote-mcp__use_figma",
+      "mcp__Figma__use_figma",
+      "mcp__ec416e1b-d34c-4b4e-a450-6aae8b63e081__use_figma"
     ]
   }
 }
