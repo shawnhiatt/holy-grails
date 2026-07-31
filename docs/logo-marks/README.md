@@ -62,31 +62,37 @@ groove; set `--lead` to the surface the mark sits on.
 the simple mark can be the system default while the spectrum comes out for splash, install,
 share cards, and About — one identity, two dresses.
 
-## Third pass: mosaic (icons, not marks)
+## Third pass: leaded panels (icons, not marks)
 
-Everything above is a **mark** — a shape that floats on any ground. These are **icons**: tiles.
-Full-bleed tesserae, and the reason they exist is specific:
+Everything above is a **mark** — a shape that floats on any ground. These are **icons**: tiles,
+glazed edge to edge.
 
-**This is the correct construction for a maskable icon.** The field runs to all four edges while
-the subject stays inside the 80% safe circle, so whatever shape the platform crops to — circle,
-squircle, rounded rect — it cuts field, never subject. A floating mark has to be padded into a
-tile and hope. The trade: it can't be a favicon and can't sit beside the wordmark.
+**The came follows the subject.** A first attempt stamped a uniform grid of square tesserae over
+the figure and read as pixel art, because a grid is indifferent to what it covers. Real leading
+radiates, curves, and staggers its joints course by course — the lead lines *are* the drawing.
+These are cut in polar space (`radial_web` / `arch_web` in the build script): spokes and courses
+with a smooth deterministic wobble, so no two pieces are identical and every build is the same.
+
+**This is also the correct construction for a maskable icon.** The field runs to all four edges
+while the subject stays inside the 80% safe circle, so whatever shape the platform crops to it
+cuts field, never subject. The trade: can't be a favicon, can't sit beside the wordmark.
 
 | Set | Files |
 |---|---|
-| Panel | `mosaic-panel{,-light,-mono}.svg` — record, spectrum raking diagonally across it |
-| Window | `mosaic-window{,-light,-mono}.svg` — tracery, glazed field, record set in as the light |
+| Panel | `leaded-panel{,-light,-mono}.svg` — one continuous web, record emerges from colour placement alone |
+| Window | `leaded-window{,-light,-mono}.svg` — arch courses, warm glazing, rose set into the head |
 
-Two subjects were drawn and cut. A **crate** of records read as an equaliser the moment colour
-came off. A mosaic **Nimbus** broke into antennae. The constraint this pass found:
+Findings worth keeping:
 
-> **Mosaic needs mass.** Thin elements — a halo hoop, a hairline groove — don't survive
-> tessellation. Subjects must be solid areas, and the spindle hole has to be ~2 tesserae before
-> it reads as a hole rather than a chipped edge.
-
-Concentric colour banding was also abandoned: a bright centre ringed by colour reads as an
-**eye**. The diagonal sweep is both the fix and the more accurate one — diffraction on vinyl is
-a sweep, never a target.
+- **Colour must sweep across the disc, not band by radius.** Radial banding rebuilds an eye —
+  bright centre, coloured rings, pupil. A diagonal sweep reads as light glancing off the
+  surface, which is what diffraction actually does.
+- **The window took three tries.** Spectrum through the arch courses made a rainbow; a dark
+  opening made a keyhole. Warm glaze + one bright frame + colour only in the rose is what reads
+  as a lit window.
+- Earlier square-grid mosaics (`mosaic-*.svg`) were deleted. Two subjects died with them: a
+  crate of records that became an equaliser in one colour, and a tessellated Nimbus that broke
+  into antennae — thin elements don't survive tessellation.
 
 ## The system this points at
 
@@ -95,7 +101,7 @@ Not one drawing, two — doing different jobs:
 | Role | Use | Where |
 |---|---|---|
 | **Nimbus** (mark) | `nimbus.svg` / `glass-nimbus-glass-*.svg` | Favicon, nav, avatar, beside the wordmark |
-| **Panel** or **Window** (icon) | `mosaic-*.svg` | Home screen, splash, store listing, share cards |
+| **Panel** (icon) | `leaded-panel-*.svg` | Home screen, splash, store listing, share cards |
 
 One subject, two constructions, no third thing to maintain.
 

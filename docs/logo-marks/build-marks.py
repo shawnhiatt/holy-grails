@@ -2,8 +2,9 @@
 """Regenerate the Holy Grails logo-mark SVGs.
 
 Exploration only — see README.md. Run: python3 docs/logo-marks/build-marks.py
-All geometry (radii, stroke weights, ray angles, glass cells, mosaic grid) lives
-here so a mark can be retuned in one place rather than by editing path data.
+All geometry lives here — radii, stroke weights, glass cells, and the leaded
+webs' ring counts and wobble amplitudes — so a mark can be retuned in one place
+rather than by editing path data.
 """
 import os, math, pathlib
 
@@ -241,99 +242,177 @@ GLASS = [
          note="The important one. It means the glass idea doesn’t compete with the leading candidate — it’s a dress for it, so you can have both without maintaining two identities."),
 ]
 
-# ---- mosaic: the third pass --------------------------------------------------
-# Full-bleed tesserae. The figure stays inside r=40 (the maskable safe circle)
-# while the field runs to the edges, which is exactly what a maskable icon wants:
-# any mask shape crops the field, never the subject.
+# ---- leaded glass: the third pass --------------------------------------------
+# Cut in polar space with a smooth deterministic wobble, so the came FOLLOWS the
+# subject the way it does in real glass. A uniform grid stamped over a figure is
+# pixel art; leading that radiates and staggers is a window.
 
-FIELD = {"dark": "#232932", "light": "#D4D9DF"}
+import math
 
-def mosaic(fig, rows=18, gap=0.95, offset=True):
-    c = 100.0 / rows
+CAME = {"dark": "#0B0D10", "light": "#14161A"}
+
+def wob(theta, seed, amp):
+    """Smooth deterministic irregularity — no two pieces the same, same every build."""
+    return amp * (0.62*math.sin(theta*3 + seed*1.7)
+                  + 0.38*math.sin(theta*5 + seed*2.9 + 1.1))
+
+def polar(r, a, cx=50.0, cy=50.0):
+    return cx + r*math.cos(a), cy + r*math.sin(a)
+
+def radial_web(rings, cx=50.0, cy=50.0, samples=7):
+    """rings: [(radius, n_cells, offset_turns, wobble_amp), ...] innermost first.
+    Returns [(path_d, r_mid, theta_mid, ring_index)]."""
     out = []
-    for r in range(rows):
-        y = r * c
-        shift = c/2 if (r % 2 and offset) else 0.0
-        for k in range(-1, rows + 2):
-            x = k*c + shift
-            tone = fig(x + c/2, y + c/2, k, r)
-            if tone == "hole":
-                continue
-            out.append(dict(
-                d=f"M{x+gap/2:.2f},{y+gap/2:.2f} h{c-gap:.2f} v{c-gap:.2f} h{-(c-gap):.2f} Z",
-                tone=tone, sw=None))
+    r0, n0, off0, amp0 = rings[0]
+    pts = []
+    for s in range(49):
+        a = 2*math.pi*s/48
+        pts.append(polar(r0 + wob(a, 0.5, amp0), a, cx, cy))
+    out.append(("M" + " L".join(f"{x:.2f},{y:.2f}" for x, y in pts) + " Z",
+                0.0, 0.0, 0))
+
+    for i in range(len(rings) - 1):
+        rin, _, offin, ampin = rings[i]
+        rout, n, off, amp = rings[i+1]
+        for j in range(n):
+            a0 = 2*math.pi*(j + off)/n
+            a1 = 2*math.pi*(j + 1 + off)/n
+            pts = []
+            for s in range(samples + 1):
+                a = a0 + (a1 - a0)*s/samples
+                pts.append(polar(rout + wob(a, i + 1.3, amp), a, cx, cy))
+            for s in range(samples + 1):
+                a = a1 + (a0 - a1)*s/samples
+                pts.append(polar(rin + wob(a, i + 0.3, ampin), a, cx, cy))
+            out.append(("M" + " L".join(f"{x:.2f},{y:.2f}" for x, y in pts) + " Z",
+                        (rin + rout)/2, (a0 + a1)/2, i + 1))
     return out
 
-def band(d, r0, r1, n):
-    return max(0, min(n - 1, int((d - r0) / ((r1 - r0) / n))))
+def arch_point(w, s, spring=46.0, base=118.0, cx=50.0):
+    legL = base - spring
+    arcL = math.pi * w
+    d = s * (2*legL + arcL)
+    if d < legL:
+        return (cx - w, base - d)
+    d -= legL
+    if d < arcL:
+        a = math.pi - d/w
+        return (cx + w*math.cos(a), spring - w*math.sin(a))
+    return (cx + w, spring + (d - arcL))
 
-# Concentric bands made this read as an eye — bright centre ringed by colour is
-# a pupil before it is a record. The spectrum now rakes ACROSS the disc on a
-# diagonal, which is also how diffraction actually appears on vinyl: a sweep,
-# never a target.
-def fig_panel(cx, cy, k, r):
-    d = math.hypot(cx - 50, cy - 50)
-    if d <= 7.0:  return "hole"
-    if d <= 16.0: return "brand"
-    if d <= 38.0:
-        t = (cx - 50) * 0.6 + (cy - 50) * 0.8
-        return band(t, -32, 32, 6)
-    return "field"
+def arch_web(widths, samples=7):
+    """Concentric arch bands — the church-window construction: courses that
+    follow the opening rather than a grid stamped across it."""
+    out = []
+    for i in range(len(widths) - 1):
+        (win, _, ampin), (wout, n, amp) = widths[i], widths[i+1]
+        for j in range(n):
+            s0, s1 = j/n, (j + 1)/n
+            pts = []
+            for k in range(samples + 1):
+                s = s0 + (s1 - s0)*k/samples
+                x, y = arch_point(wout + wob(s*6.283, i + 1.3, amp), s)
+                pts.append((x, y))
+            for k in range(samples + 1):
+                s = s1 + (s0 - s1)*k/samples
+                x, y = arch_point(win + wob(s*6.283, i + 0.3, ampin), s)
+                pts.append((x, y))
+            out.append(("M" + " L".join(f"{x:.2f},{y:.2f}" for x, y in pts) + " Z",
+                        (win + wout)/2, (s0 + s1)/2, i + 1))
+    return out
 
-def fig_nimbus_panel(cx, cy, k, r):
-    d = math.hypot(cx - 50, cy - 61)
-    if d <= 4.2:  return "hole"
-    if d <= 12.0: return "brand"
-    if d <= 27.0: return 5 - band(d, 12, 27, 4)
-    e = math.hypot((cx - 50)/26.0, (cy - 19)/8.0)
-    if 0.80 <= e <= 1.20:
-        a = math.degrees(math.atan2(cy - 19, cx - 50)) % 360
-        return int(a / 60) % 6
-    return "field"
 
-# Third subject swapped: the crate read as an equaliser once colour was stripped,
-# which is the one music cliché worth refusing. A window fills its opening, which
-# is what a mosaic panel actually is.
-def fig_window(cx, cy, k, r):
-    inside = (abs(cx - 50) <= 30 and 48 <= cy <= 84) or \
-             (math.hypot(cx - 50, cy - 48) <= 30 and cy < 48)
-    if not inside: return "field"
-    frame = (abs(cx - 50) >= 24.5 and cy >= 48) or \
-            (math.hypot(cx - 50, cy - 48) >= 24.5 and cy < 48)
-    if frame: return "brand"
-    d = math.hypot(cx - 50, cy - 46)
-    if d <= 4.0:  return "hole"
-    if d <= 10.0: return "brand"
-    if d <= 21.0: return 5 - band(d, 10, 21, 4)
-    a = math.degrees(math.atan2(cy - 46, cx - 50)) % 360
-    return int(a / 60) % 6
+FIELD_D = ["#171B21", "#1E232B", "#262C35"]
+FIELD_L = ["#E2E5E9", "#D5DAE0", "#C8CED6"]
+# Warm glazing for the window opening — a lit window, not a dark doorway.
+GLAZE_D = ["#6E5C24", "#836E2C", "#5C4D1E"]
+GLAZE_L = ["#D9C88A", "#C9B679", "#E4D6A2"]
 
-def render_mosaic(els, palette=None, brand=None, mono=False):
-    out = ['<clipPath id="sq"><rect x="0" y="0" width="100" height="100"/></clipPath>',
-           '<g clip-path="url(#sq)">']
-    for e in els:
-        t = e["tone"]
-        if mono:
-            if t == "field":
+RINGS = [(3.6,1,0,0.35), (11,9,.13,1.0), (18,11,.41,1.4), (25,13,.07,1.5),
+         (31,15,.33,1.4), (37.5,17,.61,0.9), (48,18,.55,2.4), (60,20,.21,3.0),
+         (77,22,.63,3.6), (99,26,.11,4.0)]
+ARCH = [(0.6,3,0.2), (9,7,0.9), (19,11,1.4), (29,14,1.5), (36,17,1.0),
+        (48,20,2.3), (62,24,2.9), (80,28,3.5), (102,32,3.9)]
+ROSE = [(3.2,1,0,0.3), (9,8,.21,0.9), (15,10,.53,1.2), (20.5,12,.11,0.8)]
+
+def clamp(i, n): return max(0, min(n-1, i))
+
+def tone_panel(rm, th, ring):
+    # The sweep is mostly ANGULAR with a little radial drift. Banding it by
+    # radius alone rebuilt the eye; sweeping it across the disc reads as light
+    # glancing off the surface, which is what diffraction actually looks like.
+    if ring == 0: return "hole"
+    if ring == 1: return "brand"
+    if rm <= 38:
+        u = 0.62*math.cos(th) + 0.78*math.sin(th)
+        t = u*0.78 + (rm/38.0)*0.22 + wob(th, ring*1.9, 0.14)
+        return ("spec", clamp(int((t + 1)/2*6), 6))
+    return ("field", clamp(int(abs(wob(th, ring*2.3, 1.6))*2.2), 3))
+
+def tone_arch(wm, s, ring):
+    # Spectrum across the arch courses made a rainbow. The opening is now quiet
+    # glass, the frame is the one bright line, and the colour lives in the rose
+    # set into the head — the church-window construction from the references.
+    if ring <= 3: return ("glaze", clamp(int(abs(wob(s*6.283, ring*2.1, 1.6))*2.2), 3))
+    if ring == 4: return "brand"
+    return ("field", clamp(int(abs(wob(s*6.283, ring*2.3, 1.6))*2.2), 3))
+
+def tone_rose(rm, th, ring):
+    if ring == 0: return "hole"
+    if ring == 1: return "brand"
+    u = 0.62*math.cos(th) + 0.78*math.sin(th)
+    t = u*0.78 + (rm/21.0)*0.22 + wob(th, ring*1.9, 0.14)
+    return ("spec", clamp(int((t + 1)/2*6), 6))
+
+_UID = [0]
+def render(cells, tone, mode, cx=50, cy=50):
+    _UID[0] += 1
+    uid = _UID[0]
+    dark = mode != "light"
+    spec = SPECTRUM_DARK if dark else SPECTRUM_LIGHT
+    field = FIELD_D if dark else FIELD_L
+    glaze = GLAZE_D if dark else GLAZE_L
+    came = CAME["dark"] if dark else CAME["light"]
+    out = [f'<clipPath id="sq{uid}"><rect x="0" y="0" width="100" height="100"/></clipPath>',
+           f'<g clip-path="url(#sq{uid})" stroke-linejoin="round">']
+    if mode == "mono":
+        out.append('<rect x="0" y="0" width="100" height="100" fill="none"/>')
+    for d, rm, th, ring in cells:
+        t = tone(rm, th, ring)
+        if mode == "mono":
+            if t == "hole" or (isinstance(t, tuple) and t[0] == "field"):
                 continue
-            fill = "currentColor"
+            if isinstance(t, tuple) and t[0] == "glaze":
+                continue
+            fill, stroke = "currentColor", "var(--lead,#0A0C0F)"
         else:
-            fill = (brand if t == "brand"
-                    else palette["field"] if t == "field"
-                    else palette["spectrum"][t])
-        out.append(f'<path d="{e["d"]}" fill="{fill}"/>')
+            stroke = came
+            if t == "hole":      fill = came
+            elif t == "brand":   fill = BRAND["dark"] if dark else BRAND["light"]
+            elif t[0] == "spec":  fill = spec[t[1]]
+            elif t[0] == "glaze": fill = glaze[t[1]]
+            else:                 fill = field[t[1]]
+        out.append(f'<path d="{d}" fill="{fill}" stroke="{stroke}" stroke-width="1.7"/>')
     out.append("</g>")
     return "".join(out)
 
+def panel(mode):  return render(radial_web(RINGS), tone_panel, mode)
+
+def window(mode):
+    base = render(arch_web(ARCH), tone_arch, mode)
+    rose = render(radial_web(ROSE, cx=50, cy=42), tone_rose, mode)
+    return base + rose
+
+
 MOSAIC = [
-    dict(id="panel", name="Panel", els=mosaic(fig_panel),
-         idea="The record laid as tesserae with the spectrum raking ACROSS it on a diagonal — which is how diffraction actually appears on vinyl, a sweep rather than a target. The first version banded the colour concentrically and the result was an eye: a bright centre ringed by colour reads as a pupil long before it reads as a record.",
-         mono="Field tiles drop away and the figure keeps its tiles, so the disc reads as a leaded circle rather than a solid one. Below ~40px the tesserae merge into a plain disc — which is fine, because at that size you should be using the mark, not the tile.",
-         note="The spindle hole had to grow to about two tesserae before it read as a hole rather than a chipped edge. That is the whole lesson of this pass in one detail."),
-    dict(id="window", name="Window", els=mosaic(fig_window),
-         idea="An actual window: yellow stone tracery, a glazed field, and a record set into it as the light. This is the only one where the full-bleed construction is literally true rather than a device — a window fills its opening.",
-         mono="The arch silhouette carries it, the way solid tracery carried Lancet. The record inside survives as a ring.",
-         note="Two subjects were drawn and cut before this one landed. A crate of records read as an equaliser the moment colour came off. A mosaic Nimbus broke into antennae — a halo is a thin hoop, and thin elements do not survive tessellation. That is the constraint this pass discovered: mosaic needs mass."),
+    dict(id="panel", name="Panel", fn=panel,
+         idea="One continuous leaded web — spokes and courses radiating from a central oculus, the same construction as a dome light. Nothing is drawn on top of it: the record emerges purely from where the colour is placed, and the field keeps the identical came so the whole tile is one window.",
+         mono="Field glass drops away and the record keeps its came, so it reads as a disc of grooves rather than a solid circle. This is the strongest one-colour result of any pass.",
+         note="The colour sweeps ACROSS the disc rather than banding by radius. Banding radially rebuilt the eye — bright centre, coloured rings, pupil. Sweeping it diagonally reads as light glancing off the surface, which is also what diffraction actually does."),
+    dict(id="window", name="Window", fn=window,
+         idea="Courses that follow the opening instead of a grid stamped across it, warm glazing in the light, and a rose set into the head. Two webs composited — which is exactly how the reference window is built.",
+         mono="The arch carries the silhouette and the rose survives as a ring, so it holds far smaller than a panel this detailed has any right to.",
+         note="Took three tries. Running the spectrum through the arch courses made a rainbow; leaving the opening dark made a keyhole. Warm glaze plus a single bright frame plus colour only in the rose is the arrangement that reads as a lit window."),
 ]
 
 # ---- standalone SVG files ----------------------------------------------------
@@ -363,14 +442,12 @@ for g in GLASS:
              f'{g["name"]} (one colour)'))
 
 for m in MOSAIC:
-    pal_d = dict(spectrum=SPECTRUM_DARK, field=FIELD["dark"])
-    pal_l = dict(spectrum=SPECTRUM_LIGHT, field=FIELD["light"])
-    (OUT_SVG / f'mosaic-{m["id"]}.svg').write_text(
-        wrap(render_mosaic(m["els"], pal_d, BRAND["dark"]), f'{m["name"]} (mosaic)'))
-    (OUT_SVG / f'mosaic-{m["id"]}-light.svg').write_text(
-        wrap(render_mosaic(m["els"], pal_l, BRAND["light"]),
-             f'{m["name"]} (mosaic, light ground)'))
-    (OUT_SVG / f'mosaic-{m["id"]}-mono.svg').write_text(
-        wrap(render_mosaic(m["els"], mono=True), f'{m["name"]} (one colour)'))
+    (OUT_SVG / f'leaded-{m["id"]}.svg').write_text(
+        wrap(m["fn"]("dark"), f'{m["name"]} (leaded glass)'))
+    (OUT_SVG / f'leaded-{m["id"]}-light.svg').write_text(
+        wrap(m["fn"]("light"), f'{m["name"]} (leaded glass, light ground)'))
+    (OUT_SVG / f'leaded-{m["id"]}-mono.svg').write_text(
+        wrap(m["fn"]("mono").replace('<g clip', '<g fill="currentColor" clip'),
+             f'{m["name"]} (one colour)'))
 
-print(f"regenerated {len(MARKS)} marks, {len(GLASS)} glass sets, {len(MOSAIC)} mosaics in {OUT_SVG}")
+print(f"regenerated {len(MARKS)} marks, {len(GLASS)} glass sets, {len(MOSAIC)} leaded panels in {OUT_SVG}")
