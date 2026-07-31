@@ -2,8 +2,8 @@
 """Regenerate the Holy Grails logo-mark SVGs.
 
 Exploration only — see README.md. Run: python3 docs/logo-marks/build-marks.py
-All geometry (radii, stroke weights, ray angles, glass cell counts) lives here so a
-mark can be retuned in one place rather than by editing path data by hand.
+All geometry (radii, stroke weights, ray angles, glass cells, mosaic grid) lives
+here so a mark can be retuned in one place rather than by editing path data.
 """
 import os, math, pathlib
 
@@ -241,6 +241,101 @@ GLASS = [
          note="The important one. It means the glass idea doesn’t compete with the leading candidate — it’s a dress for it, so you can have both without maintaining two identities."),
 ]
 
+# ---- mosaic: the third pass --------------------------------------------------
+# Full-bleed tesserae. The figure stays inside r=40 (the maskable safe circle)
+# while the field runs to the edges, which is exactly what a maskable icon wants:
+# any mask shape crops the field, never the subject.
+
+FIELD = {"dark": "#232932", "light": "#D4D9DF"}
+
+def mosaic(fig, rows=18, gap=0.95, offset=True):
+    c = 100.0 / rows
+    out = []
+    for r in range(rows):
+        y = r * c
+        shift = c/2 if (r % 2 and offset) else 0.0
+        for k in range(-1, rows + 2):
+            x = k*c + shift
+            tone = fig(x + c/2, y + c/2, k, r)
+            if tone == "hole":
+                continue
+            out.append(dict(
+                d=f"M{x+gap/2:.2f},{y+gap/2:.2f} h{c-gap:.2f} v{c-gap:.2f} h{-(c-gap):.2f} Z",
+                tone=tone, sw=None))
+    return out
+
+def band(d, r0, r1, n):
+    return max(0, min(n - 1, int((d - r0) / ((r1 - r0) / n))))
+
+# Concentric bands made this read as an eye — bright centre ringed by colour is
+# a pupil before it is a record. The spectrum now rakes ACROSS the disc on a
+# diagonal, which is also how diffraction actually appears on vinyl: a sweep,
+# never a target.
+def fig_panel(cx, cy, k, r):
+    d = math.hypot(cx - 50, cy - 50)
+    if d <= 7.0:  return "hole"
+    if d <= 16.0: return "brand"
+    if d <= 38.0:
+        t = (cx - 50) * 0.6 + (cy - 50) * 0.8
+        return band(t, -32, 32, 6)
+    return "field"
+
+def fig_nimbus_panel(cx, cy, k, r):
+    d = math.hypot(cx - 50, cy - 61)
+    if d <= 4.2:  return "hole"
+    if d <= 12.0: return "brand"
+    if d <= 27.0: return 5 - band(d, 12, 27, 4)
+    e = math.hypot((cx - 50)/26.0, (cy - 19)/8.0)
+    if 0.80 <= e <= 1.20:
+        a = math.degrees(math.atan2(cy - 19, cx - 50)) % 360
+        return int(a / 60) % 6
+    return "field"
+
+# Third subject swapped: the crate read as an equaliser once colour was stripped,
+# which is the one music cliché worth refusing. A window fills its opening, which
+# is what a mosaic panel actually is.
+def fig_window(cx, cy, k, r):
+    inside = (abs(cx - 50) <= 30 and 48 <= cy <= 84) or \
+             (math.hypot(cx - 50, cy - 48) <= 30 and cy < 48)
+    if not inside: return "field"
+    frame = (abs(cx - 50) >= 24.5 and cy >= 48) or \
+            (math.hypot(cx - 50, cy - 48) >= 24.5 and cy < 48)
+    if frame: return "brand"
+    d = math.hypot(cx - 50, cy - 46)
+    if d <= 4.0:  return "hole"
+    if d <= 10.0: return "brand"
+    if d <= 21.0: return 5 - band(d, 10, 21, 4)
+    a = math.degrees(math.atan2(cy - 46, cx - 50)) % 360
+    return int(a / 60) % 6
+
+def render_mosaic(els, palette=None, brand=None, mono=False):
+    out = ['<clipPath id="sq"><rect x="0" y="0" width="100" height="100"/></clipPath>',
+           '<g clip-path="url(#sq)">']
+    for e in els:
+        t = e["tone"]
+        if mono:
+            if t == "field":
+                continue
+            fill = "currentColor"
+        else:
+            fill = (brand if t == "brand"
+                    else palette["field"] if t == "field"
+                    else palette["spectrum"][t])
+        out.append(f'<path d="{e["d"]}" fill="{fill}"/>')
+    out.append("</g>")
+    return "".join(out)
+
+MOSAIC = [
+    dict(id="panel", name="Panel", els=mosaic(fig_panel),
+         idea="The record laid as tesserae with the spectrum raking ACROSS it on a diagonal — which is how diffraction actually appears on vinyl, a sweep rather than a target. The first version banded the colour concentrically and the result was an eye: a bright centre ringed by colour reads as a pupil long before it reads as a record.",
+         mono="Field tiles drop away and the figure keeps its tiles, so the disc reads as a leaded circle rather than a solid one. Below ~40px the tesserae merge into a plain disc — which is fine, because at that size you should be using the mark, not the tile.",
+         note="The spindle hole had to grow to about two tesserae before it read as a hole rather than a chipped edge. That is the whole lesson of this pass in one detail."),
+    dict(id="window", name="Window", els=mosaic(fig_window),
+         idea="An actual window: yellow stone tracery, a glazed field, and a record set into it as the light. This is the only one where the full-bleed construction is literally true rather than a device — a window fills its opening.",
+         mono="The arch silhouette carries it, the way solid tracery carried Lancet. The record inside survives as a ring.",
+         note="Two subjects were drawn and cut before this one landed. A crate of records read as an equaliser the moment colour came off. A mosaic Nimbus broke into antennae — a halo is a thin hoop, and thin elements do not survive tessellation. That is the constraint this pass discovered: mosaic needs mass."),
+]
+
 # ---- standalone SVG files ----------------------------------------------------
 
 for m in MARKS:
@@ -267,4 +362,15 @@ for g in GLASS:
         wrap(render_glass(g["els"], mono=True).replace('<svg', '<svg fill="currentColor"'),
              f'{g["name"]} (one colour)'))
 
-print(f"regenerated {len(MARKS)} marks + {len(GLASS)} glass sets in {OUT_SVG}")
+for m in MOSAIC:
+    pal_d = dict(spectrum=SPECTRUM_DARK, field=FIELD["dark"])
+    pal_l = dict(spectrum=SPECTRUM_LIGHT, field=FIELD["light"])
+    (OUT_SVG / f'mosaic-{m["id"]}.svg').write_text(
+        wrap(render_mosaic(m["els"], pal_d, BRAND["dark"]), f'{m["name"]} (mosaic)'))
+    (OUT_SVG / f'mosaic-{m["id"]}-light.svg').write_text(
+        wrap(render_mosaic(m["els"], pal_l, BRAND["light"]),
+             f'{m["name"]} (mosaic, light ground)'))
+    (OUT_SVG / f'mosaic-{m["id"]}-mono.svg').write_text(
+        wrap(render_mosaic(m["els"], mono=True), f'{m["name"]} (one colour)'))
+
+print(f"regenerated {len(MARKS)} marks, {len(GLASS)} glass sets, {len(MOSAIC)} mosaics in {OUT_SVG}")
