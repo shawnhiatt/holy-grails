@@ -31,6 +31,37 @@ symbol behind them.
 | `rose-window.svg` | Architecture | Medium | Drop — becomes a gear; needs a second small-size drawing |
 | `chalice.svg` | Object | High | Drop — legible, but crosses the line the brief drew |
 
+## Second pass: glass
+
+A stained-glass treatment, on a rationale that isn't decorative: tilt vinyl under a light and
+the grooves diffract it into this exact spectrum. Stained glass and a record are the same
+object — a circle divided into concentric bands, read by light.
+
+Palette is the condition-grade spectrum from `src/lib/condition-colors.ts` (the ramp used to
+grade copies), with brand yellow anchoring the centre so the mark still reads yellow when the
+cells collapse at small sizes.
+
+**How it stays one colour.** Cells are inset so the *ground* shows through as the lead line —
+there is no stroke colour to choose and it works on any background. The one-colour cut is the
+identical geometry with a single fill. Nothing is redrawn.
+
+| Set | Files | Notes |
+|---|---|---|
+| Rosette | `glass-rosette{,-light,-mono}.svg` | Record as rose window. Best at 128px, weakest at 16px |
+| Lancet | `glass-lancet{,-light,-mono}.svg` | Solid tracery, glass in the opening. Best small-size holder |
+| Nimbus in glass | `glass-nimbus-glass{,-light,-mono}.svg` | Mono reverts exactly to `nimbus.svg` |
+
+`-light` variants use the light-mode spectrum. One constraint worth knowing: that ramp
+collapses P/F and G onto a single value, so it has five distinct steps where dark has six — a
+six-cell design repeats one on light grounds.
+
+The mono variants of Rosette and Lancet reference `var(--lead, #0A0C0F)` for the knocked-out
+groove; set `--lead` to the surface the mark sits on.
+
+**Nimbus in glass is the one to build.** It reverts to plain Nimbus with one fill swapped, so
+the simple mark can be the system default while the spectrum comes out for splash, install,
+share cards, and About — one identity, two dresses.
+
 ## Using them
 
 Each file is a standalone SVG with `fill="currentColor"`, so colour comes from CSS:

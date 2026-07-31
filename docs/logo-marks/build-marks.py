@@ -2,8 +2,8 @@
 """Regenerate the Holy Grails logo-mark SVGs.
 
 Exploration only — see README.md. Run: python3 docs/logo-marks/build-marks.py
-All geometry (radii, stroke weights, ray angles) lives in this file so a mark can
-be retuned in one place rather than by editing path data by hand.
+All geometry (radii, stroke weights, ray angles, glass cell counts) lives here so a
+mark can be retuned in one place rather than by editing path data by hand.
 """
 import os, math, pathlib
 
@@ -141,6 +141,106 @@ FAMILIES = [
     ("object", "Object", "Sanctity as a thing you hold. The literal reading of the name, and the edge of the brief — worth drawing to see where the line actually is."),
 ]
 
+# ---- glass: the second pass --------------------------------------------------
+# Cells are inset so the GROUND shows through as the lead line. That keeps the
+# leading ground-agnostic — no stroke colour to pick, works on any background,
+# and mono is the identical geometry with one fill.
+
+SPECTRUM_DARK  = ["#FF98DA", "#E88CC4", "#C9A0E0", "#ACDEF2", "#5FBFA0", "#3E9842"]
+# The light ramp collapses F and G onto one value, so it has five distinct steps,
+# not six — a real constraint of reusing the existing condition tokens.
+SPECTRUM_LIGHT = ["#9A207C", "#7A3A9A", "#00527A", "#1A7A5A", "#2D7A31", "#7A3A9A"]
+BRAND = {"dark": "#EBFD00", "light": "#8C6800"}
+
+def polar(r, a, cx=50, cy=50):
+    t = math.radians(a)
+    return cx + r*math.cos(t), cy + r*math.sin(t)
+
+def sector(r0, r1, a0, a1, cx=50, cy=50, gap=1.7):
+    """Annular sector, inset on all four sides by `gap` so the ground reads as lead."""
+    rm = (r0 + r1) / 2
+    ga = math.degrees(gap / rm)
+    r0, r1, a0, a1 = r0 + gap, r1 - gap, a0 + ga, a1 - ga
+    large = 1 if (a1 - a0) % 360 > 180 else 0
+    x1, y1 = polar(r1, a0, cx, cy); x2, y2 = polar(r1, a1, cx, cy)
+    x3, y3 = polar(r0, a1, cx, cy); x4, y4 = polar(r0, a0, cx, cy)
+    return (f"M{x1:.2f},{y1:.2f} A{r1:.2f},{r1:.2f} 0 {large},1 {x2:.2f},{y2:.2f} "
+            f"L{x3:.2f},{y3:.2f} A{r0:.2f},{r0:.2f} 0 {large},0 {x4:.2f},{y4:.2f} Z")
+
+def cell(d, tone, sw=None):
+    return dict(d=d, tone=tone, sw=sw)
+
+# A. Rosette — the record as a rose window.
+def rosette():
+    els = []
+    for i in range(6):                      # inner ring of glass
+        els.append(cell(sector(13, 25.5, -90 + i*60, -30 + i*60), i))
+    for i in range(6):                      # outer ring, offset half a cell
+        els.append(cell(sector(25.5, 39, -60 + i*60, i*60), (i + 3) % 6))
+    els.append(cell(f'{circle_path(50,50,11.3)} {circle_path(50,50,3.6)}', "brand"))
+    return els
+
+# B. Lancet — solid stone tracery with the glass set into the opening, which is
+# how a window is actually built. Glazing the frame itself read as a dashed
+# outline and the arch lost its silhouette.
+def lancet():
+    els = []
+    els.append(cell("M14,79 L14,48 A36,36 0 0,1 86,48 L86,79 L80,79 L80,48 "
+                    "A30,30 0 0,0 20,48 L20,79 Z", "brand"))
+    for i in range(6):
+        els.append(cell(sector(9, 24, -90 + i*60, -30 + i*60, 50, 46, gap=1.5), i))
+    els.append(cell(f'{circle_path(50,46,8.2)} {circle_path(50,46,3.2)}', "brand"))
+    return els
+
+# C. Nimbus in glass — the halo segmented, the record left whole.
+def nimbus_glass():
+    els, rx, ry, cx, cy = [], 27, 9, 50, 22
+    n, gap = 7, 4.0
+    for i in range(n):
+        a0, a1 = i * 360/n + gap/2, (i + 1) * 360/n - gap/2
+        x0, y0 = cx + rx*math.cos(math.radians(a0)), cy + ry*math.sin(math.radians(a0))
+        x1, y1 = cx + rx*math.cos(math.radians(a1)), cy + ry*math.sin(math.radians(a1))
+        large = 1 if (a1 - a0) % 360 > 180 else 0
+        els.append(cell(f"M{x0:.2f},{y0:.2f} A{rx},{ry} 0 {large},1 {x1:.2f},{y1:.2f}",
+                        i % 6, sw=5))
+    els.append(cell(
+        f'{circle_path(50,60,26)} {circle_path(50,60,4.4)}', "brand"))
+    els.append(cell(f'{circle_path(50,60,18)}', "ground", sw=2))
+    return els
+
+def render_glass(els, palette=None, brand=None, mono=False):
+    out = []
+    for e in els:
+        if e["tone"] == "ground":
+            # the knocked-out groove: only meaningful in mono, where it reads against fill
+            fill, stroke = "none", "var(--lead,#0A0C0F)"
+        elif mono:
+            fill = stroke = "currentColor"
+        else:
+            c = brand if e["tone"] == "brand" else palette[e["tone"]]
+            fill = stroke = c
+        if e["sw"]:
+            out.append(f'<path d="{e["d"]}" fill="none" stroke="{stroke}" '
+                       f'stroke-width="{e["sw"]}" stroke-linecap="butt"/>')
+        else:
+            out.append(f'<path d="{e["d"]}" fill="{fill}" fill-rule="evenodd"/>')
+    return "".join(out)
+
+GLASS = [
+    dict(id="rosette", name="Rosette", els=rosette(),
+         idea="The record as a rose window — two rings of glass around a yellow label, which is where the brand colour anchors so the mark still reads yellow when the detail collapses.",
+         mono="Identical geometry, one fill. The inset gaps that were lead lines become the drawing, so the mono cut is a leaded disc rather than a different mark.",
+         note="Redeems the mark I told you to drop. As a one-colour line drawing the rose window became a gear; as glass it has a reason for the spokes to exist."),
+    dict(id="lancet", name="Lancet", els=lancet(),
+         idea="Solid stone tracery with the glass set into the opening — how a window is actually built. The first version glazed the frame itself and it read as a dashed outline with the arch nowhere; making the frame solid gave the silhouette back and gave the interior something to hold.",
+         mono="The strongest small-size performer of the three, because the solid arch carries the shape even after the glass cells inside have merged into a blob.",
+         note="Keeps the Wurlitzer alibi and the square-tile fit from the first pass, and finally answers what the arch is supposed to contain."),
+    dict(id="nimbus-glass", name="Nimbus in glass", els=nimbus_glass(),
+         idea="The halo segmented into seven pieces of glass; the record below left whole. The only place the spectrum goes is the halo — the thing that is supposed to be made of light.",
+         mono="Reverts exactly to the Nimbus mark from the first pass. Not an approximation of it: the same file with one fill swapped.",
+         note="The important one. It means the glass idea doesn’t compete with the leading candidate — it’s a dress for it, so you can have both without maintaining two identities."),
+]
+
 # ---- standalone SVG files ----------------------------------------------------
 
 for m in MARKS:
@@ -152,4 +252,19 @@ for m in MARKS:
            + m["body"] + '</svg>\n')
     (OUT_SVG / f'{m["id"]}.svg').write_text(svg)
 
-print(f"regenerated {len(MARKS)} marks in {OUT_SVG}")
+def wrap(body, label):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" '
+            f'width="100" height="100" role="img" aria-label="Holy Grails {label}">'
+            f'<title>Holy Grails — {label}</title>{body}</svg>\n')
+
+for g in GLASS:
+    (OUT_SVG / f'glass-{g["id"]}.svg').write_text(
+        wrap(render_glass(g["els"], SPECTRUM_DARK, BRAND["dark"]), f'{g["name"]} (glass)'))
+    (OUT_SVG / f'glass-{g["id"]}-light.svg').write_text(
+        wrap(render_glass(g["els"], SPECTRUM_LIGHT, BRAND["light"]),
+             f'{g["name"]} (glass, light ground)'))
+    (OUT_SVG / f'glass-{g["id"]}-mono.svg').write_text(
+        wrap(render_glass(g["els"], mono=True).replace('<svg', '<svg fill="currentColor"'),
+             f'{g["name"]} (one colour)'))
+
+print(f"regenerated {len(MARKS)} marks + {len(GLASS)} glass sets in {OUT_SVG}")
