@@ -193,17 +193,31 @@ export function buildStackPresets(
 
   // ── Genres and styles: same idea, straight from what's on the shelf.
   // Styles lead — "Hard Bop" is session-shaped in a way "Jazz" isn't.
+  // Counted once per RELEASE, not once per tag occurrence. Genres and styles
+  // are one namespace to the rule engine (see evaluateCondition), and Discogs
+  // files the same word in both buckets on some releases — "Classical" as the
+  // genre and again as a style. Counting occurrences let a preset claim more
+  // matches than the collection has records, and disagree with the session it
+  // built. Keyed case-insensitively for the same reason: the engine lowercases
+  // both sides, so "Folk" and "folk" are one tag to it too.
   const tagCounts = new Map<string, number>();
+  const tagLabels = new Map<string, string>();
   for (const a of albums) {
+    const seen = new Set<string>();
     for (const tag of [...(a.styles || []), ...(a.genres || [])]) {
       if (!tag) continue;
-      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!tagLabels.has(key)) tagLabels.set(key, tag);
+      tagCounts.set(key, (tagCounts.get(key) || 0) + 1);
     }
   }
-  for (const [tag, n] of [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)) {
+  for (const [key, n] of [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)) {
+    const tag = tagLabels.get(key)!;
     add(
       {
-        id: `tag-${tag.toLowerCase()}`,
+        id: `tag-${key}`,
         name: tag,
         blurb: `Everything filed under ${tag}.`,
         rule: rule([{ field: "genre", op: "includesAny", value: [tag] }], "artist-az"),
