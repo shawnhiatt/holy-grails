@@ -48,6 +48,23 @@ describe("filterAndSortAlbums", () => {
     expect(run({ albums, searchQuery: "zzz-no-match" })).toHaveLength(0);
   });
 
+  it("trims the search query before matching", () => {
+    // iOS autocorrect appends a space after a completed word. Matching the raw
+    // string made that return nothing, which reads as an empty collection.
+    const albums = [
+      makeAlbum({ artist: "Miles Davis", title: "Kind of Blue", label: "Columbia" }),
+      makeAlbum({ artist: "Neu!", title: "Neu! 75", label: "Brain" }),
+    ];
+    expect(run({ albums, searchQuery: "davis " })).toHaveLength(1);
+    expect(run({ albums, searchQuery: " miles" })).toHaveLength(1);
+    expect(run({ albums, searchQuery: "  kind of blue  " })).toHaveLength(1);
+  });
+
+  it("treats a whitespace-only query as no search at all", () => {
+    const albums = [makeAlbum(), makeAlbum()];
+    expect(run({ albums, searchQuery: "   " })).toHaveLength(2);
+  });
+
   it("whitespace-only search matches everything", () => {
     const albums = [makeAlbum(), makeAlbum()];
     expect(run({ albums, searchQuery: "   " })).toHaveLength(2);
@@ -90,6 +107,23 @@ describe("filterAndSortAlbums", () => {
       .toEqual([1969, 1991, 2020]);
   });
 
+  it("sinks unknown years to the bottom of 'oldest first'", () => {
+    // Discogs sends year 0 for "no release date". It is missing data, not the
+    // year zero, so it must not lead the oldest-first list — same convention
+    // as the year-old rule in convex/stackRules.ts.
+    const albums = [
+      makeAlbum({ year: 0 }),
+      makeAlbum({ year: 1972 }),
+      makeAlbum({ year: 0 }),
+      makeAlbum({ year: 1965 }),
+    ];
+    expect(run({ albums, effectiveSortOption: "year-old" }).map((a) => a.year))
+      .toEqual([1965, 1972, 0, 0]);
+    // Newest-first already sank them; check it stayed that way.
+    expect(run({ albums, effectiveSortOption: "year-new" }).map((a) => a.year))
+      .toEqual([1972, 1965, 0, 0]);
+  });
+
   it("sorts by date added in both directions", () => {
     const oldest = makeAlbum({ dateAdded: "2020-03-01T00:00:00-08:00" });
     const newest = makeAlbum({ dateAdded: "2025-11-20T00:00:00-08:00" });
@@ -100,6 +134,20 @@ describe("filterAndSortAlbums", () => {
       .toEqual([newest.id, middle.id, oldest.id]);
     expect(run({ albums, effectiveSortOption: "added-old" }).map((a) => a.id))
       .toEqual([oldest.id, middle.id, newest.id]);
+  });
+
+  it("sinks rows with no dateAdded in both add-order sorts", () => {
+    // The sync writes "" when Discogs omits date_added. `new Date("")` is NaN,
+    // and a comparator returning NaN leaves the whole order undefined.
+    const undated = makeAlbum({ dateAdded: "" });
+    const oldest = makeAlbum({ dateAdded: "2020-03-01" });
+    const newest = makeAlbum({ dateAdded: "2025-11-20" });
+    const albums = [oldest, undated, newest];
+
+    expect(run({ albums, effectiveSortOption: "added-new" }).map((a) => a.id))
+      .toEqual([newest.id, oldest.id, undated.id]);
+    expect(run({ albums, effectiveSortOption: "added-old" }).map((a) => a.id))
+      .toEqual([oldest.id, newest.id, undated.id]);
   });
 
   it("last-played-oldest puts never-played albums first", () => {

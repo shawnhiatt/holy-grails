@@ -57,7 +57,9 @@ function sortFollowedItems<T extends { artist: string; title: string; year: numb
     case "artist-za": sorted.sort((a, b) => b.artist.localeCompare(a.artist) || a.title.localeCompare(b.title)); break;
     case "title-az": sorted.sort((a, b) => a.title.localeCompare(b.title)); break;
     case "year-new": sorted.sort((a, b) => (b.year || 0) - (a.year || 0)); break;
-    case "year-old": sorted.sort((a, b) => (a.year || 0) - (b.year || 0)); break;
+    // Unknown year sorts last, not first — same convention as the collection
+    // sort and convex/stackRules.ts.
+    case "year-old": sorted.sort((a, b) => (a.year || Infinity) - (b.year || Infinity)); break;
   }
   return sorted;
 }

@@ -203,8 +203,9 @@ export function Wantlist() {
   const filteredWants = useMemo(() => {
     let result = [...wants];
     if (wantFilter === "priority") result = result.filter((w) => w.priority);
-    if (wantSearchQuery.trim()) {
-      const q = wantSearchQuery.toLowerCase();
+    // Trimmed — a trailing space from iOS autocorrect otherwise matched nothing.
+    const q = wantSearchQuery.trim().toLowerCase();
+    if (q) {
       result = result.filter((w) => w.artist.toLowerCase().includes(q) || w.title.toLowerCase().includes(q));
     }
     // Sort by artist A→Z (matches Collection default sort)

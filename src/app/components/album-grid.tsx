@@ -6,6 +6,7 @@ import { purgeIndicatorColor } from "./purge-colors";
 import { FormatBadge } from "./format-badge";
 import { useAlphabetIndex, AlphabetSidebar } from "./alphabet-sidebar";
 import { safeTap } from "../lib/safe-tap";
+import { parseDisplayDate } from "../utils/format";
 
 // Windowed render (see AlbumGrid): start with a few screens of cards and append
 // as the user scrolls, so the DOM node count stays bounded on large collections.
@@ -40,7 +41,10 @@ export function getAlbumGroupLabel(album: Album, sortOption: string): string {
     case "added-new":
     case "added-old": {
       if (!album.dateAdded) return "—";
-      const d = new Date(album.dateAdded);
+      // parseDisplayDate, not new Date(): a bare "YYYY-MM-DD" parses as UTC
+      // midnight, which put anything added on the 1st under the previous month
+      // for users west of UTC.
+      const d = parseDisplayDate(album.dateAdded);
       return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
     }
     default:

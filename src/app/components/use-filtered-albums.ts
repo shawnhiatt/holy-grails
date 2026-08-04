@@ -26,6 +26,13 @@ export interface FilterAlbumsOptions {
   effectiveSortOption: SortOption;
 }
 
+/** Epoch ms an album was added, or 0 when the row carries no usable date.
+ *  The sync writes "" when Discogs omits `date_added`. */
+function addedMs(a: Album): number {
+  const t = new Date(a.dateAdded).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
 /** Pure filter + sort — the hook wraps this in useMemo. Exported for tests. */
 export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
   const { albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed, effectiveSortOption } = opts;
@@ -51,8 +58,11 @@ export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
     result = result.filter((a) => !hasRating(a.rating));
   }
 
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase();
+  // Match on the TRIMMED query. Gating on `.trim()` while matching the raw
+  // string meant a trailing space — which iOS autocorrect appends after every
+  // completed word — matched nothing and read as "your collection is empty".
+  const q = searchQuery.trim().toLowerCase();
+  if (q) {
     result = result.filter(
       (a) =>
         a.artist.toLowerCase().includes(q) ||
@@ -75,18 +85,20 @@ export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
       result.sort((a, b) => b.year - a.year);
       break;
     case "year-old":
-      result.sort((a, b) => a.year - b.year);
+      // Unknown year (Discogs' 0) sorts last rather than leading "oldest
+      // first" with a block of blank years. Matches the year-old rule in
+      // convex/stackRules.ts, and the year-display convention generally.
+      result.sort((a, b) => (a.year || Infinity) - (b.year || Infinity));
       break;
     case "added-new":
-      result.sort(
-        (a, b) =>
-          new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
-      );
+      // Missing dateAdded sinks. `new Date("")` is NaN, and a comparator that
+      // returns NaN leaves the whole order implementation-defined.
+      result.sort((a, b) => addedMs(b) - addedMs(a));
       break;
     case "added-old":
       result.sort(
         (a, b) =>
-          new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()
+          (addedMs(a) || Infinity) - (addedMs(b) || Infinity)
       );
       break;
     case "label-az":
