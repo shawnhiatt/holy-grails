@@ -1792,6 +1792,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const now = Date.now();
       const feedEntries: FollowingFeedEntry[] = [];
+      /** Whether any user has actually been fetched yet this run. */
+      let didFetch = false;
 
       // Pre-populate from cache for users we won't re-fetch
       if (cachedFeed) {
@@ -1829,6 +1831,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        // Rate-limit spacing is paid BEFORE a fetch, not after one. Paying it
+        // after meant the sync — and the header's spinner with it — kept
+        // running for a second past the last real request, and longer still
+        // when the remaining users were all cache-fresh: the loop charged a
+        // full second for a fetch that never came. The chip now goes away when
+        // the work does.
+        if (didFetch) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        didFetch = true;
+
         try {
           const [recentAlbums, recentWants] = await Promise.all([
             proxyFetchUserCollectionPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
@@ -1858,14 +1871,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           console.warn(`[FollowingFeed] Could not sync @${followedUser}:`, e);
         }
-
-        // 1-second delay between Discogs fetches to respect rate limits
-        if (i < sorted.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
       }
 
-      setFollowingFeed(feedEntries);
+      // Only republish if the loop never did — each fetched user already
+      // published, so an unconditional set here bought one more full feed
+      // re-derive for data the screen was already showing.
+      if (!didFetch) setFollowingFeed(feedEntries);
     } catch (e) {
       console.warn("[FollowingFeed] Sync failed:", e);
     } finally {
