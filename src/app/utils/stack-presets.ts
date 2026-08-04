@@ -54,7 +54,18 @@ function makeRule(
 const MIN_MATCHES = 5;
 
 /**
- * Build the presets this collection can actually fill, best-populated first.
+ * Build the presets this collection can actually fill.
+ *
+ * Returned in derivation order, which is deliberate and load-bearing rather
+ * than incidental: behavioural presets first (play history, purge verdicts,
+ * recency, rating), then catalog facets (decades, then genres and styles).
+ * Ranking by match count instead would lead with whichever bucket happens to
+ * be biggest, which says nothing about what you want to listen to — and the
+ * builder relies on this order when it caps the visible list, so that the
+ * presets it hides are the browsing ones, never the deciding ones.
+ *
+ * (Decades and tags ARE internally ranked by count, since there is no
+ * meaningful order among them beyond how well stocked they are.)
  *
  * `count` takes a predicate rather than running the rule engine: these are
  * fixed, known shapes, and counting directly keeps the picker cheap to render
@@ -193,17 +204,31 @@ export function buildStackPresets(
 
   // ── Genres and styles: same idea, straight from what's on the shelf.
   // Styles lead — "Hard Bop" is session-shaped in a way "Jazz" isn't.
+  // Counted once per RELEASE, not once per tag occurrence. Genres and styles
+  // are one namespace to the rule engine (see evaluateCondition), and Discogs
+  // files the same word in both buckets on some releases — "Classical" as the
+  // genre and again as a style. Counting occurrences let a preset claim more
+  // matches than the collection has records, and disagree with the session it
+  // built. Keyed case-insensitively for the same reason: the engine lowercases
+  // both sides, so "Folk" and "folk" are one tag to it too.
   const tagCounts = new Map<string, number>();
+  const tagLabels = new Map<string, string>();
   for (const a of albums) {
+    const seen = new Set<string>();
     for (const tag of [...(a.styles || []), ...(a.genres || [])]) {
       if (!tag) continue;
-      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!tagLabels.has(key)) tagLabels.set(key, tag);
+      tagCounts.set(key, (tagCounts.get(key) || 0) + 1);
     }
   }
-  for (const [tag, n] of [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)) {
+  for (const [key, n] of [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)) {
+    const tag = tagLabels.get(key)!;
     add(
       {
-        id: `tag-${tag.toLowerCase()}`,
+        id: `tag-${key}`,
         name: tag,
         blurb: `Everything filed under ${tag}.`,
         rule: rule([{ field: "genre", op: "includesAny", value: [tag] }], "artist-az"),

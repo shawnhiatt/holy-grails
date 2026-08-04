@@ -411,10 +411,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lastPlayed, setLastPlayed] = useState<Record<string, string>>({});
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
   const [allPlayTimestamps, setAllPlayTimestamps] = useState<number[]>([]);
-  const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
+  const [neverPlayedFilter, setNeverPlayedFilterRaw] = useState(false);
   const [formatFilter, setFormatFilter] = useState<MediaType | null>(null);
-  const [playsRecordedFilter, setPlaysRecordedFilter] = useState(false);
+  const [playsRecordedFilter, setPlaysRecordedFilterRaw] = useState(false);
   const [unratedFilter, setUnratedFilter] = useState(false);
+
+  /* The two play filters are complements, so turning one on turns the other
+     off. With both set, the collection filter asks for releases that have a
+     play AND have none, which can only ever return an empty crate — and it
+     did so silently, reading as "your collection is gone" rather than as two
+     contradictory chips. Enforced here rather than at the call sites so every
+     entry point (filter drawer, the Listening card's two rows, Insights)
+     inherits it. */
+  const setNeverPlayedFilter = useCallback((v: boolean) => {
+    setNeverPlayedFilterRaw(v);
+    if (v) setPlaysRecordedFilterRaw(false);
+  }, []);
+  const setPlaysRecordedFilter = useCallback((v: boolean) => {
+    setPlaysRecordedFilterRaw(v);
+    if (v) setNeverPlayedFilterRaw(false);
+  }, []);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
@@ -1774,7 +1790,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!followingList || followingList.length === 0) return;
 
     followingFeedSyncInFlightRef.current = true;
-    setIsSyncingFollowing(true);
+    // NB: isSyncingFollowing is raised inside the loop, at the first actual
+    // fetch — not here. Most runs sync nothing at all (every followed user is
+    // inside the 24h TTL), and raising it up front flashed the header's
+    // spinner for a run that did no work, which is indistinguishable from the
+    // app spinning at random. The flag now means "a request is in flight".
     try {
       const cachedFeed = followingFeedRef.current;
       // Sort by followed_at descending, cap at 25
@@ -1792,6 +1812,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const now = Date.now();
       const feedEntries: FollowingFeedEntry[] = [];
+      /** Whether any user has actually been fetched yet this run. */
+      let didFetch = false;
 
       // Pre-populate from cache for users we won't re-fetch
       if (cachedFeed) {
@@ -1829,6 +1851,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        // Past the TTL check, so this user is genuinely being fetched.
+        //
+        // Rate-limit spacing is paid BEFORE a fetch, not after one. Paying it
+        // after meant the run — and the header's spinner with it — kept going
+        // for a second past the last real request, and longer still when the
+        // remaining users were all cache-fresh: the loop charged a full second
+        // for a fetch that never came.
+        if (didFetch) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else {
+          setIsSyncingFollowing(true);
+        }
+        didFetch = true;
+
         try {
           const [recentAlbums, recentWants] = await Promise.all([
             proxyFetchUserCollectionPage({ sessionToken: token, username: followedUser, page: 1, perPage: 50 }),
@@ -1858,14 +1894,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           console.warn(`[FollowingFeed] Could not sync @${followedUser}:`, e);
         }
-
-        // 1-second delay between Discogs fetches to respect rate limits
-        if (i < sorted.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
       }
 
-      setFollowingFeed(feedEntries);
+      // Only republish if the loop never did — each fetched user already
+      // published, so an unconditional set here bought one more full feed
+      // re-derive for data the screen was already showing.
+      if (!didFetch) setFollowingFeed(feedEntries);
     } catch (e) {
       console.warn("[FollowingFeed] Sync failed:", e);
     } finally {

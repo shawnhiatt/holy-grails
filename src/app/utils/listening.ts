@@ -15,6 +15,23 @@ function dayKey(ts: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Step a local calendar date back one day.
+ *
+ * Deliberately not `ts -= 86400000`: a DST day is 23 or 25 hours long, so
+ * subtracting a fixed 24h near midnight skips a calendar day (spring forward)
+ * or repeats one (fall back) — which silently truncated a live streak twice a
+ * year. `setDate(getDate() - 1)` is defined in calendar terms and handles the
+ * short/long day, month ends, and leap years alike.
+ */
+function prevDayKey(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setFullYear(y);
+  date.setDate(date.getDate() - 1);
+  return dayKey(date.getTime());
+}
+
 export interface Streaks {
   currentStreak: number;
   longestStreak: number;
@@ -35,11 +52,11 @@ export function deriveStreaks(allPlayTimestamps: number[], now: number = Date.no
 
   // Current — walk backward from today, or from yesterday if today is empty
   let current = 0;
-  let cursor = now;
-  if (!daySet.has(dayKey(cursor))) cursor -= DAY_MS;
-  while (daySet.has(dayKey(cursor))) {
+  let cursor = dayKey(now);
+  if (!daySet.has(cursor)) cursor = prevDayKey(cursor);
+  while (daySet.has(cursor)) {
     current++;
-    cursor -= DAY_MS;
+    cursor = prevDayKey(cursor);
   }
 
   // Longest — scan the sorted day list for the longest consecutive run

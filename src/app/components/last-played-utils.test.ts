@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { playCountLabel, playMonthLabel } from "./last-played-utils";
+import { afterAll, beforeAll, describe, it, expect } from "vitest";
+import { formatDateShort, playCountLabel, playMonthLabel } from "./last-played-utils";
 
 const NOW = new Date("2026-06-20T12:00:00").getTime();
 const at = (iso: string) => new Date(iso).getTime();
@@ -61,5 +61,25 @@ describe("playCountLabel — a single play gets the same treatment as many", () 
 describe("playMonthLabel", () => {
   it("formats a timestamp as month + year, spelled out", () => {
     expect(playMonthLabel(at("2026-06-20T08:44:00"))).toBe("June 2026");
+  });
+});
+
+describe("formatDateShort", () => {
+  /* Called with both shapes: a play log's full ISO timestamp and a collection
+     row's bare "YYYY-MM-DD". Pinned west of UTC, where a UTC-parsed date-only
+     string renders as the previous day. */
+  const REAL_TZ = process.env.TZ;
+  beforeAll(() => { process.env.TZ = "America/New_York"; });
+  afterAll(() => { process.env.TZ = REAL_TZ; });
+
+  it("renders a date-only dateAdded as the day it names", () => {
+    expect(formatDateShort("2026-08-04")).toBe("Aug 4, 2026");
+    expect(formatDateShort("2026-01-01")).toBe("Jan 1, 2026");
+  });
+
+  it("still converts a real timestamp to local time", () => {
+    // 03:00 UTC is the previous evening in New York — that shift is correct,
+    // because a timestamp names a moment.
+    expect(formatDateShort("2026-08-04T03:00:00Z")).toBe("Aug 3, 2026");
   });
 });

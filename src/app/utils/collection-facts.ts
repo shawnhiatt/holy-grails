@@ -1,4 +1,5 @@
 import type { Album } from "../components/discogs-api";
+import { countAddedWithin } from "./insights";
 
 /* Rotating collection facts — real data doing the personality work.
    Rendered in the feed identity block ticker as an eyebrow label ("TOP
@@ -20,12 +21,30 @@ const EXCLUDED_ARTISTS = new Set([
   "unknown",
 ]);
 
+/** Window for the recent-adds fact, in days. */
+export const RECENT_ADD_DAYS = 30;
+
 export function deriveCollectionFacts(
   albums: Album[],
   playCounts?: Record<string, number>,
+  now: number = Date.now(),
 ): CollectionFact[] {
   const facts: CollectionFact[] = [];
   if (albums.length === 0) return facts;
+
+  // Recent adds — rehomed from the identity block's stat cells, where it was a
+  // third line under each count. Med. Value has no history and so could never
+  // fill its copy of that line, and holding the empty space to keep the three
+  // baselines even left visible gaps. As a ticker fact it needs no counterpart
+  // in the other cells. Omitted entirely at zero: "0 in 30 days" is a scold,
+  // and a fact that reports nothing isn't one.
+  const recentAdds = countAddedWithin(albums, RECENT_ADD_DAYS, now);
+  if (recentAdds > 0) {
+    facts.push({
+      label: "Recent adds",
+      value: `${recentAdds} in ${RECENT_ADD_DAYS} days`,
+    });
+  }
 
   // Most rotated — highest play count. 2+ plays required (a single play
   // isn't a rotation pattern). Derived from existing last_played rows via

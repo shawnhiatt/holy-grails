@@ -1101,6 +1101,12 @@ function PressingFilterDrawer({
 // shutter-captured frame sent to the identifyCover action (Cover). One camera
 // stream serves both — the mode toggle flips a ref so switching never
 // restarts the stream, and the decode loop simply skips frames in Cover mode.
+/* Shutter geometry, shared by the shutter button and by the space the
+   viewfinder column reserves above it. One source for both so the reservation
+   can't fall out of step with the control it is reserving for. */
+const SHUTTER_BOTTOM_PX = 96;
+const SHUTTER_SIZE_PX = 64;
+
 function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
   onDetect: (code: string) => void;
   onCoverCapture: (imageBase64: string) => Promise<boolean>;
@@ -1335,6 +1341,16 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
     </button>
   );
 
+  // The viewfinder column (guide → hint → lens toggle) is centered in the space
+  // ABOVE the shutter rather than in the whole screen, and every control it has
+  // to clear is part of that one column. Both halves matter: the lens toggle
+  // used to be bottom-anchored while the hint sat in centered flow, so nothing
+  // held them apart and the pill landed on top of the hint text on any viewport
+  // where the guide reached that far down. Reserving from the same constants
+  // that place the shutter is what keeps the two from drifting apart again.
+  const viewfinderBottomInset =
+    mode === "cover" ? SHUTTER_BOTTOM_PX + SHUTTER_SIZE_PX + 16 : 24;
+
   return (
     <div className="absolute inset-0 z-20" style={{ backgroundColor: "#000" }}>
       <video
@@ -1345,14 +1361,32 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
       />
       {!cameraError ? (
         <>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+            style={{
+              // Clears the Barcode/Cover pill at the top the same way the
+              // bottom inset clears the shutter, so the column is centered in
+              // the space it actually owns rather than in the whole screen.
+              paddingTop: "calc(env(safe-area-inset-top, 0px) + 58px)",
+              paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${viewfinderBottomInset}px)`,
+            }}
+          >
             <div
               ref={guideRef}
               style={{
                 // Cover mode runs wider than barcode: a 12" sleeve at arm's
                 // length is the hard case, and the capture now matches this
                 // box exactly, so every pixel of it is usable.
-                width: mode === "cover" ? "92%" : "78%",
+                //
+                // The 44dvh term caps the square by viewport HEIGHT without
+                // touching its aspect ratio — capping via max-height would let
+                // width win and leave a non-square guide, which the capture
+                // crop assumes is square. Chosen so it does not bind on any
+                // current phone (the widths above still win there, so the
+                // guide is unchanged); it only engages on viewports short
+                // enough that an uncapped square pushed the hint under the
+                // shutter. dvh, not vh — see the viewport-height rule.
+                width: mode === "cover" ? "min(92%, 44dvh)" : "78%",
                 maxWidth: mode === "cover" ? "420px" : "360px",
                 aspectRatio: mode === "barcode" ? "1.9" : "1",
                 border: "2px solid rgba(255,255,255,0.9)",
@@ -1394,6 +1428,42 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
                 </p>
               </div>
             )}
+            {/* Lens toggle — only rendered when the browser actually reported an
+                ultra-wide camera. In the viewfinder column, under the hint it
+                belongs to: both are about framing, and a control in the same
+                flow as the text cannot land on top of it. Stays well clear of
+                the Barcode/Cover pill at the top — that one never restarts the
+                stream, this one does. */}
+            {ultraWideId && (
+              <div
+                className="mt-3 flex rounded-full pointer-events-auto"
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.45)",
+                  backdropFilter: "blur(6px)",
+                  padding: "3px",
+                }}
+              >
+                {([false, true] as const).map((ultra) => (
+                  <button
+                    key={String(ultra)}
+                    onClick={() => setUseUltraWide(ultra)}
+                    className="rounded-full tappable cursor-pointer"
+                    style={{
+                      padding: "5px 12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: useUltraWide === ultra ? "#16181C" : "rgba(255,255,255,0.9)",
+                      backgroundColor: useUltraWide === ultra ? "#FFFFFF" : "transparent",
+                      touchAction: "manipulation",
+                    }}
+                    aria-pressed={useUltraWide === ultra}
+                    aria-label={ultra ? "Ultra wide lens" : "Standard lens"}
+                  >
+                    {ultra ? "0.5×" : "1×"}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {/* Mode toggle — top center, clear of the close button */}
           <div
@@ -1409,41 +1479,6 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
             {modePill("barcode", "Barcode", <ScanBarcode size={16} weight={mode === "barcode" ? "bold" : "light"} />)}
             {modePill("cover", "Cover", <Camera size={16} weight={mode === "cover" ? "bold" : "light"} />)}
           </div>
-          {/* Lens toggle — only rendered when the browser actually reported an
-              ultra-wide camera. Sits apart from the mode pill: this one
-              restarts the stream, that one never does. */}
-          {ultraWideId && (
-            <div
-              className="absolute left-1/2 flex rounded-full"
-              style={{
-                bottom: "calc(env(safe-area-inset-bottom, 0px) + 172px)",
-                transform: "translateX(-50%)",
-                backgroundColor: "rgba(0,0,0,0.45)",
-                backdropFilter: "blur(6px)",
-                padding: "3px",
-              }}
-            >
-              {([false, true] as const).map((ultra) => (
-                <button
-                  key={String(ultra)}
-                  onClick={() => setUseUltraWide(ultra)}
-                  className="rounded-full tappable cursor-pointer"
-                  style={{
-                    padding: "5px 12px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: useUltraWide === ultra ? "#16181C" : "rgba(255,255,255,0.9)",
-                    backgroundColor: useUltraWide === ultra ? "#FFFFFF" : "transparent",
-                    touchAction: "manipulation",
-                  }}
-                  aria-pressed={useUltraWide === ultra}
-                  aria-label={ultra ? "Ultra wide lens" : "Standard lens"}
-                >
-                  {ultra ? "0.5×" : "1×"}
-                </button>
-              ))}
-            </div>
-          )}
           {mode === "cover" && (
             <>
               <button
@@ -1451,10 +1486,10 @@ function BarcodeScanner({ onDetect, onCoverCapture, onClose }: {
                 disabled={isIdentifying}
                 className="absolute left-1/2 rounded-full tappable cursor-pointer"
                 style={{
-                  bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)",
+                  bottom: `calc(env(safe-area-inset-bottom, 0px) + ${SHUTTER_BOTTOM_PX}px)`,
                   transform: "translateX(-50%)",
-                  width: "64px",
-                  height: "64px",
+                  width: `${SHUTTER_SIZE_PX}px`,
+                  height: `${SHUTTER_SIZE_PX}px`,
                   border: "4px solid rgba(255,255,255,0.9)",
                   backgroundColor: isIdentifying ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.85)",
                   touchAction: "manipulation",

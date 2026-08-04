@@ -2,6 +2,8 @@
  * Shared helpers for Last Played timestamps.
  */
 
+import { parseDisplayDate } from "../utils/format";
+
 /** Returns a human-friendly relative date string */
 export function formatRelativeDate(isoDate: string): string {
   const date = new Date(isoDate);
@@ -29,9 +31,12 @@ export function lastPlayedLabel(isoDate: string | undefined): string {
   return `Last played ${rel}`;
 }
 
-/** Format a date as "Jan 14, 2026" */
+/** Format a date as "Jan 14, 2026".
+ *  Takes both shapes it is called with: a play log's full ISO timestamp and a
+ *  collection row's bare "YYYY-MM-DD" — see `parseDisplayDate` for why the
+ *  latter must not go through `new Date()` directly. */
 export function formatDateShort(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString("en-US", {
+  return parseDisplayDate(isoDate).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
