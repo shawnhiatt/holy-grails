@@ -83,6 +83,25 @@ describe("filterAndSortAlbums", () => {
     expect(recorded.map((a) => a.id)).toEqual([played.id]);
   });
 
+  it("returns nothing when both play filters are set", () => {
+    // The two are complements, so together they ask for releases that both
+    // have a play and have none. The filter is right to return nothing; it is
+    // the STATE that must never get here, which is why app-context makes the
+    // two setters mutually exclusive. Pinned so that stays deliberate — an
+    // empty crate with two contradictory chips reads as lost data.
+    const played = makeAlbum();
+    const unplayed = makeAlbum();
+    const lastPlayed = { [played.id]: "2024-06-01T00:00:00Z" };
+    expect(
+      run({
+        albums: [played, unplayed],
+        lastPlayed,
+        neverPlayedFilter: true,
+        playsRecordedFilter: true,
+      })
+    ).toEqual([]);
+  });
+
   it("sorts by artist A→Z and Z→A", () => {
     const albums = [
       makeAlbum({ artist: "Wire" }),

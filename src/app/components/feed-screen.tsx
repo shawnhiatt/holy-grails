@@ -282,6 +282,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setShowAlbumDetail,
     setPurgeFilter,
     setNeverPlayedFilter,
+    setPlaysRecordedFilter,
     isDarkMode,
     isAuthenticated,
     hidePurgeIndicators,
@@ -425,6 +426,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     () => albums.filter((a) => !lastPlayed[a.id]).length,
     [albums, lastPlayed]
   );
+  // The exact complement — every release either has a play logged or doesn't,
+  // so this needs no second pass over the collection.
+  const playsRecordedCount = albums.length - neverPlayedCount;
 
   const keepCount = useMemo(() => albums.filter((a) => a.purgeTag === "keep").length, [albums]);
   const cutCount = useMemo(() => albums.filter((a) => a.purgeTag === "cut").length, [albums]);
@@ -1527,21 +1531,54 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     </div>
   );
 
-  // The suggestion block — the one tap that converts an empty card into a
-  // filled one. Shown in both states; it is the whole pitch in the empty one.
+  // The suggestion block. It means two different things in the two states, so
+  // it carries two different affordances.
+  //
+  // Empty: the one tap that converts the card, so the log action is inline and
+  // yellow. There is no history to corrupt yet and the whole point is proving
+  // the mechanic exists.
+  //
+  // Filled: a RECOMMENDATION, not a log. The app picks this release at random
+  // from the never-played pile, so a "Mark as Played" here asked you to assert
+  // you'd played a record you didn't choose — past tense on a future-tense
+  // prompt, and the easiest possible way to put a play that never happened
+  // into the log that feeds streaks, most-rotated, last-played sorts and the
+  // session rules. The whole row opens the release instead, where Mark as
+  // Played and Log Past Play live next to the play history they write to.
+  const openSuggestedPlay = () => {
+    setSelectedAlbumId(suggestedPlay!.id);
+    setShowAlbumDetail(true);
+  };
   const playSuggestion = suggestedPlay ? (
     <div
-      className="flex items-center gap-3 px-[16px] py-[12px]"
-      style={{ borderTop: "1px solid var(--c-border)" }}
+      className={`flex items-center gap-3 px-[16px] py-[12px]${hasPlays ? " tappable" : ""}`}
+      style={{
+        borderTop: "1px solid var(--c-border)",
+        ...(hasPlays ? { cursor: "pointer", touchAction: "manipulation" } : {}),
+      }}
+      {...(hasPlays
+        ? {
+            role: "button",
+            tabIndex: 0,
+            "aria-label": `${suggestedPlay.title} by ${suggestedPlay.artist} — never played`,
+            ...safeTap(openSuggestedPlay),
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openSuggestedPlay();
+              }
+            },
+          }
+        : {})}
     >
       <img
         loading="lazy"
         decoding="async"
         src={suggestedPlay.thumb || suggestedPlay.cover}
         alt={`${suggestedPlay.title} by ${suggestedPlay.artist}`}
-        className="rounded-[6px] object-cover flex-shrink-0 cursor-pointer"
-        style={{ width: 48, height: 48 }}
-        {...safeTap(() => { setSelectedAlbumId(suggestedPlay.id); setShowAlbumDetail(true); })}
+        className="rounded-[6px] object-cover flex-shrink-0"
+        style={{ width: 48, height: 48, cursor: hasPlays ? undefined : "pointer" }}
+        {...(hasPlays ? {} : safeTap(openSuggestedPlay))}
       />
       <div className="flex-1" style={{ minWidth: 0 }}>
         <p
@@ -1577,24 +1614,28 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           {suggestedPlay.artist}
         </p>
       </div>
-      <button
-        onClick={handleMarkSuggestedPlayed}
-        disabled={markingPlay}
-        className="rounded-full cursor-pointer flex-shrink-0 tappable"
-        style={{
-          padding: "7px 14px",
-          fontSize: "12px",
-          fontWeight: 600,
-          fontFamily: "'DM Sans', system-ui, sans-serif",
-          backgroundColor: hasPlays ? "var(--c-chip-bg)" : "#EBFD00",
-          color: hasPlays ? "var(--c-text)" : "#16181C",
-          border: "none",
-          opacity: markingPlay ? 0.6 : 1,
-          touchAction: "manipulation",
-        }}
-      >
-        Mark as Played
-      </button>
+      {hasPlays ? (
+        <ChevronRight size={18} className="flex-shrink-0" style={{ color: "var(--c-text-muted)" }} />
+      ) : (
+        <button
+          onClick={handleMarkSuggestedPlayed}
+          disabled={markingPlay}
+          className="rounded-full cursor-pointer flex-shrink-0 tappable"
+          style={{
+            padding: "7px 14px",
+            fontSize: "12px",
+            fontWeight: 600,
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            backgroundColor: "#EBFD00",
+            color: "#16181C",
+            border: "none",
+            opacity: markingPlay ? 0.6 : 1,
+            touchAction: "manipulation",
+          }}
+        >
+          Mark as Played
+        </button>
+      )}
     </div>
   ) : null;
 
@@ -1645,6 +1686,10 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               : listeningStatCell(String(daysSincePlay ?? 0), "Days since last play")}
           </div>
 
+          {/* The backlog leads — it's the row that asks something of you. The
+              played row follows as its complement; both land in the crate on
+              the matching filter, and the two filters are mutually exclusive
+              in context, so arriving from one clears the other. */}
           <InsightRow
             icon={<Disc3 size={16} style={{ color: "var(--c-text-muted)" }} />}
             label={`${neverPlayedCount} release${neverPlayedCount !== 1 ? "s" : ""} with no play recorded`}
@@ -1653,8 +1698,20 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               setNeverPlayedFilter(true);
               setScreen("crate");
             }}
-            showDivider={false}
+            showDivider={playsRecordedCount > 0}
           />
+          {playsRecordedCount > 0 && (
+            <InsightRow
+              icon={<Play size={16} weight="fill" style={{ color: "var(--c-text-muted)" }} />}
+              label={`${playsRecordedCount} release${playsRecordedCount !== 1 ? "s" : ""} with plays recorded`}
+              isDarkMode={isDarkMode}
+              onTap={() => {
+                setPlaysRecordedFilter(true);
+                setScreen("crate");
+              }}
+              showDivider={false}
+            />
+          )}
         </>
       ) : (
         /* Nothing logged yet — the card's job here is to earn the first tap,

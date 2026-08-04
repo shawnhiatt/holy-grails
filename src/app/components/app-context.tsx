@@ -411,10 +411,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lastPlayed, setLastPlayed] = useState<Record<string, string>>({});
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
   const [allPlayTimestamps, setAllPlayTimestamps] = useState<number[]>([]);
-  const [neverPlayedFilter, setNeverPlayedFilter] = useState(false);
+  const [neverPlayedFilter, setNeverPlayedFilterRaw] = useState(false);
   const [formatFilter, setFormatFilter] = useState<MediaType | null>(null);
-  const [playsRecordedFilter, setPlaysRecordedFilter] = useState(false);
+  const [playsRecordedFilter, setPlaysRecordedFilterRaw] = useState(false);
   const [unratedFilter, setUnratedFilter] = useState(false);
+
+  /* The two play filters are complements, so turning one on turns the other
+     off. With both set, the collection filter asks for releases that have a
+     play AND have none, which can only ever return an empty crate — and it
+     did so silently, reading as "your collection is gone" rather than as two
+     contradictory chips. Enforced here rather than at the call sites so every
+     entry point (filter drawer, the Listening card's two rows, Insights)
+     inherits it. */
+  const setNeverPlayedFilter = useCallback((v: boolean) => {
+    setNeverPlayedFilterRaw(v);
+    if (v) setPlaysRecordedFilterRaw(false);
+  }, []);
+  const setPlaysRecordedFilter = useCallback((v: boolean) => {
+    setPlaysRecordedFilterRaw(v);
+    if (v) setNeverPlayedFilterRaw(false);
+  }, []);
   const [hidePurgeIndicators, setHidePurgeIndicatorsRaw] = useState(false);
   const [shakeToRandom, setShakeToRandomRaw] = useState(false);
   const [defaultScreen, setDefaultScreenRaw] = useState<Screen>("feed");
