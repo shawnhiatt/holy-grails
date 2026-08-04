@@ -1774,7 +1774,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!followingList || followingList.length === 0) return;
 
     followingFeedSyncInFlightRef.current = true;
-    setIsSyncingFollowing(true);
+    // NB: isSyncingFollowing is raised inside the loop, at the first actual
+    // fetch — not here. Most runs sync nothing at all (every followed user is
+    // inside the 24h TTL), and raising it up front flashed the header's
+    // spinner for a run that did no work, which is indistinguishable from the
+    // app spinning at random. The flag now means "a request is in flight".
     try {
       const cachedFeed = followingFeedRef.current;
       // Sort by followed_at descending, cap at 25
@@ -1831,14 +1835,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        // Past the TTL check, so this user is genuinely being fetched.
+        //
         // Rate-limit spacing is paid BEFORE a fetch, not after one. Paying it
-        // after meant the sync — and the header's spinner with it — kept
-        // running for a second past the last real request, and longer still
-        // when the remaining users were all cache-fresh: the loop charged a
-        // full second for a fetch that never came. The chip now goes away when
-        // the work does.
+        // after meant the run — and the header's spinner with it — kept going
+        // for a second past the last real request, and longer still when the
+        // remaining users were all cache-fresh: the loop charged a full second
+        // for a fetch that never came.
         if (didFetch) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else {
+          setIsSyncingFollowing(true);
         }
         didFetch = true;
 

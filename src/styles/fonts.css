@@ -20,24 +20,12 @@
   /* Ensures transform-origin is relative to the element itself on SVG in iOS Safari */
   -webkit-transform-box: fill-box;
   transform-box: fill-box;
-  /* Promote to its own compositor layer so the rotation is driven by the
-     compositor rather than the main thread. WebKit does not reliably promote an
-     animated SVG element on its own, and a spinner is shown precisely when the
-     main thread is busy — a sync republishes the following feed once per user,
-     re-deriving the activity lists and re-rendering the feed each time. Without
-     this the spin stalls through that work and resumes after, which reads as a
-     disc turning at its own irregular pace instead of at a steady 33⅓.
-     The element animates continuously for its whole life, which is exactly what
-     will-change is for. */
-  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .disc-spinner {
     -webkit-animation: none;
     animation: none;
-    /* Nothing animates, so don't hold a compositor layer for it. */
-    will-change: auto;
   }
 }
 
