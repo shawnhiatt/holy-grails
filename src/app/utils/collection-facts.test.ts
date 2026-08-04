@@ -98,3 +98,42 @@ describe("deriveCollectionFacts", () => {
     expect(fact(deriveCollectionFacts([a]), "Most rotated")).toBeUndefined();
   });
 });
+
+describe("recent adds fact", () => {
+  /* Rehomed from the identity block's stat cells, where it was a third line
+     under each count. Med. Value has no history so could never fill its copy
+     of that line, and reserving the space to keep the baselines even left
+     visible gaps. As a ticker fact it needs no counterpart. */
+  const NOW = new Date(2026, 6, 28, 12).getTime();
+  const daysAgo = (n: number) =>
+    new Date(NOW - n * 86_400_000).toISOString().slice(0, 10);
+
+  it("counts only what was added inside the window", () => {
+    const albums = [
+      makeAlbum({ dateAdded: daysAgo(1) }),
+      makeAlbum({ dateAdded: daysAgo(10) }),
+      makeAlbum({ dateAdded: daysAgo(29) }),
+      makeAlbum({ dateAdded: daysAgo(31) }),
+      makeAlbum({ dateAdded: daysAgo(400) }),
+    ];
+    expect(fact(deriveCollectionFacts(albums, undefined, NOW), "Recent adds")?.value)
+      .toBe("3 in 30 days");
+  });
+
+  it("is omitted entirely when nothing was added recently", () => {
+    // "0 in 30 days" is a scold, and a fact that reports nothing isn't one.
+    const albums = [makeAlbum({ dateAdded: daysAgo(90) })];
+    expect(fact(deriveCollectionFacts(albums, undefined, NOW), "Recent adds"))
+      .toBeUndefined();
+  });
+
+  it("skips rows with no usable dateAdded rather than throwing", () => {
+    const albums = [
+      makeAlbum({ dateAdded: "" }),
+      makeAlbum({ dateAdded: "not a date" }),
+      makeAlbum({ dateAdded: daysAgo(2) }),
+    ];
+    expect(fact(deriveCollectionFacts(albums, undefined, NOW), "Recent adds")?.value)
+      .toBe("1 in 30 days");
+  });
+});
