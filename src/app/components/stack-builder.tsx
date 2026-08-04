@@ -62,6 +62,24 @@ export function StackBuilder({
     [albums, lastPlayed, sessionRuleDefaults]
   );
 
+  /* A well-stocked collection generates up to 14 presets, which put roughly
+     two screens of scrolling between opening this sheet and reaching "Build
+     your own". Capping the visible list fixes that without inverting the two
+     layers — presets stay the 80% case and the row builder stays secondary,
+     which is the whole reason it sits behind a disclosure on a phone.
+
+     Six is where the generated order changes character: the first presets are
+     behavioural (play history, purge verdicts, recency), and everything after
+     is catalog facets (decades, then genres and styles). Hiding the tail hides
+     the browsing, never the deciding. */
+  const PRESET_VISIBLE = 6;
+  const [showAllPresets, setShowAllPresets] = useState(false);
+  const hiddenPresetCount = Math.max(0, presets.length - PRESET_VISIBLE);
+  const visiblePresets =
+    showAllPresets || hiddenPresetCount === 0
+      ? presets
+      : presets.slice(0, PRESET_VISIBLE);
+
   const handlePick = (preset: StackPreset) => {
     if (busyId) return;
     setBusyId(preset.id);
@@ -109,7 +127,7 @@ export function StackBuilder({
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {presets.map((preset) => {
+            {visiblePresets.map((preset) => {
               // Counted through the real evaluator, not the preset's own
               // tally — if the two disagreed, the number here would be a lie
               // about what the session will hold.
@@ -144,6 +162,22 @@ export function StackBuilder({
                 </button>
               );
             })}
+
+            {/* One-way: once the tail is open there's no "show less". Collapsing
+                a list the user deliberately expanded would move the thing they
+                were reaching for out from under their thumb. */}
+            {!showAllPresets && hiddenPresetCount > 0 && (
+              <button
+                onClick={() => setShowAllPresets(true)}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 tappable"
+                style={{ touchAction: "manipulation" }}
+              >
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)" }}>
+                  Show {hiddenPresetCount} more
+                </span>
+                <ChevronDown size={14} style={{ color: "var(--c-text-muted)" }} />
+              </button>
+            )}
           </div>
         )}
 

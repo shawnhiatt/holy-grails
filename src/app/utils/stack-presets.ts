@@ -54,7 +54,18 @@ function makeRule(
 const MIN_MATCHES = 5;
 
 /**
- * Build the presets this collection can actually fill, best-populated first.
+ * Build the presets this collection can actually fill.
+ *
+ * Returned in derivation order, which is deliberate and load-bearing rather
+ * than incidental: behavioural presets first (play history, purge verdicts,
+ * recency, rating), then catalog facets (decades, then genres and styles).
+ * Ranking by match count instead would lead with whichever bucket happens to
+ * be biggest, which says nothing about what you want to listen to — and the
+ * builder relies on this order when it caps the visible list, so that the
+ * presets it hides are the browsing ones, never the deciding ones.
+ *
+ * (Decades and tags ARE internally ranked by count, since there is no
+ * meaningful order among them beyond how well stocked they are.)
  *
  * `count` takes a predicate rather than running the rule engine: these are
  * fixed, known shapes, and counting directly keeps the picker cheap to render

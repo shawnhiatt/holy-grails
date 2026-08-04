@@ -97,6 +97,37 @@ describe("buildStackPresets", () => {
     expect(presets.map((p) => p.id)).not.toContain("neglected-favorites");
   });
 
+  it("orders behavioural presets ahead of catalog facets", () => {
+    /* The builder caps its visible list and reveals the tail behind "Show N
+       more", so what lands in the tail is decided entirely by this order. It
+       must stay behavioural-first (play history, purge, recency, rating) with
+       decades and genres after, so the presets hidden from view are the
+       browsing ones and never the deciding ones. Ranking by match count would
+       break that — it leads with whichever bucket is biggest, which says
+       nothing about what you want to listen to. */
+    const now = Date.now();
+    const iso = (daysAgo: number) =>
+      new Date(now - daysAgo * 86_400_000).toISOString().slice(0, 10);
+    // Genre and decade buckets deliberately far outnumber the behavioural ones.
+    const albums = [
+      ...Array.from({ length: 40 }, () =>
+        makeAlbum({ genres: ["Jazz"], year: 1975, dateAdded: iso(900) })
+      ),
+      ...Array.from({ length: 6 }, () =>
+        makeAlbum({ genres: ["Dub"], year: 1996, rating: 5, purgeTag: "keep", dateAdded: iso(5) })
+      ),
+    ];
+    const ids = buildStackPresets(albums, {}, DEFAULTS).map((p) => p.id);
+    const firstFacet = ids.findIndex((id) => id.startsWith("decade-") || id.startsWith("tag-"));
+    expect(firstFacet).toBeGreaterThan(0);
+    // Nothing behavioural may sit after the first catalog facet.
+    expect(ids.slice(firstFacet).every((id) => id.startsWith("decade-") || id.startsWith("tag-")))
+      .toBe(true);
+    // ...and the deciding presets are inside the builder's visible window.
+    expect(ids.slice(0, 6)).toContain("never-played");
+    expect(ids.slice(0, 6)).toContain("tagged-keep");
+  });
+
   it("drops anything below the minimum to be worth tapping", () => {
     const albums = Array.from({ length: 3 }, () => makeAlbum({ genres: ["Dub"] }));
     expect(buildStackPresets(albums, {}, DEFAULTS)).toHaveLength(0);
