@@ -5,6 +5,7 @@ import { useApp } from "./app-context";
 import type { Album } from "./discogs-api";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { getContentTokens } from "./theme";
+import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 
 /* Bottom sheet safe area standard:
    - Outer container bottom: 0, paddingBottom: env(safe-area-inset-bottom, 16px)
@@ -79,12 +80,20 @@ export function AddAlbumsDrawer({ stackId, onClose }: AddAlbumsDrawerProps) {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  // Escape to discard on desktop
+  // Escape to discard on desktop. Registered on the dialog stack so only the
+  // topmost overlay responds — a bare listener would also close whatever this
+  // drawer opened over.
   useEffect(() => {
     if (!isDesktop) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") handleDiscard(); };
+    const token = pushDialog();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isTopDialog(token)) handleDiscard();
+    };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      popDialog(token);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [isDesktop, handleDiscard]);
 
   // Recently Added: 20 most recent by dateAdded
