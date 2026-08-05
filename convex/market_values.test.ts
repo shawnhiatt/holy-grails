@@ -182,4 +182,49 @@ describe("getForUser", () => {
       t.query(api.market_values.getForUser, { sessionToken: "bogus" })
     ).rejects.toThrow("Unauthorized");
   });
+
+  it("reads a large collection without one index range per release", async () => {
+    // The point-lookup version issued one indexed market_values read per owned
+    // release, so a 3,000-release collection burned 3,001 of Convex's 4,096
+    // index ranges in a single execution of a query that re-runs on every
+    // collection change. Capping databaseQueries well below the collection size
+    // fails loudly if that shape ever comes back: the batched join needs 4
+    // (session, user, collection, market_values) no matter how large the
+    // collection gets.
+    const SIZE = 300;
+    const t = convexTest({ schema, modules, transactionLimits: { databaseQueries: 8 } });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        discogs_username: "a", access_token: "x", token_secret: "y", created_at: Date.now(),
+      });
+      await ctx.db.insert("auth_sessions", {
+        session_token: "tok-a", discogs_username: "a", created_at: Date.now(),
+      });
+      for (let releaseId = 1; releaseId <= SIZE; releaseId++) {
+        await ctx.db.insert("collection", collectionRow("a", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: releaseId, fetchedAt: NOW });
+      }
+    });
+    const result = await t.query(api.market_values.getForUser, { sessionToken: "tok-a" });
+    expect(result).toHaveLength(SIZE);
+  });
+
+  it("passes through a priced-but-no-listings null value", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        discogs_username: "a", access_token: "x", token_secret: "y", created_at: Date.now(),
+      });
+      await ctx.db.insert("auth_sessions", {
+        session_token: "tok-a", discogs_username: "a", created_at: Date.now(),
+      });
+      await ctx.db.insert("collection", collectionRow("a", 1));
+      await ctx.db.insert("market_values", { releaseId: 1, value: null, fetchedAt: NOW });
+    });
+    const result = await t.query(api.market_values.getForUser, { sessionToken: "tok-a" });
+    // null = fetched, no active listings. Distinct from undefined (never
+    // fetched), which is excluded — the client's hasMarketValue guard needs
+    // both to arrive as themselves.
+    expect(result).toEqual([{ releaseId: 1, value: null, fetchedAt: NOW }]);
+  });
 });

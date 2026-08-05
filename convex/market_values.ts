@@ -98,6 +98,15 @@ export const setValue = internalMutation({
  * Public read for the Insights value sections (Session B). Values are public
  * marketplace reference data (release → lowest ask), not user data — but this
  * is still scoped to the caller's own releases and requires auth.
+ *
+ * Two table scans, joined in memory — deliberately NOT one indexed lookup per
+ * owned release. This is a reactive subscription that re-runs on every
+ * collection change, and the point-lookup version issued one index range per
+ * row: a 3,000-release collection spent 3,001 of Convex's 4,096 index ranges
+ * per execution, so a large enough collection would have stopped resolving
+ * rather than merely running slow. The join reads the same rows in 2 ranges.
+ * (Scan-vs-lookup on `market_values` trades M point reads for the whole shared
+ * table; see the scaling note in docs/market-value-drip.md for when that flips.)
  */
 export const getForUser = query({
   args: { sessionToken: v.string() },
@@ -107,15 +116,19 @@ export const getForUser = query({
       .query("collection")
       .withIndex("by_username", (q) => q.eq("discogsUsername", user.discogs_username))
       .collect();
+
+    // First row wins per releaseId, matching the `.first()` this replaced.
+    const priced = new Map<number, { value: number | null; fetchedAt: number }>();
+    for (const mv of await ctx.db.query("market_values").collect()) {
+      if (mv.value === undefined || mv.fetchedAt === undefined) continue;
+      if (priced.has(mv.releaseId)) continue;
+      priced.set(mv.releaseId, { value: mv.value, fetchedAt: mv.fetchedAt });
+    }
+
     const out: { releaseId: number; value: number | null; fetchedAt: number }[] = [];
     for (const row of owned) {
-      const mv = await ctx.db
-        .query("market_values")
-        .withIndex("by_release", (q) => q.eq("releaseId", row.releaseId))
-        .first();
-      if (mv && mv.value !== undefined && mv.fetchedAt !== undefined) {
-        out.push({ releaseId: mv.releaseId, value: mv.value, fetchedAt: mv.fetchedAt });
-      }
+      const mv = priced.get(row.releaseId);
+      if (mv) out.push({ releaseId: row.releaseId, value: mv.value, fetchedAt: mv.fetchedAt });
     }
     return out;
   },

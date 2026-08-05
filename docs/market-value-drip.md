@@ -270,9 +270,20 @@ are ceilings.
    per-chunk scheduled actions (the same pattern the old doc described), still
    round-robining tokens.
 
-3. **`getForUser` does O(collection) point lookups per call.** Fine for one
-   Insights screen render; if it becomes hot, scope differently (e.g. return the
-   whole small `market_values` table and filter client-side, or cache).
+3. **`getForUser` scans two tables per call** (collection-by-username +
+   `market_values`), joined in memory. It originally did one indexed lookup per
+   owned release, which is what this replaced: that's an index range per row in
+   a *reactive* query that re-runs on every collection change, and at ~3,000
+   releases it sat just under Convex's 4,096-index-range execution limit — a
+   large enough collection would have stopped resolving, not merely slowed
+   down. The trade is that the join now reads the whole shared `market_values`
+   table (the union of all users' releases) rather than M point reads, so the
+   ceiling moved from index ranges to documents read (32,000). That flips
+   against us only when the shared release set is much larger than one user's
+   collection — many users, little overlap. The scale-up then is to key the
+   read off `by_release` in bulk or cache the join, not to go back to per-row
+   lookups. `market_values.test.ts` caps `databaseQueries` on a 300-release
+   collection so the per-row shape can't come back unnoticed.
 
 ### Bottom line
 
