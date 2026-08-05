@@ -4,6 +4,7 @@ import { X, Plus, Check } from "./icons";
 import { useApp, type StackMembership } from "./app-context";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { getContentTokens } from "./theme";
+import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 
 /* Bottom sheet safe area standard:
    - Outer container bottom: 0, paddingBottom: env(safe-area-inset-bottom, 16px)
@@ -80,14 +81,20 @@ export function StackPickerSheet() {
     }
   }, [showNewStack]);
 
-  // Desktop: dismiss on Escape
+  // Desktop: dismiss on Escape. Registered on the dialog stack so only the
+  // topmost overlay responds — the picker commonly opens over the desktop
+  // album side panel, and a bare listener closed both on one keypress.
   useEffect(() => {
     if (!stackPickerAlbumId || !isDesktop) return;
+    const token = pushDialog();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeStackPicker();
+      if (e.key === "Escape" && isTopDialog(token)) closeStackPicker();
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      popDialog(token);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [stackPickerAlbumId, isDesktop, closeStackPicker]);
 
   // Desktop: dismiss on click outside

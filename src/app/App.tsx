@@ -121,11 +121,15 @@ function AppContent() {
   const hasDonePermissionCheckRef = useRef(false);
 
   // Desktop: Escape closes the album detail side panel — but only when no
-  // overlay (filter drawer, session picker, Look It Up) is stacked above it;
-  // those own Escape themselves.
+  // overlay is stacked above it. Overlays that own Escape register on the
+  // dialog stack, so hasOpenDialogs() covers them without naming any of them
+  // here. The one name left is Look It Up: it's a full-screen panel that
+  // doesn't handle Escape at all, so nothing pushes a token for it and the
+  // side panel behind it would otherwise close. Register it on the stack and
+  // this guard can drop to hasOpenDialogs() alone.
   useEffect(() => {
     if (!isDesktop || !showAlbumDetail) return;
-    if (showFilterDrawer || stackPickerAlbumId || showDiscogsSearch) return;
+    if (showDiscogsSearch) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (hasOpenDialogs()) return; // a sheet/lightbox above the panel owns Escape
@@ -136,7 +140,7 @@ function AppContent() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [isDesktop, showAlbumDetail, showFilterDrawer, stackPickerAlbumId, showDiscogsSearch, setShowAlbumDetail, setSelectedAlbumId, setSelectedWantItem, setSelectedFeedAlbum]);
+  }, [isDesktop, showAlbumDetail, showDiscogsSearch, setShowAlbumDetail, setSelectedAlbumId, setSelectedWantItem, setSelectedFeedAlbum]);
 
   // On boot, silently verify iOS motion permission is still valid when the
   // shake preference is enabled. iOS can revoke DeviceMotion permission after
