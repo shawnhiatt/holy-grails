@@ -21,8 +21,8 @@ folder describes how the app currently works.
 | Doc | What it is |
 |---|---|
 | `market-value-drip.md` | The one shipped feature with its own doc: the per-release market-value cron. Mechanics, currency, migration, scaling. |
-| `native-app-plan.md` | Post-1.0 SwiftUI project. Deliberately not started. |
-| `native-swift-features.md` | PWA platform walls hit and removed, logged for the native port (haptics so far). |
+| `native-app-plan.md` | Post-1.0 SwiftUI project. Deliberately not started, with a readiness gate that has to clear first. Carries a "last reconciled" date — it describes a moving codebase, so re-check the delta before acting on it. |
+| `native-swift-features.md` | PWA platform walls hit, logged for the native port: haptics (removed) and camera control (worked around). |
 
 ## `Discogs API V2 - *.md`
 
