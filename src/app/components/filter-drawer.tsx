@@ -141,7 +141,7 @@ export function FilterDrawer() {
                 : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
               }
             >
-              Play Not Recorded
+              No Plays Recorded
             </button>
             <button
               onClick={() => setPlaysRecordedFilter(!playsRecordedFilter)}

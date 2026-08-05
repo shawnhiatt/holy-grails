@@ -1461,7 +1461,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   // Replaced the Insights card, whose four pieces all had better homes: value
   // and growth moved to the identity block, unrated was already a Purge
   // Tracker chip, and the fact line duplicated the ticker above. What was left
-  // — "no play recorded" — is the seed of this card.
+  // — "no plays recorded" — is the seed of this card.
   //
   // Everything below reads the play log the app already keeps. No new
   // tracking, and no new queries: lastPlayed / playCounts / allPlayTimestamps
@@ -1687,7 +1687,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               in context, so arriving from one clears the other. */}
           <InsightRow
             icon={<Disc3 size={16} style={{ color: "var(--c-text-muted)" }} />}
-            label={`${neverPlayedCount} release${neverPlayedCount !== 1 ? "s" : ""} with no play recorded`}
+            label={`${neverPlayedCount} release${neverPlayedCount !== 1 ? "s" : ""} with no plays recorded`}
             isDarkMode={isDarkMode}
             onTap={() => {
               setNeverPlayedFilter(true);

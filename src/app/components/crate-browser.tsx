@@ -256,7 +256,7 @@ export function CrateBrowser() {
           <div className="flex items-center gap-[8px] shrink-0">
             {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
             {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
-            {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
+            {neverPlayedFilter && <FilterChip label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
             {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
             {unratedFilter && <FilterChip label="Unrated" onClear={() => setUnratedFilter(false)} />}
             {formatFilter && <FilterChip label={formatFilter} onClear={() => setFormatFilter(null)} />}
@@ -315,7 +315,7 @@ export function CrateBrowser() {
           <div className="flex items-center gap-2 mt-[8px] overflow-x-auto no-scrollbar">
             {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
             {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
-            {neverPlayedFilter && <FilterChip label="Play Not Recorded" onClear={() => setNeverPlayedFilter(false)} />}
+            {neverPlayedFilter && <FilterChip label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
             {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
             {formatFilter && <FilterChip label={formatFilter} onClear={() => setFormatFilter(null)} />}
           </div>
