@@ -578,6 +578,13 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     fontWeight: 700,
     color: "var(--c-text)",
     maxWidth: "100%",
+    /* Explicit, and load-bearing once the title wraps: these rows are <button>
+       elements, and theme.css gives button a body line-height of 1.5 — 22.5px
+       of leading at this size, which pulled the two lines of a title apart far
+       enough that they stopped reading as one phrase. 1.3 sits just off the
+       1.2 the app's own headings use, with enough room that two lines of
+       ascenders and descenders don't crowd. */
+    lineHeight: 1.3,
   };
   /* Three levels come from size and weight, not from reaching for
      --c-text-faint: it measures under 4.5:1 in light mode (see the deferred
