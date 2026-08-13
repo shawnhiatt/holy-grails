@@ -1,12 +1,16 @@
 import { useMemo } from "react";
 import { useApp, type SortOption } from "./app-context";
-import { hasRating, mediaType, type MediaType } from "./discogs-api";
+import { hasRating } from "./discogs-api";
 import { SlideOutPanel } from "./slide-out-panel";
-
-// Display order for the Format section chips — common media first.
-const MEDIA_TYPE_ORDER: MediaType[] = [
-  "Vinyl", "CD", "Cassette", "Shellac", "Tape", "DVD", "Blu-ray", "Digital", "Box Set", "Other",
-];
+import {
+  FilterApplyButton,
+  FilterChipButton,
+  FilterResetButton,
+  FilterSection,
+  FilterSectionLabel,
+  FilterSortList,
+  presentMediaTypes,
+} from "./filter-controls";
 
 /* Bottom sheet safe area standard:
    - Outer container bottom: 0, paddingBottom: env(safe-area-inset-bottom, 16px)
@@ -25,26 +29,24 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "rating-high", label: "Rating: Highest First" },
 ];
 
-export function FilterDrawer() {
-  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, unratedFilter, setUnratedFilter, albums, formatFilter, setFormatFilter } = useApp();
+/** The count is passed in rather than derived here: the collection screen owns
+ *  `searchQuery` (deliberately kept out of app context), and a count that
+ *  ignored an active search would disagree with the grid behind the sheet. */
+export function FilterDrawer({ matchCount }: { matchCount: number }) {
+  const { setShowFilterDrawer, activeFolders, setActiveFolders, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, unratedFilter, setUnratedFilter, albums, formatFilter, setFormatFilter } = useApp();
 
   // The rating chips only make sense once something is rated — before the
   // free-data backfill reaches this user, every record reads unrated and an
   // "Unrated" filter that matches the whole collection is just noise.
   const hasAnyRatings = useMemo(() => albums.some((a) => hasRating(a.rating)), [albums]);
 
-  // Media types actually present in the collection, in display order. The
-  // Format section hides entirely for a single-type (all-vinyl) collection.
-  const formatTypes = useMemo(() => {
-    const present = new Set<MediaType>();
-    for (const a of albums) present.add(mediaType(a.format));
-    return MEDIA_TYPE_ORDER.filter((t) => present.has(t));
-  }, [albums]);
+  // The Format section hides entirely for a single-type (all-vinyl) collection.
+  const formatTypes = useMemo(() => presentMediaTypes(albums), [albums]);
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
+  const hasActiveFilters = activeFolders.length > 0 || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
 
   const handleReset = () => {
-    setActiveFolder("All");
+    setActiveFolders([]);
     setSortOption("artist-az");
     setNeverPlayedFilter(false);
     setPlaysRecordedFilter(false);
@@ -52,140 +54,93 @@ export function FilterDrawer() {
     setFormatFilter(null);
   };
 
+  const toggleFolder = (name: string) => {
+    setActiveFolders(
+      activeFolders.includes(name)
+        ? activeFolders.filter((f) => f !== name)
+        : [...activeFolders, name]
+    );
+  };
+
+  /* "No Plays Recorded" and "Plays Recorded" partition the collection, so
+     holding both on can only ever return nothing. Selecting one clears the
+     other rather than letting the user build an empty result by hand. */
+  const toggleNeverPlayed = () => {
+    const next = !neverPlayedFilter;
+    setNeverPlayedFilter(next);
+    if (next) setPlaysRecordedFilter(false);
+  };
+  const togglePlaysRecorded = () => {
+    const next = !playsRecordedFilter;
+    setPlaysRecordedFilter(next);
+    if (next) setNeverPlayedFilter(false);
+  };
+
   return (
     <SlideOutPanel
       onClose={() => setShowFilterDrawer(false)}
       title="Filter Collection"
       headerAction={
-        hasActiveFilters ? (
-          <button
-            onClick={handleReset}
-            className="transition-colors"
-            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-link)" }}
-          >
-            Reset
-          </button>
-        ) : null
+        hasActiveFilters ? <FilterResetButton onClick={handleReset} /> : null
       }
-      footer={
-        <button
-          onClick={() => setShowFilterDrawer(false)}
-          className="w-full py-2.5 rounded-full transition-colors"
-          style={{
-            fontSize: "14px",
-            fontWeight: 600,
-            backgroundColor: "#EBFD00",
-            color: "#16181C",
-            border: "1px solid rgba(22,24,28,0.25)",
-          }}
-        >
-          Apply Filters
-        </button>
-      }
+      footer={<FilterApplyButton onClick={() => setShowFilterDrawer(false)} matchCount={matchCount} />}
       backdropZIndex={60}
       sheetZIndex={70}
       className="lg:bottom-auto lg:top-[72px] lg:left-1/2 lg:-translate-x-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100dvh-100px)]"
     >
       <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
-        <div className="mb-6">
-          <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Folders</p>
-          <div className="flex flex-wrap gap-2">
-            {folders.map((folder) => (
-              <button
-                key={folder.id}
-                onClick={() => setActiveFolder(folder.name)}
-                className="px-3 py-1.5 rounded-full transition-all"
-                style={activeFolder !== folder.name
-                  ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                  : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                }
-              >
-                {folder.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        <FilterSection title="Folders">
+          {/* "All" is the absence of a selection, not a folder of its own —
+              it clears rather than toggles. */}
+          <FilterChipButton
+            label="All"
+            active={activeFolders.length === 0}
+            onClick={() => setActiveFolders([])}
+            isDarkMode={isDarkMode}
+          />
+          {folders.filter((f) => f.name !== "All").map((folder) => (
+            <FilterChipButton
+              key={folder.id}
+              label={folder.name}
+              active={activeFolders.includes(folder.name)}
+              onClick={() => toggleFolder(folder.name)}
+              isDarkMode={isDarkMode}
+            />
+          ))}
+        </FilterSection>
 
         {/* Format — hidden for single-type (all-vinyl) collections */}
         {formatTypes.length > 1 && (
-          <div className="mb-6">
-            <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Format</p>
-            <div className="flex flex-wrap gap-2">
-              {formatTypes.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setFormatFilter(formatFilter === t ? null : t)}
-                  aria-pressed={formatFilter === t}
-                  className="px-3 py-1.5 rounded-full transition-all"
-                  style={formatFilter !== t
-                    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                  }
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+          <FilterSection title="Format">
+            {formatTypes.map((t) => (
+              <FilterChipButton
+                key={t}
+                label={t}
+                active={formatFilter === t}
+                onClick={() => setFormatFilter(formatFilter === t ? null : t)}
+                isDarkMode={isDarkMode}
+              />
+            ))}
+          </FilterSection>
         )}
 
         {/* Quick Filters */}
-        <div className="mb-6">
-          <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Quick Filters</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setNeverPlayedFilter(!neverPlayedFilter)}
-              className="px-3 py-1.5 rounded-full transition-all"
-              style={!neverPlayedFilter
-                ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-              }
-            >
-              No Plays Recorded
-            </button>
-            <button
-              onClick={() => setPlaysRecordedFilter(!playsRecordedFilter)}
-              className="px-3 py-1.5 rounded-full transition-all"
-              style={!playsRecordedFilter
-                ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-              }
-            >
-              Plays Recorded
-            </button>
-            {hasAnyRatings && (
-              <button
-                onClick={() => setUnratedFilter(!unratedFilter)}
-                aria-pressed={unratedFilter}
-                className="px-3 py-1.5 rounded-full transition-all"
-                style={!unratedFilter
-                  ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                  : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                }
-              >
-                Unrated
-              </button>
-            )}
-          </div>
-        </div>
+        <FilterSection title="Quick Filters">
+          <FilterChipButton label="No Plays Recorded" active={neverPlayedFilter} onClick={toggleNeverPlayed} isDarkMode={isDarkMode} />
+          <FilterChipButton label="Plays Recorded" active={playsRecordedFilter} onClick={togglePlaysRecorded} isDarkMode={isDarkMode} />
+          {hasAnyRatings && (
+            <FilterChipButton label="Unrated" active={unratedFilter} onClick={() => setUnratedFilter(!unratedFilter)} isDarkMode={isDarkMode} />
+          )}
+        </FilterSection>
 
         <div>
-          <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Sort By</p>
-          <div className="flex flex-col gap-0.5">
-            {SORT_OPTIONS.filter((opt) => opt.value !== "rating-high" || hasAnyRatings).map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setSortOption(opt.value)}
-                className="px-3 py-2.5 rounded-[8px] text-left transition-colors"
-                style={sortOption !== opt.value
-                  ? { fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }
-                  : { fontSize: "14px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                }
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <FilterSectionLabel>Sort By</FilterSectionLabel>
+          <FilterSortList
+            options={SORT_OPTIONS.filter((opt) => opt.value !== "rating-high" || hasAnyRatings)}
+            value={sortOption}
+            onChange={setSortOption}
+            isDarkMode={isDarkMode}
+          />
         </div>
       </div>
     </SlideOutPanel>

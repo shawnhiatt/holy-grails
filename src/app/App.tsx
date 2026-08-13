@@ -10,7 +10,6 @@ import { Stacks } from "./components/stacks";
 import { Wantlist } from "./components/wantlist";
 import { SettingsScreen } from "./components/settings-screen";
 import { FollowingScreen } from "./components/following-screen";
-import { FilterDrawer } from "./components/filter-drawer";
 import { getContentTokens } from "./components/theme";
 import { useShake } from "./components/use-shake";
 import { FeedScreen } from "./components/feed-screen";
@@ -89,7 +88,7 @@ class ErrorBoundary extends Component<
 
 function AppContent() {
   const {
-    screen, showAlbumDetail, selectedAlbum, selectedWantItem, selectedFeedAlbum, showFilterDrawer,
+    screen, showAlbumDetail, selectedAlbum, selectedWantItem, selectedFeedAlbum,
     showDiscogsSearch, setShowDiscogsSearch,
     isDarkMode, albums, setSelectedAlbumId, setShowAlbumDetail, cachedSyncStats,
     setSelectedWantItem, setSelectedFeedAlbum,
@@ -578,10 +577,6 @@ function AppContent() {
             <AlbumDetailSheet shakeEntrance={shakeEntrance} />
           </Suspense>
         )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showFilterDrawer && <FilterDrawer />}
       </AnimatePresence>
 
       <AnimatePresence>

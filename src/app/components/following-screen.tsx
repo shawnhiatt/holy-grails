@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
   UserPlus, Search, Lock,
-  Disc3, Users, Grid2x2, Grid3x3, List, SlidersHorizontal,
+  Disc3, Users, Grid2x2, Grid3x3, List,
   GalleryVerticalEnd, RotateCcw,
 } from "./icons";
 import { WantlistAddIcon } from "./wantlist-add-icon";
@@ -17,6 +17,16 @@ import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { FormatBadge } from "./format-badge";
 import { SlideOutPanel } from "./slide-out-panel";
+import {
+  FilterApplyButton,
+  FilterButton,
+  FilterChipButton,
+  FilterResetButton,
+  FilterSection,
+  FilterSectionLabel,
+  FilterSortList,
+  presentMediaTypes,
+} from "./filter-controls";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { formatRelativeDate } from "./last-played-utils";
 import { purgeTagColor } from "./purge-colors";
@@ -40,11 +50,6 @@ const FOLLOWED_SORT_OPTIONS: { value: FollowedSortOption; label: string }[] = [
   { value: "title-az", label: "Title A→Z" },
   { value: "year-new", label: "Year: Newest First" },
   { value: "year-old", label: "Year: Oldest First" },
-];
-
-// Display order for the Format section chips — common media first (mirrors filter-drawer).
-const MEDIA_TYPE_ORDER: MediaType[] = [
-  "Vinyl", "CD", "Cassette", "Shellac", "Tape", "DVD", "Blu-ray", "Digital", "Box Set", "Other",
 ];
 
 function sortFollowedItems<T extends { artist: string; title: string; year: number | null | undefined }>(
@@ -440,7 +445,7 @@ function FollowedUserProfile({
   const [showFilters, setShowFilters] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser, sessionToken, refreshFollowedUser } = useApp();
+  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, setOnUnfollowUser, sessionToken, refreshFollowedUser } = useApp();
 
   const isHgUser = hgUserSet.has(user.username);
   const activitySummary = useQuery(
@@ -508,17 +513,18 @@ function FollowedUserProfile({
     return () => setOnUnfollowUser(null);
   }, [setOnUnfollowUser]);
 
+  /* Opens the pressing THEY own, not yours. Tapping a row in someone else's
+     collection used to silently substitute your own copy whenever you shared
+     the record — and because the match falls back to master_id, "shared"
+     included owning a different pressing entirely, so their 1969 original
+     could open your 2007 reissue with different year, label and catalog
+     number than the row you tapped. ReleaseDetailPanel already renders a
+     "View Your Copy" button when you own it, so your copy is one deliberate
+     tap away instead of being swapped in unannounced. */
   const handleOpenAlbum = useCallback((item: Album | WantItem) => {
-    const rid = Number(item.release_id);
-    const mid = 'master_id' in item ? item.master_id : undefined;
-    if (isInCollection(rid, mid)) {
-      const match = albums.find((a) => Number(a.release_id) === rid) ||
-        (mid && mid > 0 ? albums.find((a) => a.master_id === mid) : undefined);
-      if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-    }
     setSelectedFeedAlbum(toFeedAlbum(item));
     setShowAlbumDetail(true);
-  }, [setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId]);
+  }, [setSelectedFeedAlbum, setShowAlbumDetail]);
 
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
   const userCutReleaseIds = useMemo(() => new Set(userAlbums.filter((a) => a.purgeTag === "cut").map((a) => a.release_id)), [userAlbums]);
@@ -531,12 +537,10 @@ function FollowedUserProfile({
 
   // Media types present in the active tab's data, in display order. The Format
   // section hides entirely when only one type is present.
-  const formatTypes = useMemo(() => {
-    const src: { format?: string }[] = tab === "wants" ? user.wants : user.collection;
-    const present = new Set<MediaType>();
-    for (const it of src) present.add(mediaType(it.format || ""));
-    return MEDIA_TYPE_ORDER.filter((t) => present.has(t));
-  }, [tab, user.wants, user.collection]);
+  const formatTypes = useMemo(
+    () => presentMediaTypes(tab === "wants" ? user.wants : user.collection),
+    [tab, user.wants, user.collection]
+  );
 
   const hasActiveFilters = filter !== "all" || !!formatFilter || sortOption !== "artist-az";
 
@@ -771,17 +775,7 @@ function FollowedUserProfile({
             {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
           </div>
           <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} />
-          <button
-            onClick={() => setShowFilters(true)}
-            aria-label="Filter"
-            className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
-            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-          >
-            <SlidersHorizontal size={18} />
-            {hasActiveFilters && (
-              <span className="absolute rounded-full" style={{ top: 6, right: 6, width: 6, height: 6, backgroundColor: "var(--c-link)" }} />
-            )}
-          </button>
+          <FilterButton onClick={() => setShowFilters(true)} active={hasActiveFilters} />
         </div>
 
         {/* Mobile: search + view toggle row, then filter chips row */}
@@ -798,17 +792,7 @@ function FollowedUserProfile({
               {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
             </div>
             <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} compact />
-            <button
-              onClick={() => setShowFilters(true)}
-              aria-label="Filter"
-              className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
-              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-            >
-              <SlidersHorizontal size={18} />
-              {hasActiveFilters && (
-                <span className="absolute rounded-full" style={{ top: 5, right: 5, width: 6, height: 6, backgroundColor: "var(--c-link)" }} />
-              )}
-            </button>
+            <FilterButton onClick={() => setShowFilters(true)} active={hasActiveFilters} compact />
           </div>
         </div>
       </div>
@@ -1035,6 +1019,7 @@ function FollowedUserProfile({
           setSortOption={setSortOption}
           hasActiveFilters={hasActiveFilters}
           isDarkMode={isDarkMode}
+          matchCount={displayItems.length}
           onClose={() => setShowFilters(false)}
         />
       )}
@@ -1045,7 +1030,7 @@ function FollowedUserProfile({
 function FollowedFilterDrawer({
   tab, filter, setFilter, filterChips,
   formatFilter, setFormatFilter, formatTypes,
-  sortOption, setSortOption, hasActiveFilters, isDarkMode, onClose,
+  sortOption, setSortOption, hasActiveFilters, isDarkMode, matchCount, onClose,
 }: {
   tab: FollowingTab;
   filter: FollowingFilter;
@@ -1058,13 +1043,11 @@ function FollowedFilterDrawer({
   setSortOption: (s: FollowedSortOption) => void;
   hasActiveFilters: boolean;
   isDarkMode: boolean;
+  /** Passed in rather than recomputed: the profile owns `searchQuery`, and a
+   *  count that ignored it would disagree with the list behind the sheet. */
+  matchCount: number;
   onClose: () => void;
 }) {
-  const chipStyle = (active: boolean): React.CSSProperties => active
-    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" };
-  const sectionLabel: React.CSSProperties = { fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" };
-
   return (
     <SlideOutPanel
       onClose={onClose}
@@ -1072,24 +1055,10 @@ function FollowedFilterDrawer({
       ariaLabel="Filter collection"
       headerAction={
         hasActiveFilters ? (
-          <button
-            onClick={() => { setFilter("all"); setFormatFilter(null); setSortOption("artist-az"); }}
-            className="transition-colors"
-            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-link)" }}
-          >
-            Reset
-          </button>
+          <FilterResetButton onClick={() => { setFilter("all"); setFormatFilter(null); setSortOption("artist-az"); }} />
         ) : null
       }
-      footer={
-        <button
-          onClick={onClose}
-          className="w-full py-2.5 rounded-full transition-colors"
-          style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "#EBFD00", color: "#16181C", border: "1px solid rgba(22,24,28,0.25)" }}
-        >
-          Apply Filters
-        </button>
-      }
+      footer={<FilterApplyButton onClick={onClose} matchCount={matchCount} />}
       backdropZIndex={60}
       sheetZIndex={70}
       className="lg:bottom-auto lg:top-[72px] lg:left-1/2 lg:-translate-x-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100dvh-100px)]"
@@ -1097,73 +1066,44 @@ function FollowedFilterDrawer({
       <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
         {/* Relationship — collection tab only */}
         {tab === "collection" && (
-          <div className="mb-6">
-            <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Relationship</p>
-            <div className="flex flex-wrap gap-2">
-              {filterChips.map((chip) => (
-                <button
-                  key={chip.id}
-                  onClick={() => setFilter(chip.id)}
-                  aria-pressed={filter === chip.id}
-                  className="px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5"
-                  style={chipStyle(filter === chip.id)}
-                >
-                  {chip.label}
-                  <span
-                    className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1"
-                    style={{
-                      fontSize: "11px", fontWeight: 600,
-                      backgroundColor: filter === chip.id ? (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(0,82,122,0.12)") : "var(--c-border)",
-                      color: filter === chip.id ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)",
-                    }}
-                  >
-                    {chip.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <FilterSection title="Relationship">
+            {filterChips.map((chip) => (
+              <FilterChipButton
+                key={chip.id}
+                label={chip.label}
+                count={chip.count}
+                active={filter === chip.id}
+                onClick={() => setFilter(chip.id)}
+                isDarkMode={isDarkMode}
+              />
+            ))}
+          </FilterSection>
         )}
 
         {/* Format — hidden when only one media type is present */}
         {formatTypes.length > 1 && (
-          <div className="mb-6">
-            <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Format</p>
-            <div className="flex flex-wrap gap-2">
-              {formatTypes.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setFormatFilter(formatFilter === t ? null : t)}
-                  aria-pressed={formatFilter === t}
-                  className="px-3 py-1.5 rounded-full transition-all"
-                  style={chipStyle(formatFilter === t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+          <FilterSection title="Format">
+            {formatTypes.map((t) => (
+              <FilterChipButton
+                key={t}
+                label={t}
+                active={formatFilter === t}
+                onClick={() => setFormatFilter(formatFilter === t ? null : t)}
+                isDarkMode={isDarkMode}
+              />
+            ))}
+          </FilterSection>
         )}
 
         {/* Sort By */}
         <div>
-          <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Sort By</p>
-          <div className="flex flex-col gap-0.5">
-            {FOLLOWED_SORT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setSortOption(opt.value)}
-                aria-pressed={sortOption === opt.value}
-                className="px-3 py-2.5 rounded-[8px] text-left transition-colors"
-                style={sortOption !== opt.value
-                  ? { fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }
-                  : { fontSize: "14px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                }
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <FilterSectionLabel>Sort By</FilterSectionLabel>
+          <FilterSortList
+            options={FOLLOWED_SORT_OPTIONS}
+            value={sortOption}
+            onChange={setSortOption}
+            isDarkMode={isDarkMode}
+          />
         </div>
       </div>
     </SlideOutPanel>
@@ -1416,7 +1356,7 @@ function PopulatedFollowingView({
   isSyncingFollowing: boolean;
   hgUserSet: Set<string>;
 }) {
-  const { setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, followingActivityTabIntent, setFollowingActivityTabIntent } = useApp();
+  const { setSelectedFeedAlbum, setShowAlbumDetail, followingActivityTabIntent, setFollowingActivityTabIntent } = useApp();
 
   // Sort followedUsers by most recent activity in followingFeed (avatar row only)
   const sortedFollowedUsers = useMemo(() => {
@@ -1670,13 +1610,7 @@ function PopulatedFollowingView({
                   <ShuffleAlbumCard
                     album={album}
                     onTap={() => {
-                      const rid = Number(album.release_id);
-                      const mid = album.master_id;
-                      if (isInCollection(rid, mid)) {
-                        const match = albums.find((a) => Number(a.release_id) === rid) ||
-                          (mid && mid > 0 ? albums.find((a) => a.master_id === mid) : undefined);
-                        if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-                      }
+                      // Their pressing, not yours — see handleOpenAlbum.
                       setSelectedFeedAlbum(toFeedAlbum(album));
                       setShowAlbumDetail(true);
                     }}
@@ -1808,12 +1742,7 @@ function PopulatedFollowingView({
                 isDarkMode={isDarkMode}
                 paddingClassName="px-[16px] lg:px-[24px]"
                 onOpenAlbum={() => {
-                  if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
-                    const rid = Number(item.albumReleaseId);
-                    const match = albums.find((a) => Number(a.release_id) === rid) ||
-                      (item.albumMasterId && item.albumMasterId > 0 ? albums.find((a) => a.master_id === item.albumMasterId) : undefined);
-                    if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-                  }
+                  // The release their activity is about — see handleOpenAlbum.
                   setSelectedFeedAlbum({
                     release_id: item.albumReleaseId,
                     master_id: item.albumMasterId,

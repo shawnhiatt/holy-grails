@@ -5,7 +5,7 @@ import { makeAlbum } from "../../test/factories";
 function run(overrides: Partial<FilterAlbumsOptions>) {
   return filterAndSortAlbums({
     albums: [],
-    activeFolder: "All",
+    activeFolders: [],
     searchQuery: "",
     neverPlayedFilter: false,
     playsRecordedFilter: false,
@@ -26,14 +26,32 @@ describe("filterAndSortAlbums", () => {
     expect(albums).toEqual(before);
   });
 
-  it("filters by folder, passing everything through for 'All'", () => {
+  it("filters by folder, passing everything through when none are selected", () => {
     const albums = [
       makeAlbum({ folder: "Jazz" }),
       makeAlbum({ folder: "Rock" }),
       makeAlbum({ folder: "Jazz" }),
     ];
-    expect(run({ albums, activeFolder: "Jazz" })).toHaveLength(2);
-    expect(run({ albums, activeFolder: "All" })).toHaveLength(3);
+    expect(run({ albums, activeFolders: ["Jazz"] })).toHaveLength(2);
+    expect(run({ albums, activeFolders: [] })).toHaveLength(3);
+  });
+
+  // A release lives in exactly one folder, so folders OR together — AND would
+  // always match nothing, which is the trap this test exists to pin down.
+  it("ORs multiple folders together", () => {
+    const albums = [
+      makeAlbum({ folder: "Jazz" }),
+      makeAlbum({ folder: "Rock" }),
+      makeAlbum({ folder: "Folk" }),
+    ];
+    expect(run({ albums, activeFolders: ["Jazz", "Folk"] })).toHaveLength(2);
+    expect(run({ albums, activeFolders: ["Jazz", "Rock", "Folk"] })).toHaveLength(3);
+  });
+
+  it("ignores a selected folder no album lives in", () => {
+    const albums = [makeAlbum({ folder: "Jazz" })];
+    expect(run({ albums, activeFolders: ["Jazz", "Deleted"] })).toHaveLength(1);
+    expect(run({ albums, activeFolders: ["Deleted"] })).toHaveLength(0);
   });
 
   it("searches artist, title, and label case-insensitively", () => {
@@ -209,7 +227,7 @@ describe("filterAndSortAlbums", () => {
       makeAlbum({ folder: "Jazz", artist: "Miles Davis", format: "CD" }),
       makeAlbum({ folder: "Rock", artist: "Miles Davis", format: "CD" }),
     ];
-    const result = run({ albums, activeFolder: "Jazz", formatFilter: "CD", searchQuery: "miles" });
+    const result = run({ albums, activeFolders: ["Jazz"], formatFilter: "CD", searchQuery: "miles" });
     expect(result).toHaveLength(1);
     expect(result[0].folder).toBe("Jazz");
   });
@@ -220,7 +238,7 @@ describe("filterAndSortAlbums", () => {
       makeAlbum({ folder: "Jazz", artist: "Sun Ra" }),
       makeAlbum({ folder: "Rock", artist: "Alice Cooper" }),
     ];
-    const result = run({ albums, activeFolder: "Jazz", searchQuery: "alice" });
+    const result = run({ albums, activeFolders: ["Jazz"], searchQuery: "alice" });
     expect(result.map((a) => a.artist)).toEqual(["Alice Coltrane"]);
   });
 });
@@ -273,7 +291,7 @@ describe("rating filter and sort", () => {
       makeAlbum({ artist: "B", folder: "Jazz", rating: 5 }),
       makeAlbum({ artist: "C", folder: "Rock" }),
     ];
-    const out = run({ albums, unratedFilter: true, activeFolder: "Jazz" });
+    const out = run({ albums, unratedFilter: true, activeFolders: ["Jazz"] });
     expect(out.map((a) => a.artist)).toEqual(["A"]);
   });
 });
