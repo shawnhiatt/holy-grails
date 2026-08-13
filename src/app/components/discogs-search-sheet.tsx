@@ -13,7 +13,16 @@ import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import type { FeedAlbum } from "./discogs-api";
 import { mediaType } from "./discogs-api";
 import { SlideOutPanel } from "./slide-out-panel";
-import { FilterApplyButton, FilterChipButton, FilterResetButton, FilterSection } from "./filter-controls";
+import { ActiveFilterChip, FilterApplyButton, FilterChipButton, FilterResetButton, FilterSection, MEDIA_TYPE_ORDER } from "./filter-controls";
+
+/* Discogs' top-level genre vocabulary. /database/search takes `genre` as a
+   native param but returns no facet list for it (unlike /masters/{id}/versions),
+   so the options are the fixed set rather than something discovered per query. */
+const SEARCH_GENRES = [
+  "Rock", "Electronic", "Jazz", "Funk / Soul", "Folk, World, & Country",
+  "Pop", "Hip Hop", "Classical", "Blues", "Reggae", "Latin",
+  "Stage & Screen", "Non-Music", "Children's", "Brass & Military",
+];
 
 /* DiscogsSearchSheet — "Look It Up"
    Standalone Discogs database search as a FULL-SCREEN panel (Discogs-app
@@ -175,6 +184,15 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   // without requiring the user to edit the query
   const [retryNonce, setRetryNonce] = useState(0);
 
+  /* Search filters. Sent to Discogs as native query params rather than applied
+     to the results in hand: the list is 25 rows of a set that runs to hundreds,
+     so a client-side filter would narrow the page and quietly leave the rest of
+     the matches unreachable behind Load more. */
+  const [searchFormat, setSearchFormat] = useState<string | null>(null);
+  const [searchGenre, setSearchGenre] = useState<string | null>(null);
+  const [showSearchFilters, setShowSearchFilters] = useState(false);
+  const searchFilterCount = (searchFormat ? 1 : 0) + (searchGenre ? 1 : 0);
+
   // Pressing picker state
   const [pickerMaster, setPickerMaster] = useState<SearchResult | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
@@ -243,7 +261,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       setIsSearching(false);
       return;
     }
-    const cacheKey = trimmed.toLowerCase();
+    const cacheKey = `${trimmed.toLowerCase()}|${searchFormat ?? ""}|${searchGenre ?? ""}`;
     const cached = searchCache.get(cacheKey);
     if (cached) {
       setResults(cached.results);
@@ -272,7 +290,14 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         let resolved: ResolvedSearch | null = null;
         for (const step of steps) {
           const data = (await withRetry(() =>
-            searchAction({ sessionToken, query: step.q, searchType: step.type, page: 1 })
+            searchAction({
+              sessionToken,
+              query: step.q,
+              searchType: step.type,
+              page: 1,
+              format: searchFormat ?? undefined,
+              genre: searchGenre ?? undefined,
+            })
           )) as SearchPage;
           if (requestId !== requestIdRef.current) return;
           if (data.results.length > 0 || step === steps[steps.length - 1]) {
@@ -296,12 +321,19 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [query, sessionToken, searchAction, retryNonce]);
+  }, [query, sessionToken, searchAction, retryNonce, searchFormat, searchGenre]);
 
   const loadMore = useCallback(() => {
     if (!sessionToken || !effSearch || isLoadingMore || page >= totalPages) return;
     setIsLoadingMore(true);
-    searchAction({ sessionToken, query: effSearch.query, searchType: effSearch.type, page: page + 1 })
+    searchAction({
+      sessionToken,
+      query: effSearch.query,
+      searchType: effSearch.type,
+      page: page + 1,
+      format: searchFormat ?? undefined,
+      genre: searchGenre ?? undefined,
+    })
       .then((data) => {
         const pageData = data as SearchPage;
         setResults((prev) => [...prev, ...pageData.results]);
@@ -310,7 +342,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       })
       .catch(() => {})
       .finally(() => setIsLoadingMore(false));
-  }, [sessionToken, effSearch, page, totalPages, isLoadingMore, searchAction]);
+  }, [sessionToken, effSearch, page, totalPages, isLoadingMore, searchAction, searchFormat, searchGenre]);
 
   // Pressing picker fetch
   const fetchVersions = useCallback((
@@ -862,6 +894,37 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
+      {/* Search filter row — under the input rather than in it: the input row
+          already carries back, clear and scan, and this needs room to sit
+          beside the active-filter summary. Hidden until there is something to
+          filter. */}
+      {!pickerMaster && hasSearched && (
+        <div className="w-full max-w-[640px] mx-auto px-4 pb-2 flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowSearchFilters(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full tappable cursor-pointer flex-shrink-0"
+            style={{
+              fontSize: "13px",
+              fontWeight: 500,
+              touchAction: "manipulation",
+              backgroundColor: searchFilterCount
+                ? (isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)")
+                : "var(--c-chip-bg)",
+              color: searchFilterCount
+                ? (isDarkMode ? "#ACDEF2" : "#00527A")
+                : "var(--c-text-secondary)",
+            }}
+            aria-label="Filter search results"
+          >
+            <SlidersHorizontal size={14} />
+            Filter
+            {searchFilterCount > 0 && ` \u00b7 ${searchFilterCount}`}
+          </button>
+          {searchFormat && <ActiveFilterChip label={searchFormat} onClear={() => setSearchFormat(null)} isDarkMode={isDarkMode} />}
+          {searchGenre && <ActiveFilterChip label={searchGenre} onClear={() => setSearchGenre(null)} isDarkMode={isDarkMode} />}
+        </div>
+      )}
+
       {/* ── Scrollable results / picker body ── */}
       <div
         className="flex-1 overflow-y-auto overlay-scroll"
@@ -1052,6 +1115,16 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         />
       )}
 
+      {showSearchFilters && !pickerMaster && (
+        <SearchFilterDrawer
+          isDarkMode={isDarkMode}
+          format={searchFormat}
+          genre={searchGenre}
+          onApply={(f, g) => { setSearchFormat(f); setSearchGenre(g); }}
+          onClose={() => setShowSearchFilters(false)}
+        />
+      )}
+
       {showScanner && (
         <BarcodeScanner
           onDetect={handleScanDetect}
@@ -1069,6 +1142,76 @@ type FilterOpt = { value: string; label: string };
 // (SlideOutPanel, Reset + Apply Filters). Selections are staged and applied on
 // Apply so the server refetch fires once, not per chip. Single-select per
 // section; Format and Format Description share the single `format` param.
+/**
+ * Filters for the database search. Stages a draft and applies on tap, like the
+ * pressing picker and unlike the collection drawer: each change costs a Discogs
+ * round-trip, so "Apply Filters" is the honest label here rather than a live
+ * match count.
+ *
+ * Format and Genre only. Both are closed vocabularies, which matters because
+ * /database/search returns no facet lists — options that had to be derived from
+ * the loaded page would offer whatever page 1 happened to contain and hide the
+ * rest. Country and Year are available as native params on the same endpoint if
+ * they are ever wanted; they were left out for the same reason a year *sort* is
+ * missing — see the note in proxySearchDatabase.
+ */
+function SearchFilterDrawer({
+  isDarkMode, format, genre, onApply, onClose,
+}: {
+  isDarkMode: boolean;
+  format: string | null;
+  genre: string | null;
+  onApply: (format: string | null, genre: string | null) => void;
+  onClose: () => void;
+}) {
+  const [dFormat, setDFormat] = useState(format);
+  const [dGenre, setDGenre] = useState(genre);
+  const hasActive = !!dFormat || !!dGenre;
+
+  /* No z-index overrides below: SlideOutPanel's defaults (110/120) clear the
+     z-85 search panel this opens over, which is why PressingFilterDrawer
+     passes none either. Anything lower strands the backdrop behind the panel. */
+  return (
+    <SlideOutPanel
+      onClose={onClose}
+      title="Filter"
+      ariaLabel="Filter search results"
+      headerAction={hasActive ? <FilterResetButton onClick={() => { setDFormat(null); setDGenre(null); }} /> : null}
+      footer={
+        <FilterApplyButton
+          onClick={() => { onApply(dFormat, dGenre); onClose(); }}
+          label="Apply Filters"
+        />
+      }
+    >
+      <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+        <FilterSection title="Format">
+          {MEDIA_TYPE_ORDER.filter((t) => t !== "Other").map((t) => (
+            <FilterChipButton
+              key={t}
+              label={t}
+              active={dFormat === t}
+              onClick={() => setDFormat(dFormat === t ? null : t)}
+              isDarkMode={isDarkMode}
+            />
+          ))}
+        </FilterSection>
+        <FilterSection title="Genre">
+          {SEARCH_GENRES.map((g) => (
+            <FilterChipButton
+              key={g}
+              label={g}
+              active={dGenre === g}
+              onClick={() => setDGenre(dGenre === g ? null : g)}
+              isDarkMode={isDarkMode}
+            />
+          ))}
+        </FilterSection>
+      </div>
+    </SlideOutPanel>
+  );
+}
+
 function PressingFilterDrawer({
   isDarkMode, country, year, format, label,
   mediaFormatOptions, descriptorFormatOptions, labelOptions, countryOptions, yearOptions,
