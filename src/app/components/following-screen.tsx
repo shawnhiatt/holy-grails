@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type React from "react";
 import {
   UserPlus, Search, Lock,
-  Disc3, Users, Grid2x2, Grid3x3, List, SlidersHorizontal,
+  Disc3, Users, Grid2x2, Grid3x3, List,
   GalleryVerticalEnd, RotateCcw,
 } from "./icons";
 import { WantlistAddIcon } from "./wantlist-add-icon";
@@ -17,6 +17,16 @@ import { AlbumArtwork, type ArtworkGridItem } from "./album-artwork-grid";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
 import { FormatBadge } from "./format-badge";
 import { SlideOutPanel } from "./slide-out-panel";
+import {
+  FilterApplyButton,
+  FilterButton,
+  FilterChipButton,
+  FilterResetButton,
+  FilterSection,
+  FilterSectionLabel,
+  FilterSortList,
+  presentMediaTypes,
+} from "./filter-controls";
 import { formatActivityDate, formatCollectionSince, getInitial } from "../utils/format";
 import { formatRelativeDate } from "./last-played-utils";
 import { purgeTagColor } from "./purge-colors";
@@ -40,11 +50,6 @@ const FOLLOWED_SORT_OPTIONS: { value: FollowedSortOption; label: string }[] = [
   { value: "title-az", label: "Title A→Z" },
   { value: "year-new", label: "Year: Newest First" },
   { value: "year-old", label: "Year: Oldest First" },
-];
-
-// Display order for the Format section chips — common media first (mirrors filter-drawer).
-const MEDIA_TYPE_ORDER: MediaType[] = [
-  "Vinyl", "CD", "Cassette", "Shellac", "Tape", "DVD", "Blu-ray", "Digital", "Box Set", "Other",
 ];
 
 function sortFollowedItems<T extends { artist: string; title: string; year: number | null | undefined }>(
@@ -531,12 +536,10 @@ function FollowedUserProfile({
 
   // Media types present in the active tab's data, in display order. The Format
   // section hides entirely when only one type is present.
-  const formatTypes = useMemo(() => {
-    const src: { format?: string }[] = tab === "wants" ? user.wants : user.collection;
-    const present = new Set<MediaType>();
-    for (const it of src) present.add(mediaType(it.format || ""));
-    return MEDIA_TYPE_ORDER.filter((t) => present.has(t));
-  }, [tab, user.wants, user.collection]);
+  const formatTypes = useMemo(
+    () => presentMediaTypes(tab === "wants" ? user.wants : user.collection),
+    [tab, user.wants, user.collection]
+  );
 
   const hasActiveFilters = filter !== "all" || !!formatFilter || sortOption !== "artist-az";
 
@@ -771,17 +774,7 @@ function FollowedUserProfile({
             {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
           </div>
           <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} />
-          <button
-            onClick={() => setShowFilters(true)}
-            aria-label="Filter"
-            className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
-            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-          >
-            <SlidersHorizontal size={18} />
-            {hasActiveFilters && (
-              <span className="absolute rounded-full" style={{ top: 6, right: 6, width: 6, height: 6, backgroundColor: "var(--c-link)" }} />
-            )}
-          </button>
+          <FilterButton onClick={() => setShowFilters(true)} active={hasActiveFilters} />
         </div>
 
         {/* Mobile: search + view toggle row, then filter chips row */}
@@ -798,17 +791,7 @@ function FollowedUserProfile({
               {searchQuery && <button onClick={() => setSearchQuery("")} className="cursor-pointer" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>&#215;</button>}
             </div>
             <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={followingGridModes} compact />
-            <button
-              onClick={() => setShowFilters(true)}
-              aria-label="Filter"
-              className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
-              style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-            >
-              <SlidersHorizontal size={18} />
-              {hasActiveFilters && (
-                <span className="absolute rounded-full" style={{ top: 5, right: 5, width: 6, height: 6, backgroundColor: "var(--c-link)" }} />
-              )}
-            </button>
+            <FilterButton onClick={() => setShowFilters(true)} active={hasActiveFilters} compact />
           </div>
         </div>
       </div>
@@ -1064,15 +1047,6 @@ function FollowedFilterDrawer({
   matchCount: number;
   onClose: () => void;
 }) {
-  /* Selected carries a ring as well as a tint — the tint alone is nearly
-     invisible against the dark chip background. Matches the collection
-     filter drawer. The unselected border is transparent rather than absent
-     so toggling a chip doesn't shift it by a pixel. */
-  const chipStyle = (active: boolean): React.CSSProperties => active
-    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A", border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.45)" : "#00527A"}` }
-    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)", border: "1px solid transparent" };
-  const sectionLabel: React.CSSProperties = { fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" };
-
   return (
     <SlideOutPanel
       onClose={onClose}
@@ -1080,29 +1054,10 @@ function FollowedFilterDrawer({
       ariaLabel="Filter collection"
       headerAction={
         hasActiveFilters ? (
-          <button
-            onClick={() => { setFilter("all"); setFormatFilter(null); setSortOption("artist-az"); }}
-            className="transition-colors"
-            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-link)" }}
-          >
-            Reset
-          </button>
+          <FilterResetButton onClick={() => { setFilter("all"); setFormatFilter(null); setSortOption("artist-az"); }} />
         ) : null
       }
-      footer={
-        /* Filters apply live — the list behind the sheet is already filtered,
-           so this button closes. It says what closing will show rather than
-           claiming to apply. */
-        <button
-          onClick={onClose}
-          className="w-full py-2.5 rounded-full transition-colors"
-          style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "#EBFD00", color: "#16181C", border: "1px solid rgba(22,24,28,0.25)" }}
-        >
-          {matchCount === 0
-            ? "No releases match"
-            : `Show ${matchCount} ${matchCount === 1 ? "release" : "releases"}`}
-        </button>
-      }
+      footer={<FilterApplyButton onClick={onClose} matchCount={matchCount} />}
       backdropZIndex={60}
       sheetZIndex={70}
       className="lg:bottom-auto lg:top-[72px] lg:left-1/2 lg:-translate-x-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100dvh-100px)]"
@@ -1110,75 +1065,44 @@ function FollowedFilterDrawer({
       <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
         {/* Relationship — collection tab only */}
         {tab === "collection" && (
-          <div className="mb-6">
-            <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Relationship</p>
-            <div className="flex flex-wrap gap-2">
-              {filterChips.map((chip) => (
-                <button
-                  key={chip.id}
-                  onClick={() => setFilter(chip.id)}
-                  aria-pressed={filter === chip.id}
-                  className="px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5"
-                  style={chipStyle(filter === chip.id)}
-                >
-                  {chip.label}
-                  <span
-                    className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1"
-                    style={{
-                      fontSize: "11px", fontWeight: 600,
-                      backgroundColor: filter === chip.id ? (isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(0,82,122,0.12)") : "var(--c-border)",
-                      color: filter === chip.id ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)",
-                    }}
-                  >
-                    {chip.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <FilterSection title="Relationship">
+            {filterChips.map((chip) => (
+              <FilterChipButton
+                key={chip.id}
+                label={chip.label}
+                count={chip.count}
+                active={filter === chip.id}
+                onClick={() => setFilter(chip.id)}
+                isDarkMode={isDarkMode}
+              />
+            ))}
+          </FilterSection>
         )}
 
         {/* Format — hidden when only one media type is present */}
         {formatTypes.length > 1 && (
-          <div className="mb-6">
-            <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Format</p>
-            <div className="flex flex-wrap gap-2">
-              {formatTypes.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setFormatFilter(formatFilter === t ? null : t)}
-                  aria-pressed={formatFilter === t}
-                  className="px-3 py-1.5 rounded-full transition-all"
-                  style={chipStyle(formatFilter === t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+          <FilterSection title="Format">
+            {formatTypes.map((t) => (
+              <FilterChipButton
+                key={t}
+                label={t}
+                active={formatFilter === t}
+                onClick={() => setFormatFilter(formatFilter === t ? null : t)}
+                isDarkMode={isDarkMode}
+              />
+            ))}
+          </FilterSection>
         )}
 
         {/* Sort By */}
         <div>
-          <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Sort By</p>
-          {/* Sort is one-of-many, unlike the chips above — radios, not toggles. */}
-          <div className="flex flex-col gap-0.5" role="radiogroup" aria-label="Sort by">
-            {FOLLOWED_SORT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setSortOption(opt.value)}
-                role="radio"
-                aria-checked={sortOption === opt.value}
-                className="px-3 py-2.5 rounded-[8px] text-left transition-colors"
-                style={sortOption !== opt.value
-                  ? { fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }
-                  : { fontSize: "14px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                }
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <FilterSectionLabel>Sort By</FilterSectionLabel>
+          <FilterSortList
+            options={FOLLOWED_SORT_OPTIONS}
+            value={sortOption}
+            onChange={setSortOption}
+            isDarkMode={isDarkMode}
+          />
         </div>
       </div>
     </SlideOutPanel>

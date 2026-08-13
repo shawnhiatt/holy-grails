@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { AnimatePresence } from "motion/react";
-import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X } from "./icons";
+import { Search, List, Grid2x2, Grid3x3 } from "./icons";
 import { useApp, type ViewMode } from "./app-context";
 import { useFilteredAlbums } from "./use-filtered-albums";
 import { AlbumList } from "./album-list";
@@ -11,6 +11,7 @@ import { NoDiscogsCard } from "./no-discogs-card";
 import { PrivateDataCard } from "./private-data-card";
 import { SyncStatusLine } from "./sync-status-line";
 import { FilterDrawer } from "./filter-drawer";
+import { ActiveFilterChip, FilterButton } from "./filter-controls";
 
 const VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
   { id: "grid", icon: Grid2x2, label: "Grid" },
@@ -173,28 +174,6 @@ export function CrateBrowser() {
 
   const hasActiveFilters = activeFolders.length > 0 || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
 
-  // Shared filter chip component
-  const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
-    <button
-      onClick={onClear}
-      className="flex items-center gap-1.5 rounded-full tappable transition-colors shrink-0"
-      style={{
-        fontSize: "12px",
-        fontWeight: 500,
-        fontFamily: "'DM Sans', system-ui, sans-serif",
-        backgroundColor: isDarkMode ? "rgba(172,222,242,0.15)" : "rgba(172,222,242,0.5)",
-        color: isDarkMode ? "#ACDEF2" : "var(--c-text-secondary)",
-        border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.3)" : "var(--c-border-strong)"}`,
-        height: "24px",
-        paddingLeft: "10px",
-        paddingRight: "8px",
-      }}
-    >
-      {label}
-      <X size={11} style={{ color: isDarkMode ? "rgba(172,222,242,0.5)" : "#868B93" }} />
-    </button>
-  );
-
   return (
     <div className="flex flex-col h-full">
       {/* ===== DESKTOP title bar (white bg + border) ===== */}
@@ -258,26 +237,19 @@ export function CrateBrowser() {
         {hasActiveFilters && (
           <div className="flex items-center gap-[8px] shrink-0">
             {activeFolders.map((f) => (
-              <FilterChip key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
+              <ActiveFilterChip isDarkMode={isDarkMode} key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
             ))}
-            {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
-            {neverPlayedFilter && <FilterChip label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
-            {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
-            {unratedFilter && <FilterChip label="Unrated" onClear={() => setUnratedFilter(false)} />}
-            {formatFilter && <FilterChip label={formatFilter} onClear={() => setFormatFilter(null)} />}
+            {sortOption !== defaultCollectionSort && <ActiveFilterChip isDarkMode={isDarkMode} label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
+            {neverPlayedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
+            {playsRecordedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
+            {unratedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Unrated" onClear={() => setUnratedFilter(false)} />}
+            {formatFilter && <ActiveFilterChip isDarkMode={isDarkMode} label={formatFilter} onClear={() => setFormatFilter(null)} />}
           </div>
         )}
         {/* View toggle */}
         <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={gridModes} />
         {/* Filter button */}
-        <button
-          onClick={() => setShowFilterDrawer(true)}
-          aria-label="Filter collection"
-          className="w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
-          style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-        >
-          <SlidersHorizontal size={18} />
-        </button>
+        <FilterButton onClick={() => setShowFilterDrawer(true)} active={hasActiveFilters} ariaLabel="Filter collection" />
       </div>
       <div className="hidden lg:flex px-[24px] pb-[10px]">
         <SyncStatusLine />
@@ -304,14 +276,7 @@ export function CrateBrowser() {
             )}
           </div>
           <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={gridModes} compact />
-          <button
-            onClick={() => setShowFilterDrawer(true)}
-            aria-label="Filter collection"
-            className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center transition-colors relative flex-shrink-0"
-            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", color: "var(--c-text-muted)" }}
-          >
-            <SlidersHorizontal size={18} />
-          </button>
+          <FilterButton onClick={() => setShowFilterDrawer(true)} active={hasActiveFilters} ariaLabel="Filter collection" compact />
         </div>
         )}
 
@@ -319,13 +284,13 @@ export function CrateBrowser() {
         {hasActiveFilters && (
           <div className="flex items-center gap-2 mt-[8px] overflow-x-auto no-scrollbar">
             {activeFolders.map((f) => (
-              <FilterChip key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
+              <ActiveFilterChip isDarkMode={isDarkMode} key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
             ))}
-            {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
-            {neverPlayedFilter && <FilterChip label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
-            {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
-            {unratedFilter && <FilterChip label="Unrated" onClear={() => setUnratedFilter(false)} />}
-            {formatFilter && <FilterChip label={formatFilter} onClear={() => setFormatFilter(null)} />}
+            {sortOption !== defaultCollectionSort && <ActiveFilterChip isDarkMode={isDarkMode} label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
+            {neverPlayedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
+            {playsRecordedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
+            {unratedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Unrated" onClear={() => setUnratedFilter(false)} />}
+            {formatFilter && <ActiveFilterChip isDarkMode={isDarkMode} label={formatFilter} onClear={() => setFormatFilter(null)} />}
           </div>
         )}
         <SyncStatusLine className="mt-[8px]" />

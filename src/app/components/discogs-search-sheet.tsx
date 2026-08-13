@@ -13,6 +13,7 @@ import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import type { FeedAlbum } from "./discogs-api";
 import { mediaType } from "./discogs-api";
 import { SlideOutPanel } from "./slide-out-panel";
+import { FilterApplyButton, FilterChipButton, FilterResetButton, FilterSection } from "./filter-controls";
 
 /* DiscogsSearchSheet — "Look It Up"
    Standalone Discogs database search as a FULL-SCREEN panel (Discogs-app
@@ -1027,31 +1028,22 @@ function PressingFilterDrawer({
   const [dLabel, setDLabel] = useState(label);
 
   const hasActive = !!dCountry || !!dYear || !!dFormat || !!dLabel;
-  const chipStyle = (active: boolean): CSSProperties => active
-    ? { fontSize: "13px", fontWeight: 500, padding: "6px 12px", borderRadius: "999px", backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-    : { fontSize: "13px", fontWeight: 500, padding: "6px 12px", borderRadius: "999px", backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" };
-  const sectionLabel: CSSProperties = { fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" };
   const toggle = (cur: string | null, val: string) => (cur === val ? null : val);
 
   const renderSection = (title: string, options: FilterOpt[], selected: string | null, onPick: (v: string | null) => void) => {
     if (options.length === 0) return null;
     return (
-      <div className="mb-6">
-        <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>{title}</p>
-        <div className="flex flex-wrap gap-2">
-          {options.map((o) => (
-            <button
-              key={o.value}
-              onClick={() => onPick(toggle(selected, o.value))}
-              aria-pressed={selected === o.value}
-              className="transition-all"
-              style={chipStyle(selected === o.value)}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <FilterSection title={title}>
+        {options.map((o) => (
+          <FilterChipButton
+            key={o.value}
+            label={o.label}
+            active={selected === o.value}
+            onClick={() => onPick(toggle(selected, o.value))}
+            isDarkMode={isDarkMode}
+          />
+        ))}
+      </FilterSection>
     );
   };
 
@@ -1062,23 +1054,17 @@ function PressingFilterDrawer({
       ariaLabel="Filter pressings"
       headerAction={
         hasActive ? (
-          <button
-            onClick={() => { setDCountry(null); setDYear(null); setDFormat(null); setDLabel(null); }}
-            className="transition-colors"
-            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-link)" }}
-          >
-            Reset
-          </button>
+          <FilterResetButton onClick={() => { setDCountry(null); setDYear(null); setDFormat(null); setDLabel(null); }} />
         ) : null
       }
       footer={
-        <button
+        /* The one drawer where "Apply Filters" is honest: this one stages a
+           draft (dCountry/dYear/…) and re-queries Discogs on tap, rather than
+           filtering a list that is already on screen. */
+        <FilterApplyButton
           onClick={() => { onApply(dCountry, dYear, dFormat, dLabel); onClose(); }}
-          className="w-full py-2.5 rounded-full transition-colors"
-          style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "#EBFD00", color: "#16181C", border: "1px solid rgba(22,24,28,0.25)" }}
-        >
-          Apply Filters
-        </button>
+          label="Apply Filters"
+        />
       }
     >
       <div className="p-4" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
