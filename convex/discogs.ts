@@ -2007,6 +2007,13 @@ export const proxySearchDatabase = action({
     query: v.string(),
     searchType: v.optional(v.union(v.literal("master"), v.literal("release"))),
     page: v.optional(v.number()),
+    /* Native /database/search filter params, applied server-side so they narrow
+       the whole result set rather than the page the client happens to hold.
+       Note the endpoint takes filters but exposes no `sort` — unlike
+       /masters/{id}/versions, which is why the pressing picker can sort by
+       year and this cannot. */
+    format: v.optional(v.string()),
+    genre: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const creds = await ctx.runQuery(
@@ -2015,7 +2022,9 @@ export const proxySearchDatabase = action({
     );
     const type = args.searchType ?? "master";
     const page = args.page ?? 1;
-    const url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}&per_page=25&page=${page}`;
+    let url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}&per_page=25&page=${page}`;
+    if (args.format) url += `&format=${encodeURIComponent(args.format)}`;
+    if (args.genre) url += `&genre=${encodeURIComponent(args.genre)}`;
     const res = await discogsFetch(
       "GET",
       url,
