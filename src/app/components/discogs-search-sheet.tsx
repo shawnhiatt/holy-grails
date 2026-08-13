@@ -567,6 +567,18 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   /* Only where a year heads the row — tabular figures line the years up into a
      column you can run your eye down. Titles keep proportional digits. */
   const rowLeadNumStyle: CSSProperties = { ...rowLeadStyle, fontVariantNumeric: "tabular-nums" };
+  /* Search-result titles wrap to two lines instead of ellipsing at one. A
+     release title routinely carries a parenthetical — "Petty Country (A
+     Country Music Celebration Of Tom Petty)" — and on one line nearly every
+     result was cut mid-word, which is the opposite of scannable. The pressing
+     rows keep the single-line treatment: their lead is "1976 · US", which has
+     nothing to wrap. */
+  const rowTitleWrapStyle: CSSProperties = {
+    fontSize: "15px",
+    fontWeight: 700,
+    color: "var(--c-text)",
+    maxWidth: "100%",
+  };
   /* Three levels come from size and weight, not from reaching for
      --c-text-faint: it measures under 4.5:1 in light mode (see the deferred
      contrast findings in CLAUDE.md), and this is 12px text. The bottom line
@@ -969,7 +981,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                       by the ellipsis despite being the thing you check to
                       confirm you found the right record. */}
                   <div className="flex-1 min-w-0">
-                    <span style={rowLeadStyle}>{r.title}</span>
+                    <span className="line-clamp-2" style={rowTitleWrapStyle}>{r.title}</span>
                     {r.artist && <span style={rowSubStyle}>{r.artist}</span>}
                     {(() => {
                       // Year first, matching the pressing rows. Catalog number
