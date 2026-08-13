@@ -103,8 +103,9 @@ interface AppState {
   selectedAlbumId: string | null;
   setSelectedAlbumId: (id: string | null) => void;
   selectedAlbum: Album | null;
-  activeFolder: string;
-  setActiveFolder: (f: string) => void;
+  /** Folders to include, OR'd together. Empty = every folder ("All"). */
+  activeFolders: string[];
+  setActiveFolders: (f: string[]) => void;
   sortOption: SortOption;
   setSortOption: (s: SortOption) => void;
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
@@ -333,7 +334,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [viewMode, setViewModeRaw] = useState<ViewMode>("grid");
   const [wantViewMode, setWantViewModeRaw] = useState<ViewMode>("grid");
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
-  const [activeFolder, setActiveFolder] = useState("All");
+  const [activeFolders, setActiveFolders] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<SortOption>("added-new");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [showDiscogsSearch, setShowDiscogsSearch] = useState(false);
@@ -2197,7 +2198,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
-    setActiveFolder("All");
+    setActiveFolders([]);
     setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
@@ -2272,7 +2273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedWantItem(null);
     setSelectedFeedAlbum(null);
     setCollectionCrossoverQueue([]);
-    setActiveFolder("All");
+    setActiveFolders([]);
     setSortOption("added-new");
     setPurgeFilter("unrated");
     setWantFilter("all");
@@ -2723,8 +2724,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectedAlbumId,
       setSelectedAlbumId,
       selectedAlbum,
-      activeFolder,
-      setActiveFolder,
+      activeFolders,
+      setActiveFolders,
       sortOption,
       setSortOption,
       setPurgeTag,
@@ -2892,7 +2893,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       screen, setScreen, viewMode, wantViewMode, albums, wants, stacks, followedUsers,
       addFollowedUser, refreshFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
-      activeFolder, sortOption,
+      activeFolders, sortOption,
       setPurgeTag, deletePurgeTag, executePurgeCut, purgeProgress,
       toggleWantPriority, addToWantList, removeFromWantList,
       isInWants, isInCollection,

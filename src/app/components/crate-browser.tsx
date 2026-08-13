@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { AnimatePresence } from "motion/react";
 import { Search, SlidersHorizontal, List, Grid2x2, Grid3x3, X } from "./icons";
 import { useApp, type ViewMode } from "./app-context";
 import { useFilteredAlbums } from "./use-filtered-albums";
@@ -9,6 +10,7 @@ import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { PrivateDataCard } from "./private-data-card";
 import { SyncStatusLine } from "./sync-status-line";
+import { FilterDrawer } from "./filter-drawer";
 
 const VIEW_MODES: { id: ViewMode; icon: typeof Grid2x2; label: string }[] = [
   { id: "grid", icon: Grid2x2, label: "Grid" },
@@ -63,9 +65,10 @@ export function CrateBrowser() {
   const {
     viewMode,
     setViewMode,
+    showFilterDrawer,
     setShowFilterDrawer,
-    activeFolder,
-    setActiveFolder,
+    activeFolders,
+    setActiveFolders,
     sortOption,
     setSortOption,
     albums,
@@ -89,7 +92,7 @@ export function CrateBrowser() {
   const [searchQuery, setSearchQuery] = useState("");
   const { filteredAlbums, effectiveSortOption } = useFilteredAlbums({
     albums,
-    activeFolder,
+    activeFolders,
     sortOption,
     searchQuery,
     neverPlayedFilter,
@@ -168,7 +171,7 @@ export function CrateBrowser() {
   const fmtVal = (n: number) =>
     "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
+  const hasActiveFilters = activeFolders.length > 0 || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
 
   // Shared filter chip component
   const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
@@ -254,7 +257,9 @@ export function CrateBrowser() {
         {/* Active filter chips */}
         {hasActiveFilters && (
           <div className="flex items-center gap-[8px] shrink-0">
-            {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
+            {activeFolders.map((f) => (
+              <FilterChip key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
+            ))}
             {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <FilterChip label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
             {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
@@ -313,10 +318,13 @@ export function CrateBrowser() {
         {/* Active filter chips (mobile) */}
         {hasActiveFilters && (
           <div className="flex items-center gap-2 mt-[8px] overflow-x-auto no-scrollbar">
-            {activeFolder !== "All" && <FilterChip label={activeFolder} onClear={() => setActiveFolder("All")} />}
+            {activeFolders.map((f) => (
+              <FilterChip key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
+            ))}
             {sortOption !== defaultCollectionSort && <FilterChip label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <FilterChip label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
             {playsRecordedFilter && <FilterChip label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
+            {unratedFilter && <FilterChip label="Unrated" onClear={() => setUnratedFilter(false)} />}
             {formatFilter && <FilterChip label={formatFilter} onClear={() => setFormatFilter(null)} />}
           </div>
         )}
@@ -336,10 +344,18 @@ export function CrateBrowser() {
           {/* resetKey scrolls the view back to top on filter changes without
               remounting — the old searchQuery-in-key approach rebuilt the
               entire grid DOM on every keystroke */}
-          {viewMode === "list" && <AlbumList key="list" albums={filteredAlbums} sortOption={effectiveSortOption} resetKey={`${activeFolder}|${effectiveSortOption}|${searchQuery.trim()}`} />}
-          {viewMode !== "list" && <AlbumGrid key="grid" albums={filteredAlbums} sortOption={effectiveSortOption} searchQuery={searchQuery} resetKey={`${activeFolder}|${effectiveSortOption}|${searchQuery.trim()}`} />}
+          {viewMode === "list" && <AlbumList key="list" albums={filteredAlbums} sortOption={effectiveSortOption} resetKey={`${activeFolders.join(",")}|${effectiveSortOption}|${searchQuery.trim()}`} />}
+          {viewMode !== "list" && <AlbumGrid key="grid" albums={filteredAlbums} sortOption={effectiveSortOption} searchQuery={searchQuery} resetKey={`${activeFolders.join(",")}|${effectiveSortOption}|${searchQuery.trim()}`} />}
         </>
       )}
+
+      {/* Rendered here rather than from App.tsx so the drawer can show what the
+          current filters will actually yield: the count has to include
+          `searchQuery`, which is screen-local by design. Same placement as the
+          Following screen's own filter drawer. */}
+      <AnimatePresence>
+        {showFilterDrawer && <FilterDrawer matchCount={filteredAlbums.length} />}
+      </AnimatePresence>
     </div>
   );
 }

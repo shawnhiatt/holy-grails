@@ -25,8 +25,31 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "rating-high", label: "Rating: Highest First" },
 ];
 
-export function FilterDrawer() {
-  const { setShowFilterDrawer, activeFolder, setActiveFolder, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, unratedFilter, setUnratedFilter, albums, formatFilter, setFormatFilter } = useApp();
+/** Chip fill. Selected carries a ring as well as a tint — the tint alone is
+ *  nearly invisible against the dark chip background, and the collection
+ *  screen's own filter chips already use this border treatment. */
+function chipStyle(active: boolean, isDarkMode: boolean): React.CSSProperties {
+  const base = { fontSize: "13px", fontWeight: 500 } as const;
+  return active
+    ? {
+        ...base,
+        backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)",
+        color: isDarkMode ? "#ACDEF2" : "#00527A",
+        border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.45)" : "#00527A"}`,
+      }
+    : {
+        ...base,
+        backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3",
+        color: "var(--c-text-secondary)",
+        border: "1px solid transparent",
+      };
+}
+
+/** The count is passed in rather than derived here: the collection screen owns
+ *  `searchQuery` (deliberately kept out of app context), and a count that
+ *  ignored an active search would disagree with the grid behind the sheet. */
+export function FilterDrawer({ matchCount }: { matchCount: number }) {
+  const { setShowFilterDrawer, activeFolders, setActiveFolders, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, unratedFilter, setUnratedFilter, albums, formatFilter, setFormatFilter } = useApp();
 
   // The rating chips only make sense once something is rated — before the
   // free-data backfill reaches this user, every record reads unrated and an
@@ -41,15 +64,37 @@ export function FilterDrawer() {
     return MEDIA_TYPE_ORDER.filter((t) => present.has(t));
   }, [albums]);
 
-  const hasActiveFilters = activeFolder !== "All" || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
+  const hasActiveFilters = activeFolders.length > 0 || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
 
   const handleReset = () => {
-    setActiveFolder("All");
+    setActiveFolders([]);
     setSortOption("artist-az");
     setNeverPlayedFilter(false);
     setPlaysRecordedFilter(false);
     setUnratedFilter(false);
     setFormatFilter(null);
+  };
+
+  const toggleFolder = (name: string) => {
+    setActiveFolders(
+      activeFolders.includes(name)
+        ? activeFolders.filter((f) => f !== name)
+        : [...activeFolders, name]
+    );
+  };
+
+  /* "No Plays Recorded" and "Plays Recorded" partition the collection, so
+     holding both on can only ever return nothing. Selecting one clears the
+     other rather than letting the user build an empty result by hand. */
+  const toggleNeverPlayed = () => {
+    const next = !neverPlayedFilter;
+    setNeverPlayedFilter(next);
+    if (next) setPlaysRecordedFilter(false);
+  };
+  const togglePlaysRecorded = () => {
+    const next = !playsRecordedFilter;
+    setPlaysRecordedFilter(next);
+    if (next) setNeverPlayedFilter(false);
   };
 
   return (
@@ -68,6 +113,9 @@ export function FilterDrawer() {
         ) : null
       }
       footer={
+        /* Filters apply live — every chip writes straight to context and the
+           grid behind the sheet is already filtered. So this button closes,
+           and says what closing will show rather than claiming to apply. */
         <button
           onClick={() => setShowFilterDrawer(false)}
           className="w-full py-2.5 rounded-full transition-colors"
@@ -79,7 +127,9 @@ export function FilterDrawer() {
             border: "1px solid rgba(22,24,28,0.25)",
           }}
         >
-          Apply Filters
+          {matchCount === 0
+            ? "No releases match"
+            : `Show ${matchCount} ${matchCount === 1 ? "release" : "releases"}`}
         </button>
       }
       backdropZIndex={60}
@@ -90,15 +140,23 @@ export function FilterDrawer() {
         <div className="mb-6">
           <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Folders</p>
           <div className="flex flex-wrap gap-2">
-            {folders.map((folder) => (
+            {/* "All" is the absence of a selection, not a folder of its own —
+                it clears rather than toggles. */}
+            <button
+              onClick={() => setActiveFolders([])}
+              aria-pressed={activeFolders.length === 0}
+              className="px-3 py-1.5 rounded-full transition-all"
+              style={chipStyle(activeFolders.length === 0, isDarkMode)}
+            >
+              All
+            </button>
+            {folders.filter((f) => f.name !== "All").map((folder) => (
               <button
                 key={folder.id}
-                onClick={() => setActiveFolder(folder.name)}
+                onClick={() => toggleFolder(folder.name)}
+                aria-pressed={activeFolders.includes(folder.name)}
                 className="px-3 py-1.5 rounded-full transition-all"
-                style={activeFolder !== folder.name
-                  ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                  : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                }
+                style={chipStyle(activeFolders.includes(folder.name), isDarkMode)}
               >
                 {folder.name}
               </button>
@@ -117,10 +175,7 @@ export function FilterDrawer() {
                   onClick={() => setFormatFilter(formatFilter === t ? null : t)}
                   aria-pressed={formatFilter === t}
                   className="px-3 py-1.5 rounded-full transition-all"
-                  style={formatFilter !== t
-                    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                  }
+                  style={chipStyle(formatFilter === t, isDarkMode)}
                 >
                   {t}
                 </button>
@@ -134,22 +189,18 @@ export function FilterDrawer() {
           <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Quick Filters</p>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setNeverPlayedFilter(!neverPlayedFilter)}
+              onClick={toggleNeverPlayed}
+              aria-pressed={neverPlayedFilter}
               className="px-3 py-1.5 rounded-full transition-all"
-              style={!neverPlayedFilter
-                ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-              }
+              style={chipStyle(neverPlayedFilter, isDarkMode)}
             >
               No Plays Recorded
             </button>
             <button
-              onClick={() => setPlaysRecordedFilter(!playsRecordedFilter)}
+              onClick={togglePlaysRecorded}
+              aria-pressed={playsRecordedFilter}
               className="px-3 py-1.5 rounded-full transition-all"
-              style={!playsRecordedFilter
-                ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-              }
+              style={chipStyle(playsRecordedFilter, isDarkMode)}
             >
               Plays Recorded
             </button>
@@ -158,10 +209,7 @@ export function FilterDrawer() {
                 onClick={() => setUnratedFilter(!unratedFilter)}
                 aria-pressed={unratedFilter}
                 className="px-3 py-1.5 rounded-full transition-all"
-                style={!unratedFilter
-                  ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" }
-                  : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-                }
+                style={chipStyle(unratedFilter, isDarkMode)}
               >
                 Unrated
               </button>
@@ -171,11 +219,14 @@ export function FilterDrawer() {
 
         <div>
           <p className="uppercase tracking-wider mb-2.5" style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Sort By</p>
-          <div className="flex flex-col gap-0.5">
+          {/* Sort is one-of-many, unlike the chips above — radios, not toggles. */}
+          <div className="flex flex-col gap-0.5" role="radiogroup" aria-label="Sort by">
             {SORT_OPTIONS.filter((opt) => opt.value !== "rating-high" || hasAnyRatings).map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setSortOption(opt.value)}
+                role="radio"
+                aria-checked={sortOption === opt.value}
                 className="px-3 py-2.5 rounded-[8px] text-left transition-colors"
                 style={sortOption !== opt.value
                   ? { fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }

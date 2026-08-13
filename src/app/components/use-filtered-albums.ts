@@ -13,7 +13,10 @@ import type { SortOption } from "./app-context";
  */
 export interface FilterAlbumsOptions {
   albums: Album[];
-  activeFolder: string;
+  /** Folders to include, OR'd together. Empty = no folder filter. A release
+   *  lives in exactly one folder, so OR is the only sensible combinator —
+   *  AND across two folders would always match nothing. */
+  activeFolders: string[];
   searchQuery: string;
   neverPlayedFilter: boolean;
   playsRecordedFilter: boolean;
@@ -35,11 +38,12 @@ function addedMs(a: Album): number {
 
 /** Pure filter + sort — the hook wraps this in useMemo. Exported for tests. */
 export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
-  const { albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed, effectiveSortOption } = opts;
+  const { albums, activeFolders, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed, effectiveSortOption } = opts;
   let result = [...albums];
 
-  if (activeFolder !== "All") {
-    result = result.filter((a) => a.folder === activeFolder);
+  if (activeFolders.length > 0) {
+    const wanted = new Set(activeFolders);
+    result = result.filter((a) => wanted.has(a.folder));
   }
 
   if (formatFilter) {
@@ -123,7 +127,7 @@ export function filterAndSortAlbums(opts: FilterAlbumsOptions): Album[] {
 
 export function useFilteredAlbums(opts: {
   albums: Album[];
-  activeFolder: string;
+  activeFolders: string[];
   sortOption: SortOption;
   searchQuery: string;
   neverPlayedFilter: boolean;
@@ -132,13 +136,13 @@ export function useFilteredAlbums(opts: {
   formatFilter?: MediaType | null;
   lastPlayed: Record<string, string>;
 }): { filteredAlbums: Album[]; effectiveSortOption: SortOption } {
-  const { albums, activeFolder, sortOption, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter = false, formatFilter = null, lastPlayed } = opts;
+  const { albums, activeFolders, sortOption, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter = false, formatFilter = null, lastPlayed } = opts;
 
   const effectiveSortOption: SortOption = searchQuery.trim() ? "artist-az" : sortOption;
 
   const filteredAlbums = useMemo(
-    () => filterAndSortAlbums({ albums, activeFolder, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed, effectiveSortOption }),
-    [albums, activeFolder, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed]
+    () => filterAndSortAlbums({ albums, activeFolders, searchQuery, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed, effectiveSortOption }),
+    [albums, activeFolders, searchQuery, effectiveSortOption, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, lastPlayed]
   );
 
   return { filteredAlbums, effectiveSortOption };

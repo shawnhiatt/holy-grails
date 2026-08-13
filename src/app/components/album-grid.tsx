@@ -219,8 +219,10 @@ interface AlbumGridProps {
 }
 
 export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", resetKey }: AlbumGridProps) {
-  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolder, neverPlayedFilter, setScreen, playCounts, viewMode } = useApp();
-  const hasFilters = activeFolder !== "All" || searchQuery.trim() !== "" || neverPlayedFilter;
+  const { setSelectedAlbumId, setShowAlbumDetail, isDarkMode, hidePurgeIndicators, albums: allAlbums, activeFolders, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter, setScreen, playCounts, viewMode } = useApp();
+  // Every filter that can empty the grid, or the empty state blames the
+  // collection for a result the filters caused.
+  const hasFilters = activeFolders.length > 0 || searchQuery.trim() !== "" || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
   const collectionEmpty = allAlbums.length === 0;
 
   const alphabetEntries = useAlphabetIndex(albums, sortOption);
