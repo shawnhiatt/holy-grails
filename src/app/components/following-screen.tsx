@@ -445,7 +445,7 @@ function FollowedUserProfile({
   const [showFilters, setShowFilters] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, setOnUnfollowUser, sessionToken, refreshFollowedUser } = useApp();
+  const { isDarkMode, setSelectedFeedAlbum, setShowAlbumDetail, setOnUnfollowUser, sessionToken, refreshFollowedUser } = useApp();
 
   const isHgUser = hgUserSet.has(user.username);
   const activitySummary = useQuery(
@@ -513,17 +513,18 @@ function FollowedUserProfile({
     return () => setOnUnfollowUser(null);
   }, [setOnUnfollowUser]);
 
+  /* Opens the pressing THEY own, not yours. Tapping a row in someone else's
+     collection used to silently substitute your own copy whenever you shared
+     the record — and because the match falls back to master_id, "shared"
+     included owning a different pressing entirely, so their 1969 original
+     could open your 2007 reissue with different year, label and catalog
+     number than the row you tapped. ReleaseDetailPanel already renders a
+     "View Your Copy" button when you own it, so your copy is one deliberate
+     tap away instead of being swapped in unannounced. */
   const handleOpenAlbum = useCallback((item: Album | WantItem) => {
-    const rid = Number(item.release_id);
-    const mid = 'master_id' in item ? item.master_id : undefined;
-    if (isInCollection(rid, mid)) {
-      const match = albums.find((a) => Number(a.release_id) === rid) ||
-        (mid && mid > 0 ? albums.find((a) => a.master_id === mid) : undefined);
-      if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-    }
     setSelectedFeedAlbum(toFeedAlbum(item));
     setShowAlbumDetail(true);
-  }, [setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId]);
+  }, [setSelectedFeedAlbum, setShowAlbumDetail]);
 
   const userReleaseIds = useMemo(() => new Set(userAlbums.map((a) => a.release_id)), [userAlbums]);
   const userCutReleaseIds = useMemo(() => new Set(userAlbums.filter((a) => a.purgeTag === "cut").map((a) => a.release_id)), [userAlbums]);
@@ -1355,7 +1356,7 @@ function PopulatedFollowingView({
   isSyncingFollowing: boolean;
   hgUserSet: Set<string>;
 }) {
-  const { setSelectedFeedAlbum, setShowAlbumDetail, isInCollection, albums, setSelectedAlbumId, followingActivityTabIntent, setFollowingActivityTabIntent } = useApp();
+  const { setSelectedFeedAlbum, setShowAlbumDetail, followingActivityTabIntent, setFollowingActivityTabIntent } = useApp();
 
   // Sort followedUsers by most recent activity in followingFeed (avatar row only)
   const sortedFollowedUsers = useMemo(() => {
@@ -1609,13 +1610,7 @@ function PopulatedFollowingView({
                   <ShuffleAlbumCard
                     album={album}
                     onTap={() => {
-                      const rid = Number(album.release_id);
-                      const mid = album.master_id;
-                      if (isInCollection(rid, mid)) {
-                        const match = albums.find((a) => Number(a.release_id) === rid) ||
-                          (mid && mid > 0 ? albums.find((a) => a.master_id === mid) : undefined);
-                        if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-                      }
+                      // Their pressing, not yours — see handleOpenAlbum.
                       setSelectedFeedAlbum(toFeedAlbum(album));
                       setShowAlbumDetail(true);
                     }}
@@ -1747,12 +1742,7 @@ function PopulatedFollowingView({
                 isDarkMode={isDarkMode}
                 paddingClassName="px-[16px] lg:px-[24px]"
                 onOpenAlbum={() => {
-                  if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
-                    const rid = Number(item.albumReleaseId);
-                    const match = albums.find((a) => Number(a.release_id) === rid) ||
-                      (item.albumMasterId && item.albumMasterId > 0 ? albums.find((a) => a.master_id === item.albumMasterId) : undefined);
-                    if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-                  }
+                  // The release their activity is about — see handleOpenAlbum.
                   setSelectedFeedAlbum({
                     release_id: item.albumReleaseId,
                     master_id: item.albumMasterId,

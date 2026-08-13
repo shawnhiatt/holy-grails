@@ -297,7 +297,6 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     followingAvatars,
     setSelectedWantItem,
     setSelectedFeedAlbum,
-    isInCollection,
     playCounts,
     allPlayTimestamps,
     markPlayed,
@@ -1112,12 +1111,8 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         isDarkMode={isDarkMode}
         paddingClassName="px-[14px]"
         onOpenAlbum={() => {
-          if (isInCollection(item.albumReleaseId, item.albumMasterId)) {
-            const rid = Number(item.albumReleaseId);
-            const match = albums.find((a) => Number(a.release_id) === rid) ||
-              (item.albumMasterId && item.albumMasterId > 0 ? albums.find((a) => a.master_id === item.albumMasterId) : undefined);
-            if (match) { setSelectedAlbumId(match.id); setShowAlbumDetail(true); return; }
-          }
+          /* Opens the release their activity is about, not your own copy of
+             it. ReleaseDetailPanel offers "View Your Copy" when you own it. */
           setSelectedFeedAlbum({
             release_id: item.albumReleaseId,
             master_id: item.albumMasterId,
