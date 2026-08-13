@@ -1035,6 +1035,7 @@ function FollowedUserProfile({
           setSortOption={setSortOption}
           hasActiveFilters={hasActiveFilters}
           isDarkMode={isDarkMode}
+          matchCount={displayItems.length}
           onClose={() => setShowFilters(false)}
         />
       )}
@@ -1045,7 +1046,7 @@ function FollowedUserProfile({
 function FollowedFilterDrawer({
   tab, filter, setFilter, filterChips,
   formatFilter, setFormatFilter, formatTypes,
-  sortOption, setSortOption, hasActiveFilters, isDarkMode, onClose,
+  sortOption, setSortOption, hasActiveFilters, isDarkMode, matchCount, onClose,
 }: {
   tab: FollowingTab;
   filter: FollowingFilter;
@@ -1058,11 +1059,18 @@ function FollowedFilterDrawer({
   setSortOption: (s: FollowedSortOption) => void;
   hasActiveFilters: boolean;
   isDarkMode: boolean;
+  /** Passed in rather than recomputed: the profile owns `searchQuery`, and a
+   *  count that ignored it would disagree with the list behind the sheet. */
+  matchCount: number;
   onClose: () => void;
 }) {
+  /* Selected carries a ring as well as a tint — the tint alone is nearly
+     invisible against the dark chip background. Matches the collection
+     filter drawer. The unselected border is transparent rather than absent
+     so toggling a chip doesn't shift it by a pixel. */
   const chipStyle = (active: boolean): React.CSSProperties => active
-    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A" }
-    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)" };
+    ? { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "rgba(172,222,242,0.2)" : "rgba(172,222,242,0.5)", color: isDarkMode ? "#ACDEF2" : "#00527A", border: `1px solid ${isDarkMode ? "rgba(172,222,242,0.45)" : "#00527A"}` }
+    : { fontSize: "13px", fontWeight: 500, backgroundColor: isDarkMode ? "var(--c-chip-bg)" : "#EFF1F3", color: "var(--c-text-secondary)", border: "1px solid transparent" };
   const sectionLabel: React.CSSProperties = { fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" };
 
   return (
@@ -1082,12 +1090,17 @@ function FollowedFilterDrawer({
         ) : null
       }
       footer={
+        /* Filters apply live — the list behind the sheet is already filtered,
+           so this button closes. It says what closing will show rather than
+           claiming to apply. */
         <button
           onClick={onClose}
           className="w-full py-2.5 rounded-full transition-colors"
           style={{ fontSize: "14px", fontWeight: 600, backgroundColor: "#EBFD00", color: "#16181C", border: "1px solid rgba(22,24,28,0.25)" }}
         >
-          Apply Filters
+          {matchCount === 0
+            ? "No releases match"
+            : `Show ${matchCount} ${matchCount === 1 ? "release" : "releases"}`}
         </button>
       }
       backdropZIndex={60}
@@ -1148,12 +1161,14 @@ function FollowedFilterDrawer({
         {/* Sort By */}
         <div>
           <p className="uppercase tracking-wider mb-2.5" style={sectionLabel}>Sort By</p>
-          <div className="flex flex-col gap-0.5">
+          {/* Sort is one-of-many, unlike the chips above — radios, not toggles. */}
+          <div className="flex flex-col gap-0.5" role="radiogroup" aria-label="Sort by">
             {FOLLOWED_SORT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setSortOption(opt.value)}
-                aria-pressed={sortOption === opt.value}
+                role="radio"
+                aria-checked={sortOption === opt.value}
                 className="px-3 py-2.5 rounded-[8px] text-left transition-colors"
                 style={sortOption !== opt.value
                   ? { fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }
