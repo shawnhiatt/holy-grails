@@ -563,8 +563,10 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     ...rowTitleStyle,
     fontSize: "15px",
     fontWeight: 700,
-    fontVariantNumeric: "tabular-nums",
   };
+  /* Only where a year heads the row — tabular figures line the years up into a
+     column you can run your eye down. Titles keep proportional digits. */
+  const rowLeadNumStyle: CSSProperties = { ...rowLeadStyle, fontVariantNumeric: "tabular-nums" };
   /* Three levels come from size and weight, not from reaching for
      --c-text-faint: it measures under 4.5:1 in light mode (see the deferred
      contrast findings in CLAUDE.md), and this is 12px text. The bottom line
@@ -637,7 +639,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
               Most collected
             </span>
           )}
-          <span style={rowLeadStyle}>{leadIsDescriptors ? descriptors : origin}</span>
+          <span style={leadIsDescriptors ? rowLeadStyle : rowLeadNumStyle}>{leadIsDescriptors ? descriptors : origin}</span>
           {imprint && <span style={rowSubStyle}>{imprint}</span>}
           {!leadIsDescriptors && (
             <span className="flex items-center gap-1.5 min-w-0">
@@ -959,23 +961,26 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
                       <Disc3 size={28} style={{ color: "var(--c-text-faint)" }} />
                     </div>
                   )}
-                  {/* Artist and pressing metadata get their own lines rather
-                      than one run-on: a release result crammed artist, catno,
-                      country and year together, and the artist — the thing you
-                      are checking you got the right record — was first to be
-                      cut by the ellipsis. */}
+                  {/* Ranked the same way as the pressing rows this leads to —
+                      title, then artist, then the origin line — so the two
+                      screens scan identically instead of the first one being
+                      flatter than the second. Artist gets its own line: it used
+                      to share with the metadata, where it was first to be cut
+                      by the ellipsis despite being the thing you check to
+                      confirm you found the right record. */}
                   <div className="flex-1 min-w-0">
-                    <span style={rowTitleStyle}>{r.title}</span>
-                    <span style={rowMetaStyle}>
-                      {[r.artist, r.type === "release" ? null : (hasYear(r.year) ? r.year : null)]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                    {r.type === "release" && (
-                      <span style={rowMetaStyle}>
-                        {[r.catno, r.country, hasYear(r.year) ? r.year : null].filter(Boolean).join(" · ")}
-                      </span>
-                    )}
+                    <span style={rowLeadStyle}>{r.title}</span>
+                    {r.artist && <span style={rowSubStyle}>{r.artist}</span>}
+                    {(() => {
+                      // Year first, matching the pressing rows. Catalog number
+                      // only for a release — a master has no single one.
+                      const origin = [
+                        hasYear(r.year) ? String(r.year) : null,
+                        r.country,
+                        r.type === "release" ? r.catno : null,
+                      ].filter(Boolean).join(" · ");
+                      return origin ? <span style={{ ...rowMetaStyle, fontVariantNumeric: "tabular-nums" }}>{origin}</span> : null;
+                    })()}
                   </div>
                   {r.masterId && ownMasterIds.has(r.masterId)
                     ? badge("Have")
