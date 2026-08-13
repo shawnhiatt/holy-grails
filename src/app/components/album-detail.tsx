@@ -11,7 +11,7 @@ import { purgeTagColor as getPurgeColor, purgeToast, purgeClearToast } from "./p
 import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { StarRating } from "./star-rating";
-import { formatDateShort, isToday, playCountLabel, playMonthLabel } from "./last-played-utils";
+import { formatDateShort, isToday, lastPlayedLabel, playCountLabel, playMonthLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
 import { useAction, useQuery } from "convex/react";
@@ -1115,11 +1115,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
             {/* ═══ Listening (play actions + last played + history) ═══ */}
             {!isEditMode && (
               <div className="px-4 pt-4 pb-4">
-                <div className="flex items-center justify-between mb-2.5">
+                <div className="mb-2.5">
                   <SectionLabel>Listening</SectionLabel>
-                  <span style={{ fontSize: "12px", fontWeight: (justPlayed || playedToday) ? 500 : 400, color: (justPlayed || playedToday) ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-muted)" }}>
-                    {(justPlayed || playedToday) ? "Played today" : albumLastPlayed ? `Last played ${formatDateShort(albumLastPlayed)}` : "No plays logged"}
-                  </span>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -1281,31 +1278,75 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   )}
                 </AnimatePresence>
 
-                {/* Play history accordion */}
-                {(playCounts[selectedAlbum.id] || 0) >= 1 && (
-                  <div className="mt-3">
-                    <button
-                      onClick={() => {
-                        setPlayHistoryExpanded((v) => {
-                          if (v) setShowAllPlays(false);
-                          return !v;
-                        });
-                      }}
-                      className="w-full flex items-center gap-2 tappable"
-                      style={{ touchAction: "manipulation" }}
-                    >
-                      <span style={{ flex: 1, textAlign: "left", fontSize: "13px", fontWeight: 600, color: "var(--c-text-secondary)" }}>
-                        {playCountLabel(
-                          playCounts[selectedAlbum.id] || 0,
-                          playHistory?.length ? playHistory[playHistory.length - 1].played_at : undefined
+                {/* Last played + play history accordion. Both facts sit on this
+                    one row rather than splitting across the section — the last
+                    played line used to ride the eyebrow, where it read as part
+                    of the section label and got skipped. */}
+                {(() => {
+                  const playCount = playCounts[selectedAlbum.id] || 0;
+                  const hasPlays = playCount >= 1;
+                  const recent = justPlayed || playedToday;
+                  /* Relative, not the absolute date the eyebrow used: this row
+                     also carries the count, and "Last played Jan 14, 2026" left
+                     no width for it. */
+                  const summary = (
+                    <>
+                      <span className="flex items-center gap-1.5" style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: recent ? 600 : 500,
+                            color: recent ? (isDarkMode ? "#ACDEF2" : "#00527A") : "var(--c-text-secondary)",
+                            display: "block",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            WebkitTextOverflow: "ellipsis",
+                            minWidth: 0,
+                          }}
+                        >
+                          {recent ? "Played today" : lastPlayedLabel(albumLastPlayed)}
+                        </span>
+                        {hasPlays && (
+                          <span style={{ flexShrink: 0, fontSize: "13px", fontWeight: 400, color: "var(--c-text-secondary)", whiteSpace: "nowrap" }}>
+                            ·{" "}
+                            {playCountLabel(
+                              playCount,
+                              playHistory?.length ? playHistory[playHistory.length - 1].played_at : undefined
+                            )}
+                          </span>
                         )}
                       </span>
-                      <ChevronDown
-                        size={14}
-                        style={{ color: "var(--c-text-muted)", flexShrink: 0 }}
-                        className={`transition-transform ${playHistoryExpanded ? "rotate-180" : ""}`}
-                      />
-                    </button>
+                      {hasPlays && (
+                        <ChevronDown
+                          size={14}
+                          style={{ color: "var(--c-text-secondary)", flexShrink: 0 }}
+                          className={`transition-transform ${playHistoryExpanded ? "rotate-180" : ""}`}
+                        />
+                      )}
+                    </>
+                  );
+                  return (
+                  <div className="mt-3">
+                    {hasPlays ? (
+                      <button
+                        onClick={() => {
+                          setPlayHistoryExpanded((v) => {
+                            if (v) setShowAllPlays(false);
+                            return !v;
+                          });
+                        }}
+                        className="w-full flex items-center gap-2 tappable"
+                        style={{ touchAction: "manipulation" }}
+                        aria-expanded={playHistoryExpanded}
+                      >
+                        {summary}
+                      </button>
+                    ) : (
+                      /* No plays yet: same slot, same line, but nothing to
+                         disclose — the two buttons above are the ask. */
+                      <div className="w-full flex items-center gap-2">{summary}</div>
+                    )}
                     <AnimatePresence>
                       {playHistoryExpanded && (
                         <motion.div
@@ -1381,7 +1422,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       )}
                     </AnimatePresence>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
