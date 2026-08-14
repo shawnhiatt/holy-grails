@@ -25,6 +25,7 @@ import { hasOpenDialogs } from "./lib/dialog-stack";
 import { InstallNudge } from "./components/install-nudge";
 import { OfflineBanner } from "./components/offline-banner";
 import { ShareActivityPrompt } from "./components/share-activity-prompt";
+import { version as APP_VERSION } from "../../package.json";
 /* HMR rebuild trigger — v4 */
 /* unicorn-bg removed — WebGL scene deferred to deployment phase */
 /* nav-clearance: the height the fixed bottom nav overlays.
@@ -58,6 +59,102 @@ function ScreenLoadingFallback() {
   );
 }
 
+/**
+ * Crash screen for the root ErrorBoundary.
+ *
+ * A Convex `useQuery` that gets a server error throws during render, and every
+ * one of them lives inside AppProvider — so a single transient backend failure
+ * takes down the whole tree and nothing under it can re-render to recover. The
+ * only exit is a reload, which is what this screen exists to offer. Before it,
+ * the fallback was a raw red stack dump: unrecoverable without the user
+ * thinking to reload on their own, and a wall of internals for someone who
+ * just wanted their collection.
+ *
+ * Rendered OUTSIDE AppProvider, so it can't read `isDarkMode` and the --c-*
+ * tokens (applied on <main>) don't exist here. It follows the shared-session
+ * page's pattern instead: system theme, tokens applied inline on its own
+ * container.
+ */
+function AppErrorFallback({ error }: { error: Error | null }) {
+  const [isDark, setIsDark] = useState(
+    () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false
+  );
+  useEffect(() => {
+    const mql = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mql) return;
+    const onChange = (e: MediaQueryListEvent) => setIsDark(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return (
+    <div
+      role="alert"
+      style={{
+        ...getContentTokens(isDark),
+        height: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
+        padding: 32,
+        textAlign: "center",
+        background: "var(--c-bg)",
+        color: "var(--c-text)",
+      }}
+    >
+      <h1
+        style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif",
+          fontWeight: 700,
+          fontSize: 24,
+        }}
+      >
+        Something broke.
+      </h1>
+      <p style={{ fontSize: 15, color: "var(--c-text-secondary)", maxWidth: 320 }}>
+        A reload usually clears it. Your collection is safe.
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        className="tappable"
+        style={{
+          marginTop: 8,
+          padding: "12px 28px",
+          borderRadius: 999,
+          background: "#EBFD00",
+          color: "#16181C",
+          fontSize: 15,
+          fontWeight: 600,
+          touchAction: "manipulation",
+        }}
+      >
+        Reload
+      </button>
+      <p style={{ fontSize: 12, color: "var(--c-text-faint)" }}>v{APP_VERSION}</p>
+      {import.meta.env.DEV && (
+        <pre
+          style={{
+            marginTop: 24,
+            maxWidth: "100%",
+            overflowX: "auto",
+            textAlign: "left",
+            fontSize: 12,
+            fontFamily: "monospace",
+            whiteSpace: "pre-wrap",
+            color: "var(--c-destructive-text)",
+          }}
+        >
+          {error?.message}
+          {"\n\n"}
+          {error?.stack}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
   { hasError: boolean; error: Error | null }
@@ -74,13 +171,7 @@ class ErrorBoundary extends Component<
   }
   render() {
     if (this.state.hasError) {
-      return (
-        <div style={{ padding: 40, color: "red", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
-          <h1>App Error</h1>
-          <p>{this.state.error?.message}</p>
-          <p>{this.state.error?.stack}</p>
-        </div>
-      );
+      return <AppErrorFallback error={this.state.error} />;
     }
     return this.props.children;
   }
