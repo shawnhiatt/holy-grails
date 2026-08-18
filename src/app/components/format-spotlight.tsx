@@ -79,9 +79,14 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
 
     // Pick a random category
     const pick = pickRandom(eligible);
-    // Pick 3–4 random albums from that category
-    const count = Math.min(pick.albums.length, Math.random() < 0.5 ? 3 : 4);
-    const selected = shuffle(pick.albums).slice(0, count);
+    // Up to 6 — one full desktop row. The old 3-or-4 coin flip existed to fill
+    // a repeat(albums.length) grid that stretched to the full width; with a
+    // fixed 6-column grid the variation only left the row half empty. Category
+    // eligibility stays at 3, so a thin category still shows correctly-sized
+    // cards in a short row rather than a few oversized ones.
+    // NOTE: this pool is shared with the mobile scroller, which slices back to
+    // 4 — raising it for the desktop row must not lengthen the mobile section.
+    const selected = shuffle(pick.albums).slice(0, Math.min(pick.albums.length, 6));
 
     return { header: pick.category.header, badge: pick.category.badge, albums: selected };
   });
@@ -144,7 +149,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
             paddingBottom: "4px",
           }}
         >
-          {spotlight.albums.map((album) => (
+          {spotlight.albums.slice(0, 4).map((album) => (
             <div
               key={`format-spot-${album.id}`}
               style={{
@@ -179,20 +184,20 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
         </div>
       </div>
 
-      {/* Desktop: static grid */}
+      {/* Desktop: static grid — 6 across, matching Recently Added / On the Hunt.
+          repeat(albums.length) stretched 3-4 cards over the full width, which
+          made a minor section the largest artwork on the screen. */}
       <div className="hidden lg:block">
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${spotlight.albums.length}, 1fr)`,
-            gap: "16px",
-          }}
+          className="grid grid-cols-6"
+          style={{ gap: "12px" }}
         >
           {spotlight.albums.map((album) => (
             <ShuffleAlbumCard
               key={`format-spot-desk-${album.id}`}
               album={album}
               onTap={handleTap}
+              compact
               dominantColor
               playCount={playCounts[String(album.release_id)] ?? 0}
               overlay={

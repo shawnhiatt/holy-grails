@@ -232,7 +232,7 @@ export function Wantlist() {
   return (
     <div className="flex flex-col h-full">
       {/* ===== DESKTOP search/filter/view controls (gray content area) ===== */}
-      <div className="hidden lg:flex items-center gap-[16px] px-[24px] pt-[8px] pb-[16px] flex-shrink-0">
+      <div className="hidden lg:flex items-center gap-[16px] px-[24px] pb-[16px] flex-shrink-0">
         {/* Search field — flex-1 */}
         <div className="flex-1 flex items-center gap-2 rounded-full px-[15px] min-w-0" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "39px" }}>
           <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />
@@ -241,8 +241,10 @@ export function Wantlist() {
             style={{ fontSize: "16px", fontWeight: 400, fontFamily: "'DM Sans', system-ui, sans-serif", color: "var(--c-text)" }} />
           {wantSearchQuery && <button onClick={() => setWantSearchQuery("")} aria-label="Clear search" className="transition-colors" style={{ fontSize: "18px", lineHeight: 1, color: "var(--c-text-muted)" }}>×</button>}
         </div>
-        {/* Filter chips — flex-1 */}
-        <div className="flex-1 flex items-center gap-[16px] min-w-0">
+        {/* Filter chips — shrink to content so the search field keeps the same
+            flex-1 width it has on Collection (this was a second flex-1, which
+            halved the search bar and made two sibling screens disagree) */}
+        <div className="flex items-center gap-[16px] flex-shrink-0">
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setWantFilter("all")}
               className={`px-3 py-1.5 rounded-full transition-all`}
@@ -260,7 +262,7 @@ export function Wantlist() {
           </div>
         </div>
         {/* View toggle — right-aligned */}
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end flex-shrink-0">
           <ViewModeToggle viewMode={viewMode} setViewMode={handleSetViewMode} modes={wantGridModes} />
         </div>
       </div>
@@ -373,7 +375,7 @@ function WantGridView({ wants, togglePriority, onSelect, compact }: { wants: Wan
   return (
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll">
-        <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 pl-[16px] pr-[32px] pt-[12px] ${indexVisible ? "lg:pr-[24px]" : ""}`} style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
+        <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-5 xl:grid-cols-6 gap-3 pl-[16px] pr-[32px] lg:px-[24px] pt-[12px]`} style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
           {wantRenderItems.map((item) => {
             if (item.kind === "divider") {
               return (
@@ -454,7 +456,7 @@ function WantlistView({ wants, togglePriority, onSelect }: { wants: WantItem[]; 
     <>
       <div
         ref={scrollRef}
-        className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px]`}
+        className={`flex-1 overflow-y-auto overlay-scroll pl-[16px] ${indexVisible ? "pr-[32px]" : "pr-[16px]"} lg:px-[24px] pt-[16px]`}
         style={{ paddingBottom: "var(--scroll-bottom-pad)" }}
       >
         <div className="flex flex-col">

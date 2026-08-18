@@ -1940,7 +1940,7 @@ export function ReportsScreen() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div
-        className="flex-shrink-0 flex items-center px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-[8px] lg:pb-[20px]"
+        className="flex-shrink-0 flex items-center px-[16px] lg:px-[24px] pt-[2px] pb-[8px] lg:pt-0 lg:pb-[20px]"
       >
         <div className="flex flex-col">
           <p

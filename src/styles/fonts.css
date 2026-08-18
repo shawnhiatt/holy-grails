@@ -98,7 +98,33 @@
   will-change: transform;
 }
 
-/* Screen title — 28px mobile, 48px desktop */
+/* Softens both ends of the ticker so facts arrive and leave instead of being
+   chopped at a hard edge.
+
+   This class goes on a STATIC wrapper around .feed-ticker, never on the track
+   itself: a mask is applied in the element's own coordinate space, so masking
+   the translating track would drag the fade along with the text. It is also not
+   on the outer strip, which carries the tinted background — masking that would
+   fade the tint to the page canvas and notch the band's ends.
+
+   mask-repeat must be no-repeat. The default (repeat) tiles the gradient across
+   the track's overflowing width and stamps a fade every viewport-width. */
+.feed-ticker-fade {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+}
+@media (min-width: 1024px) {
+  .feed-ticker-fade {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+            mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+  }
+}
+
+/* Desktop screen title (Collection, Wantlist). Deliberately has no base rule:
+   every consumer is `hidden lg:block`, because on mobile the <h1> comes from
+   MobileHeader's own inline 28px instead. The mobile size is NOT set here. */
 @media (min-width: 1024px) {
   .screen-title {
     font-size: 48px !important;

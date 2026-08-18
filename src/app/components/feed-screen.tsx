@@ -1,11 +1,13 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
   Disc3,
+  Dice,
+  Search,
+  Broom,
+  Music,
   ChevronRight,
   ChevronDown,
   GalleryVerticalEnd,
-  Grid2x2,
-  Square,
   Zap,
   Play,
   RefreshCw,
@@ -28,6 +30,7 @@ import { safeTap } from "../lib/safe-tap";
 import { ActivityRow } from "./activity-row";
 import { EASE_IN_OUT, EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./motion-tokens";
 import { ShuffleAlbumCard } from "./shuffle-album-card";
+import { PickOneOverlay } from "./pick-one-overlay";
 import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial, formatSyncedAgo } from "../utils/format";
 import { shuffle, pickRandom, seededShuffle, getDailySeed } from "../utils/shuffle";
@@ -304,6 +307,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     accounts,
     switchAccount,
     addAccount,
+    setShowDiscogsSearch,
   } = useApp();
 
   // Per-item in-flight tracking for wantlist API calls
@@ -379,20 +383,39 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
     return { decade, header, albums: shuffled };
   });
-
-  // Shuffle — 10 random albums, reshuffled every mount
+  // Shuffle - 6 random albums: one full desktop row, sliced to 4 on mobile.
+  // Reshuffled every mount. Two rows of 6 gave one of nine feed sections most
+  // of the fold; a single row is enough to say "here, look at these".
   const [shuffleAlbums, setShuffleAlbums] = useState(() => {
     if (albums.length === 0) return [];
-    return shuffle(albums).slice(0, 10);
+    return shuffle(albums).slice(0, 6);
   });
   // Bumped on every reshuffle so the cards remount and replay their entrance
   const [shuffleKey, setShuffleKey] = useState(0);
-  // Single mode shows one album per shuffle instead of the 4/9 grid
-  const [shuffleSingle, setShuffleSingle] = useState(false);
   const reshuffle = useCallback(() => {
     if (albums.length === 0) return;
-    setShuffleAlbums(shuffle(albums).slice(0, 10));
+    setShuffleAlbums(shuffle(albums).slice(0, 6));
     setShuffleKey((k) => k + 1);
+  }, [albums]);
+
+  /* ── "Pick one" — a single release pulled up as its own reveal ──
+     Replaced a one-vs-grid toggle that only changed how many cards the grid
+     drew. Picks from the whole collection, not the shuffle pool: the pool is
+     what's on screen, and the point is to produce something you weren't
+     already looking at. */
+  const [pickOne, setPickOne] = useState<Album | null>(null);
+  const [pickOneKey, setPickOneKey] = useState(0);
+  const pickAnother = useCallback(() => {
+    if (albums.length === 0) return;
+    setPickOne((current) => {
+      // Never hand back the release already showing — "Again" that changes
+      // nothing reads as a broken button
+      const pool = albums.length > 1 && current
+        ? albums.filter((a) => a.id !== current.id)
+        : albums;
+      return pickRandom(pool);
+    });
+    setPickOneKey((k) => k + 1);
   }, [albums]);
 
   // On the Hunt — shuffled wantlist items, weighted toward priority
@@ -602,6 +625,22 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setShowAlbumDetail(true);
   }, [setSelectedAlbumId, setShowAlbumDetail]);
 
+  // Tapping the picked release hands off to the full detail panel; the reveal
+  // has done its job at that point
+  const handlePickOpenDetail = useCallback((albumId: string) => {
+    setPickOne(null);
+    handleAlbumTap(albumId);
+  }, [handleAlbumTap]);
+
+  // Logging the play closes the reveal — that IS the completion, and the
+  // unmount doubles as the double-fire guard
+  const handleMarkPickPlayed = useCallback(() => {
+    if (!pickOne) return;
+    markPlayed(pickOne.id);
+    toast.success(`"${pickOne.title}" logged.`);
+    setPickOne(null);
+  }, [pickOne, markPlayed]);
+
   // Staggered entrance for shuffled cards — keyed on shuffleKey so each
   // reshuffle remounts the cards and replays the sequence
   const reduceMotion = useReducedMotion();
@@ -645,38 +684,27 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           Shuffle
         </h2>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* One-vs-grid toggle (mirrors the Collection view mode pill) */}
-          <div
-            className="flex items-center gap-[2px] rounded-[10px] h-[34px] shrink-0 overflow-hidden"
-            style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)" }}
+          {/*
+            Pick one — a circular sibling to the reshuffle button, so the two
+            read as a pair of related actions on the same set. The die carries
+            it without a label: the same gesture the native app will get as
+            shake-to-random. Yellow stays on reshuffle as the section's single
+            accent; this one takes the surface treatment.
+          */}
+          <button
+            onClick={pickAnother}
+            className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
+            style={{
+              backgroundColor: "var(--c-surface)",
+              border: "1px solid var(--c-border-strong)",
+              color: "var(--c-text)",
+              touchAction: "manipulation",
+            }}
+            title="Pick one"
+            aria-label="Pick one release at random"
           >
-            <button
-              onClick={() => setShuffleSingle(true)}
-              title="One at a time"
-              aria-label="Shuffle one album"
-              className="w-[34px] h-[34px] flex items-center justify-center transition-all"
-              style={{
-                backgroundColor: shuffleSingle ? "var(--c-surface-hover)" : undefined,
-                color: "var(--c-text-muted)",
-                touchAction: "manipulation",
-              }}
-            >
-              <Square size={18} />
-            </button>
-            <button
-              onClick={() => setShuffleSingle(false)}
-              title="Grid"
-              aria-label="Shuffle a grid of releases"
-              className="w-[34px] h-[34px] flex items-center justify-center transition-all"
-              style={{
-                backgroundColor: !shuffleSingle ? "var(--c-surface-hover)" : undefined,
-                color: "var(--c-text-muted)",
-                touchAction: "manipulation",
-              }}
-            >
-              <Grid2x2 size={18} />
-            </button>
-          </div>
+            <Dice size={17} />
+          </button>
           <button
             onClick={reshuffle}
             className="w-9 h-9 rounded-full flex items-center justify-center tappable cursor-pointer flex-shrink-0"
@@ -688,23 +716,23 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         </div>
       </div>
 
-      {/* Mobile: 2x2 grid, or one full-width card in single mode */}
+      {/* Mobile: 2x2 grid */}
       <div className="lg:hidden px-[16px]">
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: shuffleSingle ? "1fr" : "repeat(2, 1fr)",
+            gridTemplateColumns: "repeat(2, 1fr)",
             gap: "12px",
           }}
         >
-          {shuffleAlbums.slice(0, shuffleSingle ? 1 : 4).map((album, i) => (
+          {shuffleAlbums.slice(0, 4).map((album, i) => (
             // minWidth 0 keeps long nowrap titles from stretching a 1fr column
             // (the card root's overflow-hidden used to do this as grid child)
             <motion.div key={`shuffle-feed-${shuffleKey}-${album.id}`} style={{ minWidth: 0 }} {...shuffleCardMotion(i)}>
               <ShuffleAlbumCard
                 album={album}
                 onTap={handleAlbumTap}
-                compact={!shuffleSingle}
+                compact
                 dominantColor
                 playCount={playCounts[String(album.release_id)] ?? 0}
               />
@@ -713,20 +741,18 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         </div>
       </div>
 
-      {/* Desktop: 3x3 grid, or one card in single mode */}
+      {/* Desktop: one row of 6 - the rhythm Recently Added and On
+          the Hunt already use. Three full-size cards over 1280px made the
+          artwork the loudest thing on the screen and pushed the rest of the
+          feed below the fold; two rows of six then over-corrected. */}
       <div className="hidden lg:block">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "16px",
-          }}
-        >
-          {shuffleAlbums.slice(0, shuffleSingle ? 1 : 9).map((album, i) => (
+        <div className="grid grid-cols-6" style={{ gap: "12px" }}>
+          {shuffleAlbums.slice(0, 6).map((album, i) => (
             <motion.div key={`shuffle-desk-${shuffleKey}-${album.id}`} style={{ minWidth: 0 }} {...shuffleCardMotion(i)}>
               <ShuffleAlbumCard
                 album={album}
                 onTap={handleAlbumTap}
+                compact
                 dominantColor
                 playCount={playCounts[String(album.release_id)] ?? 0}
               />
@@ -811,20 +837,17 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
         </div>
       </div>
 
-      {/* Desktop: static grid */}
+      {/* Desktop: static grid — 6 across on the compact card, matching the rest
+          of the feed. Four full-size cards stretched across 1280px made the
+          decade spotlight louder than Shuffle. */}
       <div className="hidden lg:block">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${Math.min(decadesSpotlight.albums.length, 4)}, 1fr)`,
-            gap: "16px",
-          }}
-        >
-          {decadesSpotlight.albums.slice(0, 4).map((album) => (
+        <div className="grid grid-cols-6" style={{ gap: "12px" }}>
+          {decadesSpotlight.albums.slice(0, 6).map((album) => (
             <ShuffleAlbumCard
               key={`decades-desk-${album.id}`}
               album={album}
               onTap={handleAlbumTap}
+              compact
               dominantColor
               playCount={playCounts[String(album.release_id)] ?? 0}
             />
@@ -2285,11 +2308,14 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           className="w-full overflow-hidden"
           style={{ borderTop: "1px solid var(--c-border)", backgroundColor: tickerBg, padding: "8px 0" }}
         >
-          <div
-            className="feed-ticker"
-            style={{ display: "flex", width: "max-content", whiteSpace: "nowrap", animationDuration: `${collectionFacts.length * 6}s` }}
-          >
-            {[...collectionFacts, ...collectionFacts].map((fact, i) => factSpan(fact, i))}
+          {/* Static wrapper carries the edge fade — see .feed-ticker-fade */}
+          <div className="feed-ticker-fade">
+            <div
+              className="feed-ticker"
+              style={{ display: "flex", width: "max-content", whiteSpace: "nowrap", animationDuration: `${collectionFacts.length * 6}s` }}
+            >
+              {[...collectionFacts, ...collectionFacts].map((fact, i) => factSpan(fact, i))}
+            </div>
           </div>
         </div>
       ) : collectionFact ? (
@@ -2372,6 +2398,61 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     );
   };
 
+  /* ─────────────── END CAP — what next ─────────────── */
+  /*
+    The feed used to just stop after Decades. Three actions, one per thing this
+    app is actually for: acquire (Look It Up), curate (Purge), listen
+    (Sessions) — the two on the right being the things Discogs itself doesn't do.
+    Three columns at every breakpoint, per the request; the subtitles are
+    desktop-only because a ~118px column on a phone can't carry them without
+    wrapping to four lines.
+  */
+  const endCapActions: { label: string; sub: string; icon: typeof Disc3; onPress: () => void }[] = [
+    { label: "Look It Up", sub: "Search and add a release.", icon: Search, onPress: () => setShowDiscogsSearch(true) },
+    { label: "Purge", sub: "Decide what stays.", icon: Broom, onPress: () => setScreen("purge") },
+    { label: "Sessions", sub: "Build a listening set.", icon: Music, onPress: () => setScreen("stacks") },
+  ];
+
+  const EndCapSection = (
+    <div className="grid grid-cols-3 gap-[10px] lg:gap-[16px]">
+      {endCapActions.map(({ label, sub, icon: Icon, onPress }) => (
+        <button
+          key={label}
+          onClick={onPress}
+          className="rounded-[12px] overflow-hidden flex flex-col items-center text-center px-[10px] py-[18px] lg:px-[16px] lg:py-[22px] tappable cursor-pointer"
+          style={{ ...cardStyle, touchAction: "manipulation" }}
+        >
+          <Icon size={22} weight="light" style={{ color: "var(--c-text-secondary)" }} />
+          <span
+            style={{
+              marginTop: "10px",
+              fontSize: "14px",
+              fontWeight: 600,
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+              color: "var(--c-text)",
+              lineHeight: 1.2,
+            }}
+          >
+            {label}
+          </span>
+          <span
+            className="hidden lg:block"
+            style={{
+              marginTop: "4px",
+              fontSize: "12px",
+              fontWeight: 400,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              color: "var(--c-text-muted)",
+              lineHeight: 1.35,
+            }}
+          >
+            {sub}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
   /* ═══════════════════════════════════════════════ RENDER ═══════════════════════════════════════════════ */
 
   return (
@@ -2387,10 +2468,13 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       <div ref={scrollRef} className="flex-1 overflow-y-auto overlay-scroll" onScroll={handleFeedScroll}>
         <div className="flex flex-col" style={{ paddingBottom: "var(--scroll-bottom-pad)" }}>
 
-          {/* ═══ DESKTOP LAYOUT ═══ */}
+          {/* ═══ DESKTOP LAYOUT ═══
+              Section gap is 72px, not the old 44: at 6-across density the
+              sections butted into each other and read as one continuous grid
+              rather than as distinct beats. */}
           <div className="hidden lg:block px-[24px] pt-[16px]">
             {hasData && (
-              <div className="flex flex-col gap-[44px]">
+              <div className="flex flex-col gap-[72px]">
                 {/* 0. Identity block */}
                 <div style={{ paddingTop: "8px" }}>{identityBlock("desktop")}</div>
 
@@ -2418,6 +2502,9 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
                 {/* 7. Decades */}
                 {DecadesSection}
+
+                {/* 8. End cap — the feed previously just stopped here */}
+                <div style={{ paddingBottom: "32px" }}>{EndCapSection}</div>
               </div>
             )}
           </div>
@@ -2467,11 +2554,33 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
 
               {/* 8. Decades */}
               {hasData && DecadesSection}
+
+              {/* 9. End cap */}
+              {hasData && (
+                <div className="px-[16px]" style={{ paddingBottom: "24px" }}>
+                  {EndCapSection}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
       )}
+
+      {/* ── "Pick one" reveal ── */}
+      <AnimatePresence>
+        {pickOne && (
+          <PickOneOverlay
+            album={pickOne}
+            pickKey={pickOneKey}
+            playCount={playCounts[String(pickOne.release_id)] ?? 0}
+            onAgain={pickAnother}
+            onClose={() => setPickOne(null)}
+            onOpenDetail={handlePickOpenDetail}
+            onMarkPlayed={handleMarkPickPlayed}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Remove from Wantlist confirmation ── */}
       <AnimatePresence>
