@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as albumFields from "../albumFields.js";
 import type * as authHelper from "../authHelper.js";
 import type * as bugReports from "../bugReports.js";
 import type * as collection from "../collection.js";
@@ -25,6 +26,7 @@ import type * as market_values from "../market_values.js";
 import type * as oauth from "../oauth.js";
 import type * as preferences from "../preferences.js";
 import type * as purge_tags from "../purge_tags.js";
+import type * as stackRules from "../stackRules.js";
 import type * as stacks from "../stacks.js";
 import type * as syncStatus from "../syncStatus.js";
 import type * as users from "../users.js";
@@ -40,6 +42,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  albumFields: typeof albumFields;
   authHelper: typeof authHelper;
   bugReports: typeof bugReports;
   collection: typeof collection;
@@ -56,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   oauth: typeof oauth;
   preferences: typeof preferences;
   purge_tags: typeof purge_tags;
+  stackRules: typeof stackRules;
   stacks: typeof stacks;
   syncStatus: typeof syncStatus;
   users: typeof users;
