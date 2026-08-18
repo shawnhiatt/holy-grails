@@ -6,7 +6,6 @@ import { useFilteredAlbums } from "./use-filtered-albums";
 import { AlbumList } from "./album-list";
 import { AlbumGrid } from "./album-grid";
 
-import { getCachedCollectionValue } from "./discogs-api";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { PrivateDataCard } from "./private-data-card";
 import { SyncStatusLine } from "./sync-status-line";
@@ -154,70 +153,12 @@ export function CrateBrowser() {
     "last-played-oldest": "Last Played",
   };
 
-  // Collection value — sourced exclusively from fetchCollectionValue (Discogs collection/value API).
-  // No per-album summation. Returns null if no sync has occurred yet.
-  const collectionValue = getCachedCollectionValue();
-  const valueEstimate = {
-    low: collectionValue?.minimum ?? 0,
-    median: collectionValue?.median ?? 0,
-    high: collectionValue?.maximum ?? 0,
-  };
-
-  // Count recently added albums (last 30 days)
-  const recentCount = useMemo(() => {
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    return albums.filter((a) => new Date(a.dateAdded).getTime() > thirtyDaysAgo).length;
-  }, [albums]);
-
-  const fmtVal = (n: number) =>
-    "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   const hasActiveFilters = activeFolders.length > 0 || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
 
   return (
     <div className="flex flex-col h-full">
-      {/* ===== DESKTOP title bar (white bg + border) ===== */}
-      <div
-        className="hidden lg:flex flex-shrink-0"
-      >
-        <div className="flex items-center gap-[30px] px-[24px] pt-[8px] pb-[20px] w-full">
-          <div className="flex-1 flex flex-col items-end justify-center gap-[4px]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: "18px", textAlign: "right", color: "var(--c-text-secondary)" }}>
-            {albums.length > 0 ? (
-            <>
-            <p>
-              {recentCount > 0 ? (
-                <>
-                  <span style={{ fontWeight: 600, color: "#009A32" }}>+{recentCount}</span>
-                  {" "}albums in the last 30 days
-                </>
-              ) : recentCount < 0 ? (
-                <>
-                  <span style={{ fontWeight: 600, color: "var(--c-text-faint)" }}>{recentCount}</span>
-                  {" "}albums in the last 30 days
-                </>
-              ) : (
-                <>
-                  <span style={{ fontWeight: 600, color: "var(--c-text-faint)" }}>0</span>
-                  {" "}new albums in the last 30 days
-                </>
-              )}
-            </p>
-            <p style={{ fontSize: "14px", fontWeight: 400, color: "var(--c-text-secondary)" }}>
-              Est. value{" "}
-              <span style={{ fontWeight: 600, color: "#009A32" }}>{fmtVal(valueEstimate.median)}</span>
-              {" "}
-              <span style={{ fontWeight: 400, whiteSpace: "nowrap" }}>({fmtVal(valueEstimate.low)} – {fmtVal(valueEstimate.high)})</span>
-            </p>
-            </>
-            ) : (
-              <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--c-text-faint)" }}>No collection synced</p>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* ===== DESKTOP search/filter/view controls (gray content area) ===== */}
-      <div className="hidden lg:flex items-center gap-[16px] px-[24px] pt-[8px] pb-[16px] flex-shrink-0">
+      <div className="hidden lg:flex items-center gap-[16px] px-[24px] pb-[16px] flex-shrink-0">
         {/* Search field — flex-1 */}
         <div className="flex-1 flex items-center gap-2 rounded-full px-[15px] min-w-0" style={{ backgroundColor: "var(--c-surface)", border: "1px solid var(--c-border-strong)", height: "39px" }}>
           <Search size={16} style={{ color: "var(--c-border-strong)" }} className="flex-shrink-0" />

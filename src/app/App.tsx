@@ -3,7 +3,7 @@ import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { Toaster, toast } from "sonner";
 import { Disc3 } from "./components/icons";
 import { AppProvider, useApp } from "./components/app-context";
-import { BottomTabBar, DesktopTopNav, MobileHeader } from "./components/navigation";
+import { BottomTabBar, DesktopScreenTitle, DesktopSidebar, MobileHeader } from "./components/navigation";
 import { CrateBrowser } from "./components/crate-browser";
 import { PurgeTracker } from "./components/purge-tracker";
 import { Stacks } from "./components/stacks";
@@ -462,7 +462,7 @@ function AppContent() {
 
   return (
     <div
-      className="app-viewport w-screen flex flex-col overflow-hidden"
+      className="app-viewport w-screen flex overflow-hidden"
       style={{
         // Height comes from the .app-viewport class: 100dvh in the browser
         // (clears iOS Safari's chrome), 100vh in an installed PWA (standalone
@@ -474,8 +474,11 @@ function AppContent() {
         "--app-bg": isDarkMode ? "#0A0C0F" : "#E4E7EA",
       } as React.CSSProperties}
     >
-      <DesktopTopNav />
+      <DesktopSidebar />
 
+      {/* Content column — everything right of the desktop rail. On mobile the
+          rail is hidden, so this is the full viewport. */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
       <div className="flex-1 flex overflow-hidden min-w-0">
         <div className="flex-1 flex lg:justify-center overflow-hidden min-w-0">
           <main
@@ -523,7 +526,13 @@ function AppContent() {
                 "--scroll-bottom-pad": scrollBottomPad,
               } as React.CSSProperties}
             >
-              {renderScreen()}
+              <DesktopScreenTitle />
+              {/* min-h-0 lets this shrink inside the flex column; screens whose
+                  root is h-full resolve against it rather than against the
+                  column that now also holds the title */}
+              <div className="flex-1 min-h-0 flex flex-col">
+                {renderScreen()}
+              </div>
             </motion.div>
           </main>
         </div>
@@ -554,6 +563,7 @@ function AppContent() {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
       </div>
 
       {/* Scroll fade overlay — dissolves content above the floating bottom nav (mobile only) */}

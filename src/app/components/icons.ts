@@ -25,6 +25,9 @@ export {
   CaretLeftIcon as ChevronLeft,
   CaretRightIcon as ChevronRight,
   VinylRecordIcon as Disc3,
+  // Five pips read as a die at 16px where a diagonal three does not — the
+  // "pick one at random" affordance in the feed's Shuffle section
+  DiceFiveIcon as Dice,
   FolderOpenIcon as FolderOpen,
   CardsThreeIcon as GalleryVerticalEnd,
   GridFourIcon as Grid2x2,

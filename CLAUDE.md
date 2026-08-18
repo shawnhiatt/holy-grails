@@ -283,11 +283,12 @@ src/
       install-nudge.tsx   # Dismissible PWA install nudge bottom sheet for mobile browser users. Fixed-position sheet (z-[150]) with backdrop (z-[149]). Detects standalone mode, listens for beforeinstallprompt (Android), shows instructional copy (iOS). Dismissal persisted to localStorage. Mounted from App.tsx.
       last-played-utils.ts
       motion-tokens.ts
-      navigation.tsx
+      navigation.tsx    # MobileHeader + BottomTabBar (mobile), DesktopSidebar + DesktopScreenTitle (desktop; there is deliberately no top strip). See Navigation Structure.
       no-discogs-card.tsx
       offline-banner.tsx   # Banner shown when device has no network connection; uses z-[115]
       oauth-helpers.ts   # OAuth 1.0a initiation — kicks off Discogs redirect (no signing, just calls convex/oauth.ts)
       private-data-card.tsx  # Empty-state note when a followed user's (or the owner's own) Discogs collection/wantlist is not browsable — Discogs 403s even for the owner's token. Instructional copy only, no discogs.com link. Used by crate-browser and wantlist private/empty states. Matches NoDiscogsCard's card treatment.
+      pick-one-overlay.tsx  # "Pick one" — the Shuffle section's single-release reveal (centered, in-tree not portaled). See Home Feed.
       purge-colors.ts
       purge-tracker.tsx
       purge-verdict-buttons.tsx  # Shared Keep/Maybe/Cut verdict button row — solid fill = selected verdict, tag-colored outline = unselected, icons Check/HelpCircle/StackMinus (weight bold). Used by the feed evaluator and album detail Rate for Purge; any new verdict UI must use this component, never bespoke buttons.
@@ -504,7 +505,7 @@ These never change with theme and are always hardcoded where used.
 | `#D1D8DF` | Dark-mode inactive nav icon + label |
 | `#d9e800` | CTA button hover state |
 
-**Both navs are theme-aware.** The desktop top nav renders on a transparent header over the app gradient (no fixed navy bar anymore); its active icon is `#EBFD00` in dark mode and `#16181C` (near-neutral black) in light mode, matching the mobile bottom nav convention — yellow does not read on a light surface. The mobile header's active Following/Settings buttons follow the same rule.
+**Both navs are theme-aware.** The desktop sidebar and top strip render transparent over the app gradient (no fixed navy bar anymore — the sidebar's only chrome is a single right hairline); the active nav icon is `#EBFD00` in dark mode and `#16181C` (near-neutral black) in light mode, matching the mobile bottom nav convention — yellow does not read on a light surface. The mobile header's active Following/Settings buttons follow the same rule.
 
 ##### Yellow CTA Buttons
 ```tsx
@@ -677,7 +678,20 @@ Everything filter-shaped comes from **`filter-controls.tsx`**. There are three d
 
 - **Selected chips carry a ring, not just a tint.** `rgba(172,222,242,0.2)` alone is nearly invisible on the dark chip background. The unselected border is `1px solid transparent` so toggling never shifts a chip by a pixel.
 - **`FilterApplyButton` takes `matchCount` OR `label`, and the choice is a semantic one.** Where filters apply live — the Collection and followed-profile drawers, whose chips write straight to state, leaving the list behind the sheet already filtered — the button only closes, so it takes `matchCount` and reads "Show 27 releases". "Apply Filters" there was describing something it didn't do. Pass `label="Apply Filters"` only where the drawer genuinely stages a draft and applies on tap: the pressing picker, which re-queries Discogs.
-- **The match count is passed in, never recomputed inside a drawer.** Both live-filter drawers sit behind a screen that owns its own `searchQuery` (deliberately kept out of app context — see the Rules under Data Architecture), so a count derived inside the drawer would ignore the search and disagree with the list. This is why `FilterDrawer` renders from `crate-browser.tsx` rather than `App.tsx`.
+- **Desktop content gutter is a symmetric 24px on every screen.** `lg:px-[24px]` is the shared
+value (mobile stays 16px, or 32px on the right of the Collection/Wantlist grid+list scroll
+containers to clear the alphabet strip). The four grid/list scroll containers used to set
+`pl-[16px]` with no `lg:` override, so on desktop the cards sat 8px left of the search row, sync
+line and title above them — visibly hanging off the left edge; and their right padding was
+`pr-[32px]` with `lg:pr-[24px]` applied *only when the alphabet index happened to be visible*,
+so the same screen had two different desktop right gutters. The two list views also carried
+`pr-[16px]` and `pr-[32px]` in one class string, resolving by stylesheet order rather than
+intent. **The `lg:px-[24px]` override only wins because responsive variants land in a later
+`@media` block** — within a single block Tailwind emits `px` *before* `pl`/`pr`, so a base
+`px-[24px]` would have lost to a base `pl-[16px]`. Don't "simplify" these to base-layer
+shorthand.
+
+**The match count is passed in, never recomputed inside a drawer.** Both live-filter drawers sit behind a screen that owns its own `searchQuery` (deliberately kept out of app context — see the Rules under Data Architecture), so a count derived inside the drawer would ignore the search and disagree with the list. This is why `FilterDrawer` renders from `crate-browser.tsx` rather than `App.tsx`.
 - **Folders multi-select; Format and Relationship are single-select toggles.** `activeFolders: string[]` OR's within the section and AND's across sections — a release lives in exactly one folder, so OR is the only combinator that can match anything. "All" is the absence of a selection, so it clears rather than toggles.
 - **"No Plays Recorded" / "Plays Recorded" are mutually exclusive** — they partition the collection, so holding both can only return nothing. Selecting one clears the other.
 
@@ -844,6 +858,12 @@ Session picker entry points: Bookmark buttons have been removed from all card vi
 Standard row order (Collection, Wantlist, followed user profile):
 [Search bar — flex: 1] [Large grid toggle] [List toggle] [Filter button]
 
+**Exactly one element in this row is `flex-1`: the search bar.** Everything else
+shrinks to its content. Wantlist violated this by putting its All/Priorities
+chips in a *second* `flex-1` container, which halved its search field and left
+two sibling screens with visibly different search widths at the same breakpoint.
+Do not reintroduce a second `flex-1` here.
+
 Removed toggles: compact 3-column grid (Grid3x3) and swiper/disk (Disc3).
 These view modes no longer exist. VIEW_MODES and WANT_VIEW_MODES are
 reduced to `grid` and `list` only. A useEffect guard resets any stored
@@ -889,7 +909,13 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 ### Home Feed (feed-screen.tsx)
 
-**Section order:** Identity block, Shuffle, Recently Added, Following Activity, Purge Tracker, Listening, Format Spotlight, On the Hunt, Decades. On desktop, Purge Tracker and Listening render together in a 2-column grid at the Purge Tracker slot — the two cards that ask for something (a verdict, a play). The three collection-random sections (Shuffle, Format Spotlight, Decades) are deliberately interleaved with other content — do not stack them adjacent.
+**Desktop feed sections are 72px apart** (`gap-[72px]`), not the 44px they were before the density change — at 6-across the sections butted into each other and read as one continuous grid rather than as distinct beats.
+
+**Desktop album grids are 6 across.** Recently Added and On the Hunt already were; Shuffle (3, full-size), Decades (up to 4, full-size) and Format Spotlight (`repeat(albums.length)`, full-size) were the outliers, each stretching a handful of oversized covers over 1280px and pushing the rest of the feed below the fold. All five now use `grid-cols-6` + `gap: 12px` + the `compact` card. Format Spotlight's pick rose from a 3-or-4 coin flip to 6 (one full row) to match; category eligibility stays at 3, so a thin category shows correctly-sized cards in a short row rather than a few huge ones. **That pool is shared with the mobile scroller, which slices back to 4** — raising it for the desktop row must not lengthen the mobile section. The Collection, Wantlist and followed-profile grids are `lg:grid-cols-5 xl:grid-cols-6` — five below 1280px viewport, where the 208px sidebar has already taken width out of the content column. `GridCard`'s 13/12/11px text needed no change at this density, and cards keep `cover` (500px) rather than `thumb`: the Image Sizing Convention's ~200px threshold is about CSS display size for thumbnails and rows, and a ~196px card at 2× DPR still wants ~400px of image.
+
+**Section order:** Identity block, Shuffle, Recently Added, Following Activity, Purge Tracker, Listening, Format Spotlight, On the Hunt, Decades, **End cap**.
+
+**End cap** (`EndCapSection`): three actions closing the feed — **Look It Up** (opens the search panel), **Purge**, **Sessions**. One per thing the app is for: acquire, curate, listen, the latter two being what Discogs itself doesn't do. Before it, the feed simply stopped after Decades with no bottom room. Three columns at **every** breakpoint; the subtitles are `hidden lg:block` because a ~118px column on a phone cannot carry them without wrapping to four lines. It supplies its own bottom padding (32px desktop / 24px mobile) **on top of** `--scroll-bottom-pad` — that token stays centralized and must not be overridden per screen (see App-Level CSS Custom Properties). On desktop, Purge Tracker and Listening render together in a 2-column grid at the Purge Tracker slot — the two cards that ask for something (a verdict, a play). The three collection-random sections (Shuffle, Format Spotlight, Decades) are deliberately interleaved with other content — do not stack them adjacent.
 
 **Insights card removed (v0.7.x), replaced by Listening.** Every piece of the old card had a better home: collection value and the growth count moved to the identity block (the latter as the `+N in 30 days` delta), "still unrated" was already a Purge Tracker chip with the identical tap target, and the rotating fact line duplicated the ticker directly above it. What was left — "no play recorded" — became the seed of the Listening card. The feed has no end-cap card now; Decades closes it.
 
@@ -897,7 +923,7 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 **Recommended section removed (v0.6.x):** The time-of-day-weighted "Give this one a spin." hero was cut — it read as redundant with Shuffle. Its `getTimeBucket`/mood-folder scoring code was deleted with it; do not resurrect it. The feed-header transparency behavior it introduced remains: the mobile feed header is transparent at scroll position 0 on the home feed and transitions to opaque on scroll, scoped via a prop on the header component (`onHeroVisibility` keys off scroll position, not any hero section). The identity block sits flush under the transparent header.
 
-**Identity block (above the fold):** The scripted time-of-day greeting pool was removed — real data carries the personality instead. A full-width band (no card container) built from rows separated by `1px solid var(--c-border)` hairlines, rendered by `identityBlock(variant)` with `"mobile"` and `"desktop"` arrangements. Mobile stacks three rows flush under the transparent header (wrapper clearance `calc(safe-area-inset-top + 58px)` — the band's own top hairline reads as the header's bottom edge): (1) avatar (44px, initial fallback) + username (22px Bricolage, `flex-1` + `min-width: 0`, truncates with ellipsis so it never collides with the sync control) + a **SYNC control** — center-aligned and vertically stacked: `RefreshCw` icon (Phosphor `ArrowsClockwise`, `weight="bold"`, 16px) *above* uppercase "SYNC" (13px, weight 700, letter-spacing 0.1em) in `var(--c-link)`, with just "{2h ago}" (`formatSyncedAgo`, 12px muted) beneath — the word "Synced" was dropped as implied; while syncing it becomes a Disc3 spinner over "SYNCING" and disables. Calls `syncFromDiscogs` with the Settings-style success/error toasts. (2) A stats grid — equal columns with vertical hairline dividers, ordered In Collection · Med. Value (`#009A32`, hidden when no cached collection value) · In Wantlist; values 22px Bricolage over 10px uppercase letterspaced labels; **each stat is a tappable shortcut** (In Collection → crate, Med. Value → reports, In Wantlist → wants). The Collection and Wantlist cells carry a third line — a **`+N in 30 days` recent-adds delta** in `#009A32` (`countAddedWithin` in `utils/insights.ts`). It is **adds only**: nothing anywhere records a removal (Discogs doesn't expose one and the caches are faithful mirrors), so a net change isn't derivable without a stored ledger — don't add one for a stat-cell subtitle. Med. Value has no history either (one current value + `synced_at`), so it has no delta. The line renders on every cell — `visibility: hidden` rather than removed when there's nothing to report — so the three cells keep a common baseline, same reasoning as the year-display convention. This absorbed the removed Insights card's "Added last 3 months". (3) The collection facts ticker on a subtle lifted strip (dark: `oklab(from #0C0F13 calc(l + 0.03) a b)`, light: `oklab(from #F9F9FA calc(l - 0.025) a b)`; hard edge clip, no fade mask). `deriveCollectionFacts(albums, playCounts)` returns structured `{ label, value }` pairs rendered as an eyebrow label (10px uppercase, `var(--c-text-faint)`) beside its value (13px weight 600, `var(--c-text)`); the fact order is shuffled (Fisher–Yates `shuffle`) so the ticker leads with a different fact each open — once at mount and again on every `visibilitychange` back to `visible`, since an installed PWA resumed from the background never remounts and would otherwise freeze the lead fact; the pool includes "Most rotated" (the highest-play-count record, gated at 2+ plays, derived from the existing `playCounts` map — no new listen tracking) when play history exists; seamless two-copy loop via the `.feed-ticker` keyframe in fonts.css — the track is `display:flex; width:max-content` and each item `flex-shrink:0; white-space:nowrap`, or iOS Safari stacks the text vertically; falls back to a single centered `pickRandom` fact under `prefers-reduced-motion` or when fewer than 2 facts. "Collecting since" was removed with the container redesign. Desktop composes the same pieces as one header strip (avatar 48px, username 26px, inline stat cells, sync control right) with the ticker strip underneath. Zero additional API calls — all fields come from context/cache.
+**Identity block (above the fold):** The scripted time-of-day greeting pool was removed — real data carries the personality instead. A full-width band (no card container) built from rows separated by `1px solid var(--c-border)` hairlines, rendered by `identityBlock(variant)` with `"mobile"` and `"desktop"` arrangements. Mobile stacks three rows flush under the transparent header (wrapper clearance `calc(safe-area-inset-top + 58px)` — the band's own top hairline reads as the header's bottom edge): (1) avatar (44px, initial fallback) + username (22px Bricolage, `flex-1` + `min-width: 0`, truncates with ellipsis so it never collides with the sync control) + a **SYNC control** — center-aligned and vertically stacked: `RefreshCw` icon (Phosphor `ArrowsClockwise`, `weight="bold"`, 16px) *above* uppercase "SYNC" (13px, weight 700, letter-spacing 0.1em) in `var(--c-link)`, with just "{2h ago}" (`formatSyncedAgo`, 12px muted) beneath — the word "Synced" was dropped as implied; while syncing it becomes a Disc3 spinner over "SYNCING" and disables. Calls `syncFromDiscogs` with the Settings-style success/error toasts. (2) A stats grid — equal columns with vertical hairline dividers, ordered In Collection · Med. Value (`#009A32`, hidden when no cached collection value) · In Wantlist; values 22px Bricolage over 10px uppercase letterspaced labels; **each stat is a tappable shortcut** (In Collection → crate, Med. Value → reports, In Wantlist → wants). The Collection and Wantlist cells carry a third line — a **`+N in 30 days` recent-adds delta** in `#009A32` (`countAddedWithin` in `utils/insights.ts`). It is **adds only**: nothing anywhere records a removal (Discogs doesn't expose one and the caches are faithful mirrors), so a net change isn't derivable without a stored ledger — don't add one for a stat-cell subtitle. Med. Value has no history either (one current value + `synced_at`), so it has no delta. The line renders on every cell — `visibility: hidden` rather than removed when there's nothing to report — so the three cells keep a common baseline, same reasoning as the year-display convention. This absorbed the removed Insights card's "Added last 3 months". (3) The collection facts ticker on a subtle lifted strip (dark: `oklab(from #0C0F13 calc(l + 0.03) a b)`, light: `oklab(from #F9F9FA calc(l - 0.025) a b)`) with a **gradient fade at both ends** (`.feed-ticker-fade` in fonts.css — 28px mobile / 48px desktop) so facts arrive and leave instead of being chopped at a hard edge. Two things about that mask are load-bearing and were both verified against the alternative: it goes on a **static wrapper** around `.feed-ticker`, never on the animated track (a mask applies in the element's own coordinate space, so masking the translating track drags the fade along with the text) and never on the outer strip (which carries the tinted background — masking that notches the tint to the page canvas at both corners). And `mask-repeat` must be `no-repeat`; the default tiles the gradient across the track's overflowing width and stamps a fade every viewport-width. `deriveCollectionFacts(albums, playCounts)` returns structured `{ label, value }` pairs rendered as an eyebrow label (10px uppercase, `var(--c-text-faint)`) beside its value (13px weight 600, `var(--c-text)`); the fact order is shuffled (Fisher–Yates `shuffle`) so the ticker leads with a different fact each open — once at mount and again on every `visibilitychange` back to `visible`, since an installed PWA resumed from the background never remounts and would otherwise freeze the lead fact; the pool includes "Most rotated" (the highest-play-count record, gated at 2+ plays, derived from the existing `playCounts` map — no new listen tracking) when play history exists; seamless two-copy loop via the `.feed-ticker` keyframe in fonts.css — the track is `display:flex; width:max-content` and each item `flex-shrink:0; white-space:nowrap`, or iOS Safari stacks the text vertically; falls back to a single centered `pickRandom` fact under `prefers-reduced-motion` or when fewer than 2 facts. "Collecting since" was removed with the container redesign. Desktop composes the same pieces as one header strip (avatar 48px, username 26px, inline stat cells, sync control right) with the ticker strip underneath. Zero additional API calls — all fields come from context/cache.
 
 **Format Spotlight:** Rotates the featured format on every app load. Categories are of two kinds: vinyl-descriptor categories matched by substring (7-Inch, 12-Inch, Limited Edition, Picture Disc, Colored, Etched, 45 RPM, Mono, Box Set, etc.) and media-type categories classified via `mediaType()` (CDs, Cassettes, 78s & Shellac) — a media-type category uses `mediaType` rather than a substring so "CD" never false-positives inside another word. Headers are the plain format name ("45 RPMs", "CDs") under the FORMAT SPOTLIGHT eyebrow — no "Your …" / "… in Your Collection" fluff. Requires a minimum of 3 matching albums per category to be eligible for display. Operates entirely on cached Convex collection data — zero additional API calls.
 
@@ -907,7 +933,15 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 **Decades:** Random eligible decade spotlight (requires 5+ albums in the decade). Header is a plain "The {decade}" (Rock Salt) under a DECADE HIGHLIGHT eyebrow — the old scripted flavor subtitles were removed. Uses `ShuffleAlbumCard` with `dominantColor` for artwork-driven card backgrounds.
 
-**Shuffle** (this is the home-feed section; the Following screen has a sibling section over followed users' collections that keeps the older **From the Depths** name — the two are deliberately named differently, so don't unify them)**:** Leads the feed directly under the identity block — it reshuffles on every load, so it carries the "why did I open the app" slot. Introduced by the gradient "Shuffle" heading (Rock Salt 30px, pink→yellow→green→cyan) with, on the right, a Square/Grid2x2 pill (screen-local toggle between one album and the 4/9 grid) and a yellow refresh button (`reshuffle` — re-picks the 10-album pool). Cards animate in with a staggered fade/rise (80ms, EASE_OUT, keyed on a shuffle counter; honors prefers-reduced-motion). 2x2 grid on mobile, 3x3 grid on desktop; single mode shows one full-width (mobile non-compact) card. Uses `ShuffleAlbumCard` (`shuffle-album-card.tsx`) with `compact` and `dominantColor` props — compact shows only title, artist, and date (no year/label/folder meta line).
+**Shuffle** (this is the home-feed section; the Following screen has a sibling section over followed users' collections that keeps the older **From the Depths** name — the two are deliberately named differently, so don't unify them)**:** Leads the feed directly under the identity block — it reshuffles on every load, so it carries the "why did I open the app" slot. Introduced by the gradient "Shuffle" heading (Rock Salt 30px, pink→yellow→green→cyan) with, on the right, **two matched 36px circular buttons** — a `Dice` "Pick one" on the surface treatment, and the yellow `Shuffle` reshuffle (`reshuffle` — re-picks the 6-album pool). They are a deliberate pair: two related actions on the same set, distinguished by icon rather than by a label, and **yellow stays on reshuffle as the section's single accent**. The die carries "pick one" without text — the same gesture the native app will get as shake-to-random. Cards animate in with a staggered fade/rise (80ms, EASE_OUT, keyed on a shuffle counter; honors prefers-reduced-motion). 2x2 compact grid on mobile (sliced from the same pool), **one row of 6 compact on desktop** — two rows was tried and gave one of nine feed sections most of the fold. Uses `ShuffleAlbumCard` (`shuffle-album-card.tsx`) with `compact` and `dominantColor` props — compact shows only title, artist, and date (no year/label/folder meta line).
+
+**"Pick one"** (`pick-one-overlay.tsx`) pulls a single release up as its own centered reveal — a close button, the full-size `ShuffleAlbumCard`, and an action row of a circular `Shuffle` re-pick beside **Mark as Played**. No eyebrow and no button labels beyond the yellow one: the card names itself, and the re-pick reads as the same circular shuffle affordance as the section header's. It replaced a one-vs-grid view toggle that only changed how many cards the grid drew; pulling one release up is the decision the app is actually for, and it makes the button *do* something rather than reformat something. Details that are deliberate:
+- **It picks from the whole collection, not the shuffle pool** — the pool is what's already on screen, and the point is to surface something you weren't looking at.
+- **"Again" never returns the release already showing** (`pickAnother` filters the current id) — a button that can change nothing reads as broken.
+- **It is rendered in-tree from the feed, NOT portaled** to `document.body`, so the content tokens on `<main>` still resolve; the card's dominant-color treatment falls back to `var(--c-*)`, which a portal would strand (contrast the lightbox in `album-detail.tsx`, which portals and therefore hardcodes its colors).
+- **Centered at both breakpoints**, not a bottom sheet — it's a reveal, not a browsing surface.
+- **Mark as Played closes it.** That is the completion, the toast is the confirmation, and the unmount doubles as the double-fire guard (so there is deliberately no `marking` flag). Tapping the card hands off to the full detail panel and closes the reveal.
+- Registers with the **dialog stack** for Escape, so the album detail sheet can open over it without one keypress closing both.
 
 **Dominant color cards:** `DominantColorCard` (`dominant-color-card.tsx`) extracts the dominant color from album artwork via canvas sampling and uses it as the card background. Text contrast (light/dark) is determined by WCAG 2.1 relative luminance. Images are proxied through `/img-proxy/` (Vite dev proxy + Vercel rewrite) to avoid CORS canvas tainting. The component sets CSS custom properties (`--dc-bg`, `--dc-text`, `--dc-text-secondary`, `--dc-text-muted`) for children to consume. `ShuffleAlbumCard` supports a `dominantColor` boolean prop that wraps the card in `DominantColorCard` and switches text colors to `--dc-*` vars with `--c-*` fallbacks. A `compact` boolean prop reduces font sizes and hides the year/label/folder meta line.
 
@@ -919,7 +953,7 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 ### Reports & Insights (reports-screen.tsx)
 
 **Sections** (uses recharts library):
-1. **Stat line**: Compact plain text below the "Insights" heading — "{N} collected · {N} on wantlist". DM Sans 13px, font-weight 500, var(--c-text-muted). No card, no border.
+1. **Stat line**: Compact plain text at the top of the screen (the "Insights" name comes from `MobileHeader`/the nav, not an in-screen heading — this screen has no title on desktop; see Navigation Structure) — "{N} collected · {N} on wantlist". DM Sans 13px, font-weight 500, var(--c-text-muted). No card, no border.
 2. **Collection Value**: Hero median value in green, min/max range.
 3. **Condition**: Standalone card with color-coded horizontal bar chart per condition grade and "X% of your collection is NM or better" green pill callout. Uses conditionGradeColor spectrum. Not part of the Breakdown card.
 4. **Missing Details** (`CollectionMaintenanceSection`): the two grading gaps — Media Condition and Sleeve Condition — as a **fixed 2-up grid**, never a horizontal scroller (there are only ever two categories, so a scroller with 240px tiles bought nothing and fit neither on a phone). Each tile is a typographic stat block: the count as a 36/44px Bricolage hero in the section's ice-blue accent with `tabular-nums`, a 10px uppercase letterspaced label under it (the identity-block stat-cell treatment), and a faint `Not set` line. **No icon** — it carried nothing the label wasn't already carrying. Tapping expands the list of affected releases (cap 50 + a `+N more` line) as before.
@@ -1039,14 +1073,116 @@ Title truncation on all variants: `white-space: nowrap`,
 `flex: 1` on title wrapper. Right button group is `flex-shrink: 0`.
 
 SCREEN_TITLES map lives in `navigation.tsx`. Feed is intentionally omitted.
-Per-screen internal title bars have been removed from all screens —
-do not re-add them.
+
+**Per-screen internal title *bars* were removed from all screens; a desktop
+screen *heading* was later reinstated centrally.** The removal was correct while
+a horizontal top nav existed; with the sidebar rail the rail names the *app*, not
+the screen, and `MobileHeader` (which supplies the mobile `<h1>`) is `lg:hidden` —
+so desktop had no screen identification at all.
+
+**`DesktopScreenTitle` (navigation.tsx) is the single implementation**, rendered
+from `App.tsx` immediately above `renderScreen()`. It reads the same
+`SCREEN_TITLES` map `MobileHeader` uses, so the two cannot drift and a screen
+added later gets a heading for free. `hidden lg:block`, 48px Bricolage 700 via
+the `.screen-title` rule in fonts.css (deliberately desktop-only — it sets no
+base size, because every consumer is `hidden lg:block`). **Do not add per-screen
+titles back into individual screen components** — Collection and Wantlist each
+had one briefly and they were folded into this. It is a bare heading above the
+control row, never a bar with chrome.
+
+**`DesktopScreenTitle` owns the entire title-to-content gap.** Every screen zeroes
+its own desktop top padding (`lg:pt-0`, or simply no `pt` where the wrapper is
+already `hidden lg:flex`), so the title's 16px bottom padding is the only spacer
+and the distance is identical on all of them. Before this each screen stacked its
+own `lg:pt-*` under the title and the gap ranged 14–30px depending on which screen
+you were on — most visible flipping between Following (30px) and Settings (14px).
+Change the padding once, in the title, and it changes everywhere. **Do not
+reintroduce a per-screen `lg:pt-*` on whichever element sits directly beneath the
+title.** Mobile base paddings are untouched — the overrides are `lg:`-scoped.
+
+Because the title sits in the flex column above the screen, `renderScreen()` is
+wrapped in a **`flex-1 min-h-0 flex flex-col`** div. That wrapper is load-bearing:
+every screen root is `flex flex-col h-full`, and without it `h-full` would resolve
+against the column that now also holds the title and overflow by the title's
+height.
+
+Two sub-views are deliberate exceptions:
+- **Session detail** (`stackDetailOpen`) renders no title. `StackDetail` already
+  draws its own header (back chevron + editable session name + share) at *every*
+  breakpoint, so a "Sessions" heading above it would make the less informative
+  line the dominant one — the same reason `MobileHeader` returns null there.
+- **A followed user's profile** (`followedUserProfile`) shows `@username` rather
+  than "Following", because that is what you are looking at. This closed half of
+  the long-standing desktop gap for that view; it still has **no back button**
+  (the rail's Following item is the way back, and unlike mobile the rail is
+  always on screen).
 
 ### Desktop (>= 1024px)
-Horizontal top nav with 9 items split left/center/right. Logo centered. Both groups are `flex-1`.
 
-**Left group:** Feed > Collection > Wantlist > Sessions
-**Right group:** Look It Up (Search) > Following > Purge > Insights > Settings > theme toggle
+All desktop chrome is a **left sidebar rail** (`DesktopSidebar`,
+`DESKTOP_SIDEBAR_WIDTH` = 208px), plus the per-screen `DesktopScreenTitle`. Both are
+`hidden lg:*`, so mobile is untouched. There is no horizontal bar of any kind.
+
+This replaced a centered-wordmark horizontal top nav (`DesktopTopNav`, removed) that split four
+items left against five right: it balanced by item count rather than hierarchy, left "Look It
+Up" reading as a ninth place to go rather than a tool, and ran full-bleed while the content
+column below was centered at 1280px — so nothing in the header lined up with anything under it.
+
+**Sidebar** — logo at top (34px, → Feed), then destinations in two groups separated by a
+hairline, then **Search** pinned at the foot above the account row:
+- `DESKTOP_NAV_PRIMARY`: Feed > Collection > Wantlist > Sessions > Insights — **identical to
+  the mobile bottom tab bar, in the same order.** Keep it that way; the two layouts should
+  teach each other.
+- `DESKTOP_NAV_TOOLS`: Purge > Following (Settings lives in the footer — see below)
+
+The **sync chip** renders below the nav groups when a sync is running (suppressed on the feed
+for collection syncs, where the identity block's SYNC control already shows it — mirroring
+`MobileHeader`). It sits there rather than in the footer so it never crowds the account row in a
+208px rail.
+
+**There is no desktop top strip.** One was built (Look It Up as a 280px input-shaped button,
+plus sync/theme/avatar) and then dismantled in two steps, both worth not repeating: the theme
+switch and avatar sat marooned at the far right, a full content-width from the only other
+control, so they moved to the sidebar footer; and the search field was an element **shaped like
+an input that could not be typed into** — it opened the full-screen panel — which is a promise
+the control doesn't keep, so it became a plain `Search` nav row in the rail. That left the strip
+holding nothing but an intermittent sync chip, so the strip was removed entirely and the
+content column now starts at the top of the viewport. Do not reintroduce it; the rail has room
+for anything it would have held.
+
+**Search is a rail row, not a field.** It sits at the **foot** of the rail (above the account
+row) and is styled exactly like a destination, but takes **no active state** — it opens an
+overlay, so there is no screen for it to be "on". That is why it is not a member of
+`DESKTOP_NAV_PRIMARY`. **It carries no divider above it**: the `flex-1` spacer already separates
+it from the destinations and the footer hairline closes it off below — a third hairline in a
+208px rail is clutter, not structure.
+
+**Sidebar footer** — avatar + Discogs username (ellipsizing) + the theme switch, above a
+hairline. The name row is the way into Settings, which is why **Settings is deliberately not
+also a nav row**: an avatar-and-name row at the foot of a rail is the conventional account
+affordance, it matches `MobileHeader` (where the avatar is likewise the way in), and it uses
+vertical room the rail has going spare. Do not re-add a Settings nav item beside it.
+
+**Look It Up is an input-shaped `<button>`, deliberately not an `<input>`** — it opens the
+full-screen search panel rather than accepting keystrokes, so a real input would promise
+typing it can't take. Its placeholder names the database explicitly ("Search the Discogs
+database"): Collection and Wantlist each carry their own search bar that filters the list in
+place, and these must not read as the same control.
+
+The avatar in the top strip navigates to Settings, matching `MobileHeader` where the avatar is
+also the way in. Settings additionally appears as a labeled sidebar row — two conventional
+entry points, not a duplication to collapse.
+
+**Both the sidebar and the top strip render OUTSIDE the content token cascade.**
+`getContentTokens()` is spread onto `<main>` and the desktop side panel only ("Header & nav are
+unaffected by dark mode", `theme.ts`), so `var(--c-*)` does not resolve there. Colors come from
+the shared `useDesktopChromeColors()` hook — the blessed derived equivalents, same approach the
+old top nav used. Do not introduce `var(--c-*)` into desktop chrome without first spreading the
+tokens onto it.
+
+**The app root is a flex ROW** (`App.tsx`): sidebar, then a `flex-1 flex-col` content column
+holding the top strip and the existing centered-main row. On mobile the rail is `display: none`,
+leaving that column the full viewport.
 
 Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor migration this alias renders `CardsThree` — records standing in a crate). Insights uses `BarChart3` (Phosphor `ChartBar`). Active state: `#EBFD00` icon + translucent background highlight; active nav items use `weight="fill"`, inactive use `weight="light"`.
 
@@ -1070,6 +1206,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor mig
 | New session / Add user FABs (mobile) | `z-[105]` | stacks.tsx, following-screen.tsx |
 | Scroll fade overlay | `z-100` | App.tsx |
 | Delete confirmation modals | `z-[90]` | stacks.tsx |
+| "Pick one" reveal card | `z-[93]` | pick-one-overlay.tsx |
+| "Pick one" backdrop | `z-[92]` | pick-one-overlay.tsx |
 | Purge tracker sheet | `z-[89]` | purge-tracker.tsx |
 | Purge tracker backdrop | `z-[88]` | purge-tracker.tsx |
 | Session picker mobile sheet | `z-[85]` | stack-picker-sheet.tsx |

@@ -412,7 +412,7 @@ function StackDetail({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] pb-[8px] lg:pb-[12px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[8px] lg:pt-0 pb-[8px] lg:pb-[12px]">
         <div className="flex items-center gap-2">
           <button onClick={onBack} className="w-8 h-8 rounded-full flex items-center justify-center tappable transition-colors flex-shrink-0" style={{ color: "var(--c-text-muted)", border: "1px solid var(--c-border-strong)" }}>
             <ChevronLeft size={18} />

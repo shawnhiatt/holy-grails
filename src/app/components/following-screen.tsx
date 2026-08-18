@@ -659,7 +659,7 @@ function FollowedUserProfile({
     <div className="flex flex-col h-full">
       {/* Comparison stat strip */}
       {showComparisonStrip && (
-        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[10px] lg:pt-[16px] lg:pb-[10px]">
+        <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[10px] lg:pt-0 lg:pb-[10px]">
           <div
             className="grid rounded-[12px] overflow-hidden"
             style={{
@@ -714,7 +714,7 @@ function FollowedUserProfile({
       )}
 
       {/* Collection / Wantlist toggle */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[12px] lg:pt-[16px] lg:pb-[12px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[4px] pb-[12px] lg:pt-0 lg:pb-[12px]">
         <div className="flex rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--c-border-strong)" }}>
           <button
             onClick={() => { setTab("collection"); setFilter("all"); }}
@@ -1157,7 +1157,7 @@ function FollowedUserGridView({ items, viewMode, filter, userCutIds, userWantIds
   }
 
   return (
-    <div className={`grid ${viewMode === "grid3" ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-4 gap-3 px-[16px] lg:px-[24px] pt-3 pb-4`}>
+    <div className={`grid ${viewMode === "grid3" ? "grid-cols-3" : "grid-cols-2"} lg:grid-cols-5 xl:grid-cols-6 gap-3 px-[16px] lg:px-[24px] pt-3 pb-4`}>
       {items.map((item) => {
         const badge = getBadge(item.release_id, filter, userCutIds, userWantIds, userIds);
         return (
@@ -1499,7 +1499,7 @@ function PopulatedFollowingView({
   return (
     <div className="flex flex-col">
       {/* ── Horizontal avatar row ── */}
-      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[10px] pb-[14px]">
+      <div className="flex-shrink-0 px-[16px] lg:px-[24px] pt-[10px] lg:pt-0 pb-[14px]">
         <div className="flex items-start gap-[12px] overflow-x-auto no-scrollbar pb-1">
           {sortedFollowedUsers.map((followedUser) => (
             <button

@@ -165,7 +165,7 @@ export function ShuffleAlbumCard({
       </div>
 
       {footer && (
-        <div style={{ padding: "0 14px 12px" }}>
+        <div style={{ padding: compact ? "0 8px 8px" : "0 14px 12px" }}>
           {footer}
         </div>
       )}

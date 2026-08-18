@@ -193,7 +193,7 @@ export function AlbumList({ albums, showPurgeIndicator = true, sortOption = "art
     <>
       <div
         ref={scrollRef}
-        className={`flex-1 overflow-y-auto overlay-scroll ${indexVisible ? "lg:pr-[24px]" : "pr-[16px] lg:pr-[24px]"} pl-[16px] pr-[32px] pt-[16px]`}
+        className={`flex-1 overflow-y-auto overlay-scroll pl-[16px] ${indexVisible ? "pr-[32px]" : "pr-[16px]"} lg:px-[24px] pt-[16px]`}
         style={{ paddingBottom: "var(--scroll-bottom-pad)" }}
       >
         <div className="flex flex-col">

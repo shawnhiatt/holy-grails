@@ -19,21 +19,31 @@ import { WantlistCrossoverPrompt } from "./wantlist-crossover-prompt";
 import logoDark from "../../imports/logo-holy-grails-dark.svg";
 import logoLight from "../../imports/logo-holy-grails-light.svg";
 
-/** Desktop top nav — left group */
-const DESKTOP_LEFT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
+/**
+ * Desktop sidebar — destinations, in two groups separated by a hairline.
+ *
+ * The first group is the mobile bottom tab bar, in the same order: the five
+ * places you go to look at your collection. The second is the tools you reach
+ * for — Purge is a mode, Following is other people, Settings is the account.
+ * Keeping the first group identical to mobile means the two layouts teach each
+ * other rather than competing.
+ */
+const DESKTOP_NAV_PRIMARY: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "feed", label: "Feed", icon: Newspaper },
   { id: "crate", label: "Collection", icon: GalleryVerticalEnd },
   { id: "wants", label: "Wantlist", icon: Heart },
   { id: "stacks", label: "Sessions", icon: Music },
+  { id: "reports", label: "Insights", icon: BarChart3 },
 ];
 
-/** Desktop top nav — right group */
-const DESKTOP_RIGHT_NAV: { id: Screen; label: string; icon: typeof Disc3 }[] = [
-  { id: "following", label: "Following", icon: Users },
+const DESKTOP_NAV_TOOLS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
   { id: "purge", label: "Purge", icon: Broom },
-  { id: "reports", label: "Insights", icon: BarChart3 },
-  { id: "settings", label: "Settings", icon: UserRound },
+  { id: "following", label: "Following", icon: Users },
 ];
+
+/** Sidebar width — leaves ~1300px beside it on a 14" laptop, so the 1280px
+ *  content column lands at full measure without the window being maximized. */
+export const DESKTOP_SIDEBAR_WIDTH = 208;
 
 /** Mobile bottom bar */
 const MOBILE_NAV_ITEMS: { id: Screen; label: string; icon: typeof Disc3 }[] = [
@@ -450,22 +460,131 @@ export function BottomTabBar() {
 }
 
 /** Desktop top navigation bar — replaces sidebar on lg+ viewports */
-export function DesktopTopNav() {
-  const { screen, setScreen, isDarkMode, toggleDarkMode, userAvatar, isBackgroundSyncing, isSyncingFollowing, setShowDiscogsSearch } = useApp();
-  // Mirrors MobileHeader: the feed identity block already shows the
-  // collection sync, so the chip is redundant there
+/* ═══════════════════════════ DESKTOP CHROME ═══════════════════════════ */
+
+/**
+ * Desktop screen title.
+ *
+ * Centralized rather than repeated per screen: it reads the same SCREEN_TITLES
+ * map MobileHeader uses, so the two can't drift, and any screen added later gets
+ * a title without touching this file. Rendered from App.tsx above renderScreen()
+ * — outside each screen's own scroll container, so it stays put while content
+ * scrolls, which is how Collection's header already behaved.
+ *
+ * `hidden lg:block`: on mobile the <h1> comes from MobileHeader instead.
+ *
+ * **This element owns the entire title-to-content gap.** Every screen zeroes its
+ * own desktop top padding (`lg:pt-0`) so the 16px below is the only spacer and
+ * the distance is identical on all of them; previously each screen kept its own
+ * `lg:pt-*` stacked on top of this and the gap ranged 14-30px depending on which
+ * screen you were looking at. If you change the padding here, it changes
+ * everywhere — which is the point. Do not reintroduce a per-screen `lg:pt-*` on
+ * whichever element sits directly beneath the title.
+ *
+ * Two sub-views are deliberate exceptions:
+ * - **Session detail** renders nothing. StackDetail already draws its own header
+ *   (back chevron + editable session name + share) at EVERY breakpoint, so a
+ *   "Sessions" title above it would put the less informative line on top — the
+ *   same reason MobileHeader returns null there.
+ * - **A followed user's profile** shows their @username rather than "Following",
+ *   because that is what you are looking at. That view had no heading at all on
+ *   desktop before this; it still has no back button (the rail's Following item
+ *   is the way back, and unlike mobile the rail is always on screen).
+ */
+export function DesktopScreenTitle() {
+  const { screen, followedUserProfile, stackDetailOpen } = useApp();
+
+  if (screen === "stacks" && stackDetailOpen) return null;
+
+  const title =
+    screen === "following" && followedUserProfile
+      ? `@${followedUserProfile.username}`
+      : SCREEN_TITLES[screen];
+
+  // Feed is intentionally absent from SCREEN_TITLES — it leads with the logo in
+  // the header and the identity block below it
+  if (!title) return null;
+
+  return (
+    <div className="hidden lg:block flex-shrink-0 px-[24px] pt-[18px] pb-[16px]">
+      <h1
+        className="screen-title"
+        style={{
+          fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+          fontWeight: 700,
+          lineHeight: 1.1,
+          color: "var(--c-text)",
+          margin: 0,
+          // A long Discogs username must ellipsize, not overflow, at 48px
+          display: "block",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          maxWidth: "100%",
+        }}
+      >
+        {title}
+      </h1>
+    </div>
+  );
+}
+
+/**
+ * Shared color derivation for the desktop sidebar and top strip.
+ *
+ * Both render OUTSIDE the content token cascade — getContentTokens() is spread
+ * onto <main> and the side panel only ("Header & nav are unaffected by dark
+ * mode", theme.ts), so var(--c-*) does not resolve here. These are the blessed
+ * derived equivalents, same approach the top nav used before the sidebar.
+ */
+function useDesktopChromeColors() {
+  const { isDarkMode } = useApp();
+  return {
+    isDarkMode,
+    activeColor: isDarkMode ? "#E2E8F0" : "#16181C",
+    inactiveColor: isDarkMode ? "rgba(226,232,240,0.45)" : "rgba(22,24,28,0.4)",
+    activeBg: isDarkMode ? "rgba(226,232,240,0.1)" : "rgba(22,24,28,0.08)",
+    // Matches the bottom tab bar's top border / --c-border light
+    hairline: isDarkMode ? "rgba(226,232,240,0.08)" : "#D7DADE",
+    fieldBg: isDarkMode ? "rgba(226,232,240,0.06)" : "rgba(22,24,28,0.035)",
+    fieldBorder: isDarkMode ? "rgba(226,232,240,0.12)" : "rgba(22,24,28,0.12)",
+    // Yellow does not read on a light surface — light mode uses the near-neutral
+    // black, matching the mobile bottom bar convention
+    accent: isDarkMode ? "#EBFD00" : "#16181C",
+  };
+}
+
+/**
+ * Desktop left rail — all nine destinations.
+ *
+ * Replaced a centered-wordmark top nav that split four items left against five
+ * right: it balanced by item count rather than by hierarchy, left "Look It Up"
+ * reading as a ninth place to go rather than a tool, and ran full-bleed while
+ * the content column below was centered at 1280px, so nothing in the header
+ * lined up with anything under it. The rail gives the destinations room, and
+ * hands the top strip back to search + status.
+ *
+ * Transparent over the app gradient with a single right hairline — the same
+ * no-fixed-bar treatment the top nav used. Hidden below lg; mobile keeps the
+ * bottom tab bar untouched.
+ */
+export function DesktopSidebar() {
+  const {
+    screen, setScreen, discogsUsername, userAvatar, isDarkMode, toggleDarkMode,
+    isBackgroundSyncing, isSyncingFollowing, setShowDiscogsSearch,
+  } = useApp();
+  const { activeColor, inactiveColor, activeBg, hairline, accent } =
+    useDesktopChromeColors();
+
+  // Mirrors MobileHeader: the feed identity block already shows the collection
+  // sync, so the chip is redundant there. It still shows on the feed for
+  // following-feed syncs, which that control doesn't cover.
   const showSyncChip =
     (isBackgroundSyncing && screen !== "feed") || isSyncingFollowing;
-
-  const activeColor = isDarkMode ? "#E2E8F0" : "#16181C";
-  const inactiveColor = isDarkMode ? "rgba(226,232,240,0.45)" : "rgba(22,24,28,0.4)";
-  const activeBg = isDarkMode ? "rgba(226,232,240,0.1)" : "rgba(22,24,28,0.08)";
-  const avatarBorderColor = isDarkMode ? "#E2E8F0" : "#16181C";
 
   const renderNavItem = (item: { id: Screen; label: string; icon: typeof Disc3 }) => {
     const isActive = screen === item.id;
     const Icon = item.icon;
-    const isSettings = item.id === "settings";
     return (
       <button
         key={item.id}
@@ -476,36 +595,19 @@ export function DesktopTopNav() {
           setScreen(item.id);
         }}
         aria-current={isActive ? "page" : undefined}
-        className="flex items-center gap-[7px] px-[12px] py-[7px] rounded-[8px] tappable transition-all cursor-pointer"
-        style={{
-          backgroundColor: isActive ? activeBg : "transparent",
-        }}
+        className="w-full flex items-center gap-[10px] px-[10px] py-[9px] rounded-[8px] tappable transition-all cursor-pointer text-left"
+        style={{ backgroundColor: isActive ? activeBg : "transparent" }}
       >
-        {isSettings && userAvatar ? (
-          <img
-            src={userAvatar}
-            alt="Profile"
-            className="rounded-full object-cover"
-            style={{
-              width: "20px",
-              height: "20px",
-              border: isActive ? `1.5px solid ${avatarBorderColor}` : "1.5px solid transparent",
-            }}
-          />
-        ) : (
-          <Icon
-            size={17}
-            weight={isActive ? "fill" : "light"}
-            // Yellow does not read on the light transparent nav — light mode
-            // uses navy, matching the mobile bottom bar convention
-            color={isActive ? (isDarkMode ? "#EBFD00" : "#16181C") : inactiveColor}
-          />
-        )}
+        <Icon
+          size={18}
+          weight={isActive ? "fill" : "light"}
+          color={isActive ? accent : inactiveColor}
+        />
         <span
           style={{
-            fontSize: "13px",
+            fontSize: "14px",
             fontWeight: isActive ? 600 : 400,
-            lineHeight: "13px",
+            lineHeight: "14px",
             fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
             color: isActive ? activeColor : inactiveColor,
             transition: "color 150ms ease",
@@ -518,68 +620,158 @@ export function DesktopTopNav() {
   };
 
   return (
-    <header
-      className="hidden lg:flex items-center flex-shrink-0 px-[24px]"
+    <aside
+      className="hidden lg:flex flex-col flex-shrink-0 overflow-y-auto overlay-scroll"
       style={{
-        height: "58px",
+        width: `${DESKTOP_SIDEBAR_WIDTH}px`,
         background: "transparent",
+        borderRight: `1px solid ${hairline}`,
       }}
     >
-      {/* Left nav group */}
-      <nav className="flex-1 flex items-center gap-[2px]">
-        {DESKTOP_LEFT_NAV.map(renderNavItem)}
-      </nav>
-
-      {/* Center: Logo */}
-      <button onClick={() => setScreen("feed")} className="shrink-0 cursor-pointer mx-[16px]">
-        <PillLogo className="h-[42px] w-auto" />
+      {/* Logo */}
+      <button
+        onClick={() => setScreen("feed")}
+        className="shrink-0 cursor-pointer flex items-center"
+        style={{ height: "58px", padding: "0 14px" }}
+        aria-label="Holy Grails — go to Feed"
+      >
+        <PillLogo className="h-[34px] w-auto" />
       </button>
 
-      {/* Right nav group + theme toggle */}
-      <nav className="flex-1 flex items-center justify-end gap-[2px]">
-        {showSyncChip && (
-          <div
-            className="flex items-center gap-[6px] px-[10px] py-[6px] rounded-[8px] mr-[4px]"
-            title="Syncing"
-            style={{ color: inactiveColor }}
-          >
-            <Disc3 size={15} className="disc-spinner" />
-            <span
-              style={{
-                fontSize: "13px",
-                fontWeight: 400,
-                lineHeight: "13px",
-                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
-              }}
-            >
-              Syncing
-            </span>
-          </div>
-        )}
-        <button
-          onClick={() => setShowDiscogsSearch(true)}
-          className="flex items-center gap-[7px] px-[12px] py-[7px] rounded-[8px] tappable transition-all cursor-pointer"
-          title="Look It Up"
-          aria-label="Look It Up"
+      <nav className="flex flex-col gap-[2px] px-[12px] pt-[6px]">
+        {DESKTOP_NAV_PRIMARY.map(renderNavItem)}
+      </nav>
+
+      <div
+        className="mx-[22px] my-[12px] shrink-0"
+        style={{ height: 1, backgroundColor: hairline }}
+      />
+
+      <nav className="flex flex-col gap-[2px] px-[12px]">
+        {DESKTOP_NAV_TOOLS.map(renderNavItem)}
+      </nav>
+
+      {showSyncChip && (
+        <div
+          className="flex items-center gap-[8px] px-[22px] pt-[14px]"
+          title="Syncing"
+          style={{ color: inactiveColor }}
         >
-          <Search size={17} weight="light" color={inactiveColor} />
+          <Disc3 size={15} className="disc-spinner" />
           <span
             style={{
               fontSize: "13px",
               fontWeight: 400,
               lineHeight: "13px",
               fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+            }}
+          >
+            Syncing
+          </span>
+        </div>
+      )}
+
+      <div className="flex-1" style={{ minHeight: "24px" }} />
+
+      {/*
+        Search sits at the foot of the rail, above the account row, and is
+        deliberately styled as a destination rather than as a field. It was a
+        280px input-shaped button in a top strip; an element that looks like an
+        input but cannot be typed into is a promise the control doesn't keep, and
+        once it moved here the strip held nothing but an intermittent sync chip,
+        so the strip went away and the rail absorbed both.
+
+        No divider above it: the flex-1 spacer already separates it from the
+        destinations, and the footer hairline below closes it off — a third
+        hairline in a 208px rail is clutter, not structure.
+
+        It takes no active state — it opens an overlay, so there is no screen for
+        it to be "on". That is why it is not in DESKTOP_NAV_PRIMARY.
+      */}
+      <nav className="flex flex-col px-[12px] pb-[4px]">
+        <button
+          onClick={() => setShowDiscogsSearch(true)}
+          className="w-full flex items-center gap-[10px] px-[10px] py-[9px] rounded-[8px] tappable transition-all cursor-pointer text-left"
+          style={{ backgroundColor: "transparent" }}
+          title="Look It Up"
+          aria-label="Search the Discogs database"
+        >
+          <Search size={18} weight="light" color={inactiveColor} />
+          <span
+            style={{
+              fontSize: "14px",
+              fontWeight: 400,
+              lineHeight: "14px",
+              fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
               color: inactiveColor,
             }}
           >
-            Look It Up
+            Search
           </span>
         </button>
-        {DESKTOP_RIGHT_NAV.map(renderNavItem)}
-        <div className="ml-[8px]">
-          <ThemeSwitch isDark={isDarkMode} onToggle={toggleDarkMode} variant="header" />
-        </div>
       </nav>
-    </header>
+
+      {/*
+        Account footer — avatar + username, and the way into Settings.
+        Settings is deliberately NOT also a nav row above: an avatar-and-name
+        row at the foot of a rail is the conventional account affordance, it
+        matches MobileHeader (where the avatar is likewise the way in), and it
+        uses vertical room the rail has going spare. The theme switch lives here
+        too rather than in the top strip, where it and the avatar sat marooned
+        a full content-width away from the only other control.
+      */}
+      <div style={{ borderTop: `1px solid ${hairline}`, padding: "10px 12px" }}>
+        <div className="flex items-center gap-[8px]">
+          <button
+            onClick={() => setScreen("settings")}
+            aria-current={screen === "settings" ? "page" : undefined}
+            className="flex-1 min-w-0 flex items-center gap-[10px] px-[6px] py-[7px] rounded-[8px] tappable transition-all cursor-pointer text-left"
+            style={{ backgroundColor: screen === "settings" ? activeBg : "transparent" }}
+            title="Settings"
+          >
+            {userAvatar ? (
+              <img
+                src={userAvatar}
+                alt=""
+                className="rounded-full object-cover flex-shrink-0"
+                style={{
+                  width: "26px",
+                  height: "26px",
+                  border: screen === "settings" ? `1.5px solid ${activeColor}` : "1.5px solid transparent",
+                }}
+              />
+            ) : (
+              <UserRound
+                size={20}
+                className="flex-shrink-0"
+                weight={screen === "settings" ? "fill" : "light"}
+                color={screen === "settings" ? accent : inactiveColor}
+              />
+            )}
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: screen === "settings" ? 600 : 500,
+                fontFamily: "'Bricolage Grotesque', system-ui, sans-serif",
+                color: screen === "settings" ? activeColor : inactiveColor,
+                // Long Discogs usernames must ellipsize rather than push the
+                // theme switch out of the rail
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                minWidth: 0,
+              }}
+            >
+              {discogsUsername || "Settings"}
+            </span>
+          </button>
+          <div className="flex-shrink-0">
+            <ThemeSwitch isDark={isDarkMode} onToggle={toggleDarkMode} variant="header" />
+          </div>
+        </div>
+      </div>
+    </aside>
   );
 }
+
