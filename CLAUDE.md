@@ -238,7 +238,7 @@ Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config
 - `stack-rule-labels.test.ts` (node env, pure) — chip phrasing per field, day pluralization, graceful rendering of an operator this build doesn't know, the three-criteria title cap and its "and more" tail, and the title freeze (including that it does *not* un-freeze when the generator changes).
 - `market_values.test.ts` — the shared per-release market-value drip (Spec 6A.1): `seedFromCollection` dedupes across owners + migrates legacy per-user values + is idempotent, `getDripBatch` returns never-fetched/stalest-first capped, `setValue` advances `fetchedAt` always and writes `value` only on success (preserving prior value on failure) + no-ops for a missing row, and `getForUser` scopes to the caller's own priced releases + rejects unauthenticated callers.
 
-**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`, `mediaType` (format classifier), the Fisher–Yates `shuffle`, `insights.ts` (add-year bucketing for Collection Growth), and `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse). `convex/coverIdentity.test.ts` (plain node env — no convex-test/edge-runtime needed, it's a pure module) covers `parseCoverIdentity`: confident hit, trimming, `identified: false`, empty/non-string fields, junk payloads, over-length fields. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
+**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`, `mediaType` (format classifier), the Fisher–Yates `shuffle`, `insights.ts` (add-year bucketing for Collection Growth), `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse), and `pressing-format.ts` (colour-vs-pressing-type detection incl. the "White Label" trap, colour-into-shape merging, the medium coming from `major_formats` rather than the descriptor string, and empty input). `convex/coverIdentity.test.ts` (plain node env — no convex-test/edge-runtime needed, it's a pure module) covers `parseCoverIdentity`: confident hit, trimming, `identified: false`, empty/non-string fields, junk payloads, over-length fields. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
 
 When adding a new guarded Convex function or a new cross-user query, add tests for its auth guard / shareActivity gate in the same session.
 
@@ -329,6 +329,7 @@ src/
       stack-rule-labels.ts  # Rule-builder vocabulary (RULE_FIELDS + per-field operators, collection-derived options, availableFields gating) and the title generator. Pure, no React — the generated-title logic is testable alongside insights.ts.
       stack-presets.ts   # Session Builder presets, GENERATED FROM THE REAL COLLECTION (only offer Jazz if he owns jazz, star presets only once something is rated). That is both a product call and what makes the free-data backfill invisible — a preset that matches nothing is worse than no preset.
       accounts.ts        # Pure multi-account list logic (parseAccounts/upsertAccount/removeAccount/nextAccount) — no localStorage/React; app-context wraps it for hg_accounts I/O. See Multiple Accounts.
+      pressing-format.ts # Pure: pressingVariant()/splitColorLead() — composes a pressing row's lead line from the versions endpoint's `format` + `major_formats`. See Pressing Rows.
       shuffle.ts         # Fisher-Yates shuffle + pickRandom + getDailySeed (a seed that holds steady for a calendar day, shared so the feed and the lazy Insights chunk rotate on the same schedule) — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
       listening.ts       # Pure listening derivations (deriveStreaks / daysSinceLastPlay / albumsPlayedThisMonth) shared by the feed's Listening card and the Insights screen's Listening section. Split out so the two surfaces cannot report different numbers for the same play log — two independently written streak counts disagreeing is the failure mode this file exists to prevent. Reads only the play log the app already keeps; adds no tracking.
       collection-facts.ts  # deriveCollectionFacts(albums, playCounts?) — threshold-gated stat lines (most rotated [2+ plays; derived from the optional playCounts map, no new tracking], top decade/artist/label, oldest pressing, latest pickup with artist) for the feed identity-block ticker. Returns a stable derivation order; the feed shuffles the facts per load for ticker display.
@@ -725,6 +726,38 @@ Every modal overlay must carry `role="dialog"`, `aria-modal="true"`, and an acce
 **Escape handling uses the dialog stack** (`src/app/lib/dialog-stack.ts`): each Escape-closable overlay pushes a token on mount, pops on unmount, and only acts on Escape when its token is topmost — so a lightbox over a sheet closes one layer per keypress. The desktop album side panel (non-modal, `role="complementary"`) closes on Escape only when `hasOpenDialogs()` is false. Any new sheet or overlay with Escape handling MUST register with the stack — a bare `document.addEventListener("keydown", …)` will double-close stacked layers. The side panel's guard names exactly one overlay by hand: **Look It Up**, which handles Escape not at all, so no token exists to defer to. Every other overlay reaches the guard through `hasOpenDialogs()`; do not add a name to that list instead of registering.
 
 Icon-only buttons always get an `aria-label`; toggle buttons (view modes, priority bolt, filter chips acting as toggles) also get `aria-pressed`.
+
+### Pressing Rows (Look It Up picker)
+
+Every row in the pressing picker is a version of the **same master**, so the
+year and the title repeat down the whole column. Leading with `2008 · US` at
+15px/700 therefore put the one value that never changes in the boldest slot,
+and fourteen pressings scanned as one line fourteen times. **The variant leads
+instead** — medium badge + descriptors — with the imprint (what you match
+against the object in your hands) under it and the origin demoted to the muted
+line. The origin keeps `tabular-nums`, so the years still line up into a column
+even though they no longer lead. Do not put the year back in the lead slot.
+
+**What the versions endpoint actually returns.** `/masters/{id}/versions` gives
+`format` as the release's `descriptions` array joined — `"LP, Album"`,
+`"Album, Copy Protected, Numbered, Promo"` — with the **medium in a separate
+`major_formats` array**. `proxyFetchMasterVersions` dropped that array, which
+is why the picker's media badge never rendered: `mediaType("LP, Album")` finds
+no medium substring and classified every row as `"Other"`. `major_formats` is
+authoritative for the badge; `format` is consulted only as a fallback. The
+Format facet's fallback tokenizer has the same dependency — tokenizing `format`
+alone left it with no media chips whenever Discogs omits `filter_facets`.
+
+**Colour is a third sibling field** (`formats[].text` on a release — "Metallic
+Green", "Green [Lime Green]"), and `flattenFormats` drops it on the collection
+sync too, so nothing in the app captures it today. `splitColorLead` promotes a
+colour into the lead **when the descriptor string happens to carry one** and
+changes nothing when it doesn't, so it costs nothing either way. It is not
+worth a per-release fetch to get: the picker pages at 25, and 25 extra requests
+against a 60/min budget shared with sync is not a trade this feature can make.
+Colour matching is per-word against a vocabulary, never a substring scan, and
+`NOT_COLORS` exempts pressing types that contain a colour word — "White Label"
+is the one that matters, or every promo would lead with "White Label LP".
 
 ### Filter UI
 
