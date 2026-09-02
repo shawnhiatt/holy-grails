@@ -35,7 +35,7 @@ import { SlideOutPanel } from "./slide-out-panel";
 import { formatActivityDate, getInitial, formatSyncedAgo } from "../utils/format";
 import { shuffle, pickRandom, seededShuffle, getDailySeed } from "../utils/shuffle";
 import { deriveCollectionFacts, type CollectionFact } from "../utils/collection-facts";
-import { deriveStreaks, daysSinceLastPlay, albumsPlayedThisMonth } from "../utils/listening";
+import { deriveStreaks, daysSinceLastPlay, releasesPlayedInWindow, windowStartMs } from "../utils/listening";
 import { FormatSpotlight } from "./format-spotlight";
 
 const hasYear = (year: number | null | undefined): year is number =>
@@ -302,6 +302,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
     setSelectedFeedAlbum,
     playCounts,
     allPlayTimestamps,
+    playLog,
     markPlayed,
     setFollowingActivityTabIntent,
     accounts,
@@ -1484,9 +1485,13 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
   // Everything below reads the play log the app already keeps. No new
   // tracking, and no new queries: lastPlayed / playCounts / allPlayTimestamps
   // are already on the context.
-  const playedThisMonth = useMemo(
-    () => albumsPlayedThisMonth(albums, lastPlayed),
-    [albums, lastPlayed]
+  // A trailing 30 days, matching Insights. The calendar month cratered on the
+  // 1st — the day after "50 played in August" this read 1 — and the two
+  // surfaces sharing one derivation is the whole reason utils/listening.ts
+  // exists, so moving one meant moving both.
+  const played30 = useMemo(
+    () => releasesPlayedInWindow(albums, playLog, windowStartMs(30), Date.now() + 1),
+    [albums, playLog]
   );
   const { currentStreak } = useMemo(() => deriveStreaks(allPlayTimestamps), [allPlayTimestamps]);
   const daysSincePlay = useMemo(() => daysSinceLastPlay(allPlayTimestamps), [allPlayTimestamps]);
@@ -1693,7 +1698,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
             className="grid grid-cols-2 gap-[1px] mx-[16px] mb-[12px] rounded-[10px] overflow-hidden"
             style={{ backgroundColor: "var(--c-border)" }}
           >
-            {listeningStatCell(String(playedThisMonth), "Played this month")}
+            {listeningStatCell(String(played30), "Played, last 30 days")}
             {currentStreak > 0
               ? listeningStatCell(String(currentStreak), currentStreak === 1 ? "Day streak" : "Day streak")
               : listeningStatCell(String(daysSincePlay ?? 0), "Days since last play")}

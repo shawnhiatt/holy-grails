@@ -86,6 +86,12 @@ export interface FollowingFeedEntry {
   recent_wants?: FeedAlbum[];
 }
 
+/** One logged play: which release, and when. */
+export interface PlayLogEntry {
+  albumId: string;
+  playedAt: number;
+}
+
 interface AppState {
   screen: Screen;
   setScreen: (s: Screen) => void;
@@ -138,6 +144,10 @@ interface AppState {
   lastPlayed: Record<string, string>;
   playCounts: Record<string, number>;
   allPlayTimestamps: number[];
+  /** The same play rows, keeping the release each belongs to. `allPlayTimestamps`
+   *  drops it, which is fine for counting events but cannot answer "how many
+   *  distinct releases in an arbitrary window" — see releasesPlayedInWindow. */
+  playLog: PlayLogEntry[];
   markPlayed: (albumId: string) => void;
   markPlayedAt: (albumId: string, date: Date) => void;
   removePlay: (playId: Id<"last_played">, albumId: string, playedAt: number) => void;
@@ -305,10 +315,12 @@ function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>
   const latestMs: Record<string, number> = {};
   const countMap: Record<string, number> = {};
   const allTimestamps: number[] = [];
+  const playLog: PlayLogEntry[] = [];
   for (const lp of records) {
     const key = String(lp.release_id);
     countMap[key] = (countMap[key] || 0) + 1;
     allTimestamps.push(lp.played_at);
+    playLog.push({ albumId: key, playedAt: lp.played_at });
     if (!latestMs[key] || lp.played_at > latestMs[key]) {
       latestMs[key] = lp.played_at;
     }
@@ -317,7 +329,7 @@ function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>
   for (const [key, ms] of Object.entries(latestMs)) {
     lastPlayedMap[key] = new Date(ms).toISOString();
   }
-  return { lastPlayedMap, countMap, allTimestamps };
+  return { lastPlayedMap, countMap, allTimestamps, playLog };
 }
 
 const AppContext = getOrCreateContext();
@@ -412,6 +424,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lastPlayed, setLastPlayed] = useState<Record<string, string>>({});
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
   const [allPlayTimestamps, setAllPlayTimestamps] = useState<number[]>([]);
+  const [playLog, setPlayLog] = useState<PlayLogEntry[]>([]);
   const [neverPlayedFilter, setNeverPlayedFilterRaw] = useState(false);
   const [formatFilter, setFormatFilter] = useState<MediaType | null>(null);
   const [playsRecordedFilter, setPlaysRecordedFilterRaw] = useState(false);
@@ -946,10 +959,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!hydratedRef.current.lastPlayed && convexLastPlayed !== undefined) {
       hydratedRef.current.lastPlayed = true;
       if (convexLastPlayed.length > 0) {
-        const { lastPlayedMap, countMap, allTimestamps } = buildPlayMaps(convexLastPlayed);
+        const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(convexLastPlayed);
         setLastPlayed(lastPlayedMap);
         setPlayCounts(countMap);
         setAllPlayTimestamps(allTimestamps);
+        setPlayLog(log);
       }
     }
   }, [convexLastPlayed]);
@@ -1503,6 +1517,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       [albumId]: (prev[albumId] || 0) + 1,
     }));
     setAllPlayTimestamps((prev) => [...prev, now.getTime()]);
+    setPlayLog((prev) => [...prev, { albumId, playedAt: now.getTime() }]);
     if (sessionToken) {
       logPlayMut({
         sessionToken,
@@ -1522,6 +1537,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       [albumId]: (prev[albumId] || 0) + 1,
     }));
     setAllPlayTimestamps((prev) => [...prev, date.getTime()]);
+    setPlayLog((prev) => [...prev, { albumId, playedAt: date.getTime() }]);
     if (sessionToken) {
       logPlayMut({
         sessionToken,
@@ -1541,6 +1557,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     setAllPlayTimestamps((prev) => {
       const idx = prev.indexOf(playedAt);
+      if (idx === -1) return prev;
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+    });
+    // Drop ONE matching row, not every match: two releases played at the same
+    // instant are two rows, and removing a play from one must not remove the
+    // other's. Mirrors the single-index splice above.
+    setPlayLog((prev) => {
+      const idx = prev.findIndex((e) => e.albumId === albumId && e.playedAt === playedAt);
       if (idx === -1) return prev;
       return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
     });
@@ -2760,6 +2784,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastPlayed,
       playCounts,
       allPlayTimestamps,
+      playLog,
       markPlayed,
       markPlayedAt,
       removePlay,
@@ -2901,7 +2926,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       showFilterDrawer, showAlbumDetail, showDiscogsSearch,
       purgeFilter, wantFilter,
       isDarkMode, toggleDarkMode, colorMode, setColorMode,
-      lastPlayed, playCounts, allPlayTimestamps, markPlayed, markPlayedAt, removePlay,
+      lastPlayed, playCounts, allPlayTimestamps, playLog, markPlayed, markPlayedAt, removePlay,
       neverPlayedFilter,
       playsRecordedFilter, unratedFilter,
       formatFilter, setFormatFilter,
