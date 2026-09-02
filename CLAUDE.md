@@ -318,8 +318,10 @@ src/
     lib/
       dialog-stack.ts    # Module-level stack of open dialogs — Escape-closable overlays push/pop a token; only the TOPMOST responds to Escape (see Dialog Accessibility)
       monitoring.ts      # Sentry init (errors only) — lazy-loaded from main.tsx ONLY when VITE_SENTRY_DSN is set; registers itself as the reportError reporter
+      pwa-update.ts      # Service-worker update flow — the "Update available." toast, the boot-window and stale-build silent applies, and hardReload(). See PWA Updates & Stale Builds.
       report-error.ts    # reportError() indirection — no-op until monitoring registers; call sites (App.tsx ErrorBoundary) report unconditionally. Also keeps a 10-entry in-memory ring buffer (getRecentErrors) that bug reports attach — see Bug Reports.
       screen-trail.ts    # Module-level breadcrumb of recent screens, recorded from setScreen in app-context; attached to bug reports as "Where"
+      stale-build.ts     # isStaleBuildError() — the narrow predicate for "this tab is older than the backend". Pure, tested. See PWA Updates & Stale Builds.
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
       safe-tap.ts        # Shared safeTap() helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards. NOT a hook (module-level touch state, no use* prefix) — it is deliberately callable inside .map() loops.
     utils/
@@ -661,6 +663,60 @@ In-app reporting (Settings → Feedback), built for the beta: a report that arri
 ---
 
 ## Cross-Cutting Patterns
+
+### PWA Updates & Stale Builds
+
+The service worker registers in **`prompt` mode** (`vite.config.ts`), not
+`autoUpdate`: an installed PWA resumed from the background never reloads on its
+own, so a silent auto-update would never reach the user. `lib/pwa-update.ts`
+surfaces a waiting build as an **"Update available." toast** with a Refresh
+action, re-checks on `visibilitychange`, and exposes a manual Settings check.
+
+**Two cases skip that toast and apply the update on the spot**, because in
+neither is there in-progress work a reload could lose. This is not a drift
+toward `autoUpdate` — the toast still owns every mid-session update, which is
+the case the mode was chosen for.
+
+- **The boot window** — an update already waiting at launch (downloaded in an
+  earlier session) is applied immediately. The user is looking at the loading
+  screen, so the reload is invisible. The window closes on the first
+  `pointerdown`/`keydown` or after 20s.
+- **Stale-build recovery** — see below.
+
+**The stale-build red screen.** A Convex deploy landing while a tab still runs
+the previous build makes that client call a function whose validator or name
+has moved on. Convex rejects it, `useQuery` **throws the rejection during
+render** (convex/react throws query errors — it does not return them), and the
+root ErrorBoundary caught it and printed a raw stack trace. Nothing was broken;
+the client was just behind. Force-closing the PWA "fixed" it only because that
+released the old worker and let the waiting one take over.
+
+`lib/stale-build.ts` recognizes that error class — Convex function-not-found and
+argument-validation messages, plus Vite dynamic-import failures for lazy chunks
+whose hashed filenames are gone. Matching is on **message text** because that is
+all the client gets: Convex relays the server's `errorMessage` string with no
+machine-readable "your client is out of date" code. The patterns are
+deliberately narrow — a false positive costs a needless reload, so nothing as
+generic as "server error" or "failed to fetch" belongs there.
+
+The ErrorBoundary then renders **"Updating" with a spinner** instead of a trace
+and calls `recoverFromStaleBuild()`, which takes a waiting build immediately or
+hurries the check along and applies one the moment it installs. If none arrives
+within 15s it falls back to an **"Update needed" card with a Reload button**
+(`hardReload()`: take the waiting build, else unregister the worker so the
+reload goes to the network rather than the precache it is stuck on).
+
+**This cannot loop**, and that is what makes auto-recovery safe without a
+persisted attempt counter — which matters, because the localStorage and
+sessionStorage whitelists are closed and a stale-build guard is not worth
+opening them. `applyUpdate()` only reloads once a genuinely *new* worker takes
+control, so a given build can reload the page at most once. If the error
+survives the reload, no further worker is waiting, recovery times out, and the
+user gets the manual card. Do not add a storage key, URL marker, or navigation-
+type check to "protect" this.
+
+**Errors that are not stale-build errors still get the raw trace.** That is
+deliberate for the beta — the stack is worth more than a friendly apology.
 
 ### Dialog Accessibility (sheets, drawers, lightbox)
 
