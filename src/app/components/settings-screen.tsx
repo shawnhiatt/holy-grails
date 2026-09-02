@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { Disc3, Info, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Broom, LogOut, BarChart3, FolderOpen, Check, Star, MapPin, Pencil, UserPlus, RefreshCw, Bug, Lightbulb } from "./icons";
+import { AutoGrowTextarea } from "./auto-grow-textarea";
 import { getInitial, formatSyncedAgo } from "../utils/format";
 import { PurgeCutDialog } from "./purge-tracker";
 import { FoldersScreen } from "./folders-screen";
@@ -406,12 +407,12 @@ export function SettingsScreen() {
                 </div>
                 <div>
                   <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)", display: "block", marginBottom: "4px" }}>About</label>
-                  <textarea
+                  <AutoGrowTextarea
                     value={editProfile}
-                    onChange={(e) => setEditProfile(e.target.value)}
+                    onChange={setEditProfile}
                     placeholder="Tell us about your collection..."
                     rows={3}
-                    className="w-full rounded-[8px] px-3 py-2 outline-none resize-none"
+                    className="w-full rounded-[8px] px-3 py-2 outline-none"
                     style={{
                       fontSize: "16px",
                       fontWeight: 400,

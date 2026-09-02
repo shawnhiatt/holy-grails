@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Bug, ChevronDown, Disc3, Lightbulb, Paperclip, X } from "./icons";
+import { AutoGrowTextarea } from "./auto-grow-textarea";
 import { SlideOutPanel } from "./slide-out-panel";
 import { useApp } from "./app-context";
 import { EASE_OUT, DURATION_FAST } from "./motion-tokens";
@@ -263,9 +264,9 @@ export function BugReportSheet({ onClose }: BugReportSheetProps) {
           })}
         </div>
 
-        <textarea
+        <AutoGrowTextarea
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={setMessage}
           rows={5}
           maxLength={2000}
           placeholder={
@@ -273,7 +274,7 @@ export function BugReportSheet({ onClose }: BugReportSheetProps) {
               ? "What happened, and what did you tap right before?"
               : "What would make this better?"
           }
-          className="w-full rounded-[10px] px-3 py-2.5 resize-none"
+          className="w-full rounded-[10px] px-3 py-2.5"
           style={{
             // 16px minimum — anything smaller makes iOS Safari zoom the viewport
             fontSize: "16px",

@@ -254,6 +254,7 @@ src/
       add-albums-drawer.tsx
       album-artwork-grid.tsx
       album-detail.tsx
+      auto-grow-textarea.tsx  # Shared growing textarea — every free-text field in the app. Owns the behavior only; className/style pass through. See Free-Text Fields.
       album-grid.tsx     # Collection grid. Windowed render: only the first ~60 items are in the DOM, growing on scroll via an IntersectionObserver sentinel (reset to the initial window on filter/search change). Keeps node count bounded on large collections so the iOS keyboard-open relayout on search doesn't freeze — content-visibility alone left all cards in the DOM. The alphabet A–Z jump reveals the full grid on strip touch (AlphabetSidebar's onActivate) so any anchor exists to scroll to.
       album-list.tsx
       alphabet-sidebar.tsx # Shared useAlphabetIndex hook + AlphabetSidebar component for album-grid and album-list. Optional onActivate fires when the user engages the A–Z strip — album-grid uses it to un-window the grid before jumping.
@@ -727,6 +728,47 @@ Every modal overlay must carry `role="dialog"`, `aria-modal="true"`, and an acce
 
 Icon-only buttons always get an `aria-label`; toggle buttons (view modes, priority bolt, filter chips acting as toggles) also get `aria-pressed`.
 
+### Free-Text Fields (`auto-grow-textarea.tsx`)
+
+Every multi-line text field in the app grows to fit what is typed into it
+rather than scrolling inside a fixed box: album detail's **Notes** and its
+non-dropdown **custom fields**, the Settings profile **About** field, and the
+**bug report** message. `resize: none` stays on all of them — a drag handle is
+a desktop affordance that does nothing on a phone, which is where these get
+typed, and auto-grow is what replaces it.
+
+**The component owns the behavior only.** `className` and `style` pass through,
+because the four call sites do not share a look: radii of 8 vs 10, padding of
+8px vs 10px, `--c-border` vs `--c-border-strong`, and only album detail sets an
+explicit `line-height`. Flattening those into one appearance would be a design
+change nobody asked for. Album detail's two fields share an `EDIT_FIELD_STYLE`
+const because they genuinely were byte-identical.
+
+Three details are load-bearing:
+
+- **`useLayoutEffect`, not `useEffect`.** The resize has to land in the same
+  frame as the keystroke, or the box visibly trails a line behind what has been
+  typed. Running on mount is also what sizes existing content the moment the
+  field appears.
+- **The minimum height is measured, not calculated.** The component latches
+  `offsetHeight` on its first layout pass — the height the `rows` attribute
+  produced — and floors every later assignment with it. `rows × 1.5em`
+  arithmetic would have silently restyled the two fields that never set a
+  line-height (a textarea inherits the UA default; `theme.css` sets 1.5 on
+  `input` but not on `textarea`). Once an explicit px height is assigned, the
+  `rows` attribute governs nothing, so without a floor a one-line note would
+  collapse to a single line.
+- **The border is added back to `scrollHeight`.** `scrollHeight` is content +
+  padding and *excludes* the border, while an assigned height under
+  `box-sizing: border-box` includes it — so a bare `scrollHeight` leaves the box
+  a border short and the text scrolls by a hair. `offsetHeight - clientHeight`
+  is exactly that border, since `overflow: hidden` keeps a scrollbar out of the
+  difference.
+
+Growth is deliberately uncapped: the two sheets that host these fields already
+scroll, so a long note lengthens the sheet rather than trapping a scrollbar
+inside a small box.
+
 ### Pressing Rows (Look It Up picker)
 
 Every row in the pressing picker is a version of the **same master**, so the
@@ -922,7 +964,7 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Enriched content tabs (mobile)**: On mobile, Tracklist, Credits, Pressing Notes, and Identifiers render as a sticky horizontal tab bar instead of accordion sections. Tabs with no data are hidden after the enriched fetch resolves. During loading, all four tabs show at `opacity: 0.4` with a skeleton below. Active tab uses `2px solid #EBFD00` underline indicator. Tab bar uses `position: sticky; top: 0; z-index: 10` with a background matching the sheet's hardcoded detached-surface background (`isDarkMode ? "#14161C" : "#FFFFFF"`). An IntersectionObserver sentinel pattern applies `paddingTop: 48px` only when the tab bar is stuck, clearing the close button. `tabBarStuck` state resets on album change. On desktop, the original accordion sections remain.
 - **Section component props**: `hideTitle` prop added to `TracklistSection`, `CreditsSection`, `PressingNotesSection` — suppresses section headings when rendered inside tab content on mobile. `hideToggle` prop added to `TracklistSection` — shows full tracklist without Show More truncation on mobile tabs.
 - **Inner scroll container**: The `div.flex-1.overflow-y-auto` inside `AlbumDetailPanel` conditionally applies `overflow-y-auto` only on desktop (`hideHeader === false`). On mobile, `overflow-y` is removed so `position: sticky` resolves against `scrollRef` in `SlideOutPanel`.
-- **Free-text edit fields use `AutoGrowTextarea`** (local to `album-detail.tsx`) — Notes and every non-dropdown custom field. It grows to fit its content rather than scrolling inside a fixed box. `resize: none` stays deliberately: a drag handle is a desktop affordance that does nothing on a phone, which is where these get typed, and auto-grow is what replaces it. Two details are load-bearing: the resize runs in a **`useLayoutEffect`**, not `useEffect`, or the box visibly trails a line behind the keystroke (it also runs on mount, which sizes an existing note the moment edit mode opens); and `minRows` floors the height through **CSS `minHeight`**, not the `rows` attribute, because once an explicit px height is assigned `rows` governs nothing and a one-line note would collapse to a single line. The `overflow: hidden` is what stops a scrollbar flashing for the frame between keystroke and resize.
+- **Free-text edit fields use the shared `AutoGrowTextarea`** — Notes and every non-dropdown custom field, sharing one `EDIT_FIELD_STYLE` const (the two call sites had byte-identical style blocks). See Free-Text Fields under Cross-Cutting Patterns.
 - **`DetailRow` takes `multiline` for anything edited in a textarea** — Notes and every non-dropdown custom field. Those values can contain real newlines, and a plain `<span>` collapses them to spaces (`white-space: normal`), so a note rendered one way in view mode and another in the editor, which shows a textarea's content verbatim. The line breaks are the user's content; view mode was dropping them. It is opt-in, not the default: the single-value rows (Label, Catalog #, Year, Country, Folder) are joined server-side with `" · "` and never carry a newline. If a note ever looks like it is wrapping early, check for literal newlines in the value before suspecting the CSS — the textarea is already `width: 100%`.
 - **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section (or Pressing Notes tab on mobile). Never merge these.
 - **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
