@@ -947,8 +947,12 @@ The Discogs 1–5 star rating on an owned copy, surfaced from the free-data pass
 - **Insights shows rating × purge, not a ratings histogram** — "You've rated N releases two stars or lower and never tagged them," gated at 3, in the Purge Progress card. A histogram is vanity; this is a decision prompt.
 
 ### Album Detail Edit Mode
-The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCondition`, `sleeveCondition`, `notes`, and `folder`. Key patterns:
-- Edit mode is entered via a `Pencil` (16px) icon button. On mobile, the edit button sits in the "YOUR COPY" card header row (right-aligned). On desktop (`hideHeader=false`) it sits beside the X close button in the panel header.
+The album detail panel (`album-detail.tsx`) edits `mediaCondition`, `sleeveCondition`, `notes`, `folder`, and the Discogs custom fields. Key patterns:
+- **It is a sheet over the panel, not the panel's own rows turning into fields.** Editing used to swap the body out underneath the hero — Listening, Value, Sessions and the tabs all disappeared and the remaining rows became inputs — which read as the screen half-changing rather than as entering a mode, and left Save wherever the form happened to end. `SlideOutPanel` now carries it: backdrop, title, and a **pinned Save/Cancel footer**. **Do not put the fields back inline**, and do not reintroduce `!isEditMode` guards in the panel body — the body must stay intact behind the backdrop, or the content visibly vanishes through it, which is the same complaint by another route.
+- **The sheet is PORTALED to `document.body`**, for the same reason `ImageLightbox` is. The panel renders inside a transform-animated container (the mobile sheet, the desktop side panel), and a transform is a containing block for `position: fixed` descendants as well as its own stacking context. Left in place the backdrop would size to the parent sheet instead of the viewport, and `z-132/134` would be scoped inside the parent's `z-120`, unable to rise over the nav whatever the number. `SlideOutPanel` does not portal itself, but it injects the content tokens inline, so it survives the move.
+- **z-132/134** puts it above the bottom tab bar (130), so the pinned footer is not competing with the nav, and below the lightbox (135/140), which cannot be open at the same time. Desktop gets the centred-card `className` override, the same one `FilterDrawer` uses.
+- **Remove from Collection lives in the sheet.** It is the other thing you do to your copy, and it was only ever reachable from edit mode.
+- Edit mode is entered via a `Pencil` (16px) icon button. On mobile, the edit button sits in the "YOUR COPY" section header row (right-aligned). On desktop (`hideHeader=false`) it sits beside the X close button in the panel header.
 - Edit mode is not accessible while `isSyncing` — the button is hidden during sync.
 - `isEditMode` state resets whenever `selectedAlbum` changes.
 - On Save: Convex proxy actions first (`proxyUpdateCollectionInstance` / `proxyMoveToFolder`), then local state + Convex cache update via `updateAlbum` from context. On failure: error toast, stay in edit mode so the user can retry. Never trigger a full re-sync.
@@ -1419,6 +1423,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor mig
 | Install nudge backdrop | `z-[149]` | install-nudge.tsx |
 | Lightbox overlay | `z-[140]` | album-detail.tsx |
 | Lightbox backdrop | `z-[135]` | album-detail.tsx |
+| Edit your copy sheet | `z-[134]` | album-detail.tsx |
+| Edit your copy backdrop | `z-[132]` | album-detail.tsx |
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
 | Wantlist crossover prompt | `z-[125]` | wantlist-crossover-prompt.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |
