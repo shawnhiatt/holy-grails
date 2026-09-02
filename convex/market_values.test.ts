@@ -48,6 +48,38 @@ const collectionRow = (
 const readValues = (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => ctx.db.query("market_values").collect());
 
+/**
+ * Signs a user in with a LIVE session.
+ *
+ * `created_at` is deliberately `Date.now()` and not the fixed NOW these tests
+ * use for market data: authenticateUser measures the 90-day session TTL against
+ * the real clock, so a hardcoded timestamp silently ages out and the test starts
+ * failing on a calendar date rather than on a code change. That is exactly what
+ * happened here — NOW is 2026-05-28, so every getForUser test began throwing
+ * "Unauthorized" on 2026-08-26 with nothing having changed. Seed sessions
+ * through this helper; a test that wants an expired one should pin the clock
+ * with fake timers the way authHelper.test.ts does.
+ */
+async function seedUser(
+  t: ReturnType<typeof convexTest>,
+  username: string,
+  token: string
+) {
+  await t.run(async (ctx) => {
+    await ctx.db.insert("users", {
+      discogs_username: username,
+      access_token: "oauth-access-secret",
+      token_secret: "oauth-token-secret",
+      created_at: Date.now(),
+    });
+    await ctx.db.insert("auth_sessions", {
+      session_token: token,
+      discogs_username: username,
+      created_at: Date.now(),
+    });
+  });
+}
+
 describe("seedFromCollection", () => {
   it("adds one shared row per release across owners (deduped)", async () => {
     const t = newTest();
@@ -157,13 +189,8 @@ describe("setValue", () => {
 describe("getForUser", () => {
   it("returns priced releases for the caller's collection only", async () => {
     const t = newTest();
+    await seedUser(t, "a", "tok-a");
     await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        discogs_username: "a", access_token: "x", token_secret: "y", created_at: NOW,
-      });
-      await ctx.db.insert("auth_sessions", {
-        session_token: "tok-a", discogs_username: "a", created_at: NOW,
-      });
       await ctx.db.insert("collection", collectionRow("a", 1));
       await ctx.db.insert("collection", collectionRow("a", 2)); // owned but unpriced
       await ctx.db.insert("collection", collectionRow("b", 3)); // someone else's
@@ -193,13 +220,8 @@ describe("getForUser", () => {
     // collection gets.
     const SIZE = 300;
     const t = convexTest({ schema, modules, transactionLimits: { databaseQueries: 8 } });
+    await seedUser(t, "a", "tok-a");
     await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        discogs_username: "a", access_token: "x", token_secret: "y", created_at: Date.now(),
-      });
-      await ctx.db.insert("auth_sessions", {
-        session_token: "tok-a", discogs_username: "a", created_at: Date.now(),
-      });
       for (let releaseId = 1; releaseId <= SIZE; releaseId++) {
         await ctx.db.insert("collection", collectionRow("a", releaseId));
         await ctx.db.insert("market_values", { releaseId, value: releaseId, fetchedAt: NOW });
@@ -211,13 +233,8 @@ describe("getForUser", () => {
 
   it("passes through a priced-but-no-listings null value", async () => {
     const t = newTest();
+    await seedUser(t, "a", "tok-a");
     await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        discogs_username: "a", access_token: "x", token_secret: "y", created_at: Date.now(),
-      });
-      await ctx.db.insert("auth_sessions", {
-        session_token: "tok-a", discogs_username: "a", created_at: Date.now(),
-      });
       await ctx.db.insert("collection", collectionRow("a", 1));
       await ctx.db.insert("market_values", { releaseId: 1, value: null, fetchedAt: NOW });
     });

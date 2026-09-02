@@ -238,7 +238,7 @@ Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config
 - `stack-rule-labels.test.ts` (node env, pure) — chip phrasing per field, day pluralization, graceful rendering of an operator this build doesn't know, the three-criteria title cap and its "and more" tail, and the title freeze (including that it does *not* un-freeze when the generator changes).
 - `market_values.test.ts` — the shared per-release market-value drip (Spec 6A.1): `seedFromCollection` dedupes across owners + migrates legacy per-user values + is idempotent, `getDripBatch` returns never-fetched/stalest-first capped, `setValue` advances `fetchedAt` always and writes `value` only on success (preserving prior value on failure) + no-ops for a missing row, and `getForUser` scopes to the caller's own priced releases + rejects unauthenticated callers.
 
-**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`, `mediaType` (format classifier), the Fisher–Yates `shuffle`, `insights.ts` (add-year bucketing for Collection Growth), and `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse). `convex/coverIdentity.test.ts` (plain node env — no convex-test/edge-runtime needed, it's a pure module) covers `parseCoverIdentity`: confident hit, trimming, `identified: false`, empty/non-string fields, junk payloads, over-length fields. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
+**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder and `dateAddedBucket` (the four rungs, the December→January crossing, February's self-collapse, the 1st-of-month timezone trap, and a missing date), `formatDayRange` (one-day spans, the year appended only when the span ended outside the current one), `buildFieldMap`, `mediaType` (format classifier), the Fisher–Yates `shuffle`, `insights.ts` (add-year bucketing for Collection Growth), `listening.ts` (streak counts plus their date ranges — the end-on-last-played-day rule, the most-recent-wins tie-break, month-boundary runs; `releasesPlayedInWindow` counting a release in an earlier window even when played again since, which is the lastPlayed trap; `windowStartMs` stepping by the calendar across a month/DST boundary; `playsByMonth` emitting empty months as zero, labelling January with its year, and building a full window when read on the 31st), `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse), and `pressing-format.ts` (colour-vs-pressing-type detection incl. the "White Label" trap, colour-into-shape merging, the medium coming from `major_formats` rather than the descriptor string, and empty input). `convex/coverIdentity.test.ts` (plain node env — no convex-test/edge-runtime needed, it's a pure module) covers `parseCoverIdentity`: confident hit, trimming, `identified: false`, empty/non-string fields, junk payloads, over-length fields. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
 
 When adding a new guarded Convex function or a new cross-user query, add tests for its auth guard / shareActivity gate in the same session.
 
@@ -254,6 +254,7 @@ src/
       add-albums-drawer.tsx
       album-artwork-grid.tsx
       album-detail.tsx
+      auto-grow-textarea.tsx  # Shared growing textarea — every free-text field in the app. Owns the behavior only; className/style pass through. See Free-Text Fields.
       album-grid.tsx     # Collection grid. Windowed render: only the first ~60 items are in the DOM, growing on scroll via an IntersectionObserver sentinel (reset to the initial window on filter/search change). Keeps node count bounded on large collections so the iOS keyboard-open relayout on search doesn't freeze — content-visibility alone left all cards in the DOM. The alphabet A–Z jump reveals the full grid on strip touch (AlphabetSidebar's onActivate) so any anchor exists to scroll to.
       album-list.tsx
       alphabet-sidebar.tsx # Shared useAlphabetIndex hook + AlphabetSidebar component for album-grid and album-list. Optional onActivate fires when the user engages the A–Z strip — album-grid uses it to un-window the grid before jumping.
@@ -303,7 +304,7 @@ src/
       splash-screen.tsx
       star-rating.tsx    # Shared star-rating control for the user's OWN Discogs rating (free-data pass). Read-only without `onRate`, tappable with it (tap the active star to clear → 0). Amber #FFC107 fill / light outline. Used by album detail (Your Copy row, always tappable — a one-tap write, not a form field, so no edit mode) and the feed purge evaluator (read-only, hidden when unrated: that card asks for one decision). Never render a rating without hasRating.
       sync-status-line.tsx  # "Synced Xm ago" / "Up to date." line under the Collection/Wantlist search row; tappable manual sync probe
-      slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), and z-index/className overrides. Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork. Blurs the active element on mount (`document.activeElement?.blur()`) to dismiss the iOS software keyboard whenever a panel opens over an active text input. App-wide — no individual tap handlers need to handle this.
+      slide-out-panel.tsx  # Shared bottom-sheet wrapper with swipe-to-dismiss. Accepts children (scrollable slot), optional title/headerAction (header row), optional footer (pinned above safe area), z-index/className overrides, and an optional onRequestClose guard consulted before EVERY dismissal (see Album Detail Edit Mode — it must live here, because swipe animates away and calls onClose 260ms later). Used by AlbumDetailSheet and FilterDrawer — use this for any new mobile panel or sheet. Drag handle padding: py-1.5. Close button: rgba(0,0,0,0.45) bg + backdrop-blur(6px) + white icon for contrast over artwork. Blurs the active element on mount (`document.activeElement?.blur()`) to dismiss the iOS software keyboard whenever a panel opens over an active text input. App-wide — no individual tap handlers need to handle this.
       swipe-to-delete.tsx  # Reusable swipe-to-delete gesture component for mobile list items. Currently used in stacks.tsx. Use this for any future list item deletion on mobile.
       theme.ts
       unicorn-scene.tsx  # WebGL animated background used on all pre-auth screens. Wraps Unicorn Studio SDK (UMD, v2.1.4). Scene loaded from local `/splash-screen.json` (scene ID `w7mlqmYVwPpRyrBLkt7m`). Falls back to `#0E1013` if WebGL is unavailable. v0.7: the scene's navy base gradient stops (embedded GLSL `vec3` literals in the JSON) were neutralized to the cool-gray family (`#101318`→`#1B1E23`); the yellow+indigo volumetric nebula layer is kept as an accent gradient. To fully re-theme the scene, re-export from Unicorn Studio.
@@ -318,17 +319,20 @@ src/
     lib/
       dialog-stack.ts    # Module-level stack of open dialogs — Escape-closable overlays push/pop a token; only the TOPMOST responds to Escape (see Dialog Accessibility)
       monitoring.ts      # Sentry init (errors only) — lazy-loaded from main.tsx ONLY when VITE_SENTRY_DSN is set; registers itself as the reportError reporter
+      pwa-update.ts      # Service-worker update flow — the "Update available." toast, the boot-window and stale-build silent applies, and hardReload(). See PWA Updates & Stale Builds.
       report-error.ts    # reportError() indirection — no-op until monitoring registers; call sites (App.tsx ErrorBoundary) report unconditionally. Also keeps a 10-entry in-memory ring buffer (getRecentErrors) that bug reports attach — see Bug Reports.
       screen-trail.ts    # Module-level breadcrumb of recent screens, recorded from setScreen in app-context; attached to bug reports as "Where"
+      stale-build.ts     # isStaleBuildError() — the narrow predicate for "this tab is older than the backend". Pure, tested. See PWA Updates & Stale Builds.
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
       safe-tap.ts        # Shared safeTap() helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards. NOT a hook (module-level touch state, no use* prefix) — it is deliberately callable inside .map() loops.
     utils/
-      format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
+      format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo, dateAddedBucket — see Date Added Grouping)
       stack-rule-labels.ts  # Rule-builder vocabulary (RULE_FIELDS + per-field operators, collection-derived options, availableFields gating) and the title generator. Pure, no React — the generated-title logic is testable alongside insights.ts.
       stack-presets.ts   # Session Builder presets, GENERATED FROM THE REAL COLLECTION (only offer Jazz if he owns jazz, star presets only once something is rated). That is both a product call and what makes the free-data backfill invisible — a preset that matches nothing is worse than no preset.
       accounts.ts        # Pure multi-account list logic (parseAccounts/upsertAccount/removeAccount/nextAccount) — no localStorage/React; app-context wraps it for hg_accounts I/O. See Multiple Accounts.
+      pressing-format.ts # Pure: pressingVariant()/splitColorLead() — composes a pressing row's lead line from the versions endpoint's `format` + `major_formats`. See Pressing Rows.
       shuffle.ts         # Fisher-Yates shuffle + pickRandom + getDailySeed (a seed that holds steady for a calendar day, shared so the feed and the lazy Insights chunk rotate on the same schedule) — use these, never .sort(() => Math.random() - 0.5) or inline arr[Math.floor(Math.random()*arr.length)]
-      listening.ts       # Pure listening derivations (deriveStreaks / daysSinceLastPlay / albumsPlayedThisMonth) shared by the feed's Listening card and the Insights screen's Listening section. Split out so the two surfaces cannot report different numbers for the same play log — two independently written streak counts disagreeing is the failure mode this file exists to prevent. Reads only the play log the app already keeps; adds no tracking.
+      listening.ts       # Pure listening derivations (deriveStreaks — counts AND date ranges — / daysSinceLastPlay / releasesPlayedInWindow + windowStartMs / playsByMonth) shared by the feed's Listening card and the Insights screen's Listening section. Split out so the two surfaces cannot report different numbers for the same play log — two independently written streak counts disagreeing is the failure mode this file exists to prevent. Reads only the play log the app already keeps; adds no tracking.
       collection-facts.ts  # deriveCollectionFacts(albums, playCounts?) — threshold-gated stat lines (most rotated [2+ plays; derived from the optional playCounts map, no new tracking], top decade/artist/label, oldest pressing, latest pickup with artist) for the feed identity-block ticker. Returns a stable derivation order; the feed shuffles the facts per load for ticker display.
       insights.ts        # Pure derivations: parseAddedYear, bucketAddsByYear (Collection Growth), countAddedWithin (the identity block's recent-adds delta). No React/recharts — testable in node env. (Spending's parsePricePaid/deriveSpending were removed — pricePaid is never populated by sync.)
   imports/               # Logo SVG assets (splash, dark, light — the light variant has navy #0C284A letters for light backgrounds; the dark variant has white letters. Both keep the yellow record-dot with navy spindle hole). NOTE: the v0.7 gray retheme deliberately left the logo SVGs untouched — the wordmark is a fixed brand asset, not themed chrome; revisit only on an explicit brand-mark pass.
@@ -662,6 +666,60 @@ In-app reporting (Settings → Feedback), built for the beta: a report that arri
 
 ## Cross-Cutting Patterns
 
+### PWA Updates & Stale Builds
+
+The service worker registers in **`prompt` mode** (`vite.config.ts`), not
+`autoUpdate`: an installed PWA resumed from the background never reloads on its
+own, so a silent auto-update would never reach the user. `lib/pwa-update.ts`
+surfaces a waiting build as an **"Update available." toast** with a Refresh
+action, re-checks on `visibilitychange`, and exposes a manual Settings check.
+
+**Two cases skip that toast and apply the update on the spot**, because in
+neither is there in-progress work a reload could lose. This is not a drift
+toward `autoUpdate` — the toast still owns every mid-session update, which is
+the case the mode was chosen for.
+
+- **The boot window** — an update already waiting at launch (downloaded in an
+  earlier session) is applied immediately. The user is looking at the loading
+  screen, so the reload is invisible. The window closes on the first
+  `pointerdown`/`keydown` or after 20s.
+- **Stale-build recovery** — see below.
+
+**The stale-build red screen.** A Convex deploy landing while a tab still runs
+the previous build makes that client call a function whose validator or name
+has moved on. Convex rejects it, `useQuery` **throws the rejection during
+render** (convex/react throws query errors — it does not return them), and the
+root ErrorBoundary caught it and printed a raw stack trace. Nothing was broken;
+the client was just behind. Force-closing the PWA "fixed" it only because that
+released the old worker and let the waiting one take over.
+
+`lib/stale-build.ts` recognizes that error class — Convex function-not-found and
+argument-validation messages, plus Vite dynamic-import failures for lazy chunks
+whose hashed filenames are gone. Matching is on **message text** because that is
+all the client gets: Convex relays the server's `errorMessage` string with no
+machine-readable "your client is out of date" code. The patterns are
+deliberately narrow — a false positive costs a needless reload, so nothing as
+generic as "server error" or "failed to fetch" belongs there.
+
+The ErrorBoundary then renders **"Updating" with a spinner** instead of a trace
+and calls `recoverFromStaleBuild()`, which takes a waiting build immediately or
+hurries the check along and applies one the moment it installs. If none arrives
+within 15s it falls back to an **"Update needed" card with a Reload button**
+(`hardReload()`: take the waiting build, else unregister the worker so the
+reload goes to the network rather than the precache it is stuck on).
+
+**This cannot loop**, and that is what makes auto-recovery safe without a
+persisted attempt counter — which matters, because the localStorage and
+sessionStorage whitelists are closed and a stale-build guard is not worth
+opening them. `applyUpdate()` only reloads once a genuinely *new* worker takes
+control, so a given build can reload the page at most once. If the error
+survives the reload, no further worker is waiting, recovery times out, and the
+user gets the manual card. Do not add a storage key, URL marker, or navigation-
+type check to "protect" this.
+
+**Errors that are not stale-build errors still get the raw trace.** That is
+deliberate for the beta — the stack is worth more than a friendly apology.
+
 ### Dialog Accessibility (sheets, drawers, lightbox)
 
 Every modal overlay must carry `role="dialog"`, `aria-modal="true"`, and an accessible name (`aria-label`, or the title header). `SlideOutPanel` is the reference implementation and also provides: Escape-to-close, a lightweight Tab focus trap, initial focus into the sheet, and focus return to the opener on close. Its `ariaLabel` prop names title-less sheets — pass it at every new call site.
@@ -669,6 +727,89 @@ Every modal overlay must carry `role="dialog"`, `aria-modal="true"`, and an acce
 **Escape handling uses the dialog stack** (`src/app/lib/dialog-stack.ts`): each Escape-closable overlay pushes a token on mount, pops on unmount, and only acts on Escape when its token is topmost — so a lightbox over a sheet closes one layer per keypress. The desktop album side panel (non-modal, `role="complementary"`) closes on Escape only when `hasOpenDialogs()` is false. Any new sheet or overlay with Escape handling MUST register with the stack — a bare `document.addEventListener("keydown", …)` will double-close stacked layers. The side panel's guard names exactly one overlay by hand: **Look It Up**, which handles Escape not at all, so no token exists to defer to. Every other overlay reaches the guard through `hasOpenDialogs()`; do not add a name to that list instead of registering.
 
 Icon-only buttons always get an `aria-label`; toggle buttons (view modes, priority bolt, filter chips acting as toggles) also get `aria-pressed`.
+
+### Free-Text Fields (`auto-grow-textarea.tsx`)
+
+Every multi-line text field in the app grows to fit what is typed into it
+rather than scrolling inside a fixed box: album detail's **Notes** and its
+non-dropdown **custom fields**, the Settings profile **About** field, and the
+**bug report** message. `resize: none` stays on all of them — a drag handle is
+a desktop affordance that does nothing on a phone, which is where these get
+typed, and auto-grow is what replaces it.
+
+**The component owns the behavior only.** `className` and `style` pass through,
+because the four call sites do not share a look: radii of 8 vs 10, padding of
+8px vs 10px, `--c-border` vs `--c-border-strong`, and only album detail sets an
+explicit `line-height`. Flattening those into one appearance would be a design
+change nobody asked for. Album detail's two fields share an `EDIT_FIELD_STYLE`
+const because they genuinely were byte-identical.
+
+Three details are load-bearing:
+
+- **`useLayoutEffect`, not `useEffect`.** The resize has to land in the same
+  frame as the keystroke, or the box visibly trails a line behind what has been
+  typed. Running on mount is also what sizes existing content the moment the
+  field appears.
+- **Both bounds are measured, not calculated.** On its first layout pass the
+  component borrows the `rows` attribute — sets it to `maxRows` to read the
+  ceiling, puts it back to read the floor — so each bound is the browser's own
+  answer for that row count. `rows × 1.5em` arithmetic would have silently
+  restyled the fields that never set a line-height (a textarea inherits the UA
+  default; `theme.css` sets 1.5 on `input` but not on `textarea`). Once an
+  explicit px height is assigned, the `rows` attribute governs nothing, so
+  without a floor a one-line note would collapse to a single line.
+- **The border is added back to `scrollHeight`.** `scrollHeight` is content +
+  padding and *excludes* the border, while an assigned height under
+  `box-sizing: border-box` includes it — so a bare `scrollHeight` leaves the box
+  a border short and the text scrolls by a hair. `offsetHeight - clientHeight`
+  is exactly that border, since `overflow: hidden` keeps a scrollbar out of the
+  difference.
+
+**Growth stops at `maxRows` (default 10) and the field scrolls from there** —
+the GitHub comment-box behavior. Ten rows is roughly where an uncapped field
+starts pushing the controls under it off a phone screen with the keyboard up;
+the sheets these live in scroll, but hunting for the Save button below a field
+that grew to fill the viewport is worse than a scrollbar inside the field.
+
+`overflowY` is **React-owned, not set imperatively beside the height**: a
+re-render for any other reason re-applies the style prop, which would undo an
+imperative `overflowY` and strand a capped field with no way to scroll. The
+guarded `setState` only re-renders when the field actually crosses the ceiling.
+`overflowX` stays hidden always — that is also what keeps
+`offsetHeight - clientHeight` equal to the border alone, with no horizontal
+scrollbar in the difference.
+
+### Pressing Rows (Look It Up picker)
+
+Every row in the pressing picker is a version of the **same master**, so the
+year and the title repeat down the whole column. Leading with `2008 · US` at
+15px/700 therefore put the one value that never changes in the boldest slot,
+and fourteen pressings scanned as one line fourteen times. **The variant leads
+instead** — medium badge + descriptors — with the imprint (what you match
+against the object in your hands) under it and the origin demoted to the muted
+line. The origin keeps `tabular-nums`, so the years still line up into a column
+even though they no longer lead. Do not put the year back in the lead slot.
+
+**What the versions endpoint actually returns.** `/masters/{id}/versions` gives
+`format` as the release's `descriptions` array joined — `"LP, Album"`,
+`"Album, Copy Protected, Numbered, Promo"` — with the **medium in a separate
+`major_formats` array**. `proxyFetchMasterVersions` dropped that array, which
+is why the picker's media badge never rendered: `mediaType("LP, Album")` finds
+no medium substring and classified every row as `"Other"`. `major_formats` is
+authoritative for the badge; `format` is consulted only as a fallback. The
+Format facet's fallback tokenizer has the same dependency — tokenizing `format`
+alone left it with no media chips whenever Discogs omits `filter_facets`.
+
+**Colour is a third sibling field** (`formats[].text` on a release — "Metallic
+Green", "Green [Lime Green]"), and `flattenFormats` drops it on the collection
+sync too, so nothing in the app captures it today. `splitColorLead` promotes a
+colour into the lead **when the descriptor string happens to carry one** and
+changes nothing when it doesn't, so it costs nothing either way. It is not
+worth a per-release fetch to get: the picker pages at 25, and 25 extra requests
+against a 60/min budget shared with sync is not a trade this feature can make.
+Colour matching is per-word against a vocabulary, never a substring scan, and
+`NOT_COLORS` exempts pressing types that contain a colour word — "White Label"
+is the one that matters, or every promo would lead with "White Label LP".
 
 ### Filter UI
 
@@ -806,8 +947,15 @@ The Discogs 1–5 star rating on an owned copy, surfaced from the free-data pass
 - **Insights shows rating × purge, not a ratings histogram** — "You've rated N releases two stars or lower and never tagged them," gated at 3, in the Purge Progress card. A histogram is vanity; this is a decision prompt.
 
 ### Album Detail Edit Mode
-The album detail panel (`album-detail.tsx`) has an inline edit mode for `mediaCondition`, `sleeveCondition`, `notes`, and `folder`. Key patterns:
-- Edit mode is entered via a `Pencil` (16px) icon button. On mobile, the edit button sits in the "YOUR COPY" card header row (right-aligned). On desktop (`hideHeader=false`) it sits beside the X close button in the panel header.
+The album detail panel (`album-detail.tsx`) edits `mediaCondition`, `sleeveCondition`, `notes`, `folder`, and the Discogs custom fields. Key patterns:
+- **It is a sheet over the panel, not the panel's own rows turning into fields.** Editing used to swap the body out underneath the hero — Listening, Value, Sessions and the tabs all disappeared and the remaining rows became inputs — which read as the screen half-changing rather than as entering a mode, and left Save wherever the form happened to end. `SlideOutPanel` now carries it: backdrop, title, and a **pinned Save/Cancel footer**. **Do not put the fields back inline**, and do not reintroduce `!isEditMode` guards in the panel body — the body must stay intact behind the backdrop, or the content visibly vanishes through it, which is the same complaint by another route.
+- **The sheet is PORTALED to `document.body`**, for the same reason `ImageLightbox` is. The panel renders inside a transform-animated container (the mobile sheet, the desktop side panel), and a transform is a containing block for `position: fixed` descendants as well as its own stacking context. Left in place the backdrop would size to the parent sheet instead of the viewport, and `z-132/134` would be scoped inside the parent's `z-120`, unable to rise over the nav whatever the number. `SlideOutPanel` does not portal itself, but it injects the content tokens inline, so it survives the move.
+- **z-132/134** puts it above the bottom tab bar (130), so the pinned footer is not competing with the nav, and below the lightbox (135/140), which cannot be open at the same time. Desktop gets the centred-card `className` override, the same one `FilterDrawer` uses.
+- **Remove from Collection lives in the sheet.** It is the other thing you do to your copy, and it was only ever reachable from edit mode.
+- **Closing a dirty form asks first.** `requestCloseEdit` compares the form against `initialFieldsRef` — a JSON snapshot taken when edit mode seeded it, which beats re-deriving "changed" per field: it stays correct when a field is added and already covers the per-user custom fields. Clean form closes straight away; a dirty one puts the prompt up and refuses. A save in flight refuses outright — closing mid-write would leave the panel showing values the server has not confirmed. Save itself closes without the check: a commit is not a discard.
+- **The prompt REPLACES the footer** rather than opening a layer over the sheet. The footer is already pinned and already where the eye is after a Cancel tap, and a confirm dialog above `z-134` would have to squeeze between the edit sheet and the lightbox with nowhere clean to land.
+- **The guard lives in `SlideOutPanel` (`onRequestClose`), not in the consumer's `onClose`** — and that is not a preference. Swipe-to-dismiss cannot be intercepted from `onClose`: the gesture animates the sheet off the screen and calls `onClose` **260ms later**, so a consumer that simply declined would be left mounted, dismissed, and translated out of view. The prop is consulted **before** the dismiss animation, and a refusal snaps the sheet back. All five dismissal paths route through it — backdrop, the floating X, the header X, Escape, and both swipe implementations (the manual touch handlers and Framer's `onDragEnd`). It is held in a ref inside the panel, because the guard closes over the consumer's form state and is a new function every render; in a dependency array it would tear down and re-attach the touch listeners on every keystroke.
+- Edit mode is entered via a `Pencil` (16px) icon button. On mobile, the edit button sits in the "YOUR COPY" section header row (right-aligned). On desktop (`hideHeader=false`) it sits beside the X close button in the panel header.
 - Edit mode is not accessible while `isSyncing` — the button is hidden during sync.
 - `isEditMode` state resets whenever `selectedAlbum` changes.
 - On Save: Convex proxy actions first (`proxyUpdateCollectionInstance` / `proxyMoveToFolder`), then local state + Convex cache update via `updateAlbum` from context. On failure: error toast, stay in edit mode so the user can retry. Never trigger a full re-sync.
@@ -833,6 +981,8 @@ The album detail panel lazy-loads enriched metadata from the Discogs `/releases/
 - **Enriched content tabs (mobile)**: On mobile, Tracklist, Credits, Pressing Notes, and Identifiers render as a sticky horizontal tab bar instead of accordion sections. Tabs with no data are hidden after the enriched fetch resolves. During loading, all four tabs show at `opacity: 0.4` with a skeleton below. Active tab uses `2px solid #EBFD00` underline indicator. Tab bar uses `position: sticky; top: 0; z-index: 10` with a background matching the sheet's hardcoded detached-surface background (`isDarkMode ? "#14161C" : "#FFFFFF"`). An IntersectionObserver sentinel pattern applies `paddingTop: 48px` only when the tab bar is stuck, clearing the close button. `tabBarStuck` state resets on album change. On desktop, the original accordion sections remain.
 - **Section component props**: `hideTitle` prop added to `TracklistSection`, `CreditsSection`, `PressingNotesSection` — suppresses section headings when rendered inside tab content on mobile. `hideToggle` prop added to `TracklistSection` — shows full tracklist without Show More truncation on mobile tabs.
 - **Inner scroll container**: The `div.flex-1.overflow-y-auto` inside `AlbumDetailPanel` conditionally applies `overflow-y-auto` only on desktop (`hideHeader === false`). On mobile, `overflow-y` is removed so `position: sticky` resolves against `scrollRef` in `SlideOutPanel`.
+- **Free-text edit fields use the shared `AutoGrowTextarea`** — Notes and every non-dropdown custom field, sharing one `EDIT_FIELD_STYLE` const (the two call sites had byte-identical style blocks). See Free-Text Fields under Cross-Cutting Patterns.
+- **`DetailRow` takes `multiline` for anything edited in a textarea** — Notes and every non-dropdown custom field. Those values can contain real newlines, and a plain `<span>` collapses them to spaces (`white-space: normal`), so a note rendered one way in view mode and another in the editor, which shows a textarea's content verbatim. The line breaks are the user's content; view mode was dropping them. It is opt-in, not the default: the single-value rows (Label, Catalog #, Year, Country, Folder) are joined server-side with `" · "` and never carry a newline. If a note ever looks like it is wrapping early, check for literal newlines in the value before suspecting the CSS — the textarea is already `width: 100%`.
 - **Two distinct notes**: User personal notes (from collection sync) stay in Your Copy. Discogs pressing/matrix notes (from enriched data) go in the collapsible Pressing Notes section (or Pressing Notes tab on mobile). Never merge these.
 - **Wantlist button**: Intentionally removed from collection album detail view. The underlying `WantlistHeartButton` logic remains for wantlist item detail.
 - **Skeleton loading**: `EnrichedSkeleton` component with `animate-pulse` bars shows while release data loads.
@@ -872,6 +1022,39 @@ reduced to `grid` and `list` only. A useEffect guard resets any stored
 Followed user profile (FollowedUserProfile in following-screen.tsx):
 Same row minus filter button — filter button is present but filter
 system is not yet fully wired. Do not remove the button.
+
+### Date Added Grouping
+
+Sorting the collection by Date Added draws section headers from
+`getAlbumGroupLabel` (`album-grid.tsx`, shared with `album-list.tsx`), which
+for `added-new`/`added-old` defers to **`dateAddedBucket`** in `utils/format.ts`.
+
+**The buckets are relative near the top and calendar years past that** — `This
+Month` · `Last Month` · `Earlier This Year` · `{year}`. Calendar months were
+the obvious grouping and the wrong one: a collection grows in bursts, so a
+quiet stretch produced a run of headers with one or two releases under each and
+the dividers outnumbered the content they organized. Recent additions are the
+ones worth naming precisely; past that what matters is the year, and a bulk
+Discogs import from years back lands under one header instead of twelve thin
+ones.
+
+The four are **disjoint**, which is what lets them work as headers — a rolling
+ladder ("Last 3 Months" beside "This Month") reads as overlapping and was
+rejected for that. They are also **monotonic in time**, so a list sorted purely
+by date keeps each bucket contiguous, in both directions: `added-old` reads the
+same ladder bottom-up and is still in order.
+
+Months are compared as a single running number (`year * 12 + month`) so
+**December → January needs no branch**. In January, "Last Month" is December of
+the previous year, "Earlier This Year" is empty, and that December is therefore
+absent from its own year's bucket — deliberate, and it still reads in order.
+February self-collapses the same way.
+
+`dateAddedBucket` takes `now` as an injected argument so the ladder is testable
+at a fixed instant, and it parses through `parseDisplayDate` for the reason
+that function exists: a bare `"YYYY-MM-DD"` through `new Date()` is UTC
+midnight, which put anything added on the 1st under the *previous month* for
+every user west of UTC.
 
 ### Year Display Convention
 
@@ -919,7 +1102,7 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
 
 **Insights card removed (v0.7.x), replaced by Listening.** Every piece of the old card had a better home: collection value and the growth count moved to the identity block (the latter as the `+N in 30 days` delta), "still unrated" was already a Purge Tracker chip with the identical tap target, and the rotating fact line duplicated the ticker directly above it. What was left — "no play recorded" — became the seed of the Listening card. The feed has no end-cap card now; Decades closes it.
 
-**Listening card:** header + See All → Insights. With plays logged: a two-cell stat grid (**Played this month** · **Day streak**, the streak cell falling back to **Days since last play** when the streak is 0 — a "0 day streak" scolds, "6 days since" is an observation), the `{N} releases with no plays recorded` row (→ crate + `neverPlayedFilter`), and a **play suggestion**: one never-played release, daily-seeded so it holds still, with a Mark as Played button. With nothing logged: the stat grid is replaced by a short pitch and the suggestion's button goes yellow — the first tap converts the card to its filled state, which is the whole point. Zero new queries and **no new tracking** — `lastPlayed`/`playCounts`/`allPlayTimestamps` are already on the context, and the play log already stores one row per play. Its derivations live in `utils/listening.ts`, shared with the Insights screen so the two surfaces cannot report different numbers for the same log. It sits at feed position 5 on mobile rather than at the end: a card whose job is to earn the first logged play can't do that from the bottom of the feed.
+**Listening card:** header + See All → Insights. With plays logged: a two-cell stat grid (**Played this month** · **Day streak**, the streak cell falling back to **Days since last play** when the streak is 0 — a "0 day streak" scolds, "6 days since" is an observation), the `{N} releases with no plays recorded` row (→ crate + `neverPlayedFilter`), and a **play suggestion**: one never-played release, daily-seeded so it holds still, with a Mark as Played button. With nothing logged: the stat grid is replaced by a short pitch and the suggestion's button goes yellow — the first tap converts the card to its filled state, which is the whole point. Zero new queries and **no new tracking** — `lastPlayed`/`playCounts`/`allPlayTimestamps`/`playLog` are already on the context, and the play log already stores one row per play. Its derivations live in `utils/listening.ts`, shared with the Insights screen so the two surfaces cannot report different numbers for the same log. It sits at feed position 5 on mobile rather than at the end: a card whose job is to earn the first logged play can't do that from the bottom of the feed.
 
 **Recommended section removed (v0.6.x):** The time-of-day-weighted "Give this one a spin." hero was cut — it read as redundant with Shuffle. Its `getTimeBucket`/mood-folder scoring code was deleted with it; do not resurrect it. The feed-header transparency behavior it introduced remains: the mobile feed header is transparent at scroll position 0 on the home feed and transitions to opaque on scroll, scoped via a prop on the header component (`onHeroVisibility` keys off scroll position, not any hero section). The identity block sits flush under the transparent header.
 
@@ -963,7 +1146,53 @@ The wantlist is cached in the `wantlist` Convex table with the same 24h TTL as t
    - *By Format*: media-type-aware (all-formats). Groups by `mediaType()` first. A single-medium collection shows the descriptor stat grid (LP, 12", 7", Box Set …) unchanged; when one medium dominates (≥90% — the common mostly-vinyl case) the descriptor grid stays with a "plus N CDs, M cassettes" footer; genuinely mixed media show a media-type stat grid with the majority-medium descriptor breakdown beneath. The descriptor tokenizer splits on comma/semicolon and strips a fixed word set ("Album", "All Media", "Reissue", "Compilation", "Stereo", "Mono", "Promo", "Limited Edition", "Deluxe Edition", "Remaster", "Special Edition", "Club Edition", "Transcription", "Unofficial Release", "White Label", "Record Store Day") plus any token classifying as the majority medium (so "Vinyl"/"CD" never dominate their own breakdown).
 6. **Top Artists**: Ranked list (#1–#10). Filters to artists with 2+ albums. Hidden if fewer than 3 qualify. Excludes "Various", "Various Artists", "Unknown Artist", "Unknown". #1 rank in #EBFD00, #2–3 in var(--c-text-muted), #4+ in var(--c-text-faint). Disambig suffixes (e.g. " (2)") stripped before grouping.
 7. **Top Labels**: Lollipop chart (thin stem + dot). Filters to labels with 2+ albums, cap 10. Hidden if fewer than 3 qualify. Dot color: CHART_BLUE (#0DB1F2).
-8. **Listening Activity**: Stats grid (played this month in green Keep styling, days since last played, no plays recorded count) above a chip-tab list — **Recently Played · Top Played · No Plays**, in that order. Only tabs with data render; the `tab` state defaults to `"recent"` so the first chip is also the selected one on open (the lose-your-data fallback to `listTabs[0]` does not achieve that on its own). Rendered **before** Top Shelf — what you actually play is a better second beat than what the collection is worth.
+8. **Listening Activity**: Stats grid (played in the last 30 days in green Keep styling with a delta against the prior 30, days since last played, no plays recorded count), a streak row (current + longest), a **plays-per-month** bar chart, then a chip-tab list — **Recently Played · Top Played · No Plays**, in that order. Only tabs with data render; the `tab` state defaults to `"recent"` so the first chip is also the selected one on open (the lose-your-data fallback to `listTabs[0]` does not achieve that on its own). Rendered **before** Top Shelf — what you actually play is a better second beat than what the collection is worth.
+**Plays per month.** A 12-month bar chart from `playsByMonth`, matching
+Collection Growth's chart conventions (in-view mount, `CHART_BLUE` bars, the
+current month in `#EBFD00` edged brass gold in light mode). It counts play
+**EVENTS**, so it reads off `allPlayTimestamps` — `lastPlayed` holds one date
+per release and would collapse a release played across three months into one.
+**Empty months render as zero, never skipped**: a gap in the log is the
+finding, and dropping the month would slide the bars together and draw a run of
+listening that never happened. Gated like Collection Growth (2+ live months,
+10+ plays) so it never renders as one bar and a lot of air.
+
+**The played tile is a trailing 30 days, not a calendar month.** The calendar
+version cratered on the 1st — the day after "50 played in August" it read "1
+played in September", a drop with no behaviour behind it. Beside it sits a
+delta against the prior 30 days.
+
+**That delta is why `playLog` exists on the context.** `allPlayTimestamps` is a
+flat `number[]` — `buildPlayMaps` drops the `release_id`, which is fine for
+counting events but cannot answer "how many distinct releases in a window."
+Deriving the comparison from `lastPlayed` instead is a trap worth naming: for
+the CURRENT window the two agree, since a release played inside a window ending
+now necessarily has its last play inside it, but for any EARLIER window they do
+not. A release played 45 days ago and again 10 days ago carries a last-play of
+10 days, so `lastPlayed` omits it from the 31–60 day window entirely,
+undercounting the older side and inflating every delta drawn from it.
+`releasesPlayedInWindow` therefore takes the log, not the map.
+
+**Both surfaces moved together.** The feed's Listening card reads the same
+`releasesPlayedInWindow`, and its label became "Played, last 30 days" — two
+surfaces reporting different numbers for the same play log is the failure mode
+`utils/listening.ts` exists to prevent, so a change to one is a change to both.
+`albumsPlayedThisMonth` was deleted with the switch; do not reintroduce a
+calendar-month count on one surface alone.
+
+**Streak dates.** `deriveStreaks` returns `currentRange`/`longestRange`
+alongside the counts, and each streak tile carries its span (`formatDayRange`,
+`utils/format.ts`) under the label — a streak count with no "when" is a number
+you cannot check against your own memory. Three rules are load-bearing: the
+current streak's range **ends on its last played day, not on today** (the
+streak may end yesterday, since you have not necessarily played anything yet
+today); on a tie the **most recent** run wins the "longest" title, since the
+same length from four years ago is worth less than last month's; and the date
+line renders on **both** tiles with `visibility: hidden` rather than removed
+when a streak is 0, so the two keep a common baseline (the identity-block
+stat-cell convention). `formatDayRange` appends the year only when the span
+ended outside the current one.
+
 9. **Purge Progress**: A horizontal headline (`{rated} of {total} evaluated` + `{pct}%`, replacing the old radial ring's stacked center text), a full-width **segmented progress bar** (Keep/Maybe/Cut verdict slices over a neutral `--c-chip-bg` unrated track — the colored slice reads as "how far into the purge," left-aligned), and a **legend row** carrying the exact counts (Keep/Maybe/Cut/Unrated, colored dots via `purgeTagColor`; unrated dot uses `var(--c-text-muted)`) that replaced the old 2×2 stat grid. Empty-state nudge when nothing's evaluated. When a cached collection value exists and 3+ albums are tagged Cut, a "Cutting deadweight: …" callout line — count-only ("{N} releases tagged Cut.") until the drip has priced the Cut records, then upgraded to "{N} tagged Cut, ~${X} at lowest ask." (Spec 6B, summing `marketValue` over Cut albums).
 10. **Collection Growth**: recharts BarChart of releases added per year (from `dateAdded`), capped to the last 10 years, current-year bar in #EBFD00 (edged brass gold in light mode, matching the peak-decade convention). Yellow callout pill: "{N} releases added in {year}" for the biggest year, or "Your biggest year yet" when the biggest year is the current one. Derived via `bucketAddsByYear` in `utils/insights.ts`. Rendered after Breakdown, before Top Artists.
 11. **Top Shelf** (Spec 6B): The five most valuable releases by lowest marketplace ask, from the shared market-value drip. Own card rendered after Listening Activity; rows show 40px artwork + title/artist + green `~$X` and tap through to album detail. Subtitle "Your priciest pressings by lowest marketplace ask." Hidden until 10+ of the collection's releases are priced.
@@ -1197,6 +1426,8 @@ Collection uses `GalleryVerticalEnd` icon (was `Library`; since the Phosphor mig
 | Install nudge backdrop | `z-[149]` | install-nudge.tsx |
 | Lightbox overlay | `z-[140]` | album-detail.tsx |
 | Lightbox backdrop | `z-[135]` | album-detail.tsx |
+| Edit your copy sheet | `z-[134]` | album-detail.tsx |
+| Edit your copy backdrop | `z-[132]` | album-detail.tsx |
 | Mobile bottom tab bar | `z-[130]` | navigation.tsx |
 | Wantlist crossover prompt | `z-[125]` | wantlist-crossover-prompt.tsx |
 | Album detail mobile sheet | `z-[120]` | album-detail.tsx |

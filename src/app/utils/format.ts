@@ -35,6 +35,68 @@ export function parseDisplayDate(iso: string): Date {
 }
 
 /**
+ * An inclusive span of days, for the Insights streak tiles: "Aug 26 – Sep 2".
+ *
+ * A one-day span renders as the single day, not "Sep 2 – Sep 2". The year is
+ * appended only when the span ended in a different year than `now` — a streak
+ * from last week does not need telling you it happened this year, but the
+ * all-time longest might be from four years ago.
+ */
+export function formatDayRange(start: string, end: string, now: Date = new Date()): string {
+  const s = parseDisplayDate(start);
+  const e = parseDisplayDate(end);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return "";
+  const day = (d: Date) => `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}`;
+  const year = e.getFullYear() === now.getFullYear() ? "" : `, ${e.getFullYear()}`;
+  if (start === end) return `${day(e)}${year}`;
+  return `${day(s)} – ${day(e)}${year}`;
+}
+
+/**
+ * The section header a release falls under when the collection is sorted by
+ * Date Added.
+ *
+ * Calendar months were the obvious grouping and the wrong one: a collection
+ * grows in bursts, so a quiet stretch produced a run of headers with one or
+ * two releases under each, and the dividers outnumbered the content they were
+ * meant to organize. Recent additions are the ones worth naming precisely —
+ * past that, what matters is the year, and a bulk Discogs import from years
+ * back lands under one header instead of twelve thin ones.
+ *
+ * The four buckets are disjoint, which is what lets them work as headers:
+ *   This Month · Last Month · Earlier This Year · {year}
+ *
+ * They self-collapse near the turn of the year without special-casing. In
+ * January, "Last Month" is December of the previous year, "Earlier This Year"
+ * is empty, and that December is therefore absent from its own year's bucket —
+ * correct, and it still reads in order.
+ *
+ * `now` is injected so the ladder is testable at a fixed instant.
+ */
+export function dateAddedBucket(iso: string, now: Date = new Date()): string {
+  if (!iso) return NO_DATE_LABEL;
+  // parseDisplayDate, not new Date(): a bare "YYYY-MM-DD" parses as UTC
+  // midnight, which put anything added on the 1st under the previous month
+  // for users west of UTC.
+  const d = parseDisplayDate(iso);
+  if (Number.isNaN(d.getTime())) return NO_DATE_LABEL;
+
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth();
+
+  if (year === nowYear && month === nowMonth) return "This Month";
+  // Months as a single running number so December → January needs no branch.
+  if (year * 12 + month === nowYear * 12 + nowMonth - 1) return "Last Month";
+  if (year === nowYear) return "Earlier This Year";
+  return String(year);
+}
+
+/** Header for a release whose `date_added` the sync stored as "". */
+const NO_DATE_LABEL = "—";
+
+/**
  * Format an ISO date string for activity feeds.
  * Without `includeDay`: "Jan 15"
  * With `includeDay`:    "Monday, Jan 15"

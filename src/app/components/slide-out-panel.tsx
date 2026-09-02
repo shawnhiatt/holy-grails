@@ -36,6 +36,17 @@ interface SlideOutPanelProps {
   shakeEntrance?: boolean;
   /** Accessible name for the dialog when there is no title header (e.g. "Album details"). */
   ariaLabel?: string;
+  /**
+   * Consulted before EVERY dismissal — backdrop, X, swipe, Escape. Return
+   * false to refuse, and put up your own prompt from inside it.
+   *
+   * It lives here rather than in the consumer's `onClose` because swipe
+   * cannot be intercepted from there: the gesture animates the sheet off the
+   * screen and calls `onClose` 260ms later, so a consumer that simply declined
+   * would be left mounted, dismissed, and translated out of view. Checked
+   * BEFORE the dismiss animation, so a refusal snaps the sheet back instead.
+   */
+  onRequestClose?: () => boolean;
 }
 
 export function SlideOutPanel({
@@ -49,6 +60,7 @@ export function SlideOutPanel({
   sheetZIndex = 120,
   shakeEntrance = false,
   ariaLabel,
+  onRequestClose,
 }: SlideOutPanelProps) {
   const { isDarkMode } = useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -58,6 +70,20 @@ export function SlideOutPanel({
   const pullingRef = useRef(false);
   const startYRef = useRef(0);
   const [dismissed, setDismissed] = useState(false);
+  /* Held in a ref, not read from the closure: the guard is a fresh function on
+     every render (it reads the consumer's form state), and putting it in the
+     effects' dependency arrays would tear down and re-attach the touch
+     listeners on every keystroke. */
+  const requestCloseRef = useRef(onRequestClose);
+  requestCloseRef.current = onRequestClose;
+  const mayClose = () => {
+    const guard = requestCloseRef.current;
+    return guard ? guard() : true;
+  };
+  /** Every dismissal path goes through here. */
+  const requestClose = () => {
+    if (mayClose()) onClose();
+  };
 
   // Dismiss software keyboard on panel open (iOS PWA), move focus into the
   // dialog, and return it to the opener on close.
@@ -79,7 +105,7 @@ export function SlideOutPanel({
     const onKeyDown = (e: KeyboardEvent) => {
       if (!isTopDialog(token)) return;
       if (e.key === "Escape") {
-        onClose();
+        if (mayClose()) onClose();
         return;
       }
       if (e.key !== "Tab" || !sheetRef.current) return;
@@ -140,14 +166,17 @@ export function SlideOutPanel({
       if (!pullingRef.current) return;
       pullingRef.current = false;
       const y = sheetY.get();
-      if (y > 80) {
+      // Ask before the dismiss animation, never after: onClose fires 260ms
+      // later, by which point refusing would leave the sheet mounted and
+      // translated off the screen.
+      if (y > 80 && mayClose()) {
         // Dismiss
         setDismissed(true);
         animate(sheetY, window.innerHeight, { duration: DURATION_NORMAL, ease: EASE_IN });
         animate(backdropOpacity, 0, { duration: DURATION_FAST });
         setTimeout(() => onClose(), 260);
       } else {
-        // Snap back
+        // Snap back — also where a refused dismissal lands.
         animate(sheetY, 0, { duration: DURATION_FAST, ease: EASE_OUT });
         animate(backdropOpacity, 1, { duration: DURATION_FAST });
       }
@@ -174,7 +203,7 @@ export function SlideOutPanel({
         transition={{ duration: DURATION_NORMAL, ease: EASE_OUT }}
         className="fixed inset-0 bg-black/30"
         style={{ zIndex: backdropZIndex, opacity: backdropOpacity, pointerEvents: dismissed ? "none" : "auto" }}
-        onClick={onClose}
+        onClick={requestClose}
       />
 
       {/* Fixed close button — replaces avatar in mobile header position (only when no title header) */}
@@ -183,7 +212,7 @@ export function SlideOutPanel({
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8, pointerEvents: "none" as const }}
         transition={{ duration: DURATION_FAST, ease: EASE_OUT }}
-        onClick={onClose}
+        onClick={requestClose}
         aria-label="Close"
         className="fixed lg:hidden w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
         style={{
@@ -214,7 +243,9 @@ export function SlideOutPanel({
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.6 }}
         onDragEnd={(_, info) => {
-          if (info.offset.y > 70 || info.velocity.y > 300) onClose();
+          // Framer's own drag path, alongside the manual touch handlers.
+          // dragConstraints snap the sheet back when the guard refuses.
+          if (info.offset.y > 70 || info.velocity.y > 300) requestClose();
         }}
         className={`fixed left-0 right-0 bottom-0 rounded-t-[20px] overflow-hidden flex flex-col focus:outline-none ${className}`}
         style={{
@@ -259,7 +290,7 @@ export function SlideOutPanel({
               {headerAction}
             </div>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               aria-label="Close"
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
               style={{
