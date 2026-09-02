@@ -238,7 +238,7 @@ Vitest, run via `npm test` (wired into CI alongside typecheck and build). Config
 - `stack-rule-labels.test.ts` (node env, pure) — chip phrasing per field, day pluralization, graceful rendering of an operator this build doesn't know, the three-criteria title cap and its "and more" tail, and the title freeze (including that it does *not* un-freeze when the generator changes).
 - `market_values.test.ts` — the shared per-release market-value drip (Spec 6A.1): `seedFromCollection` dedupes across owners + migrates legacy per-user values + is idempotent, `getDripBatch` returns never-fetched/stalest-first capped, `setValue` advances `fetchedAt` always and writes `value` only on success (preserving prior value on failure) + no-ops for a missing row, and `getForUser` scopes to the caller's own priced releases + rejects unauthenticated callers.
 
-**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder, `buildFieldMap`, `mediaType` (format classifier), the Fisher–Yates `shuffle`, `insights.ts` (add-year bucketing for Collection Growth), `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse), and `pressing-format.ts` (colour-vs-pressing-type detection incl. the "White Label" trap, colour-into-shape merging, the medium coming from `major_formats` rather than the descriptor string, and empty input). `convex/coverIdentity.test.ts` (plain node env — no convex-test/edge-runtime needed, it's a pure module) covers `parseCoverIdentity`: confident hit, trimming, `identified: false`, empty/non-string fields, junk payloads, over-length fields. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
+**Pure logic tests** (`src/**/*.test.ts`, node environment): `use-filtered-albums` (via the exported pure `filterAndSortAlbums` — the hook wraps it in `useMemo`; keep the split so the logic stays testable without React), `collection-facts` threshold gating (including the "Most rotated" 2-play gate and the omitted-when-no-playCounts case), `format.ts` relative-time ladder and `dateAddedBucket` (the four rungs, the December→January crossing, February's self-collapse, the 1st-of-month timezone trap, and a missing date), `buildFieldMap`, `mediaType` (format classifier), the Fisher–Yates `shuffle`, `insights.ts` (add-year bucketing for Collection Growth), `accounts.ts` (multi-account upsert/dedupe/remove/promote-next + defensive JSON parse), and `pressing-format.ts` (colour-vs-pressing-type detection incl. the "White Label" trap, colour-into-shape merging, the medium coming from `major_formats` rather than the descriptor string, and empty input). `convex/coverIdentity.test.ts` (plain node env — no convex-test/edge-runtime needed, it's a pure module) covers `parseCoverIdentity`: confident hit, trimming, `identified: false`, empty/non-string fields, junk payloads, over-length fields. Shared `makeAlbum` factory lives in `src/test/factories.ts`.
 
 When adding a new guarded Convex function or a new cross-user query, add tests for its auth guard / shareActivity gate in the same session.
 
@@ -326,7 +326,7 @@ src/
       scroll-state.ts    # Module-level scroll-guard state — one passive capture listener records last scroll time; powers the 250ms post-scroll tap cooldown
       safe-tap.ts        # Shared safeTap() helper — touch-slop (10px X+Y) + scroll cooldown + preventDefault to suppress synthetic clicks. All card tap sites use this; never hand-roll touch tap guards. NOT a hook (module-level touch state, no use* prefix) — it is deliberately callable inside .map() loops.
     utils/
-      format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo)
+      format.ts          # Shared formatting utilities (formatActivityDate, formatCollectionSince, getInitial, formatSyncedAgo, dateAddedBucket — see Date Added Grouping)
       stack-rule-labels.ts  # Rule-builder vocabulary (RULE_FIELDS + per-field operators, collection-derived options, availableFields gating) and the title generator. Pure, no React — the generated-title logic is testable alongside insights.ts.
       stack-presets.ts   # Session Builder presets, GENERATED FROM THE REAL COLLECTION (only offer Jazz if he owns jazz, star presets only once something is rated). That is both a product call and what makes the free-data backfill invisible — a preset that matches nothing is worse than no preset.
       accounts.ts        # Pure multi-account list logic (parseAccounts/upsertAccount/removeAccount/nextAccount) — no localStorage/React; app-context wraps it for hg_accounts I/O. See Multiple Accounts.
@@ -1015,6 +1015,39 @@ reduced to `grid` and `list` only. A useEffect guard resets any stored
 Followed user profile (FollowedUserProfile in following-screen.tsx):
 Same row minus filter button — filter button is present but filter
 system is not yet fully wired. Do not remove the button.
+
+### Date Added Grouping
+
+Sorting the collection by Date Added draws section headers from
+`getAlbumGroupLabel` (`album-grid.tsx`, shared with `album-list.tsx`), which
+for `added-new`/`added-old` defers to **`dateAddedBucket`** in `utils/format.ts`.
+
+**The buckets are relative near the top and calendar years past that** — `This
+Month` · `Last Month` · `Earlier This Year` · `{year}`. Calendar months were
+the obvious grouping and the wrong one: a collection grows in bursts, so a
+quiet stretch produced a run of headers with one or two releases under each and
+the dividers outnumbered the content they organized. Recent additions are the
+ones worth naming precisely; past that what matters is the year, and a bulk
+Discogs import from years back lands under one header instead of twelve thin
+ones.
+
+The four are **disjoint**, which is what lets them work as headers — a rolling
+ladder ("Last 3 Months" beside "This Month") reads as overlapping and was
+rejected for that. They are also **monotonic in time**, so a list sorted purely
+by date keeps each bucket contiguous, in both directions: `added-old` reads the
+same ladder bottom-up and is still in order.
+
+Months are compared as a single running number (`year * 12 + month`) so
+**December → January needs no branch**. In January, "Last Month" is December of
+the previous year, "Earlier This Year" is empty, and that December is therefore
+absent from its own year's bucket — deliberate, and it still reads in order.
+February self-collapses the same way.
+
+`dateAddedBucket` takes `now` as an injected argument so the ladder is testable
+at a fixed instant, and it parses through `parseDisplayDate` for the reason
+that function exists: a bare `"YYYY-MM-DD"` through `new Date()` is UTC
+midnight, which put anything added on the 1st under the *previous month* for
+every user west of UTC.
 
 ### Year Display Convention
 

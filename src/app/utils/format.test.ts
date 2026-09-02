@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  dateAddedBucket,
   formatActivityDate,
   formatCollectionSince,
   formatSyncedAgo,
@@ -109,5 +110,69 @@ describe("formatSyncedAgo", () => {
 
   it("falls back to a short date at a week and beyond", () => {
     expect(formatSyncedAgo(NOW - 7 * 24 * 60 * 60 * 1000)).toBe("Jun 29");
+  });
+});
+
+
+describe("dateAddedBucket", () => {
+  // Mid-year, so all four rungs of the ladder are reachable at once.
+  const SEP_2026 = new Date(2026, 8, 2);
+
+  it("names the current and previous calendar months", () => {
+    expect(dateAddedBucket("2026-09-30", SEP_2026)).toBe("This Month");
+    expect(dateAddedBucket("2026-09-01", SEP_2026)).toBe("This Month");
+    expect(dateAddedBucket("2026-08-31", SEP_2026)).toBe("Last Month");
+    expect(dateAddedBucket("2026-08-01", SEP_2026)).toBe("Last Month");
+  });
+
+  it("collects the rest of the current year under one header", () => {
+    expect(dateAddedBucket("2026-07-31", SEP_2026)).toBe("Earlier This Year");
+    expect(dateAddedBucket("2026-01-01", SEP_2026)).toBe("Earlier This Year");
+  });
+
+  it("falls back to the calendar year for anything older", () => {
+    expect(dateAddedBucket("2025-12-31", SEP_2026)).toBe("2025");
+    expect(dateAddedBucket("2025-01-01", SEP_2026)).toBe("2025");
+    expect(dateAddedBucket("2019-06-04", SEP_2026)).toBe("2019");
+  });
+
+  /* The reason months are tracked as a single running number rather than a
+     month-minus-one comparison: in January the previous month is in the
+     previous YEAR, and a naive check either mislabels it or throws it into
+     the year bucket, putting December below November. */
+  it("crosses the turn of the year without special-casing", () => {
+    const JAN_2026 = new Date(2026, 0, 15);
+    expect(dateAddedBucket("2026-01-02", JAN_2026)).toBe("This Month");
+    expect(dateAddedBucket("2025-12-20", JAN_2026)).toBe("Last Month");
+    // December is now absent from its own year's bucket — deliberate, and it
+    // still reads in order: This Month, Last Month, then the rest of 2025.
+    expect(dateAddedBucket("2025-11-30", JAN_2026)).toBe("2025");
+  });
+
+  it("self-collapses in February, where 'earlier this year' is empty", () => {
+    const FEB_2026 = new Date(2026, 1, 10);
+    expect(dateAddedBucket("2026-02-01", FEB_2026)).toBe("This Month");
+    expect(dateAddedBucket("2026-01-31", FEB_2026)).toBe("Last Month");
+    expect(dateAddedBucket("2025-12-31", FEB_2026)).toBe("2025");
+  });
+
+  /* Same reason parseDisplayDate exists: "YYYY-MM-DD" through new Date() is
+     UTC midnight, which lands on the previous day — and for the 1st, the
+     previous MONTH — for every user west of UTC. */
+  it("reads the 1st of the month as that month, not the one before", () => {
+    expect(dateAddedBucket("2026-09-01", SEP_2026)).toBe("This Month");
+    expect(dateAddedBucket("2026-01-01", SEP_2026)).toBe("Earlier This Year");
+  });
+
+  it("gives a release with no stored date its own header", () => {
+    // The sync writes "" when Discogs omits date_added.
+    expect(dateAddedBucket("", SEP_2026)).toBe("—");
+    expect(dateAddedBucket("not a date", SEP_2026)).toBe("—");
+  });
+
+  it("defaults to the current clock when no instant is passed", () => {
+    const now = new Date();
+    const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-15`;
+    expect(dateAddedBucket(iso)).toBe("This Month");
   });
 });
