@@ -1512,9 +1512,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   />
                 </DetailSlot>
                 {selectedAlbum.customFields?.filter(cf => cf.value).map((cf, i) => (
-                  <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} />
+                  // Anything not a dropdown is edited in a textarea, so it can
+                  // hold newlines — mirror that here or view and edit disagree.
+                  <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} multiline={cf.type !== "dropdown"} />
                 ))}
-                {selectedAlbum.notes && <DetailRow label="Notes" value={selectedAlbum.notes} />}
+                {selectedAlbum.notes && <DetailRow label="Notes" value={selectedAlbum.notes} multiline />}
               </div>
             </div>
 
@@ -2141,11 +2143,34 @@ function DetailSlot({ label, children, align = "1px" }: { label: string; childre
   );
 }
 
-function DetailRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+/**
+ * `multiline` is for the values the user types into a <textarea> — Notes and
+ * every non-dropdown custom field. Those can contain real newlines, and a
+ * plain <span> collapses them to spaces (CSS `white-space: normal`), so the
+ * same note rendered one way here and a different way in the editor, which a
+ * textarea shows verbatim. The line breaks are the user's content; view mode
+ * was quietly dropping them.
+ *
+ * Deliberately opt-in rather than the default: the single-value rows (Label,
+ * Catalog #, Year, Country, Folder …) are joined server-side with " · " and
+ * never carry a newline, and `pre-wrap` would additionally stop them
+ * collapsing incidental double spaces.
+ */
+function DetailRow({ label, value, valueColor, multiline }: { label: string; value: string; valueColor?: string; multiline?: boolean }) {
   return (
     <div className="flex items-start gap-3">
       <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "1px" }}>{label}</span>
-      <span className="flex-1 min-w-0" style={{ fontSize: "13px", fontWeight: valueColor ? 500 : 400, color: valueColor || "var(--c-text)" }}>{value}</span>
+      <span
+        className="flex-1 min-w-0"
+        style={{
+          fontSize: "13px",
+          fontWeight: valueColor ? 500 : 400,
+          color: valueColor || "var(--c-text)",
+          ...(multiline ? { whiteSpace: "pre-wrap" as const } : null),
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
