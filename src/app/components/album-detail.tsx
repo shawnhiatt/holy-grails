@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import type React from "react";
 import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw, Music } from "./icons";
@@ -981,25 +981,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               {/* Notes (user personal notes) */}
               <div className="flex flex-col gap-1">
                 <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Notes</label>
-                <textarea
+                <AutoGrowTextarea
                   value={editFields.notes}
-                  onChange={(e) => setEditFields((prev) => ({ ...prev, notes: e.target.value }))}
-                  rows={3}
+                  onChange={(notes) => setEditFields((prev) => ({ ...prev, notes }))}
+                  minRows={3}
                   placeholder="Add notes..."
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 400,
-                    color: "var(--c-text)",
-                    backgroundColor: "var(--c-input-bg)",
-                    border: "1px solid var(--c-border)",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
-                    outline: "none",
-                    width: "100%",
-                    resize: "none",
-                    lineHeight: "1.5",
-                  }}
                 />
               </div>
 
@@ -1041,28 +1027,14 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                       ))}
                     </select>
                   ) : (
-                    <textarea
+                    <AutoGrowTextarea
                       value={cf.value}
-                      onChange={(e) => setEditFields((prev) => {
+                      onChange={(value) => setEditFields((prev) => {
                         const updated = [...prev.customFields];
-                        updated[i] = { ...updated[i], value: e.target.value };
+                        updated[i] = { ...updated[i], value };
                         return { ...prev, customFields: updated };
                       })}
-                      rows={2}
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 400,
-                        color: "var(--c-text)",
-                        backgroundColor: "var(--c-input-bg)",
-                        border: "1px solid var(--c-border)",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                        outline: "none",
-                        width: "100%",
-                        resize: "none",
-                        lineHeight: "1.5",
-                      }}
+                      minRows={2}
                     />
                   )}
                 </div>
@@ -2140,6 +2112,76 @@ function DetailSlot({ label, children, align = "1px" }: { label: string; childre
       <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: align }}>{label}</span>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
+  );
+}
+
+/**
+ * The edit form's free-text fields — Notes, and every non-dropdown custom
+ * field. Grows to fit its content instead of scrolling inside a fixed box.
+ *
+ * `resize: none` stays: a drag handle is a desktop affordance that does
+ * nothing on a phone, which is where these actually get typed. Auto-grow is
+ * what replaces it — the same behavior a notes field gets everywhere else,
+ * and the right default for a field whose length you cannot predict.
+ *
+ * `minRows` floors the height through CSS rather than the `rows` attribute.
+ * Once an explicit px height is assigned, `rows` no longer governs anything,
+ * so a one-line note would collapse to a single line and lose the affordance
+ * that says the field takes more than one.
+ */
+function AutoGrowTextarea({
+  value,
+  onChange,
+  minRows,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  minRows: number;
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  // useLayoutEffect, not useEffect: the resize has to land in the same frame
+  // as the keystroke that caused it, or the box visibly trails a line behind
+  // what has been typed. Also runs on mount, which is what sizes an existing
+  // note correctly the moment edit mode opens.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto"; // release the previous height, or it can only grow
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={minRows}
+      style={{
+        // 16px is the iOS auto-zoom floor — see CLAUDE.md. lineHeight 1.5 at
+        // that size is the 1.5em the minHeight below counts in.
+        fontSize: "16px",
+        fontWeight: 400,
+        lineHeight: "1.5",
+        color: "var(--c-text)",
+        backgroundColor: "var(--c-input-bg)",
+        border: "1px solid var(--c-border)",
+        borderRadius: "8px",
+        padding: "8px 12px",
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        outline: "none",
+        width: "100%",
+        resize: "none",
+        // 1.5em per row + 16px of vertical padding + 2px of border.
+        minHeight: `calc(${minRows * 1.5}em + 18px)`,
+        // The box always fits its content, so a scrollbar could only ever
+        // flash for the frame between a keystroke and the resize.
+        overflow: "hidden",
+      }}
+    />
   );
 }
 
