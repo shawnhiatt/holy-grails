@@ -332,6 +332,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     customFields: [],
   });
   const [isSaving, setIsSaving] = useState(false);
+  /* The form exactly as edit mode seeded it. Comparing against this beats
+     re-deriving "changed" per field: the check stays correct when a field is
+     added, and it already covers the custom fields, which vary per user. */
+  const initialFieldsRef = useRef<string>("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
 
@@ -360,6 +365,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setNewStackName("");
     autoCheckedRef.current = null;
     setIsEditMode(false);
+    setConfirmDiscard(false);
     setIsSaving(false);
     setConfirmRemove(false);
     setIsRemoving(false);
@@ -444,22 +450,46 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   // Enter edit mode — initialize form fields from current album
   const enterEditMode = useCallback(() => {
     if (!selectedAlbum) return;
-    setEditFields({
+    const seeded: EditFields = {
       mediaCondition: selectedAlbum.mediaCondition || "",
       sleeveCondition: selectedAlbum.sleeveCondition || "",
       notes: selectedAlbum.notes || "",
       folder: selectedAlbum.folder || "",
       customFields: (selectedAlbum.customFields || []).map(cf => ({ ...cf })),
-    });
+    };
+    setEditFields(seeded);
+    initialFieldsRef.current = JSON.stringify(seeded);
+    setConfirmDiscard(false);
     setIsEditMode(true);
   }, [selectedAlbum]);
 
-  // Cancel edit — revert to view mode
+  // Cancel edit — revert to view mode, discarding whatever was typed.
   const cancelEdit = useCallback(() => {
     setIsEditMode(false);
     setIsSaving(false);
     setConfirmRemove(false);
+    setConfirmDiscard(false);
   }, []);
+
+  /** True once the form differs from what edit mode seeded it with. */
+  const isDirty = useCallback(
+    () => JSON.stringify(editFields) !== initialFieldsRef.current,
+    [editFields]
+  );
+
+  /**
+   * The sheet's close guard, consulted on every dismissal — backdrop, X,
+   * swipe, Escape. Clean form closes straight away; a dirty one puts the
+   * prompt in the footer and refuses, so no path can silently bin an edit.
+   * A save in flight refuses outright: closing mid-write would leave the
+   * panel showing values the server has not confirmed.
+   */
+  const requestCloseEdit = useCallback(() => {
+    if (isSaving) return false;
+    if (!isDirty()) return true;
+    setConfirmDiscard(true);
+    return false;
+  }, [isSaving, isDirty]);
 
   // Available folders for the move-to-folder dropdown (exclude "All" virtual folder)
   const folderOptions = useMemo(() =>
@@ -544,6 +574,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       };
       updateAlbum(selectedAlbum.id, albumUpdates);
 
+      // Straight out, no dirty check: the changes are committed, not discarded.
+      setConfirmDiscard(false);
       setIsEditMode(false);
       toast.success("Saved.");
     } catch (err: any) {
@@ -1571,15 +1603,58 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       {isEditMode && selectedAlbum && createPortal(
         <SlideOutPanel
           onClose={cancelEdit}
+          onRequestClose={requestCloseEdit}
           title="Edit your copy"
           ariaLabel="Edit your copy"
           backdropZIndex={132}
           sheetZIndex={134}
           className="lg:bottom-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100dvh-120px)]"
           footer={
+            /* The prompt REPLACES the footer rather than opening a layer over
+               the sheet. The footer is already pinned and already where the
+               eye is after a Cancel tap, and a confirm dialog above z-134
+               would have to sit between the edit sheet and the lightbox with
+               nowhere clean to land. Two taps, no new layer. */
+            confirmDiscard ? (
+              <div>
+                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)", marginBottom: "8px", textAlign: "center" }}>
+                  Discard your changes?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmDiscard(false)}
+                    className="flex-1 py-2.5 rounded-[10px] transition-colors"
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      color: "var(--c-text)",
+                      backgroundColor: "var(--c-chip-bg)",
+                      border: "1px solid var(--c-border)",
+                    }}
+                  >
+                    Keep editing
+                  </button>
+                  <button
+                    onClick={cancelEdit}
+                    className="flex-1 py-2.5 rounded-[10px] transition-colors"
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      color: "#FFFFFF",
+                      backgroundColor: "var(--c-destructive)",
+                      border: "1px solid var(--c-destructive)",
+                    }}
+                  >
+                    Discard
+                  </button>
+                </div>
+              </div>
+            ) : (
               <div className="flex gap-2">
                 <button
-                  onClick={cancelEdit}
+                  onClick={() => { if (requestCloseEdit()) cancelEdit(); }}
                   disabled={isSaving}
                   className="flex-1 py-2.5 rounded-[10px] transition-colors"
                   style={{
@@ -1616,6 +1691,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   )}
                 </button>
               </div>
+            )
           }
         >
           <div className="p-4">
