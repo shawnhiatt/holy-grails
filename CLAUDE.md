@@ -750,14 +750,14 @@ Three details are load-bearing:
   frame as the keystroke, or the box visibly trails a line behind what has been
   typed. Running on mount is also what sizes existing content the moment the
   field appears.
-- **The minimum height is measured, not calculated.** The component latches
-  `offsetHeight` on its first layout pass — the height the `rows` attribute
-  produced — and floors every later assignment with it. `rows × 1.5em`
-  arithmetic would have silently restyled the two fields that never set a
-  line-height (a textarea inherits the UA default; `theme.css` sets 1.5 on
-  `input` but not on `textarea`). Once an explicit px height is assigned, the
-  `rows` attribute governs nothing, so without a floor a one-line note would
-  collapse to a single line.
+- **Both bounds are measured, not calculated.** On its first layout pass the
+  component borrows the `rows` attribute — sets it to `maxRows` to read the
+  ceiling, puts it back to read the floor — so each bound is the browser's own
+  answer for that row count. `rows × 1.5em` arithmetic would have silently
+  restyled the fields that never set a line-height (a textarea inherits the UA
+  default; `theme.css` sets 1.5 on `input` but not on `textarea`). Once an
+  explicit px height is assigned, the `rows` attribute governs nothing, so
+  without a floor a one-line note would collapse to a single line.
 - **The border is added back to `scrollHeight`.** `scrollHeight` is content +
   padding and *excludes* the border, while an assigned height under
   `box-sizing: border-box` includes it — so a bare `scrollHeight` leaves the box
@@ -765,9 +765,19 @@ Three details are load-bearing:
   is exactly that border, since `overflow: hidden` keeps a scrollbar out of the
   difference.
 
-Growth is deliberately uncapped: the two sheets that host these fields already
-scroll, so a long note lengthens the sheet rather than trapping a scrollbar
-inside a small box.
+**Growth stops at `maxRows` (default 10) and the field scrolls from there** —
+the GitHub comment-box behavior. Ten rows is roughly where an uncapped field
+starts pushing the controls under it off a phone screen with the keyboard up;
+the sheets these live in scroll, but hunting for the Save button below a field
+that grew to fill the viewport is worse than a scrollbar inside the field.
+
+`overflowY` is **React-owned, not set imperatively beside the height**: a
+re-render for any other reason re-applies the style prop, which would undo an
+imperative `overflowY` and strand a capped field with no way to scroll. The
+guarded `setState` only re-renders when the field actually crosses the ceiling.
+`overflowX` stays hidden always — that is also what keeps
+`offsetHeight - clientHeight` equal to the border alone, with no horizontal
+scrollbar in the difference.
 
 ### Pressing Rows (Look It Up picker)
 
