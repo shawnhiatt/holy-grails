@@ -14,7 +14,12 @@ const daysAgo = (n: number) => NOW - n * DAY;
 
 describe("deriveStreaks", () => {
   it("returns zeroes when nothing has been played", () => {
-    expect(deriveStreaks([], NOW)).toEqual({ currentStreak: 0, longestStreak: 0 });
+    expect(deriveStreaks([], NOW)).toEqual({
+      currentStreak: 0,
+      longestStreak: 0,
+      currentRange: null,
+      longestRange: null,
+    });
   });
 
   it("counts consecutive days ending today", () => {
@@ -126,5 +131,84 @@ describe("albumsPlayedThisMonth", () => {
 
   it("skips unparseable timestamps", () => {
     expect(albumsPlayedThisMonth([{ id: "a" }], { a: "nonsense" }, NOW)).toBe(0);
+  });
+});
+
+
+describe("deriveStreaks — when the streaks ran", () => {
+  const at = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12).getTime();
+  const NOW = at(2026, 9, 2);
+
+  it("spans a live streak from its first day to its last", () => {
+    const plays = [at(2026, 8, 31), at(2026, 9, 1), at(2026, 9, 2)];
+    const { currentStreak, currentRange } = deriveStreaks(plays, NOW);
+    expect(currentStreak).toBe(3);
+    expect(currentRange).toEqual({ start: "2026-08-31", end: "2026-09-02" });
+  });
+
+  /* The streak may end yesterday — you have not necessarily played anything
+     yet today — so the range's end has to be the last day WITH a play, not
+     today. */
+  it("ends a streak on its last played day, not on today", () => {
+    const plays = [at(2026, 8, 30), at(2026, 8, 31), at(2026, 9, 1)];
+    const { currentStreak, currentRange } = deriveStreaks(plays, NOW);
+    expect(currentStreak).toBe(3);
+    expect(currentRange).toEqual({ start: "2026-08-30", end: "2026-09-01" });
+  });
+
+  it("reports no current range once the streak is broken", () => {
+    const plays = [at(2026, 8, 20), at(2026, 8, 21)];
+    const { currentStreak, currentRange, longestStreak, longestRange } = deriveStreaks(plays, NOW);
+    expect(currentStreak).toBe(0);
+    expect(currentRange).toBeNull();
+    // The longest is still reported — it just isn't running.
+    expect(longestStreak).toBe(2);
+    expect(longestRange).toEqual({ start: "2026-08-20", end: "2026-08-21" });
+  });
+
+  it("spans the longest run wherever it sits in the log", () => {
+    const plays = [
+      at(2026, 3, 4), at(2026, 3, 5), at(2026, 3, 6), at(2026, 3, 7), // 4 days
+      at(2026, 8, 1),                                                 // 1 day
+      at(2026, 9, 1), at(2026, 9, 2),                                 // 2 days, live
+    ];
+    const { longestStreak, longestRange, currentStreak } = deriveStreaks(plays, NOW);
+    expect(longestStreak).toBe(4);
+    expect(longestRange).toEqual({ start: "2026-03-04", end: "2026-03-07" });
+    expect(currentStreak).toBe(2);
+  });
+
+  /* On a tie the most recent run wins: the same length from four years ago is
+     worth less than the one from last month. */
+  it("prefers the most recent run when two are equally long", () => {
+    const plays = [
+      at(2022, 1, 1), at(2022, 1, 2), at(2022, 1, 3),
+      at(2026, 5, 10), at(2026, 5, 11), at(2026, 5, 12),
+    ];
+    const { longestStreak, longestRange } = deriveStreaks(plays, NOW);
+    expect(longestStreak).toBe(3);
+    expect(longestRange).toEqual({ start: "2026-05-10", end: "2026-05-12" });
+  });
+
+  it("gives a one-day streak a range of that single day", () => {
+    const { currentStreak, currentRange } = deriveStreaks([at(2026, 9, 2)], NOW);
+    expect(currentStreak).toBe(1);
+    expect(currentRange).toEqual({ start: "2026-09-02", end: "2026-09-02" });
+  });
+
+  it("has no ranges at all with nothing logged", () => {
+    expect(deriveStreaks([], NOW)).toEqual({
+      currentStreak: 0,
+      longestStreak: 0,
+      currentRange: null,
+      longestRange: null,
+    });
+  });
+
+  it("carries a run across a month boundary", () => {
+    const plays = [at(2026, 7, 30), at(2026, 7, 31), at(2026, 8, 1), at(2026, 8, 2)];
+    const { longestStreak, longestRange } = deriveStreaks(plays, NOW);
+    expect(longestStreak).toBe(4);
+    expect(longestRange).toEqual({ start: "2026-07-30", end: "2026-08-02" });
   });
 });

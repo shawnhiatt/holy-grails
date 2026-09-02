@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   dateAddedBucket,
+  formatDayRange,
   formatActivityDate,
   formatCollectionSince,
   formatSyncedAgo,
@@ -174,5 +175,32 @@ describe("dateAddedBucket", () => {
     const now = new Date();
     const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-15`;
     expect(dateAddedBucket(iso)).toBe("This Month");
+  });
+});
+
+
+describe("formatDayRange", () => {
+  const NOW = new Date(2026, 8, 2);
+
+  it("renders an inclusive span", () => {
+    expect(formatDayRange("2026-08-26", "2026-09-02", NOW)).toBe("Aug 26 – Sep 2");
+  });
+
+  it("renders a one-day span as the single day", () => {
+    expect(formatDayRange("2026-09-02", "2026-09-02", NOW)).toBe("Sep 2");
+  });
+
+  /* A streak from last week does not need telling you it happened this year;
+     an all-time longest from four years ago does. */
+  it("appends the year only when the span ended in another one", () => {
+    expect(formatDayRange("2026-03-04", "2026-03-07", NOW)).toBe("Mar 4 – Mar 7");
+    expect(formatDayRange("2022-01-01", "2022-01-03", NOW)).toBe("Jan 1 – Jan 3, 2022");
+    // A span that crosses into the current year is named by its END year.
+    expect(formatDayRange("2025-12-30", "2026-01-02", NOW)).toBe("Dec 30 – Jan 2");
+  });
+
+  it("returns an empty string rather than 'Invalid Date' for junk", () => {
+    expect(formatDayRange("", "", NOW)).toBe("");
+    expect(formatDayRange("nope", "2026-09-02", NOW)).toBe("");
   });
 });

@@ -16,7 +16,7 @@ import { deriveStreaks, daysSinceLastPlay, albumsPlayedThisMonth } from "../util
 import { getDailySeed } from "../utils/shuffle";
 import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
-import { formatSyncedAgo } from "../utils/format";
+import { formatDayRange, formatSyncedAgo } from "../utils/format";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { api } from "../../../convex/_generated/api";
 
@@ -1017,6 +1017,19 @@ function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
 
 /* ─────────────────── SECTION 5: Listening Activity ─────────────────── */
 
+/* The "when" line under a streak count. Rendered on both tiles regardless —
+   `visibility: hidden` rather than removed when a streak is 0 — so the two
+   tiles keep a common baseline (the identity-block stat-cell convention).
+   tabular-nums so the two dates line up under each other. */
+const streakDateStyle = (visible: boolean): React.CSSProperties => ({
+  fontSize: "10px",
+  fontWeight: 500,
+  color: "var(--c-text-faint)",
+  marginTop: 3,
+  fontVariantNumeric: "tabular-nums",
+  visibility: visible ? "visible" : "hidden",
+});
+
 type ListeningTab = "top" | "recent" | "unplayed";
 
 /* One card style for all three Listening tabs (the Top Played treatment):
@@ -1079,7 +1092,7 @@ function ListeningActivitySection({
     [albums, lastPlayed]
   );
 
-  const { currentStreak, longestStreak } = useMemo(
+  const { currentStreak, longestStreak, currentRange, longestRange } = useMemo(
     () => deriveStreaks(allPlayTimestamps),
     [allPlayTimestamps]
   );
@@ -1296,6 +1309,12 @@ function ListeningActivitySection({
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
               current streak days
             </p>
+            {/* The dates render on BOTH tiles even when one has none, hidden
+                rather than removed, so the two keep a common baseline — same
+                reasoning as the identity block's stat cells. */}
+            <p style={streakDateStyle(!!currentRange)}>
+              {currentRange ? formatDayRange(currentRange.start, currentRange.end) : "—"}
+            </p>
           </motion.div>
           <motion.div
             variants={riseItem}
@@ -1318,6 +1337,9 @@ function ListeningActivitySection({
             </span>
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
               longest streak days
+            </p>
+            <p style={streakDateStyle(!!longestRange)}>
+              {longestRange ? formatDayRange(longestRange.start, longestRange.end) : "—"}
             </p>
           </motion.div>
         </motion.div>

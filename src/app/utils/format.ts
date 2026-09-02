@@ -35,6 +35,24 @@ export function parseDisplayDate(iso: string): Date {
 }
 
 /**
+ * An inclusive span of days, for the Insights streak tiles: "Aug 26 – Sep 2".
+ *
+ * A one-day span renders as the single day, not "Sep 2 – Sep 2". The year is
+ * appended only when the span ended in a different year than `now` — a streak
+ * from last week does not need telling you it happened this year, but the
+ * all-time longest might be from four years ago.
+ */
+export function formatDayRange(start: string, end: string, now: Date = new Date()): string {
+  const s = parseDisplayDate(start);
+  const e = parseDisplayDate(end);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return "";
+  const day = (d: Date) => `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}`;
+  const year = e.getFullYear() === now.getFullYear() ? "" : `, ${e.getFullYear()}`;
+  if (start === end) return `${day(e)}${year}`;
+  return `${day(s)} – ${day(e)}${year}`;
+}
+
+/**
  * The section header a release falls under when the collection is sorted by
  * Date Added.
  *

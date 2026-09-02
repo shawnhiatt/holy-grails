@@ -32,9 +32,18 @@ function prevDayKey(key: string): string {
   return dayKey(date.getTime());
 }
 
+/** Inclusive span of a streak, as local day keys ("YYYY-MM-DD"). */
+export interface StreakRange {
+  start: string;
+  end: string;
+}
+
 export interface Streaks {
   currentStreak: number;
   longestStreak: number;
+  /** When the streaks ran. Null when the streak is 0. */
+  currentRange: StreakRange | null;
+  longestRange: StreakRange | null;
 }
 
 /**
@@ -45,7 +54,8 @@ export interface Streaks {
  * would be a lie about the data.
  */
 export function deriveStreaks(allPlayTimestamps: number[], now: number = Date.now()): Streaks {
-  if (allPlayTimestamps.length === 0) return { currentStreak: 0, longestStreak: 0 };
+  const empty: Streaks = { currentStreak: 0, longestStreak: 0, currentRange: null, longestRange: null };
+  if (allPlayTimestamps.length === 0) return empty;
 
   const daySet = new Set<string>();
   for (const ts of allPlayTimestamps) daySet.add(dayKey(ts));
@@ -54,27 +64,52 @@ export function deriveStreaks(allPlayTimestamps: number[], now: number = Date.no
   let current = 0;
   let cursor = dayKey(now);
   if (!daySet.has(cursor)) cursor = prevDayKey(cursor);
+  // The first day the walk lands on is the streak's END; each further step
+  // back moves its START, so the span falls out of the same loop.
+  const currentEnd = daySet.has(cursor) ? cursor : null;
+  let currentStart = cursor;
   while (daySet.has(cursor)) {
     current++;
+    currentStart = cursor;
     cursor = prevDayKey(cursor);
   }
 
   // Longest — scan the sorted day list for the longest consecutive run
   const sortedDays = Array.from(daySet).sort();
   let longest = 0;
+  let longestRange: StreakRange | null = null;
   let run = 1;
+  let runStart = sortedDays[0];
+  const closeRun = (endIndex: number) => {
+    // >=, not >: on a tie the MOST RECENT run wins. Days are ascending, so the
+    // later run overwrites — "26 days, ending last March" is worth more than
+    // the same 26 days from four years ago.
+    if (run >= longest) {
+      longest = run;
+      longestRange = { start: runStart, end: sortedDays[endIndex] };
+    }
+  };
   for (let i = 1; i < sortedDays.length; i++) {
     const prev = Date.parse(sortedDays[i - 1]);
     const curr = Date.parse(sortedDays[i]);
-    if (curr - prev === DAY_MS) run++;
-    else {
-      longest = Math.max(longest, run);
+    // Date.parse on a bare "YYYY-MM-DD" is UTC for both sides, so the fixed
+    // DAY_MS holds here — the comparison never crosses a local DST boundary.
+    if (curr - prev === DAY_MS) {
+      run++;
+    } else {
+      closeRun(i - 1);
       run = 1;
+      runStart = sortedDays[i];
     }
   }
-  longest = Math.max(longest, run);
+  closeRun(sortedDays.length - 1);
 
-  return { currentStreak: current, longestStreak: longest };
+  return {
+    currentStreak: current,
+    longestStreak: longest,
+    currentRange: currentEnd ? { start: currentStart, end: currentEnd } : null,
+    longestRange,
+  };
 }
 
 /**
