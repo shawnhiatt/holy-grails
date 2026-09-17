@@ -48,6 +48,15 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
   display face a heading gets and why.
 
 ### Fixed
+- **The header was blurred in the installed iOS app.** iOS 27 paints a Liquid
+  Glass band over the top edge of a web app that renders under the status bar,
+  which washed out the whole header — the wordmark, the screen title, and the
+  buttons beside it. Nothing in the app's own styling caused it and there is no
+  way to switch the effect off, so the app now sits below an opaque status bar
+  instead of under a transparent one. The status bar picks up the app's own
+  light/dark theme rather than the phone's. Trade-off: the header no longer runs
+  edge to edge under the clock. **If the app is already on your Home Screen,
+  delete it and add it again** — iOS reads this setting once, when you install.
 - **Purge evaluator artwork lagged behind the verdict.** Tapping Keep/Maybe/Cut
   swapped the title and artist immediately but left the previous album's
   artwork on screen for a second or two — a reused `<img>` keeps painting its

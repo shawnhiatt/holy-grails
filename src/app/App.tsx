@@ -377,6 +377,18 @@ function AppContent() {
     document.documentElement.style.backgroundColor = isDarkMode ? "#060708" : "#F9F9FA";
   }, [isDarkMode]);
 
+  // Sync the iOS status bar strip with the in-app theme. Since the app stopped
+  // rendering under a translucent status bar (see index.html), that strip is an
+  // opaque band directly above the content, so it has to match the TOP of the
+  // radial gradient below it — not --c-bg or the html overscroll color, which
+  // are the gradient's outer edge and would seam. Driven from isDarkMode rather
+  // than a prefers-color-scheme meta because the theme is the user's own
+  // preference in Convex; the OS setting can disagree with it.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", isDarkMode ? "#101214" : "#FFFFFF");
+  }, [isDarkMode]);
+
   /** Radial gradient background — soft cool-gray lift from top center */
   const gradientBg = isDarkMode
     ? "radial-gradient(ellipse 120% 60% at 50% 0%, #101214 0%, #060708 100%)"

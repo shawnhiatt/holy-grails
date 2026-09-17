@@ -6,10 +6,23 @@
       <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
       <meta name="apple-mobile-web-app-capable" content="yes" />
-      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      <!-- NOT black-translucent. That extended page pixels under the status bar,
+           and from Safari 26 the system fills that inset with a Liquid Glass
+           blur wherever it cannot sample a solid colour at the page's top edge
+           — which our transparent header over the app gradient never gives it.
+           iOS 27 turned that band into a visible wash over the whole header.
+           "default" insets the web view below an opaque status bar instead, so
+           there is no inset left to fill. Read once at INSTALL time: an
+           already-installed home screen app must be removed and re-added
+           before this takes effect. -->
+      <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       <meta name="apple-mobile-web-app-title" content="Holy Grails" />
-      <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#EBFD00">
-      <meta name="theme-color" media="(prefers-color-scheme: light)" content="#16181C">
+      <!-- Boot value only, matched to the UnicornScene fallback the splash and
+           loading screens actually paint (both are always dark). Once the app
+           renders, App.tsx drives this from the in-app theme preference, which
+           is what the status bar strip now sits against — prefers-color-scheme
+           would track the OS rather than the app. -->
+      <meta name="theme-color" content="#0E1013">
       <meta name="description" content="A Discogs companion app for managing your record collection.">
       <!-- Fonts: preconnect + direct link so the fetch starts before CSS parse.
            Only the weights actually used (400/500/600/700) are loaded. -->
