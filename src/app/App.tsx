@@ -21,6 +21,8 @@ import { StackPickerSheet } from "./components/stack-picker-sheet";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./components/motion-tokens";
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 import { reportError } from "./lib/report-error";
+import { isStaleBuildError } from "./lib/stale-build";
+import { hardReload, recoverFromStaleBuild } from "./lib/pwa-update";
 import { hasOpenDialogs } from "./lib/dialog-stack";
 import { InstallNudge } from "./components/install-nudge";
 import { OfflineBanner } from "./components/offline-banner";
@@ -58,30 +60,101 @@ function ScreenLoadingFallback() {
   );
 }
 
+/**
+ * Root error boundary.
+ *
+ * Most errors here are real bugs and still land on the raw trace — during the
+ * beta that stack is worth more than a friendly apology. One class is not a
+ * bug: a Convex deploy landing while this tab still runs the previous build
+ * makes `useQuery` throw a mismatch error during render (see lib/stale-build).
+ * Nothing is broken, the client is just behind, which is why force-closing the
+ * PWA always "fixed" it — that let the waiting service worker take over. So
+ * that case gets the service worker applied for the user instead of a trace,
+ * and only falls back to a Reload card if no matching build shows up.
+ */
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
+  { error: Error | null; phase: "ok" | "recovering" | "stale" | "fatal" }
 > {
+  private recovering = false;
+
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { error: null, phase: "ok" };
   }
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
+    return { error, phase: isStaleBuildError(error) ? "recovering" as const : "fatal" as const };
   }
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     reportError(error, { componentStack: errorInfo.componentStack });
+    if (!isStaleBuildError(error) || this.recovering) return;
+    this.recovering = true;
+    // Resolves true only as the page is already reloading onto the new build.
+    void recoverFromStaleBuild().then((applied) => {
+      if (!applied) this.setState({ phase: "stale" });
+    });
   }
   render() {
-    if (this.state.hasError) {
+    const { phase, error } = this.state;
+
+    // Rendered outside the token cascade (getContentTokens is spread onto
+    // <main>), so var(--c-*) would not resolve here — these two states use
+    // colors that read on either theme, per the detached-component pattern.
+    if (phase === "recovering") {
       return (
-        <div style={{ padding: 40, color: "red", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
-          <h1>App Error</h1>
-          <p>{this.state.error?.message}</p>
-          <p>{this.state.error?.stack}</p>
+        <div
+          className="flex flex-col items-center justify-center gap-3"
+          style={{ height: "100dvh", color: "#8A8F98" }}
+        >
+          <Disc3 size={28} className="disc-spinner" />
+          <p style={{ fontSize: 14, fontWeight: 500 }}>Updating</p>
         </div>
       );
     }
+
+    if (phase === "stale") {
+      return (
+        <div
+          className="flex flex-col items-center justify-center gap-4 px-8 text-center"
+          style={{ height: "100dvh", color: "#8A8F98" }}
+        >
+          <p style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 22, fontWeight: 700 }}>
+            Update needed
+          </p>
+          <p style={{ fontSize: 14, maxWidth: 300 }}>
+            This version is out of step with the server. Reload to continue.
+          </p>
+          <button
+            type="button"
+            onClick={() => hardReload()}
+            className="tappable"
+            style={{
+              marginTop: 4,
+              padding: "10px 24px",
+              borderRadius: 999,
+              background: "#EBFD00",
+              color: "#16181C",
+              fontSize: 14,
+              fontWeight: 600,
+              border: "none",
+            }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+
+    if (phase === "fatal") {
+      return (
+        <div style={{ padding: 40, color: "red", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
+          <h1>App Error</h1>
+          <p>{error?.message}</p>
+          <p>{error?.stack}</p>
+        </div>
+      );
+    }
+
     return this.props.children;
   }
 }

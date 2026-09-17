@@ -2107,6 +2107,13 @@ export const proxyFetchMasterVersions = action({
       releaseId: (ver.id as number) || 0,
       title: (ver.title as string) || "",
       format: (ver.format as string) || "",
+      // The MEDIUM, which `format` does not carry: the versions endpoint
+      // returns `format` as the release's `descriptions` joined ("LP, Album"),
+      // leaving the medium in its own array. Dropping it is why the picker's
+      // media badge classified every row as "Other" and never rendered.
+      majorFormats: Array.isArray(ver.major_formats)
+        ? (ver.major_formats as unknown[]).map(String).filter(Boolean)
+        : [],
       label: (ver.label as string) || "",
       catno: (ver.catno as string) || "",
       country: (ver.country as string) || "",

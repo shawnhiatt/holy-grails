@@ -10,8 +10,8 @@ import zxingWasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
 import { useApp } from "./app-context";
 import { getContentTokens } from "./theme";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
-import type { FeedAlbum } from "./discogs-api";
-import { mediaType } from "./discogs-api";
+import type { FeedAlbum, MediaType } from "./discogs-api";
+import { pressingVariant } from "../utils/pressing-format";
 import { SlideOutPanel } from "./slide-out-panel";
 import { ActiveFilterChip, FilterApplyButton, FilterChipButton, FilterResetButton, FilterSection, MEDIA_TYPE_ORDER } from "./filter-controls";
 
@@ -70,6 +70,7 @@ interface Version {
   releaseId: number;
   title: string;
   format: string;
+  majorFormats: string[];
   label: string;
   catno: string;
   country: string;
@@ -533,7 +534,13 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
       // No facets — tokenize each version's full format string.
       const counts = new Map<string, number>();
       for (const ver of versions) {
-        for (const tok of (ver.format || "").split(",").map((t) => t.trim()).filter(Boolean)) {
+        // major_formats first: the medium is not in `format`, so tokenizing
+        // that alone left the Format facet with no media chips to offer.
+        const tokens = [
+          ...(ver.majorFormats || []),
+          ...(ver.format || "").split(",").map((t) => t.trim()),
+        ].filter(Boolean);
+        for (const tok of tokens) {
           counts.set(tok, (counts.get(tok) || 0) + 1);
         }
       }
@@ -596,9 +603,6 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     fontSize: "15px",
     fontWeight: 700,
   };
-  /* Only where a year heads the row — tabular figures line the years up into a
-     column you can run your eye down. Titles keep proportional digits. */
-  const rowLeadNumStyle: CSSProperties = { ...rowLeadStyle, fontVariantNumeric: "tabular-nums" };
   /* Search-result titles wrap to two lines instead of ellipsing at one. A
      release title routinely carries a parenthetical — "Petty Country (A
      Country Music Celebration Of Tom Petty)" — and on one line nearly every
@@ -623,6 +627,10 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
      contrast findings in CLAUDE.md), and this is 12px text. The bottom line
      stays on --c-text-muted, the colour it already had. */
   const rowSubStyle: CSSProperties = { ...rowMetaStyle, fontSize: "13px", color: "var(--c-text-secondary)" };
+  /* The demoted origin line. It keeps the tabular figures the year had when it
+     led the row — the years still line up into a column you can run an eye
+     down, which is the part of that treatment worth keeping. */
+  const rowOriginStyle: CSSProperties = { ...rowMetaStyle, fontVariantNumeric: "tabular-nums" };
 
   const badge = (label: string) => (
     <span
@@ -638,9 +646,8 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
   // Cassette, Digital, …) at a glance before filtering. Unlike the app-wide
   // FormatBadge, this deliberately shows Vinyl too; only an unclassifiable
   // "Other" (or empty format) hides.
-  const mediaTag = (fmt: string) => {
-    const mt = mediaType(fmt || "");
-    if (mt === "Other") return null;
+  const mediaTag = (mt: MediaType | null) => {
+    if (!mt) return null;
     return (
       <span
         className="flex-shrink-0"
@@ -661,14 +668,21 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     );
   };
 
+  /* Every row in this list is a version of the SAME master, so the year and
+     the title repeat down the whole column — leading with "2008 · US" put the
+     one value that never changes in the boldest slot and made fourteen
+     pressings scan as one line fourteen times. What you are actually choosing
+     between is the format: an LP against a CD, and among the LPs, the coloured
+     variant against the black one. So the variant leads, the imprint (the part
+     you match against the object in your hands) sits under it, and the origin
+     drops to the muted line — still there, no longer shouting. */
   const versionRow = (ver: Version, pinned: boolean) => {
     const origin = [hasYear(ver.year) ? String(ver.year) : null, ver.country].filter(Boolean).join(" · ");
     const imprint = ver.label ? `${ver.label}${ver.catno ? ` – ${ver.catno}` : ""}` : ver.catno || "";
-    const descriptors = ver.format || ver.title;
-    // A pressing with neither year nor country would otherwise lead with a
-    // blank line, so the descriptors move up to head the row instead of
-    // repeating themselves further down.
-    const leadIsDescriptors = !origin;
+    const { medium, variant } = pressingVariant(ver.format, ver.majorFormats);
+    // A pressing Discogs describes not at all would lead with a blank line, so
+    // the title stands in — it is the only thing left that names the row.
+    const lead = variant || ver.title;
 
     return (
       <button
@@ -690,14 +704,12 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
               Most collected
             </span>
           )}
-          <span style={leadIsDescriptors ? rowLeadStyle : rowLeadNumStyle}>{leadIsDescriptors ? descriptors : origin}</span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            {mediaTag(medium)}
+            <span style={{ ...rowLeadStyle, flex: "1 1 auto", minWidth: 0 }}>{lead}</span>
+          </span>
           {imprint && <span style={rowSubStyle}>{imprint}</span>}
-          {!leadIsDescriptors && (
-            <span className="flex items-center gap-1.5 min-w-0">
-              {mediaTag(ver.format)}
-              <span style={{ ...rowMetaStyle, flex: "1 1 auto", minWidth: 0 }}>{descriptors}</span>
-            </span>
-          )}
+          {origin && <span style={rowOriginStyle}>{origin}</span>}
         </div>
         {ver.inCollection ? badge("Have") : ver.inWantlist ? badge("Want") : null}
       </button>

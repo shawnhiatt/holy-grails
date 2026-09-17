@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
+import { AutoGrowTextarea } from "./auto-grow-textarea";
 import type React from "react";
 import { X, Check, Plus, Play, Pencil, Zap, Disc3, Heart, Star, GalleryVerticalEnd, ChevronLeft, ChevronRight, ChevronDown, History, RotateCcw, Music } from "./icons";
 import { motion, AnimatePresence } from "motion/react";
@@ -331,6 +332,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     customFields: [],
   });
   const [isSaving, setIsSaving] = useState(false);
+  /* The form exactly as edit mode seeded it. Comparing against this beats
+     re-deriving "changed" per field: the check stays correct when a field is
+     added, and it already covers the custom fields, which vary per user. */
+  const initialFieldsRef = useRef<string>("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
 
@@ -359,6 +365,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     setNewStackName("");
     autoCheckedRef.current = null;
     setIsEditMode(false);
+    setConfirmDiscard(false);
     setIsSaving(false);
     setConfirmRemove(false);
     setIsRemoving(false);
@@ -443,22 +450,46 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
   // Enter edit mode — initialize form fields from current album
   const enterEditMode = useCallback(() => {
     if (!selectedAlbum) return;
-    setEditFields({
+    const seeded: EditFields = {
       mediaCondition: selectedAlbum.mediaCondition || "",
       sleeveCondition: selectedAlbum.sleeveCondition || "",
       notes: selectedAlbum.notes || "",
       folder: selectedAlbum.folder || "",
       customFields: (selectedAlbum.customFields || []).map(cf => ({ ...cf })),
-    });
+    };
+    setEditFields(seeded);
+    initialFieldsRef.current = JSON.stringify(seeded);
+    setConfirmDiscard(false);
     setIsEditMode(true);
   }, [selectedAlbum]);
 
-  // Cancel edit — revert to view mode
+  // Cancel edit — revert to view mode, discarding whatever was typed.
   const cancelEdit = useCallback(() => {
     setIsEditMode(false);
     setIsSaving(false);
     setConfirmRemove(false);
+    setConfirmDiscard(false);
   }, []);
+
+  /** True once the form differs from what edit mode seeded it with. */
+  const isDirty = useCallback(
+    () => JSON.stringify(editFields) !== initialFieldsRef.current,
+    [editFields]
+  );
+
+  /**
+   * The sheet's close guard, consulted on every dismissal — backdrop, X,
+   * swipe, Escape. Clean form closes straight away; a dirty one puts the
+   * prompt in the footer and refuses, so no path can silently bin an edit.
+   * A save in flight refuses outright: closing mid-write would leave the
+   * panel showing values the server has not confirmed.
+   */
+  const requestCloseEdit = useCallback(() => {
+    if (isSaving) return false;
+    if (!isDirty()) return true;
+    setConfirmDiscard(true);
+    return false;
+  }, [isSaving, isDirty]);
 
   // Available folders for the move-to-folder dropdown (exclude "All" virtual folder)
   const folderOptions = useMemo(() =>
@@ -543,6 +574,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       };
       updateAlbum(selectedAlbum.id, albumUpdates);
 
+      // Straight out, no dirty check: the changes are committed, not discarded.
+      setConfirmDiscard(false);
       setIsEditMode(false);
       toast.success("Saved.");
     } catch (err: any) {
@@ -718,13 +751,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       {!hideHeader && (
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderColor: "var(--c-border-strong)", borderBottomWidth: "1px", borderBottomStyle: "solid" }}>
           <h3 style={{ fontSize: "15px", fontWeight: 600, fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>
-            {isEditMode ? "Edit Album" : "Album Details"}
+            Album Details
           </h3>
           <div className="flex items-center gap-1">
             {editButton}
-            {!isEditMode && (
               <button onClick={() => { setShowAlbumDetail(false); setSelectedAlbumId(null); setSelectedWantItem(null); setSelectedFeedAlbum(null); }} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ color: "var(--c-text-muted)" }} aria-label="Close"><X size={18} /></button>
-            )}
           </div>
         </div>
       )}
@@ -836,7 +867,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{selectedAlbum.title}</h2>
                   <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{selectedAlbum.artist}</p>
                 </div>
-                {selectedAlbum.purgeTag && !isEditMode && (
+                {selectedAlbum.purgeTag && (
                   <span className="flex-shrink-0 px-2.5 py-1 rounded-full capitalize mt-1" style={{
                     fontSize: "11px", fontWeight: 500,
                     backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
@@ -856,7 +887,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 <h2 style={{ fontSize: "20px", fontWeight: 600, lineHeight: "1.3", fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", color: "var(--c-text)" }}>{selectedAlbum.title}</h2>
                 <p className="mt-0.5" style={{ fontSize: "16px", fontWeight: 400, color: "var(--c-text-tertiary)" }}>{selectedAlbum.artist}</p>
               </div>
-              {selectedAlbum.purgeTag && !isEditMode && (
+              {selectedAlbum.purgeTag && (
                 <span className="flex-shrink-0 px-2.5 py-1 rounded-full capitalize mt-1" style={{
                   fontSize: "11px", fontWeight: 500,
                   backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
@@ -867,253 +898,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           </div>
         ) : null}
 
-        {/* ═══ Edit form / Your Copy section ═══ */}
-        {isEditMode ? (
-          <div className={hideHeader ? "px-4 pt-4 pb-4" : "px-4 pb-4"}>
-            <div className="rounded-[10px] p-3 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
-              {/* Static read-only rows */}
-              {hasYear(selectedAlbum.year) && <DetailRow label="Year" value={String(selectedAlbum.year)} />}
-              <DetailRow label="Label" value={selectedAlbum.label} />
-              <DetailRow label="Catalog #" value={selectedAlbum.catalogNumber} />
-              <DetailRow label="Format" value={selectedAlbum.format} />
-
-              {/* Divider before editable fields */}
-              <div style={{ height: "1px", backgroundColor: "var(--c-border)" }} />
-
-              {/* Folder */}
-              <div className="flex flex-col gap-1">
-                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Folder</label>
-                <select
-                  value={editFields.folder}
-                  onChange={(e) => setEditFields((prev) => ({ ...prev, folder: e.target.value }))}
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 400,
-                    color: "var(--c-text)",
-                    backgroundColor: "var(--c-input-bg)",
-                    border: "1px solid var(--c-border)",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    paddingRight: "36px",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
-                    outline: "none",
-                    width: "100%",
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 12px center",
-                    backgroundSize: "16px 16px",
-                  }}
-                >
-                  {folderOptions.map((f) => (
-                    <option key={f.id} value={f.name}>{f.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Media Condition */}
-              <div className="flex flex-col gap-1">
-                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Media Condition</label>
-                <select
-                  value={editFields.mediaCondition}
-                  onChange={(e) => setEditFields((prev) => ({ ...prev, mediaCondition: e.target.value }))}
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 400,
-                    color: "var(--c-text)",
-                    backgroundColor: "var(--c-input-bg)",
-                    border: "1px solid var(--c-border)",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    paddingRight: "36px",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
-                    outline: "none",
-                    width: "100%",
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 12px center",
-                    backgroundSize: "16px 16px",
-                  }}
-                >
-                  <option value="">Not set</option>
-                  {CONDITION_GRADES.map((grade) => (
-                    <option key={grade} value={grade}>{grade}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Sleeve Condition */}
-              <div className="flex flex-col gap-1">
-                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Sleeve Condition</label>
-                <select
-                  value={editFields.sleeveCondition}
-                  onChange={(e) => setEditFields((prev) => ({ ...prev, sleeveCondition: e.target.value }))}
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 400,
-                    color: "var(--c-text)",
-                    backgroundColor: "var(--c-input-bg)",
-                    border: "1px solid var(--c-border)",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    paddingRight: "36px",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
-                    outline: "none",
-                    width: "100%",
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 12px center",
-                    backgroundSize: "16px 16px",
-                  }}
-                >
-                  <option value="">Not set</option>
-                  {CONDITION_GRADES.map((grade) => (
-                    <option key={grade} value={grade}>{grade}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Notes (user personal notes) */}
-              <div className="flex flex-col gap-1">
-                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Notes</label>
-                <textarea
-                  value={editFields.notes}
-                  onChange={(e) => setEditFields((prev) => ({ ...prev, notes: e.target.value }))}
-                  rows={3}
-                  placeholder="Add notes..."
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 400,
-                    color: "var(--c-text)",
-                    backgroundColor: "var(--c-input-bg)",
-                    border: "1px solid var(--c-border)",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
-                    outline: "none",
-                    width: "100%",
-                    resize: "none",
-                    lineHeight: "1.5",
-                  }}
-                />
-              </div>
-
-              {/* Custom fields */}
-              {editFields.customFields.map((cf, i) => (
-                <div key={`cf-edit-${i}`} className="flex flex-col gap-1">
-                  <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>{cf.name}</label>
-                  {cf.type === "dropdown" && cf.options ? (
-                    <select
-                      value={cf.value}
-                      onChange={(e) => setEditFields((prev) => {
-                        const updated = [...prev.customFields];
-                        updated[i] = { ...updated[i], value: e.target.value };
-                        return { ...prev, customFields: updated };
-                      })}
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 400,
-                        color: "var(--c-text)",
-                        backgroundColor: "var(--c-input-bg)",
-                        border: "1px solid var(--c-border)",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        paddingRight: "36px",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                        outline: "none",
-                        width: "100%",
-                        appearance: "none",
-                        WebkitAppearance: "none",
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 12px center",
-                        backgroundSize: "16px 16px",
-                      }}
-                    >
-                      <option value="">Not set</option>
-                      {cf.options.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <textarea
-                      value={cf.value}
-                      onChange={(e) => setEditFields((prev) => {
-                        const updated = [...prev.customFields];
-                        updated[i] = { ...updated[i], value: e.target.value };
-                        return { ...prev, customFields: updated };
-                      })}
-                      rows={2}
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 400,
-                        color: "var(--c-text)",
-                        backgroundColor: "var(--c-input-bg)",
-                        border: "1px solid var(--c-border)",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
-                        outline: "none",
-                        width: "100%",
-                        resize: "none",
-                        lineHeight: "1.5",
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Save / Cancel */}
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={cancelEdit}
-                disabled={isSaving}
-                className="flex-1 py-2.5 rounded-[10px] transition-colors"
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  fontFamily: "'DM Sans', system-ui, sans-serif",
-                  color: "var(--c-text-secondary)",
-                  backgroundColor: "var(--c-chip-bg)",
-                  border: "1px solid var(--c-border)",
-                  opacity: isSaving ? 0.5 : 1,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors bg-[#EBFD00] hover:bg-[#d9e800]"
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  fontFamily: "'DM Sans', system-ui, sans-serif",
-                  color: "#16181C",
-                  opacity: isSaving ? 0.7 : 1,
-                }}
-              >
-                {isSaving ? (
-                  <>
-                    <Disc3 size={15} className="disc-spinner" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save"
-                )}
-              </button>
-            </div>
-          </div>
-        ) : (
+        {/* ═══ Your Copy and everything below ═══ */}
           <div>
             {/* ═══ Listening (play actions + last played + history) ═══ */}
-            {!isEditMode && (
               <div className="px-4 pt-4 pb-4">
                 <div className="mb-2.5">
                   <SectionLabel>Listening</SectionLabel>
@@ -1425,7 +1212,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   );
                 })()}
               </div>
-            )}
 
             {/* ═══ Your Copy ═══ */}
             <div className="px-4 py-4" style={{ borderTop: "1px solid var(--c-border)" }}>
@@ -1433,7 +1219,7 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 <SectionLabel>Your Copy</SectionLabel>
                 {hideHeader && (
                   <div className="flex items-center gap-2">
-                    {selectedAlbum.purgeTag && !isEditMode && (
+                    {selectedAlbum.purgeTag && (
                       <span className="px-2.5 py-1 rounded-full capitalize" style={{
                         fontSize: "11px", fontWeight: 500,
                         backgroundColor: `${purgeTagColor[selectedAlbum.purgeTag]}15`,
@@ -1512,13 +1298,14 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   />
                 </DetailSlot>
                 {selectedAlbum.customFields?.filter(cf => cf.value).map((cf, i) => (
-                  <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} />
+                  // Anything not a dropdown is edited in a textarea, so it can
+                  // hold newlines — mirror that here or view and edit disagree.
+                  <DetailRow key={`cf-${i}`} label={cf.name} value={cf.value} multiline={cf.type !== "dropdown"} />
                 ))}
-                {selectedAlbum.notes && <DetailRow label="Notes" value={selectedAlbum.notes} />}
+                {selectedAlbum.notes && <DetailRow label="Notes" value={selectedAlbum.notes} multiline />}
               </div>
             </div>
 
-            {!isEditMode && (
               <>
                 {/* ═══ Value (market lookup — live lowest ask) ═══
                     Same section the feed/search panel uses. Hidden for unofficial
@@ -1663,43 +1450,8 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                   <ListenOnButtons artist={selectedAlbum.artist} title={selectedAlbum.title} className="" />
                 </div>
               </>
-            )}
           </div>
-        )}
 
-        {/* ═══ Remove from Collection (edit mode only) ═══ */}
-        {isEditMode && selectedAlbum && (
-          <div className="px-4 pb-4 mt-4" style={{ borderTop: "1px solid var(--c-border)", paddingTop: "16px" }}>
-            <DestructiveButton
-              label={confirmRemove ? "Confirm Remove" : "Remove from Collection"}
-              confirming={confirmRemove}
-              loading={isRemoving}
-              isDarkMode={isDarkMode}
-              onClick={async () => {
-                if (!confirmRemove) {
-                  setConfirmRemove(true);
-                  return;
-                }
-                setIsRemoving(true);
-                try {
-                  await removeFromCollection(selectedAlbum.id);
-                  toast.success(`"${selectedAlbum.title}" removed from your collection.`);
-                  setShowAlbumDetail(false);
-                  setSelectedAlbumId(null);
-                  setSelectedWantItem(null);
-                  setSelectedFeedAlbum(null);
-                } catch (err) {
-                  console.error("[AlbumDetail] Remove failed:", err);
-                  toast.error("Couldn't remove. Try again.");
-                  setConfirmRemove(false);
-                  setIsRemoving(false);
-                }
-              }}
-            />
-          </div>
-        )}
-
-        {!isEditMode && (
           <div style={{ position: "relative", zIndex: 1, background: hideHeader ? (isDarkMode ? "#14161C" : "#FFFFFF") : undefined }}>
             {/* ═══ Community (enriched, 3-stat row) ═══ */}
             {isLoadingRelease ? (
@@ -1814,7 +1566,6 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
               );
             })()}
           </div>
-        )}
       </div>
     </div>
 
@@ -1827,6 +1578,327 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         onClose={() => setLightboxOpen(false)}
       />
     )}
+      {/* ═══ Edit your copy ═══
+          A sheet over the panel rather than the panel's own rows turning into
+          fields in place. Editing used to swap the body out underneath the
+          hero, which read as the screen half-changing rather than as entering
+          a mode; the backdrop and the pinned Save/Cancel say plainly that you
+          are editing, and that there is something to commit or discard.
+          Remove from Collection moved in with it — it is the other thing you
+          do to your copy, and it was only ever reachable from edit mode.
+
+          Above the bottom tab bar (130) so the pinned footer is not competing
+          with the nav, and below the lightbox (135/140), which cannot be open
+          at the same time. Desktop turns it into a centred card, the same
+          override FilterDrawer uses.
+
+          PORTALED, for the same reason ImageLightbox is: this panel renders
+          inside a transform-animated container (the mobile sheet, the desktop
+          side panel), and a transform is a containing block for fixed
+          descendants and its own stacking context. Left in place the backdrop
+          would size to the parent sheet instead of the viewport, and 132/134
+          would be scoped inside the parent's z-120 — unable to rise over the
+          nav no matter the number. SlideOutPanel does not portal itself; it
+          injects the content tokens inline, so it survives the move. */}
+      {isEditMode && selectedAlbum && createPortal(
+        <SlideOutPanel
+          onClose={cancelEdit}
+          onRequestClose={requestCloseEdit}
+          title="Edit your copy"
+          ariaLabel="Edit your copy"
+          backdropZIndex={132}
+          sheetZIndex={134}
+          className="lg:bottom-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:right-auto lg:w-[480px] lg:rounded-[14px] lg:max-h-[calc(100dvh-120px)]"
+          footer={
+            /* The prompt REPLACES the footer rather than opening a layer over
+               the sheet. The footer is already pinned and already where the
+               eye is after a Cancel tap, and a confirm dialog above z-134
+               would have to sit between the edit sheet and the lightbox with
+               nowhere clean to land. Two taps, no new layer. */
+            confirmDiscard ? (
+              <div>
+                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--c-text-secondary)", marginBottom: "8px", textAlign: "center" }}>
+                  Discard your changes?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmDiscard(false)}
+                    className="flex-1 py-2.5 rounded-[10px] transition-colors"
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      color: "var(--c-text)",
+                      backgroundColor: "var(--c-chip-bg)",
+                      border: "1px solid var(--c-border)",
+                    }}
+                  >
+                    Keep editing
+                  </button>
+                  <button
+                    onClick={cancelEdit}
+                    className="flex-1 py-2.5 rounded-[10px] transition-colors"
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      color: "#FFFFFF",
+                      backgroundColor: "var(--c-destructive)",
+                      border: "1px solid var(--c-destructive)",
+                    }}
+                  >
+                    Discard
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { if (requestCloseEdit()) cancelEdit(); }}
+                  disabled={isSaving}
+                  className="flex-1 py-2.5 rounded-[10px] transition-colors"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    color: "var(--c-text-secondary)",
+                    backgroundColor: "var(--c-chip-bg)",
+                    border: "1px solid var(--c-border)",
+                    opacity: isSaving ? 0.5 : 1,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] transition-colors bg-[#EBFD00] hover:bg-[#d9e800]"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    color: "#16181C",
+                    opacity: isSaving ? 0.7 : 1,
+                  }}
+                >
+                  {isSaving ? (
+                    <>
+                      <Disc3 size={15} className="disc-spinner" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+              </div>
+            )
+          }
+        >
+          <div className="p-4">
+            <div className="rounded-[10px] p-3 flex flex-col gap-3" style={{ backgroundColor: "var(--c-surface-alt)", border: "1px solid var(--c-border-strong)" }}>
+              {/* Static read-only rows */}
+              {hasYear(selectedAlbum.year) && <DetailRow label="Year" value={String(selectedAlbum.year)} />}
+              <DetailRow label="Label" value={selectedAlbum.label} />
+              <DetailRow label="Catalog #" value={selectedAlbum.catalogNumber} />
+              <DetailRow label="Format" value={selectedAlbum.format} />
+
+              {/* Divider before editable fields */}
+              <div style={{ height: "1px", backgroundColor: "var(--c-border)" }} />
+
+              {/* Folder */}
+              <div className="flex flex-col gap-1">
+                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Folder</label>
+                <select
+                  value={editFields.folder}
+                  onChange={(e) => setEditFields((prev) => ({ ...prev, folder: e.target.value }))}
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 400,
+                    color: "var(--c-text)",
+                    backgroundColor: "var(--c-input-bg)",
+                    border: "1px solid var(--c-border)",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                    paddingRight: "36px",
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    outline: "none",
+                    width: "100%",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px 16px",
+                  }}
+                >
+                  {folderOptions.map((f) => (
+                    <option key={f.id} value={f.name}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Media Condition */}
+              <div className="flex flex-col gap-1">
+                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Media Condition</label>
+                <select
+                  value={editFields.mediaCondition}
+                  onChange={(e) => setEditFields((prev) => ({ ...prev, mediaCondition: e.target.value }))}
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 400,
+                    color: "var(--c-text)",
+                    backgroundColor: "var(--c-input-bg)",
+                    border: "1px solid var(--c-border)",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                    paddingRight: "36px",
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    outline: "none",
+                    width: "100%",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px 16px",
+                  }}
+                >
+                  <option value="">Not set</option>
+                  {CONDITION_GRADES.map((grade) => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sleeve Condition */}
+              <div className="flex flex-col gap-1">
+                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Sleeve Condition</label>
+                <select
+                  value={editFields.sleeveCondition}
+                  onChange={(e) => setEditFields((prev) => ({ ...prev, sleeveCondition: e.target.value }))}
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 400,
+                    color: "var(--c-text)",
+                    backgroundColor: "var(--c-input-bg)",
+                    border: "1px solid var(--c-border)",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                    paddingRight: "36px",
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    outline: "none",
+                    width: "100%",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px 16px",
+                  }}
+                >
+                  <option value="">Not set</option>
+                  {CONDITION_GRADES.map((grade) => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Notes (user personal notes) */}
+              <div className="flex flex-col gap-1">
+                <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>Notes</label>
+                <AutoGrowTextarea
+                  value={editFields.notes}
+                  onChange={(notes) => setEditFields((prev) => ({ ...prev, notes }))}
+                  rows={3}
+                  placeholder="Add notes..."
+                  style={EDIT_FIELD_STYLE}
+                />
+              </div>
+
+              {/* Custom fields */}
+              {editFields.customFields.map((cf, i) => (
+                <div key={`cf-edit-${i}`} className="flex flex-col gap-1">
+                  <label style={{ fontSize: "12px", fontWeight: 500, color: "var(--c-text-muted)" }}>{cf.name}</label>
+                  {cf.type === "dropdown" && cf.options ? (
+                    <select
+                      value={cf.value}
+                      onChange={(e) => setEditFields((prev) => {
+                        const updated = [...prev.customFields];
+                        updated[i] = { ...updated[i], value: e.target.value };
+                        return { ...prev, customFields: updated };
+                      })}
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 400,
+                        color: "var(--c-text)",
+                        backgroundColor: "var(--c-input-bg)",
+                        border: "1px solid var(--c-border)",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        paddingRight: "36px",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        outline: "none",
+                        width: "100%",
+                        appearance: "none",
+                        WebkitAppearance: "none",
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDarkMode ? "%23AAAAAA" : "%23333333"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                        backgroundRepeat: "no-repeat",
+                        backgroundPosition: "right 12px center",
+                        backgroundSize: "16px 16px",
+                      }}
+                    >
+                      <option value="">Not set</option>
+                      {cf.options.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <AutoGrowTextarea
+                      value={cf.value}
+                      onChange={(value) => setEditFields((prev) => {
+                        const updated = [...prev.customFields];
+                        updated[i] = { ...updated[i], value };
+                        return { ...prev, customFields: updated };
+                      })}
+                      rows={2}
+                      style={EDIT_FIELD_STYLE}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          <div className="mt-4">
+            <DestructiveButton
+              label={confirmRemove ? "Confirm Remove" : "Remove from Collection"}
+              confirming={confirmRemove}
+              loading={isRemoving}
+              isDarkMode={isDarkMode}
+              onClick={async () => {
+                if (!confirmRemove) {
+                  setConfirmRemove(true);
+                  return;
+                }
+                setIsRemoving(true);
+                try {
+                  await removeFromCollection(selectedAlbum.id);
+                  toast.success(`"${selectedAlbum.title}" removed from your collection.`);
+                  setShowAlbumDetail(false);
+                  setSelectedAlbumId(null);
+                  setSelectedWantItem(null);
+                  setSelectedFeedAlbum(null);
+                } catch (err) {
+                  console.error("[AlbumDetail] Remove failed:", err);
+                  toast.error("Couldn't remove. Try again.");
+                  setConfirmRemove(false);
+                  setIsRemoving(false);
+                }
+              }}
+            />
+          </div>
+          </div>
+        </SlideOutPanel>,
+        document.body
+      )}
     </>
   );
 }
@@ -2141,11 +2213,55 @@ function DetailSlot({ label, children, align = "1px" }: { label: string; childre
   );
 }
 
-function DetailRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+/**
+ * The look shared by the edit form's two free-text fields — Notes and every
+ * non-dropdown custom field. The grow behavior lives in AutoGrowTextarea;
+ * this is only the styling, kept in one place because the two call sites had
+ * byte-identical style blocks.
+ */
+const EDIT_FIELD_STYLE: React.CSSProperties = {
+  // 16px is the iOS auto-zoom floor — see CLAUDE.md.
+  fontSize: "16px",
+  fontWeight: 400,
+  lineHeight: "1.5",
+  color: "var(--c-text)",
+  backgroundColor: "var(--c-input-bg)",
+  border: "1px solid var(--c-border)",
+  borderRadius: "8px",
+  padding: "8px 12px",
+  fontFamily: "'DM Sans', system-ui, sans-serif",
+  outline: "none",
+  width: "100%",
+};
+
+/**
+ * `multiline` is for the values the user types into a <textarea> — Notes and
+ * every non-dropdown custom field. Those can contain real newlines, and a
+ * plain <span> collapses them to spaces (CSS `white-space: normal`), so the
+ * same note rendered one way here and a different way in the editor, which a
+ * textarea shows verbatim. The line breaks are the user's content; view mode
+ * was quietly dropping them.
+ *
+ * Deliberately opt-in rather than the default: the single-value rows (Label,
+ * Catalog #, Year, Country, Folder …) are joined server-side with " · " and
+ * never carry a newline, and `pre-wrap` would additionally stop them
+ * collapsing incidental double spaces.
+ */
+function DetailRow({ label, value, valueColor, multiline }: { label: string; value: string; valueColor?: string; multiline?: boolean }) {
   return (
     <div className="flex items-start gap-3">
       <span className="w-24 flex-shrink-0 text-right uppercase tracking-wider" style={{ fontSize: "11px", fontWeight: 500, color: "var(--c-text-muted)", paddingTop: "1px" }}>{label}</span>
-      <span className="flex-1 min-w-0" style={{ fontSize: "13px", fontWeight: valueColor ? 500 : 400, color: valueColor || "var(--c-text)" }}>{value}</span>
+      <span
+        className="flex-1 min-w-0"
+        style={{
+          fontSize: "13px",
+          fontWeight: valueColor ? 500 : 400,
+          color: valueColor || "var(--c-text)",
+          ...(multiline ? { whiteSpace: "pre-wrap" as const } : null),
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

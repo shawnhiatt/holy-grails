@@ -7,16 +7,17 @@ import {
 import { ChevronRight } from "./icons";
 import { motion, AnimatePresence, useInView, useReducedMotion } from "motion/react";
 import { DURATION_FAST, DURATION_NORMAL, DURATION_SLOW, EASE_OUT } from "./motion-tokens";
+import type { PlayLogEntry } from "./app-context";
 import { useApp, type Screen } from "./app-context";
 import { hasRating, mediaType, type Album, type MediaType } from "./discogs-api";
 import { conditionGradeColor } from "../../lib/condition-colors";
 import { getCachedCollectionValue } from "./discogs-api";
 import { bucketAddsByYear, cumulativeAddsByYear } from "../utils/insights";
-import { deriveStreaks, daysSinceLastPlay, albumsPlayedThisMonth } from "../utils/listening";
+import { deriveStreaks, daysSinceLastPlay, playsByMonth, releasesPlayedInWindow, windowStartMs } from "../utils/listening";
 import { getDailySeed } from "../utils/shuffle";
 import { purgeTagColor, purgeTagBg, purgeTagBorder } from "./purge-colors";
 import { formatDateShort } from "./last-played-utils";
-import { formatSyncedAgo } from "../utils/format";
+import { formatDayRange, formatSyncedAgo } from "../utils/format";
 import { NoDiscogsCard } from "./no-discogs-card";
 import { api } from "../../../convex/_generated/api";
 
@@ -1017,6 +1018,19 @@ function ByFormatChart({ albums }: { albums: Album[]; isDark: boolean }) {
 
 /* ─────────────────── SECTION 5: Listening Activity ─────────────────── */
 
+/* The "when" line under a streak count. Rendered on both tiles regardless —
+   `visibility: hidden` rather than removed when a streak is 0 — so the two
+   tiles keep a common baseline (the identity-block stat-cell convention).
+   tabular-nums so the two dates line up under each other. */
+const streakDateStyle = (visible: boolean): React.CSSProperties => ({
+  fontSize: "10px",
+  fontWeight: 500,
+  color: "var(--c-text-faint)",
+  marginTop: 3,
+  fontVariantNumeric: "tabular-nums",
+  visibility: visible ? "visible" : "hidden",
+});
+
 type ListeningTab = "top" | "recent" | "unplayed";
 
 /* One card style for all three Listening tabs (the Top Played treatment):
@@ -1057,6 +1071,7 @@ function ListeningActivitySection({
   albums,
   lastPlayed,
   allPlayTimestamps,
+  playLog,
   playCounts,
   isDarkMode,
   onNeverPlayedTap,
@@ -1065,21 +1080,30 @@ function ListeningActivitySection({
   albums: Album[];
   lastPlayed: Record<string, string>;
   allPlayTimestamps: number[];
+  playLog: PlayLogEntry[];
   playCounts: Record<string, number>;
   isDarkMode: boolean;
   markPlayed: (id: string) => void;
   onNeverPlayedTap: () => void;
   onAlbumTap: (id: string) => void;
 }) {
-  // Played this month / streaks / last listened — all from utils/listening.ts,
-  // shared with the feed's Listening card so the two surfaces cannot report
-  // different numbers for the same play log.
-  const playedThisMonth = useMemo(
-    () => albumsPlayedThisMonth(albums, lastPlayed),
-    [albums, lastPlayed]
-  );
+  // Streaks / last listened / the played window — all from utils/listening.ts,
+  // so the derivations the feed's Listening card also uses cannot disagree.
+  // A trailing 30 days, not the calendar month: the day after "50 played in
+  // August" the tile read "1 played in September", a drop with no behaviour
+  // behind it. The prior 30 days sit beside it as a delta, so the number has
+  // something to mean. Both come off playLog rather than lastPlayed — see the
+  // note on releasesPlayedInWindow for why the earlier window needs it.
+  const { played30, delta30 } = useMemo(() => {
+    const now = Date.now();
+    const start = windowStartMs(30, now);
+    const priorStart = windowStartMs(60, now);
+    const current = releasesPlayedInWindow(albums, playLog, start, now + 1);
+    const prior = releasesPlayedInWindow(albums, playLog, priorStart, start);
+    return { played30: current, delta30: prior > 0 ? current - prior : null };
+  }, [albums, playLog]);
 
-  const { currentStreak, longestStreak } = useMemo(
+  const { currentStreak, longestStreak, currentRange, longestRange } = useMemo(
     () => deriveStreaks(allPlayTimestamps),
     [allPlayTimestamps]
   );
@@ -1088,6 +1112,25 @@ function ListeningActivitySection({
     () => ({ lastDaysAgo: daysSinceLastPlay(allPlayTimestamps) }),
     [allPlayTimestamps]
   );
+
+  // Plays per month over the trailing year — the one shape of the listening
+  // data that nothing surfaced. Counts play EVENTS, so it reads off
+  // allPlayTimestamps rather than lastPlayed (which holds one date per
+  // release and would collapse a release played across three months into one).
+  const playsPerMonth = useMemo(() => playsByMonth(allPlayTimestamps), [allPlayTimestamps]);
+  const playsChartRef = useRef<HTMLDivElement>(null);
+  const playsInView = useInView(playsChartRef, { once: true, amount: 0.3 });
+  const reduceMotion = useReducedMotion();
+  const showPlaysChart = playsInView || !!reduceMotion;
+  const thisMonthKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  // Same gate shape as Collection Growth: a couple of live months and enough
+  // plays to read as a trend, or the chart is a single bar and a lot of air.
+  const monthsWithPlays = playsPerMonth.filter((m) => m.plays > 0).length;
+  const totalWindowPlays = playsPerMonth.reduce((sum, m) => sum + m.plays, 0);
+  const showPlaysSection = monthsWithPlays >= 2 && totalWindowPlays >= 10;
 
   // Never played count
   const neverPlayedCount = useMemo(() => {
@@ -1147,7 +1190,6 @@ function ListeningActivitySection({
     activeTab === "recent" ? recentlyPlayed.length :
     activeTab === "unplayed" ? neglected.length : 0;
 
-  const monthName = new Date().toLocaleDateString("en-US", { month: "long" });
 
   return (
     <div
@@ -1188,10 +1230,24 @@ function ListeningActivitySection({
               lineHeight: 1.1,
             }}
           >
-            {playedThisMonth}
+            {played30}
           </span>
           <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
-            played in<br/> {monthName}
+            played in<br/> last 30 days
+          </p>
+          {/* Hidden rather than removed with no prior window to compare — the
+              three tiles in this row keep a common baseline either way. */}
+          <p
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              marginTop: 3,
+              fontVariantNumeric: "tabular-nums",
+              color: delta30 != null && delta30 < 0 ? "var(--c-text-muted)" : "#009A32",
+              visibility: delta30 != null && delta30 !== 0 ? "visible" : "hidden",
+            }}
+          >
+            {delta30 != null && delta30 > 0 ? `+${delta30}` : delta30} vs prior 30
           </p>
         </motion.div>
 
@@ -1296,6 +1352,12 @@ function ListeningActivitySection({
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
               current streak days
             </p>
+            {/* The dates render on BOTH tiles even when one has none, hidden
+                rather than removed, so the two keep a common baseline — same
+                reasoning as the identity block's stat cells. */}
+            <p style={streakDateStyle(!!currentRange)}>
+              {currentRange ? formatDayRange(currentRange.start, currentRange.end) : "—"}
+            </p>
           </motion.div>
           <motion.div
             variants={riseItem}
@@ -1319,8 +1381,58 @@ function ListeningActivitySection({
             <p style={{ fontSize: "11px", fontWeight: 400, color: "var(--c-text-muted)", marginTop: 2 }}>
               longest streak days
             </p>
+            <p style={streakDateStyle(!!longestRange)}>
+              {longestRange ? formatDayRange(longestRange.start, longestRange.end) : "—"}
+            </p>
           </motion.div>
         </motion.div>
+      )}
+
+      {/* Plays per month — the trend the tiles above can't show. Empty months
+          render as zero rather than being dropped: a gap in the log IS the
+          finding, and skipping it would slide the bars together and draw a
+          run of listening that never happened. */}
+      {showPlaysSection && (
+        <div className="mt-5">
+          <p style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--c-text-faint)" }}>
+            Plays per month
+          </p>
+          <div ref={playsChartRef} className="mt-2" style={{ height: 150 }}>
+            {showPlaysChart && (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={playsPerMonth} margin={{ top: 12, right: 4, left: -20, bottom: 0 }}>
+                  <XAxis
+                    dataKey="label"
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                    tick={{ fontSize: 9, fill: "var(--c-text-faint)" }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "var(--c-text-faint)" }}
+                    allowDecimals={false}
+                  />
+                  <Tooltip content={<ChartTooltip formatter={(v: number) => `${v} ${v === 1 ? "play" : "plays"}`} />} />
+                  <Bar dataKey="plays" fill={CHART_BLUE} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={!reduceMotion} animationDuration={600} animationEasing="ease-out">
+                    {/* Current month in brand yellow, edged brass gold in light
+                        mode — the same convention as the peak-decade and
+                        current-year bars. It is also the only partial month. */}
+                    {playsPerMonth.map((entry, i) => (
+                      <Cell
+                        key={i}
+                        fill={entry.key === thisMonthKey ? "#EBFD00" : CHART_BLUE}
+                        stroke={entry.key === thisMonthKey && !isDarkMode ? "#8C6800" : undefined}
+                        strokeWidth={entry.key === thisMonthKey && !isDarkMode ? 1.5 : undefined}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Tabbed lists — Recently Played / Top Played / No Plays. One list at
@@ -1341,8 +1453,18 @@ function ListeningActivitySection({
                 <div className="flex flex-col gap-2">
                   {topPlayed.slice(0, visibleCount).map((item) => (
                     <ListeningCard key={item.album.id} album={item.album} isDark={isDarkMode} onTap={() => onAlbumTap(item.album.id)}>
-                      <p className="mt-1" style={{ fontSize: "13px", fontWeight: 600, color: "#3E9842", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-                        {item.count} {item.count === 1 ? "play" : "plays"}
+                      {/* Same line Recently Played renders. Without the date a
+                          release played four times in 2022 and one played four
+                          times last month read identically, which is exactly
+                          the distinction this tab is for. */}
+                      <p className="mt-1" style={{ fontSize: "13px", fontFamily: "'DM Sans', system-ui, sans-serif", ...truncateStyle }}>
+                        <span style={{ fontWeight: 600, color: "#3E9842" }}>
+                          {item.count} {item.count === 1 ? "play" : "plays"}
+                          <span aria-hidden style={{ color: "var(--c-text-muted)", fontWeight: 400 }}> · </span>
+                        </span>
+                        <span style={{ fontWeight: 400, color: "var(--c-text-muted)" }}>
+                          Played {formatDateShort(lastPlayed[item.album.id])}
+                        </span>
                       </p>
                     </ListeningCard>
                   ))}
@@ -1908,7 +2030,7 @@ function CollectionMaintenanceSection({ albums, onAlbumTap }: { albums: Album[];
 }
 
 export function ReportsScreen() {
-  const { albums: rawAlbums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, playCounts, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated, sessionToken } = useApp();
+  const { albums: rawAlbums, wants, lastSynced, setScreen, isDarkMode, lastPlayed, allPlayTimestamps, playLog, playCounts, markPlayed, setNeverPlayedFilter, setSelectedAlbumId, setShowAlbumDetail, isAuthenticated, sessionToken } = useApp();
 
   // Shared per-release market values from the drip (Spec 6A.1 → 6B). Subscribed
   // here (not in app-context) so the query stays scoped to the lazy-loaded
@@ -2001,6 +2123,7 @@ export function ReportsScreen() {
               albums={albums}
               lastPlayed={lastPlayed}
               allPlayTimestamps={allPlayTimestamps}
+              playLog={playLog}
               playCounts={playCounts}
               isDarkMode={isDarkMode}
               markPlayed={markPlayed}
