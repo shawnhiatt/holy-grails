@@ -450,6 +450,21 @@ function AppContent() {
     document.documentElement.style.backgroundColor = isDarkMode ? "#060708" : "#F9F9FA";
   }, [isDarkMode]);
 
+  // The colour iOS paints behind the status bar. It matches the TOP of the
+  // radial gradient, not --c-bg or the html overscroll colour — those are the
+  // gradient's outer edge and would seam against the bar.
+  const statusBarColor = isDarkMode ? "#101214" : "#FFFFFF";
+
+  // Keep theme-color on the in-app theme. This does NOT drive the iOS status
+  // bar — iOS 27 ignores theme-color entirely (StatusBarSampler below is what
+  // colors that strip). It still drives Android/desktop browser chrome, and the
+  // tags it replaced were inverted (dark resolved to brand yellow), which
+  // black-translucent had been hiding.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", statusBarColor);
+  }, [statusBarColor]);
+
   /** Radial gradient background — soft cool-gray lift from top center */
   const gradientBg = isDarkMode
     ? "radial-gradient(ellipse 120% 60% at 50% 0%, #101214 0%, #060708 100%)"
@@ -547,6 +562,28 @@ function AppContent() {
         "--app-bg": isDarkMode ? "#0A0C0F" : "#E4E7EA",
       } as React.CSSProperties}
     >
+      {/* Status bar sampler — how iOS decides what colour to paint behind the
+          status bar in an installed web app. It must be a REAL element with a
+          real background-color: iOS reads the element, not the rendered pixels,
+          so a ::before, a gradient, or the app root's own background are all
+          invisible to it, and theme-color is ignored outright on iOS 27. 1px is
+          enough to be sampled, and it carries the gradient's top colour, so it
+          is invisible in the layout either way. Kept at the bottom of the
+          stacking order so an open sheet is never crossed by a hairline. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "1px",
+          backgroundColor: statusBarColor,
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
+
       <DesktopSidebar />
 
       {/* Content column — everything right of the desktop rail. On mobile the

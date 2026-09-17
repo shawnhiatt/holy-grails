@@ -933,6 +933,48 @@ style={{ height: "100dvh" }}
 
 Do not move the app-root height back to an inline `100dvh` — that reintroduces the floating-nav bug in the installed PWA. Splash/loading screens keep plain `100dvh` (they have no fixed bottom nav, so the standalone quirk doesn't surface).
 
+### iOS Status Bar Style (do not restore `black-translucent`)
+
+`index.html` sets `apple-mobile-web-app-status-bar-style` to **`default`**, and it must stay
+that way. `black-translucent` put page pixels under the status bar (the edge-to-edge look), but
+from Safari 26 the system fills that inset with a Liquid Glass blur wherever WebKit **cannot
+sample a solid colour at the page's top edge** — and the mobile header is transparent over the
+app's radial gradient, so it never can. iOS 26 painted that band faintly; iOS 27 turned it into
+a visible wash over the whole 58px header, in the installed PWA only (in a browser tab the
+chrome occupies that region, so nothing of ours is ever in the band). There is no CSS or meta
+switch to disable the effect, `env(safe-area-inset-*)` does not grow to account for it, and the
+`backdrop-filter` + negative-top overlay workaround stopped working in standalone web apps.
+Insetting the web view below an opaque bar is the only fix — it leaves no inset to fill.
+
+Two consequences, both load-bearing:
+- **`env(safe-area-inset-top)` is now 0 in standalone.** Every consumer is already
+  `calc(env(safe-area-inset-top, 0px) + N)`, so they collapse to `N` and the header sits flush
+  at the top of the (now inset) web view. Do not add a static top offset to compensate — that
+  would double up in a browser tab, where the inset has always been 0.
+- **The status bar strip is an opaque band directly above the content**, and what colours it is
+  the **`StatusBarSampler`** — the 1px fixed element at the top of the app root in `App.tsx`.
+  **`theme-color` does not do this job: iOS 27 ignores it entirely.** iOS reads a real element's
+  `background-color`, not the rendered pixels, so a `::before`, a gradient, or the app root's own
+  background are all invisible to the sampler. Do not delete that div as dead layout, and do not
+  replace it with a pseudo-element. Its colour matches the **top** of the radial gradient
+  (`#101214` dark / `#FFFFFF` light), not `--c-bg` or the html overscroll colour, which are the
+  gradient's outer edge and would seam against the bar. It stays at `zIndex: 0` so an open sheet
+  is never crossed by a hairline.
+- **`theme-color` is still synced** from the same `statusBarColor`, for Android and desktop
+  browser chrome only. The tags it replaced were inverted — dark resolved to brand yellow —
+  which `black-translucent` had been hiding. The static tag in `index.html` is a boot value only,
+  matched to the UnicornScene fallback the always-dark splash and loading screens paint.
+- **We drive all of this from `isDarkMode`, never `prefers-color-scheme`.** That is load-bearing
+  and it is why this fix holds for us where others reverted it: `prefers-color-scheme` is frozen
+  per process in a standalone web app, so a status bar coloured by a media query stays wrong
+  after an OS light/dark switch until relaunch. Our theme is the user's own Convex preference
+  applied in JS, so the sampler repaints the moment it changes. Never re-express the sampler or
+  `theme-color` as a media query.
+
+**The tag is read once at install time.** Deploying this does nothing to a home screen app that
+is already installed — it has to be deleted and re-added before the change appears. Budget for
+that when verifying, and don't conclude the fix failed.
+
 ### Input Font Size (iOS Auto-Zoom Prevention)
 All `<input>` elements must have `font-size: 16px` minimum. iOS Safari auto-zooms on inputs smaller than 16px. This is a hard rule.
 
