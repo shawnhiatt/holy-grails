@@ -810,14 +810,25 @@ Two consequences, both load-bearing:
   `calc(env(safe-area-inset-top, 0px) + N)`, so they collapse to `N` and the header sits flush
   at the top of the (now inset) web view. Do not add a static top offset to compensate — that
   would double up in a browser tab, where the inset has always been 0.
-- **The status bar strip is an opaque band directly above the content**, so `theme-color` is now
-  visible chrome rather than the inert value it was under `black-translucent`. It is driven from
-  `isDarkMode` in `App.tsx` beside the `<html>` background sync, **not** from a
-  `prefers-color-scheme` meta — the theme is the user's own Convex preference and the OS setting
-  can disagree with it. The value matches the **top** of the radial gradient (`#101214` dark /
-  `#FFFFFF` light), not `--c-bg` or the html overscroll colour, which are the gradient's outer
-  edge and would seam. The static tag in `index.html` is a boot value only, matched to the
-  UnicornScene fallback the always-dark splash and loading screens paint.
+- **The status bar strip is an opaque band directly above the content**, and what colours it is
+  the **`StatusBarSampler`** — the 1px fixed element at the top of the app root in `App.tsx`.
+  **`theme-color` does not do this job: iOS 27 ignores it entirely.** iOS reads a real element's
+  `background-color`, not the rendered pixels, so a `::before`, a gradient, or the app root's own
+  background are all invisible to the sampler. Do not delete that div as dead layout, and do not
+  replace it with a pseudo-element. Its colour matches the **top** of the radial gradient
+  (`#101214` dark / `#FFFFFF` light), not `--c-bg` or the html overscroll colour, which are the
+  gradient's outer edge and would seam against the bar. It stays at `zIndex: 0` so an open sheet
+  is never crossed by a hairline.
+- **`theme-color` is still synced** from the same `statusBarColor`, for Android and desktop
+  browser chrome only. The tags it replaced were inverted — dark resolved to brand yellow —
+  which `black-translucent` had been hiding. The static tag in `index.html` is a boot value only,
+  matched to the UnicornScene fallback the always-dark splash and loading screens paint.
+- **We drive all of this from `isDarkMode`, never `prefers-color-scheme`.** That is load-bearing
+  and it is why this fix holds for us where others reverted it: `prefers-color-scheme` is frozen
+  per process in a standalone web app, so a status bar coloured by a media query stays wrong
+  after an OS light/dark switch until relaunch. Our theme is the user's own Convex preference
+  applied in JS, so the sampler repaints the moment it changes. Never re-express the sampler or
+  `theme-color` as a media query.
 
 **The tag is read once at install time.** Deploying this does nothing to a home screen app that
 is already installed — it has to be deleted and re-added before the change appears. Budget for
