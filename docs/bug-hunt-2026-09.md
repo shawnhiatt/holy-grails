@@ -37,7 +37,7 @@ to both deployments before the Vercel push.
 | M5 album-detail save strands a folder move | Fixed | `8561e03` |
 | M6 play history never reconciles | Fixed | `1d4f02c` |
 | M7 play writes fail silently | Fixed | `88062c4` |
-| M3 global rate-limit counter | **Open** | needs a live check (below) |
+| M3 global rate-limit counter | **Open** | logging to answer it is in (below) |
 | M10 manual sync races the background probe | Fixed | `afc2228` |
 | L1 UTC date math in insights and presets | Fixed (client); rule engine kept UTC for share parity | `ef409d2` |
 | L2 dead `marketValue` rule field, full scan in `getShared` | Fixed (scan removed) | `03248c3` |
@@ -52,8 +52,8 @@ to both deployments before the Vercel push.
 | L11 `recoverFromStaleBuild` not re-entrant | Fixed | `f07de7c` |
 
 #192 was squash-merged as `eca2faf`, so its individual commit hashes are only
-reachable through the PR. The same goes for the M2 to M7 hashes (#193) and the
-M10 and Low hashes (this batch's PR) once they are squash-merged.
+reachable through the PR. #193 and #194 were regular merges, so every hash
+listed from M2 on is on main.
 
 Notes on the last batch:
 
@@ -93,10 +93,28 @@ docs are remembered to say, every user's requests from Convex share one budget.
 In that case today's single shared counter is close to right, a per-token
 counter would under-throttle, and the drip's "spread across tokens to protect
 each user's budget" premise is moot. If it throttles per token, the counter
-should be keyed by token. To check, log `X-Discogs-Ratelimit-Remaining` next to
-a short token prefix in `discogsFetch` for one sync after deploy. Two different
-users' requests seconds apart share one falling count if the budget is per IP,
-and show independent counts if it is per token.
+should be keyed by token.
+
+**Checking it.** `discogsFetch` can now log every response's rate-limit headers
+beside a fingerprint of the token that made it (`convex/rateLimitLog.ts`). It
+is off unless the `HG_RATELIMIT_LOG` Convex env var is set, and Convex reads env
+vars per call, so it toggles without a redeploy. The fingerprint is the first 8
+hex characters of a SHA-256 of the token, so no part of a secret reaches the
+logs.
+
+1. Deploy, then `npx convex env set HG_RATELIMIT_LOG 1` on the deployment to
+   test (prod has the most users, so the most tokens in the drip's pool).
+2. Run the drip by hand: dashboard, Functions, `discogs:marketValueDrip`, Run.
+   It needs at least two users with tokens; it alternates tokens on every
+   request.
+3. Read the `[Discogs ratelimit]` lines in the dashboard logs:
+   - `remaining` falls by one per line **across** fingerprints: Discogs budgets
+     per IP. The shared counter stays, and the drip's per-user-budget comment
+     gets corrected.
+   - each fingerprint counts down **on its own**: Discogs budgets per token.
+     Key the counter by token.
+4. `npx convex env remove HG_RATELIMIT_LOG`. Delete `rateLimitLog.ts` and its
+   call with whichever fix M3 gets.
 
 ---
 
