@@ -338,6 +338,22 @@ function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>
   return { lastPlayedMap, countMap, allTimestamps, playLog };
 }
 
+/**
+ * Several write paths save to Discogs first, then mirror the change into the
+ * Convex cache. If that cache write fails, Discogs has it but the local
+ * cache doesn't — and since `albums`/`wants` re-derive reactively from the
+ * cache subscription (see the Reactive hydration rule in CLAUDE.md), the
+ * next re-derive silently reverts what's on screen until the next sync.
+ * Previously these failures were console-only, so the person had no idea
+ * their screen might be behind. Every such catch handler routes through
+ * this one string/helper so the wording can't drift between call sites.
+ */
+const CACHE_WRITE_FAILED_MSG = "Saved to Discogs. Sync to refresh.";
+function warnCacheWriteFailed(label: string, err: unknown) {
+  console.warn(`[Convex] ${label} cache write failed:`, err);
+  toast(CACHE_WRITE_FAILED_MSG);
+}
+
 const AppContext = getOrCreateContext();
 
 export function useApp(): AppState {
@@ -1388,7 +1404,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...(fields.folder_id !== undefined && { folderId: fields.folder_id }),
         ...(fields.instance_id !== undefined && { instanceId: fields.instance_id }),
         ...(fields.customFields !== undefined && { customFields: fields.customFields }),
-      }).catch(console.error);
+      }).catch((e) => warnCacheWriteFailed("Album update", e));
     }
   }, [sessionToken, updateInstanceMut]);
 
@@ -1415,7 +1431,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Keep the Convex collection cache consistent — albums are reactively
     // derived from it, so a stale folder name there would resurface.
     renameFolderCacheMut({ sessionToken, folderId, name: updated.name })
-      .catch((e) => console.warn("[Convex] Folder rename cache write failed:", e));
+      .catch((e) => warnCacheWriteFailed("Folder rename", e));
   }, [sessionToken, discogsUsername, proxyRenameFolder, renameFolderCacheMut]);
 
   const deleteFolder = useCallback(async (folderId: number) => {
@@ -1479,7 +1495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       artistIds: result.artistIds || undefined,
       dateAdded: result.dateAdded || undefined,
       priority: result.priority,
-    }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
+    }).catch((e) => warnCacheWriteFailed("Wantlist add", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
 
   const addToCollection = useCallback(async (releaseId: number): Promise<void> => {
@@ -1549,7 +1565,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       styles: newAlbum.styles,
       discCount: newAlbum.discCount,
       artistIds: newAlbum.artistIds,
-    }).catch((e) => console.warn("[Convex] Collection add failed:", e));
+    }).catch((e) => warnCacheWriteFailed("Collection add", e));
   }, [sessionToken, discogsUsername, proxyAddToCollection, addCollectionItemMut, folders]);
 
   const removeFromCollection = useCallback(async (albumId: string): Promise<void> => {
@@ -1565,7 +1581,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     setAlbums(prev => prev.filter(a => a.id !== albumId));
     removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
-      .catch(e => console.warn("[Convex] Collection remove failed:", e));
+      .catch(e => warnCacheWriteFailed("Collection remove", e));
   }, [sessionToken, discogsUsername, scopedAlbums, proxyRemoveFromCollection, removeCollectionItemMut]);
 
   const removeFromWantList = useCallback(async (releaseId: string | number): Promise<void> => {
@@ -1588,7 +1604,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     removeWantlistItemMut({
       sessionToken,
       release_id: rid,
-    }).catch((e) => console.warn("[Convex] Wantlist remove failed:", e));
+    }).catch((e) => warnCacheWriteFailed("Wantlist remove", e));
   }, [sessionToken, discogsUsername, proxyRemoveFromWantlist, upsertWantPriorityMut, removeWantlistItemMut]);
 
   const isInWants = useCallback((releaseId: string | number, masterId?: number) => {
