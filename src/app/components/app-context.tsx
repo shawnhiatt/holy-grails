@@ -348,7 +348,7 @@ function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>
  * their screen might be behind. Every such catch handler routes through
  * this one string/helper so the wording can't drift between call sites.
  */
-const CACHE_WRITE_FAILED_MSG = "Saved to Discogs. Sync to refresh.";
+const CACHE_WRITE_FAILED_MSG = "Discogs updated. Sync to refresh.";
 function warnCacheWriteFailed(label: string, err: unknown) {
   console.warn(`[Convex] ${label} cache write failed:`, err);
   toast(CACHE_WRITE_FAILED_MSG);
