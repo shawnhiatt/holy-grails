@@ -24,9 +24,9 @@ to both deployments before the Vercel push.
 |---|---|---|
 | C1 collection free data never synced | Fixed | `aad03ff` |
 | H1 OAuth callback not validated | Fixed | `ebdebb0` |
-| H2 profile errors reported as success | Fixed | cherry-picked H2 commit |
-| H4 empty-cache guard eats real empties | Fixed | cherry-picked H4 commit |
-| H3 format scope leaks into sessions | Fixed | cherry-picked H3 commit |
+| H2 profile errors reported as success | Fixed | `3a62f8f` |
+| H4 empty-cache guard eats real empties | Fixed | `7519d9d` |
+| H3 format scope leaks into sessions | Fixed | `a098f7d` |
 | H5 unchunked sync write | Fixed | `b2be80c` |
 | **New:** custom-field rows re-patched every sync | Fixed with H5 | `b2be80c` |
 
