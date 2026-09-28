@@ -36,6 +36,7 @@ import {
 } from "../utils/accounts";
 import { scopeAlbums } from "../utils/format-scope";
 import { lastPlayedAfterRemoval } from "../utils/play-log";
+import { singleFlight } from "../utils/single-flight";
 
 // --- HMR-safe context singleton ---
 // During HMR, this module can be re-evaluated, creating a new context object.
@@ -1835,7 +1836,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Sync from Discogs ──
 
-  const performSync = useCallback(async (
+  // performSyncImpl does the real work. It is wrapped below in a singleFlight
+  // guard (performSync) so that a manual "Sync Now" tap and the background
+  // change-detection probe (maybeBackgroundSync) can never both have a
+  // syncSelf action in flight for the same user at once — previously the
+  // guard only engaged once performSync had already started (after awaiting
+  // proxyFetchSyncSignals), leaving a window where a Sync Now tap slipped
+  // through and started a second, overlapping sync.
+  const performSyncImplRef = useRef<
+    (
+      username: string,
+      token: string,
+      opts?: { background?: boolean; notify?: boolean }
+    ) => Promise<{ albums: number; folders: number; wants: number }>
+  >();
+
+  performSyncImplRef.current = useCallback(async (
     username: string,
     token: string,
     opts: {
@@ -1921,6 +1937,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSyncFlag(false);
     }
   }, [syncSelfAction]);
+
+  // The stable, singleFlight-wrapped entry point every caller actually uses.
+  // Created once (empty dep array) so its identity never changes — callers
+  // always reach the latest performSyncImplRef.current, and a call made while
+  // one is already in flight gets back that SAME promise instead of starting
+  // a second syncSelf action.
+  const performSync = useMemo(
+    () =>
+      singleFlight(
+        (
+          username: string,
+          token: string,
+          opts?: { background?: boolean; notify?: boolean }
+        ) => performSyncImplRef.current!(username, token, opts)
+      ),
+    []
+  );
 
   // Surface the server-side sync loop's progress doc while a sync is running.
   // Restores per-page granularity ("Syncing collection (150 of 300)") that was
@@ -2068,13 +2101,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // against the counts stored at the last sync. If they match, skip the sync
   // entirely (the common "nothing changed" case). If they differ — or we've
   // never recorded counts — run a real sync in the background. Guards against
-  // overlapping runs (boot probe vs sync-on-focus).
+  // overlapping runs (boot probe vs sync-on-focus), and also defers to a sync
+  // already in flight for any reason (e.g. a "Sync Now" tap) — no point
+  // paying for the signals probe when performSync would just hand back that
+  // same in-flight run anyway.
   const bgSyncInFlightRef = useRef(false);
   const maybeBackgroundSync = useCallback(async (
     username: string,
     token: string,
   ): Promise<"changed" | "unchanged" | "skipped"> => {
-    if (bgSyncInFlightRef.current) return "skipped";
+    if (bgSyncInFlightRef.current || performSync.isInFlight()) return "skipped";
     bgSyncInFlightRef.current = true;
     try {
       const signals = await proxyFetchSyncSignals({ sessionToken: token, username });
