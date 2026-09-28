@@ -18,6 +18,32 @@ to both deployments before the Vercel push.
 
 ---
 
+## Fix status
+
+| Finding | Status | Commit |
+|---|---|---|
+| C1 collection free data never synced | Fixed | `aad03ff` |
+| H1 OAuth callback not validated | Fixed | `ebdebb0` |
+| H2 profile errors reported as success | Fixed | cherry-picked H2 commit |
+| H4 empty-cache guard eats real empties | Fixed | cherry-picked H4 commit |
+| H3 format scope leaks into sessions | Fixed | cherry-picked H3 commit |
+| H5 unchunked sync write | Fixed | `b2be80c` |
+| **New:** custom-field rows re-patched every sync | Fixed with H5 | `b2be80c` |
+
+Found while writing H5's round-trip test: Convex returns stored objects with
+their keys sorted, so the JSON signature of any row carrying custom fields
+never matched the incoming row, and every such row was rewritten on every sync.
+Custom fields are now compared as positional tuples.
+
+All six fixes need `npx convex deploy` to both deployments except H3 and H4,
+which are client-only. H1 works without any env var (built-in origins); set
+`HG_ALLOWED_ORIGINS` only to allow another origin, such as a Vercel preview,
+and remember that setting it replaces the defaults.
+
+Medium and Low findings are open.
+
+---
+
 ## Critical
 
 ### C1. Collection free-data fields are never written by sync
