@@ -150,6 +150,11 @@ export interface UserProfile {
   releasesRated: number;
   numLists: number;
   rank: number;
+  // True when proxyFetchUserProfile couldn't reach Discogs (a network
+  // failure) and returned a zeroed-out placeholder instead of throwing.
+  // Callers that use this as an existence check (e.g. the Follow flow) must
+  // treat a degraded result as "unknown", never as a successful lookup.
+  degraded?: boolean;
 }
 
 // ─── Market Value / Pricing types ───

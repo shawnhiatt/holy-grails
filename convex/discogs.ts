@@ -6,6 +6,7 @@ import { api, internal } from "./_generated/api";
 import crypto from "crypto";
 import { MARKET_STALE_MS, MARKET_BATCH_SIZE, MARKET_CURRENCY } from "./marketValue";
 import { toCollectionRow, toWantRow } from "./cacheRows";
+import { resolveUserProfileFetch } from "./userProfileOutcome";
 
 // ─── Config ───
 
@@ -770,48 +771,24 @@ export const proxyFetchUserProfile = action({
       { sessionToken: args.sessionToken }
     );
     const url = `${BASE}/users/${encodeURIComponent(args.username)}`;
+
+    // Only a fetch-layer exception (a genuine network failure — the
+    // discogsFetch call itself throwing) may take the degraded path below.
+    // Any HTTP response, including error statuses, is handled outside this
+    // try/catch so a real Discogs error (404/500/503/403/429) always throws
+    // instead of being reported as success. See userProfileOutcome.ts.
+    let res: Response;
     try {
-      const res = await discogsFetch(
+      res = await discogsFetch(
         "GET",
         url,
         creds.access_token,
         creds.token_secret
       );
-      if (res.status === 404) {
-        throw new Error(
-          `User "${args.username}" not found on Discogs.`
-        );
-      }
-      if (!res.ok) {
-        throw new Error(
-          `Failed to fetch user profile (${res.status})`
-        );
-      }
-      const data = await res.json();
-      return {
-        username: data.username as string,
-        avatar: (data.avatar_url as string) || "",
-        profile: (data.profile as string) || "",
-        location: (data.location as string) || "",
-        registered: (data.registered as string) || "",
-        buyerRating: (data.buyer_rating as number) || 0,
-        buyerRatingStars: (data.buyer_rating_stars as number) || 0,
-        sellerRating: (data.seller_rating as number) || 0,
-        sellerRatingStars: (data.seller_rating_stars as number) || 0,
-        releasesContributed: (data.releases_contributed as number) || 0,
-        releasesRated: (data.releases_rated as number) || 0,
-        numLists: (data.num_lists as number) || 0,
-        rank: (data.rank as number) || 0,
-      };
-    } catch (err: any) {
-      if (
-        err instanceof Error &&
-        !err.message.includes("Failed to fetch")
-      ) {
-        throw err;
-      }
+    } catch (err) {
       console.warn(
-        "[Discogs] Profile fetch skipped (network unavailable)"
+        "[Discogs] Profile fetch skipped (network unavailable)",
+        err
       );
       return {
         username: args.username,
@@ -827,8 +804,32 @@ export const proxyFetchUserProfile = action({
         releasesRated: 0,
         numLists: 0,
         rank: 0,
+        degraded: true,
       };
     }
+
+    const outcome = resolveUserProfileFetch(res.status, res.ok, args.username);
+    if (outcome.kind !== "ok") {
+      throw new Error(outcome.message);
+    }
+
+    const data = await res.json();
+    return {
+      username: data.username as string,
+      avatar: (data.avatar_url as string) || "",
+      profile: (data.profile as string) || "",
+      location: (data.location as string) || "",
+      registered: (data.registered as string) || "",
+      buyerRating: (data.buyer_rating as number) || 0,
+      buyerRatingStars: (data.buyer_rating_stars as number) || 0,
+      sellerRating: (data.seller_rating as number) || 0,
+      sellerRatingStars: (data.seller_rating_stars as number) || 0,
+      releasesContributed: (data.releases_contributed as number) || 0,
+      releasesRated: (data.releases_rated as number) || 0,
+      numLists: (data.num_lists as number) || 0,
+      rank: (data.rank as number) || 0,
+      degraded: false,
+    };
   },
 });
 
