@@ -668,7 +668,7 @@ In-app reporting (Settings → Feedback), built for the beta: a report that arri
 
 **The admin gate is server-side.** `convex/admin.ts` (pure, no Convex deps — `marketValue.ts` pattern) reads the `HG_ADMIN_USERNAMES` Convex env var, a comma-separated allowlist compared case-insensitively. It **fails closed**: unset means nobody is an admin. `bugReports.listAll` returns `null` for non-admins (indistinguishable from an empty inbox, per the Cross-User Data Pattern), `setStatus`/`remove` throw a bare "Not found.", and `amIAdmin` only decides whether the Settings row renders — never trust it as the gate. Do not move the allowlist into code: the repo may go public, and an admin list in git is permanent.
 
-`users.deleteAllUserData` deletes the caller's reports and their screenshots via `deleteReportsForUser` — "removes everything on our side" has to stay literally true. Submissions are rate-limited to 5 per reporter per hour, and a screenshot uploaded for a rejected submission is deleted rather than orphaned.
+`users.deleteAllUserData` deletes the caller's reports and their screenshots via `deleteReportsForUser` — "removes everything on our side" has to stay literally true. Submissions are rate-limited to 5 per reporter per hour (read from the reporter's newest reports only, not their whole history), diagnostics are capped like every other field (40 lines, 80/500 chars), and a screenshot uploaded for a rejected submission is deleted rather than orphaned. A screenshot is only accepted if it is a fresh upload (≤1h) that no report already references (`by_screenshot` index): storage ids carry no owner, and without the check a caller holding another user's screenshot id could attach it and have a rejection path delete it.
 
 ---
 
