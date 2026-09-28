@@ -35,6 +35,7 @@ import {
   nextAccount,
 } from "../utils/accounts";
 import { scopeAlbums } from "../utils/format-scope";
+import { lastPlayedAfterRemoval } from "../utils/play-log";
 
 // --- HMR-safe context singleton ---
 // During HMR, this module can be re-evaluated, creating a new context object.
@@ -627,10 +628,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return map;
   }, [convexFollowing]);
 
-  // Track one-time hydration from Convex → local state
+  // Track one-time hydration from Convex → local state. Play history is
+  // NOT tracked here any more (see the lastPlayed derive below) — it
+  // re-derives reactively on every convexLastPlayed change, the same way
+  // albums/wants do, rather than hydrating once and drifting from the
+  // server afterward.
   const hydratedRef = useRef({
     stacks: false,
-    lastPlayed: false,
     preferences: false,
   });
 
@@ -980,19 +984,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexStacks]);
 
-  // Hydrate last played from Convex (one-time)
+  // Reactive hydration: lastPlayed/playCounts/allPlayTimestamps/playLog
+  // mirror the Convex last_played subscription, the same way albums/wants
+  // re-derive from the collection/wantlist caches (see that block below).
+  // This used to hydrate ONCE (guarded by hydratedRef.current.lastPlayed)
+  // and never again, so a play logged on another device, or the server
+  // half of an optimistic write, never reached this tab short of a full
+  // reload (M6). markPlayed/markPlayedAt/removePlay below still update
+  // these four states optimistically for instant feedback; this effect is
+  // what lets the server's copy converge back onto them once its write
+  // lands, and what corrects them if it doesn't.
   useEffect(() => {
-    if (!hydratedRef.current.lastPlayed && convexLastPlayed !== undefined) {
-      hydratedRef.current.lastPlayed = true;
-      if (convexLastPlayed.length > 0) {
-        const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(convexLastPlayed);
-        setLastPlayed(lastPlayedMap);
-        setPlayCounts(countMap);
-        setAllPlayTimestamps(allTimestamps);
-        setPlayLog(log);
-      }
-    }
+    if (!discogsUsername) return;
+    if (convexLastPlayed === undefined) return; // subscription not resolved
+    const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(convexLastPlayed);
+    const rawLen = convexLastPlayed.length;
+    // Never clobber populated state with an empty raw result — the same
+    // boot-race guard the albums/wants derives use, tested against the RAW
+    // subscription length rather than a derived one so it can't be fooled
+    // by, say, a format-scope filter legitimately emptying a derived list.
+    // A genuine clear-all (clearPlayHistory) still lands: it optimistically
+    // empties all four states itself before the mutation resolves, so by
+    // the time the subscription reports zero rows, `prev` is already empty
+    // too and there's nothing here to protect.
+    setLastPlayed((prev) => (rawLen === 0 && Object.keys(prev).length > 0 ? prev : lastPlayedMap));
+    setPlayCounts((prev) => (rawLen === 0 && Object.keys(prev).length > 0 ? prev : countMap));
+    setAllPlayTimestamps((prev) => (rawLen === 0 && prev.length > 0 ? prev : allTimestamps));
+    setPlayLog((prev) => (rawLen === 0 && prev.length > 0 ? prev : log));
+  }, [convexLastPlayed, discogsUsername]);
+
+  // Latest raw last_played rows, for the M7 rollback below — a ref rather
+  // than reading convexLastPlayed directly, because the rollback runs from
+  // inside a mutation's .catch, which can fire well after the render that
+  // queued it and must not read a stale closure of the subscription value.
+  const convexLastPlayedRef = useRef(convexLastPlayed);
+  useEffect(() => {
+    convexLastPlayedRef.current = convexLastPlayed;
   }, [convexLastPlayed]);
+
+  // Force all four play states back to the server's last known truth —
+  // used when a logPlay/deletePlay mutation fails, so the optimistic local
+  // update that assumed it would succeed doesn't stick around silently
+  // diverged from Convex. Unlike the reactive derive above, this is
+  // deliberately unguarded: it's a correction to a known-bad local state,
+  // not a passive subscription update, so an empty server result here must
+  // win even if local state is currently populated.
+  const rebuildPlayStateFromServer = useCallback(() => {
+    const records = convexLastPlayedRef.current;
+    if (records === undefined) return; // subscription hasn't resolved yet
+    const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(records);
+    setLastPlayed(lastPlayedMap);
+    setPlayCounts(countMap);
+    setAllPlayTimestamps(allTimestamps);
+    setPlayLog(log);
+  }, []);
 
   // Hydrate preferences from Convex (one-time)
   useEffect(() => {
@@ -1549,9 +1594,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sessionToken,
         release_id: Number(albumId),
         played_at: now.getTime(),
+      }).catch((e) => {
+        console.warn("[Convex] Play log failed:", e);
+        toast.error("Couldn't log play.");
+        rebuildPlayStateFromServer();
       });
     }
-  }, [sessionToken, logPlayMut]);
+  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer]);
 
   const markPlayedAt = useCallback((albumId: string, date: Date) => {
     setLastPlayed((prev) => ({
@@ -1569,11 +1618,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sessionToken,
         release_id: Number(albumId),
         played_at: date.getTime(),
+      }).catch((e) => {
+        console.warn("[Convex] Play log failed:", e);
+        toast.error("Couldn't log play.");
+        rebuildPlayStateFromServer();
       });
     }
-  }, [sessionToken, logPlayMut]);
+  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer]);
 
   const removePlay = useCallback((playId: Id<"last_played">, albumId: string, playedAt: number) => {
+    // Computed once up front so the playLog update and the lastPlayed
+    // fallback below (which needs to know what's left for this album after
+    // the removal) can't disagree with each other.
+    const idx = playLog.findIndex((e) => e.albumId === albumId && e.playedAt === playedAt);
+    const nextLog = idx === -1 ? playLog : [...playLog.slice(0, idx), ...playLog.slice(idx + 1)];
+
     setPlayCounts((prev) => {
       const nextCount = (prev[albumId] || 0) - 1;
       const next = { ...prev };
@@ -1582,32 +1641,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
     setAllPlayTimestamps((prev) => {
-      const idx = prev.indexOf(playedAt);
-      if (idx === -1) return prev;
-      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+      const i = prev.indexOf(playedAt);
+      if (i === -1) return prev;
+      return [...prev.slice(0, i), ...prev.slice(i + 1)];
     });
     // Drop ONE matching row, not every match: two releases played at the same
     // instant are two rows, and removing a play from one must not remove the
     // other's. Mirrors the single-index splice above.
-    setPlayLog((prev) => {
-      const idx = prev.findIndex((e) => e.albumId === albumId && e.playedAt === playedAt);
-      if (idx === -1) return prev;
-      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-    });
+    setPlayLog(nextLog);
     setLastPlayed((prev) => {
       const currentLast = prev[albumId];
       if (!currentLast) return prev;
       const deletedIso = new Date(playedAt).toISOString();
       if (currentLast !== deletedIso) return prev;
-      // The deleted play was the most recent — drop entry; next sync/hydration will restore accurately.
-      const next = { ...prev };
-      delete next[albumId];
-      return next;
+      // The deleted play was the release's most recent one on record.
+      // Recompute from what's left rather than dropping the key outright —
+      // a release with an earlier play still reads as played instead of
+      // flashing "never played" until the server subscription reconciles
+      // (the old comment here claimed "next sync/hydration will restore
+      // accurately", but hydration only ever ran once, so this never
+      // actually happened short of a full reload).
+      const fallback = lastPlayedAfterRemoval(nextLog, albumId);
+      if (fallback === undefined) {
+        const next = { ...prev };
+        delete next[albumId];
+        return next;
+      }
+      return { ...prev, [albumId]: fallback };
     });
     if (sessionToken) {
-      deletePlayMut({ sessionToken, play_id: playId });
+      deletePlayMut({ sessionToken, play_id: playId }).catch((e) => {
+        console.warn("[Convex] Play delete failed:", e);
+        toast.error("Couldn't remove play.");
+        rebuildPlayStateFromServer();
+      });
     }
-  }, [sessionToken, deletePlayMut]);
+  }, [playLog, sessionToken, deletePlayMut, rebuildPlayStateFromServer]);
 
   // ── Stack operations ──
 
@@ -2277,7 +2346,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Reset hydration flags
     hydratedRef.current = {
       stacks: false,
-      lastPlayed: false,
       preferences: false,
     };
     initialSyncDoneRef.current = false;
@@ -2287,7 +2355,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearPlayHistory = useCallback(async () => {
     if (sessionToken) await clearLastPlayedMut({ sessionToken });
+    // All four play states, not just lastPlayed — they're always kept in
+    // sync elsewhere (markPlayed/markPlayedAt/removePlay touch all four),
+    // and leaving playCounts/allPlayTimestamps/playLog populated here would
+    // also defeat the empty-clobber guard on the reactive derive above: that
+    // guard only lets a real empty result from Convex through once local
+    // state already reads empty, so a partial clear here would leave those
+    // three stuck at their pre-clear values forever.
     setLastPlayed({});
+    setPlayCounts({});
+    setAllPlayTimestamps([]);
+    setPlayLog([]);
   }, [sessionToken, clearLastPlayedMut]);
 
   const clearFollowedUsers = useCallback(async () => {
@@ -2352,7 +2430,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     hydratedRef.current = {
       stacks: false,
-      lastPlayed: false,
       preferences: false,
     };
     initialSyncDoneRef.current = false;

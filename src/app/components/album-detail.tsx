@@ -15,6 +15,7 @@ import { StarRating } from "./star-rating";
 import { formatDateShort, isToday, lastPlayedLabel, playCountLabel, playMonthLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
+import { computeAlbumSavePlan } from "../utils/album-save-plan";
 import { useAction, useQuery } from "convex/react";
 import { SwipeToDelete } from "./swipe-to-delete";
 import { api } from "../../../convex/_generated/api";
@@ -505,41 +506,16 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     if (!selectedAlbum || !sessionToken || !discogsUsername) return;
     setIsSaving(true);
 
-    try {
-      const fieldsChanged: { mediaCondition?: string; sleeveCondition?: string; notes?: string } = {};
-      let conditionOrNotesChanged = false;
+    const plan = computeAlbumSavePlan(editFields, selectedAlbum, folderOptions);
+    const { fieldsChanged, changedCustomFields, customFieldsChanged, newFolderEntry } = plan;
+    let newFolderId = selectedAlbum.folder_id;
+    let folderMoveCommitted = false;
 
-      if (editFields.mediaCondition !== selectedAlbum.mediaCondition) {
-        fieldsChanged.mediaCondition = editFields.mediaCondition;
-        conditionOrNotesChanged = true;
-      }
-      if (editFields.sleeveCondition !== selectedAlbum.sleeveCondition) {
-        fieldsChanged.sleeveCondition = editFields.sleeveCondition;
-        conditionOrNotesChanged = true;
-      }
-      if (editFields.notes !== selectedAlbum.notes) {
-        fieldsChanged.notes = editFields.notes;
-        conditionOrNotesChanged = true;
-      }
-
-      // Detect custom field changes
-      const origCustomFields = selectedAlbum.customFields || [];
-      const changedCustomFields: { fieldId: number; value: string }[] = [];
-      for (let i = 0; i < editFields.customFields.length; i++) {
-        const edited = editFields.customFields[i];
-        const orig = origCustomFields[i];
-        if (orig && edited.value !== orig.value && edited.fieldId) {
-          changedCustomFields.push({ fieldId: edited.fieldId, value: edited.value });
-        }
-      }
-      const customFieldsChanged = changedCustomFields.length > 0;
-
-      const folderChanged = editFields.folder !== selectedAlbum.folder;
-      const newFolderEntry = folderOptions.find(f => f.name === editFields.folder);
-
-      let newFolderId = selectedAlbum.folder_id;
-
-      if (folderChanged && newFolderEntry) {
+    // The folder move, if any, is its own write. Committed the moment it
+    // resolves — see below — so a field-write failure afterward can't strand
+    // a move that already landed on Discogs (M5).
+    if (plan.needsFolderMove && newFolderEntry) {
+      try {
         await proxyMoveToFolder({
           sessionToken,
           username: discogsUsername,
@@ -548,10 +524,29 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
           releaseId: selectedAlbum.release_id,
           instanceId: selectedAlbum.instance_id,
         });
-        newFolderId = newFolderEntry.id;
+      } catch (err: any) {
+        console.error("[AlbumDetail] Folder move failed:", err);
+        toast.error("Save failed. Try again.");
+        setIsSaving(false);
+        return;
       }
 
-      if (conditionOrNotesChanged || customFieldsChanged) {
+      newFolderId = newFolderEntry.id;
+      folderMoveCommitted = true;
+      updateAlbum(selectedAlbum.id, { folder: editFields.folder, folder_id: newFolderId });
+      // Fold the already-committed folder into the dirty-check snapshot so
+      // cancelling after this partial save doesn't prompt about a change
+      // that already landed.
+      try {
+        const seeded = JSON.parse(initialFieldsRef.current) as EditFields;
+        initialFieldsRef.current = JSON.stringify({ ...seeded, folder: editFields.folder });
+      } catch {
+        // Snapshot wasn't valid JSON (shouldn't happen) — leave it as-is.
+      }
+    }
+
+    try {
+      if (plan.needsFieldWrite) {
         await proxyUpdateInstance({
           sessionToken,
           username: discogsUsername,
@@ -563,16 +558,15 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
         });
       }
 
-      // Update local state + Convex cache
+      // Update local state + Convex cache with just the field-side changes —
+      // the folder, if it moved, was already committed above.
       const albumUpdates: Parameters<typeof updateAlbum>[1] = {
         ...fieldsChanged,
-        ...(folderChanged && newFolderEntry && {
-          folder: editFields.folder,
-          folder_id: newFolderId,
-        }),
         ...(customFieldsChanged && { customFields: editFields.customFields }),
       };
-      updateAlbum(selectedAlbum.id, albumUpdates);
+      if (Object.keys(albumUpdates).length > 0) {
+        updateAlbum(selectedAlbum.id, albumUpdates);
+      }
 
       // Straight out, no dirty check: the changes are committed, not discarded.
       setConfirmDiscard(false);
@@ -580,7 +574,12 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
       toast.success("Saved.");
     } catch (err: any) {
       console.error("[AlbumDetail] Save failed:", err);
-      toast.error("Save failed. Try again.");
+      toast.error(
+        folderMoveCommitted
+          ? "Folder moved. Other changes didn't save."
+          : "Save failed. Try again."
+      );
+      // Stay in edit mode so the user can retry.
     } finally {
       setIsSaving(false);
     }

@@ -2236,45 +2236,72 @@ export const marketValueDrip = internalAction({
       limit: MARKET_BATCH_SIZE,
     });
 
+    // Tokens still usable this run. A revoked token fails every request routed
+    // to it, and treating that like a release-level failure advanced each of
+    // those releases' fetchedAt — "checked" for 30 days without ever being
+    // priced, every run, for as long as the token stayed in the pool. A 401/403
+    // now drops the token for the rest of the run and the same release is
+    // retried with the next one; fetchedAt only moves for failures that are
+    // about the release itself.
+    const pool = [...tokens];
     let i = 0;
     for (const { releaseId } of batch) {
-      const creds = tokens[i % tokens.length]; // round-robin across tokens
-      i++;
-      try {
-        const res = await discogsFetch(
-          "GET",
-          `${BASE}/marketplace/stats/${releaseId}?curr_abbr=${MARKET_CURRENCY}`,
-          creds.accessToken,
-          creds.tokenSecret
-        );
-        if (!res.ok) {
-          // Transient/non-200 — advance fetchedAt only (value preserved) so a
-          // failing release moves to the back of the queue instead of clogging.
-          await ctx.runMutation(internal.market_values.setValue, {
-            releaseId,
-            fetchedAt: Date.now(),
-          });
-          continue;
-        }
-        const data = await res.json();
-        // Stats returns lowest_price as { value, currency } | null. null (or a
-        // missing value) means no active listings.
-        const lp = data?.lowest_price;
-        const value = lp && typeof lp.value === "number" ? lp.value : null;
-        await ctx.runMutation(internal.market_values.setValue, {
-          releaseId,
-          fetchedAt: Date.now(),
-          value,
-        });
-      } catch (e) {
-        console.warn(`[marketDrip] stats fetch failed for ${releaseId}:`, e);
-        // Advance fetchedAt so we don't re-hit it every run (retries in 30d).
+      let priced = false;
+      while (!priced && pool.length > 0) {
+        const slot = i % pool.length;
+        const creds = pool[slot]; // round-robin across the live tokens
         try {
+          const res = await discogsFetch(
+            "GET",
+            `${BASE}/marketplace/stats/${releaseId}?curr_abbr=${MARKET_CURRENCY}`,
+            creds.accessToken,
+            creds.tokenSecret
+          );
+          if (res.status === 401 || res.status === 403) {
+            console.warn(`[marketDrip] token rejected (${res.status}); dropping it for this run`);
+            pool.splice(slot, 1);
+            continue;
+          }
+          i++;
+          priced = true;
+          if (!res.ok) {
+            // Release-level/transient non-200 — advance fetchedAt only (value
+            // preserved) so a failing release moves to the back of the queue
+            // instead of clogging.
+            await ctx.runMutation(internal.market_values.setValue, {
+              releaseId,
+              fetchedAt: Date.now(),
+            });
+            continue;
+          }
+          const data = await res.json();
+          // Stats returns lowest_price as { value, currency } | null. null (or a
+          // missing value) means no active listings.
+          const lp = data?.lowest_price;
+          const value = lp && typeof lp.value === "number" ? lp.value : null;
           await ctx.runMutation(internal.market_values.setValue, {
             releaseId,
             fetchedAt: Date.now(),
+            value,
           });
-        } catch { /* ignore */ }
+        } catch (e) {
+          i++;
+          priced = true;
+          console.warn(`[marketDrip] stats fetch failed for ${releaseId}:`, e);
+          // Advance fetchedAt so we don't re-hit it every run (retries in 30d).
+          try {
+            await ctx.runMutation(internal.market_values.setValue, {
+              releaseId,
+              fetchedAt: Date.now(),
+            });
+          } catch { /* ignore */ }
+        }
+      }
+      // Every token was rejected: stop, leaving the rest of the batch
+      // untouched (never-fetched rows stay first in line for the next run).
+      if (pool.length === 0) {
+        console.warn("[marketDrip] no usable tokens left; ending the run early");
+        break;
       }
     }
   },

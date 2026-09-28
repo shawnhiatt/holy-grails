@@ -335,6 +335,13 @@ export const deleteAllUserData = mutation({
       .collect();
     for (const row of syncStatus) await ctx.db.delete(row._id);
 
+    // Cover-scan quota rows
+    const coverScans = await ctx.db
+      .query("cover_scans")
+      .withIndex("by_username_at", (q) => q.eq("discogs_username", username))
+      .collect();
+    for (const row of coverScans) await ctx.db.delete(row._id);
+
     // Bug reports + their screenshots (Settings promises this removes
     // everything on our side — reports carry the reporter's username)
     await deleteReportsForUser(ctx, username);

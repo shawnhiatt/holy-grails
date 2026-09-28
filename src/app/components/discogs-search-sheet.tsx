@@ -469,7 +469,14 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
         setQuery(`${res.artist} ${res.title}`);
         return true;
       }
-      toast.error(res.reason === "unconfigured" ? "Cover scan isn't set up." : "Couldn't read that cover.", { duration: 2000 });
+      toast.error(
+        res.reason === "unconfigured"
+          ? "Cover scan isn't set up."
+          : res.reason === "rate_limited"
+            ? "Too many scans. Try later."
+            : "Couldn't read that cover.",
+        { duration: 2000 }
+      );
       return false;
     } catch {
       toast.error("Couldn't read that cover.", { duration: 2000 });
