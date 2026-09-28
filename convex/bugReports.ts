@@ -20,6 +20,13 @@ const MAX_MESSAGE_LENGTH = 2000;
 const MAX_NOTE_LENGTH = 500;
 const MAX_RECENT_ERRORS = 10;
 const MAX_ERROR_LENGTH = 600;
+const MAX_DIAGNOSTICS = 40;
+const MAX_DIAGNOSTIC_LABEL = 80;
+const MAX_DIAGNOSTIC_VALUE = 500;
+/** A screenshot must have been uploaded this recently to be attached. The
+ *  client uploads immediately before submitting, so a real one is seconds
+ *  old; an older storage id is not this report's upload. */
+const SCREENSHOT_MAX_AGE_MS = 60 * 60 * 1000;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 5;
 const INBOX_PAGE_SIZE = 200;
@@ -53,24 +60,47 @@ export const submit = mutation({
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
 
+    // Only a fresh upload that no report already references can be attached.
+    // Storage ids carry no owner, so without this a caller holding someone
+    // else's screenshot id could attach it — and the rejection paths below,
+    // which delete the attached file, would then delete another user's
+    // screenshot. A screenshot that fails the check is refused, never deleted.
+    let screenshotOwned = false;
+    if (args.screenshotId) {
+      const file = await ctx.db.system.get(args.screenshotId);
+      const alreadyAttached = await ctx.db
+        .query("bug_reports")
+        .withIndex("by_screenshot", (q) => q.eq("screenshot_id", args.screenshotId))
+        .first();
+      screenshotOwned =
+        !!file && !alreadyAttached && Date.now() - file._creationTime <= SCREENSHOT_MAX_AGE_MS;
+      if (!screenshotOwned) throw new Error("Screenshot not accepted.");
+    }
+    const discardScreenshot = async () => {
+      if (args.screenshotId && screenshotOwned) await ctx.storage.delete(args.screenshotId);
+    };
+
     const message = args.message.trim().slice(0, MAX_MESSAGE_LENGTH);
     if (message.length === 0) {
-      if (args.screenshotId) await ctx.storage.delete(args.screenshotId);
+      await discardScreenshot();
       throw new Error("Report is empty.");
     }
 
     // Rate limit per reporter. A stuck retry loop or a frustrated tester
-    // shouldn't be able to flood the inbox (or file storage).
+    // shouldn't be able to flood the inbox (or file storage). Only the newest
+    // RATE_LIMIT_MAX reports can decide it, so read just those rather than
+    // the reporter's whole history.
     const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
-    const recent = await ctx.db
+    const newest = await ctx.db
       .query("bug_reports")
       .withIndex("by_username", (q) =>
         q.eq("discogs_username", user.discogs_username)
       )
-      .collect();
-    if (recent.filter((r) => r.created_at > cutoff).length >= RATE_LIMIT_MAX) {
+      .order("desc")
+      .take(RATE_LIMIT_MAX);
+    if (newest.filter((r) => r.created_at > cutoff).length >= RATE_LIMIT_MAX) {
       // Drop the just-uploaded screenshot rather than orphaning it in storage.
-      if (args.screenshotId) await ctx.storage.delete(args.screenshotId);
+      await discardScreenshot();
       throw new Error("Too many reports. Try again later.");
     }
 
@@ -81,7 +111,12 @@ export const submit = mutation({
       status: "new",
       created_at: Date.now(),
       screenshot_id: args.screenshotId,
-      diagnostics: args.diagnostics,
+      // Capped like every other field here: the client sends ~15 short lines,
+      // but the mutation is callable directly and was the one unbounded input.
+      diagnostics: args.diagnostics.slice(0, MAX_DIAGNOSTICS).map((d) => ({
+        label: d.label.slice(0, MAX_DIAGNOSTIC_LABEL),
+        value: d.value.slice(0, MAX_DIAGNOSTIC_VALUE),
+      })),
       recent_errors: args.recentErrors
         ?.slice(0, MAX_RECENT_ERRORS)
         .map((e) => e.slice(0, MAX_ERROR_LENGTH)),

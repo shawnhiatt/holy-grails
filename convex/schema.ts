@@ -326,7 +326,8 @@ export default defineSchema({
     recent_errors: v.optional(v.array(v.string())),
   })
     .index("by_username", ["discogs_username"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_screenshot", ["screenshot_id"]),
 
   // One row per cover scan that reached the Claude API — the rolling hourly
   // budget for vision.identifyCover (see coverScans.ts). Rows older than the

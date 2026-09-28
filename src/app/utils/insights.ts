@@ -1,4 +1,5 @@
 import type { Album } from "../components/discogs-api";
+import { parseDisplayDate } from "./format";
 
 /* Pure derivations for the Insights screen's phase-1 sections (Spec 4).
    Kept out of reports-screen.tsx so they're unit-testable in the node
@@ -30,6 +31,14 @@ export function parseAddedYear(dateAdded: string | null | undefined): number | n
  * timestamp. Empty and unparseable values are skipped, which is also what
  * makes the wantlist backfill graceful — rows cached before `dateAdded`
  * existed simply don't count until the next sync.
+ *
+ * Parses through `parseDisplayDate`, not `Date.parse` — a bare "YYYY-MM-DD"
+ * is specified to parse as UTC midnight, which measures the 30-day window in
+ * UTC days rather than the user's own. For anyone west of UTC that shifts an
+ * add near the boundary out of the window a day early (or, symmetrically, an
+ * add just past the true boundary can still read as inside it) — the same
+ * trap `dateAddedBucket` exists to avoid. A full ISO timestamp is a real
+ * instant and still parses normally.
  */
 export function countAddedWithin(
   items: Array<{ dateAdded?: string | null }>,
@@ -40,7 +49,7 @@ export function countAddedWithin(
   let count = 0;
   for (const item of items) {
     if (!item.dateAdded) continue;
-    const ms = Date.parse(item.dateAdded);
+    const ms = parseDisplayDate(item.dateAdded).getTime();
     if (Number.isNaN(ms)) continue;
     if (ms >= cutoff) count++;
   }

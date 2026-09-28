@@ -503,3 +503,63 @@ describe("getShared — auto sessions", () => {
     expect(result!.albums).toHaveLength(0);
   });
 });
+
+describe("update — auto sessions (bug hunt L5)", () => {
+  const storedStack = (t: ReturnType<typeof convexTest>) =>
+    t.run(async (ctx) => ctx.db.query("stacks").first());
+
+  it("never writes album_ids onto a session that fills itself", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedAutoStack(t, "dj", "s1", jazzBefore1980);
+    await t.mutation(api.stacks.update, {
+      sessionToken: "tok-dj",
+      stack_id: "s1",
+      album_ids: [1, 2, 3],
+      name: "Renamed",
+    });
+    const row = await storedStack(t);
+    expect(row?.album_ids).toEqual([]);
+    // The rest of the update still lands.
+    expect(row?.name).toBe("Renamed");
+    expect(row?.kind).toBe("auto");
+  });
+
+  it("still writes album_ids on a hand-filled session", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await t.mutation(api.stacks.create, {
+      sessionToken: "tok-dj",
+      stack_id: "m1",
+      name: "Hand picked",
+      album_ids: [1],
+    });
+    await t.mutation(api.stacks.update, { sessionToken: "tok-dj", stack_id: "m1", album_ids: [1, 2] });
+    expect((await storedStack(t))?.album_ids).toEqual([1, 2]);
+  });
+});
+
+describe("getShared — market values (bug hunt L2)", () => {
+  it("evaluates a price condition the way the owner's client does: no data, no match", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedAlbum(t, "dj", 1, { genres: ["Jazz"], year: 1965 });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("market_values", { releaseId: 1, value: 250, fetchedAt: NOW_ISH });
+    });
+    await seedAutoStack(
+      t,
+      "dj",
+      "s1",
+      {
+        match: "all",
+        conditions: [{ field: "marketValue", op: "atLeast", value: 100 }],
+        sort: "artist-az",
+        rotation: "off",
+      },
+      "sharemv"
+    );
+    const shared = await t.query(api.stacks.getShared, { share_id: "sharemv" });
+    expect(shared?.albums).toEqual([]);
+  });
+});

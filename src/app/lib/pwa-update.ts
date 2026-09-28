@@ -51,7 +51,12 @@ let toastVisible = false;
 
 let bootWindowOpen = true;
 let recoveryPending = false;
-let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+// The one in-flight "wait for a matching build" promise. Shared so a second
+// recoverFromStaleBuild() call while the first is still waiting joins that
+// SAME promise instead of replacing recoveryTimer out from under it — which
+// used to orphan the first caller's promise (its resolve() was still bound to
+// the timer that got cleared, so it never settled).
+let recoveryPromise: Promise<boolean> | null = null;
 
 export function isUpdateReady(): boolean {
   return needRefresh;
@@ -84,6 +89,12 @@ function showUpdateToast(): void {
  * a waiting update right away, or waits for one to finish installing. Resolves
  * false when nothing arrived in time, which is the boundary's cue to stop
  * showing a spinner and offer a Reload button instead.
+ *
+ * Re-entrant: a call made while an earlier one is still waiting joins that
+ * SAME promise rather than starting a second wait, so every caller's promise
+ * eventually resolves. (Today only one ErrorBoundary guards this with a flag,
+ * so overlap is not currently reachable — this is a correctness fix, not a
+ * response to an observed double-call.)
  */
 export function recoverFromStaleBuild(): Promise<boolean> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
@@ -94,16 +105,21 @@ export function recoverFromStaleBuild(): Promise<boolean> {
     applyUpdate();
     return Promise.resolve(true);
   }
+  // A recovery wait is already running — hand back that same promise instead
+  // of starting a second one, which used to replace the shared timer out from
+  // under the first call and strand its resolve().
+  if (recoveryPromise) return recoveryPromise;
   // Otherwise hurry the check along and let onNeedRefresh apply it on arrival.
   recoveryPending = true;
   registration?.update().catch(() => {});
-  return new Promise((resolve) => {
-    if (recoveryTimer) clearTimeout(recoveryTimer);
-    recoveryTimer = setTimeout(() => {
+  recoveryPromise = new Promise((resolve) => {
+    setTimeout(() => {
       recoveryPending = false;
+      recoveryPromise = null;
       resolve(false);
     }, RECOVERY_TIMEOUT_MS);
   });
+  return recoveryPromise;
 }
 
 /**

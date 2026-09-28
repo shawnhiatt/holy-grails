@@ -209,6 +209,15 @@ function daysSince(then: number | null | undefined, now: number): number | null 
   return (now - then) / DAY_MS;
 }
 
+// Deliberately `new Date()`, not a local-time parse (contrast
+// `parseDisplayDate` in src/app/utils/format.ts). This engine runs in two
+// places — the client and `stacks.getShared` on Convex, which runs in UTC —
+// and a bare "YYYY-MM-DD" has to land on the same instant in both, or an
+// owner and a share-link viewer disagree near midnight. `new Date()` reading
+// a date-only string as UTC midnight is exactly that: the same answer
+// everywhere, at the cost of being "wrong" by a few hours in any given local
+// timezone. Do not "fix" this to local time — it would break the one thing
+// that has to hold, which is that both sides evaluate the rule identically.
 function dateAddedMs(a: RuleAlbum): number | null {
   if (!a.dateAdded) return null;
   const t = new Date(a.dateAdded).getTime();
@@ -370,10 +379,16 @@ export function evaluateCondition(
         return n != null && (now - added) / DAY_MS <= n;
       }
       if (op === "before") {
+        // Same reason as `dateAddedMs`: UTC parsing here, deliberately, so
+        // client and server (`stacks.getShared`, which runs in UTC) agree on
+        // the same instant for a bare date. Do not switch this to local time.
         const t = new Date(String(value)).getTime();
         return Number.isFinite(t) && added < t;
       }
       if (op === "after") {
+        // Same reason as `dateAddedMs`: UTC parsing here, deliberately, so
+        // client and server (`stacks.getShared`, which runs in UTC) agree on
+        // the same instant for a bare date. Do not switch this to local time.
         const t = new Date(String(value)).getTime();
         return Number.isFinite(t) && added > t;
       }

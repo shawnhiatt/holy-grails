@@ -36,6 +36,7 @@ import {
 } from "../utils/accounts";
 import { scopeAlbums } from "../utils/format-scope";
 import { lastPlayedAfterRemoval } from "../utils/play-log";
+import { singleFlight } from "../utils/single-flight";
 
 // --- HMR-safe context singleton ---
 // During HMR, this module can be re-evaluated, creating a new context object.
@@ -337,12 +338,63 @@ function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>
   return { lastPlayedMap, countMap, allTimestamps, playLog };
 }
 
+/**
+ * Several write paths save to Discogs first, then mirror the change into the
+ * Convex cache. If that cache write fails, Discogs has it but the local
+ * cache doesn't — and since `albums`/`wants` re-derive reactively from the
+ * cache subscription (see the Reactive hydration rule in CLAUDE.md), the
+ * next re-derive silently reverts what's on screen until the next sync.
+ * Previously these failures were console-only, so the person had no idea
+ * their screen might be behind. Every such catch handler routes through
+ * this one string/helper so the wording can't drift between call sites.
+ */
+const CACHE_WRITE_FAILED_MSG = "Discogs updated. Sync to refresh.";
+function warnCacheWriteFailed(label: string, err: unknown) {
+  console.warn(`[Convex] ${label} cache write failed:`, err);
+  toast(CACHE_WRITE_FAILED_MSG);
+}
+
 const AppContext = getOrCreateContext();
 
 export function useApp(): AppState {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error("useApp must be used within AppProvider");
   return ctx;
+}
+
+// ── Session ended mid-session (bug hunt L9) ──
+// Used by the root ErrorBoundary, which sits outside AppProvider and so can't
+// reach the context's helpers. They live here because this is the only file
+// permitted to touch hg_session_token / hg_accounts.
+
+/** The active account's stored session token, if any. */
+export function readActiveSessionToken(): string | null {
+  try {
+    return localStorage.getItem("hg_session_token");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Drop an account whose session the server no longer honors and reload:
+ * into the next stored account if one remains (the same promotion the boot-time
+ * restore does), else to the login screen. The dead token is gone before the
+ * reload, so this cannot loop.
+ */
+export function dropActiveSessionAndReload(sessionToken: string): void {
+  try {
+    const accounts = parseAccounts(localStorage.getItem("hg_accounts"));
+    const dead = accounts.find((a) => a.sessionToken === sessionToken);
+    const remaining = dead
+      ? removeAccount(accounts, dead.username)
+      : accounts.filter((a) => a.sessionToken !== sessionToken);
+    localStorage.setItem("hg_accounts", JSON.stringify(remaining));
+    const promote = dead ? nextAccount(accounts, dead.username) : remaining[0] ?? null;
+    if (promote) localStorage.setItem("hg_session_token", promote.sessionToken);
+    else localStorage.removeItem("hg_session_token");
+  } catch { /* storage unavailable — the reload still lands on login */ }
+  window.location.reload();
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -1352,7 +1404,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...(fields.folder_id !== undefined && { folderId: fields.folder_id }),
         ...(fields.instance_id !== undefined && { instanceId: fields.instance_id }),
         ...(fields.customFields !== undefined && { customFields: fields.customFields }),
-      }).catch(console.error);
+      }).catch((e) => warnCacheWriteFailed("Album update", e));
     }
   }, [sessionToken, updateInstanceMut]);
 
@@ -1379,7 +1431,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Keep the Convex collection cache consistent — albums are reactively
     // derived from it, so a stale folder name there would resurface.
     renameFolderCacheMut({ sessionToken, folderId, name: updated.name })
-      .catch((e) => console.warn("[Convex] Folder rename cache write failed:", e));
+      .catch((e) => warnCacheWriteFailed("Folder rename", e));
   }, [sessionToken, discogsUsername, proxyRenameFolder, renameFolderCacheMut]);
 
   const deleteFolder = useCallback(async (folderId: number) => {
@@ -1443,7 +1495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       artistIds: result.artistIds || undefined,
       dateAdded: result.dateAdded || undefined,
       priority: result.priority,
-    }).catch((e) => console.warn("[Convex] Wantlist add failed:", e));
+    }).catch((e) => warnCacheWriteFailed("Wantlist add", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
 
   const addToCollection = useCallback(async (releaseId: number): Promise<void> => {
@@ -1513,7 +1565,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       styles: newAlbum.styles,
       discCount: newAlbum.discCount,
       artistIds: newAlbum.artistIds,
-    }).catch((e) => console.warn("[Convex] Collection add failed:", e));
+    }).catch((e) => warnCacheWriteFailed("Collection add", e));
   }, [sessionToken, discogsUsername, proxyAddToCollection, addCollectionItemMut, folders]);
 
   const removeFromCollection = useCallback(async (albumId: string): Promise<void> => {
@@ -1529,7 +1581,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     setAlbums(prev => prev.filter(a => a.id !== albumId));
     removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
-      .catch(e => console.warn("[Convex] Collection remove failed:", e));
+      .catch(e => warnCacheWriteFailed("Collection remove", e));
   }, [sessionToken, discogsUsername, scopedAlbums, proxyRemoveFromCollection, removeCollectionItemMut]);
 
   const removeFromWantList = useCallback(async (releaseId: string | number): Promise<void> => {
@@ -1552,7 +1604,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     removeWantlistItemMut({
       sessionToken,
       release_id: rid,
-    }).catch((e) => console.warn("[Convex] Wantlist remove failed:", e));
+    }).catch((e) => warnCacheWriteFailed("Wantlist remove", e));
   }, [sessionToken, discogsUsername, proxyRemoveFromWantlist, upsertWantPriorityMut, removeWantlistItemMut]);
 
   const isInWants = useCallback((releaseId: string | number, masterId?: number) => {
@@ -1800,7 +1852,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Sync from Discogs ──
 
-  const performSync = useCallback(async (
+  // performSyncImpl does the real work. It is wrapped below in a singleFlight
+  // guard (performSync) so that a manual "Sync Now" tap and the background
+  // change-detection probe (maybeBackgroundSync) can never both have a
+  // syncSelf action in flight for the same user at once — previously the
+  // guard only engaged once performSync had already started (after awaiting
+  // proxyFetchSyncSignals), leaving a window where a Sync Now tap slipped
+  // through and started a second, overlapping sync.
+  const performSyncImplRef = useRef<
+    (
+      username: string,
+      token: string,
+      opts?: { background?: boolean; notify?: boolean }
+    ) => Promise<{ albums: number; folders: number; wants: number }>
+  >();
+
+  performSyncImplRef.current = useCallback(async (
     username: string,
     token: string,
     opts: {
@@ -1886,6 +1953,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSyncFlag(false);
     }
   }, [syncSelfAction]);
+
+  // The stable, singleFlight-wrapped entry point every caller actually uses.
+  // Created once (empty dep array) so its identity never changes — callers
+  // always reach the latest performSyncImplRef.current, and a call made while
+  // one is already in flight gets back that SAME promise instead of starting
+  // a second syncSelf action.
+  const performSync = useMemo(
+    () =>
+      singleFlight(
+        (
+          username: string,
+          token: string,
+          opts?: { background?: boolean; notify?: boolean }
+        ) => performSyncImplRef.current!(username, token, opts)
+      ),
+    []
+  );
 
   // Surface the server-side sync loop's progress doc while a sync is running.
   // Restores per-page granularity ("Syncing collection (150 of 300)") that was
@@ -2033,13 +2117,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // against the counts stored at the last sync. If they match, skip the sync
   // entirely (the common "nothing changed" case). If they differ — or we've
   // never recorded counts — run a real sync in the background. Guards against
-  // overlapping runs (boot probe vs sync-on-focus).
+  // overlapping runs (boot probe vs sync-on-focus), and also defers to a sync
+  // already in flight for any reason (e.g. a "Sync Now" tap) — no point
+  // paying for the signals probe when performSync would just hand back that
+  // same in-flight run anyway.
   const bgSyncInFlightRef = useRef(false);
   const maybeBackgroundSync = useCallback(async (
     username: string,
     token: string,
   ): Promise<"changed" | "unchanged" | "skipped"> => {
-    if (bgSyncInFlightRef.current) return "skipped";
+    if (bgSyncInFlightRef.current || performSync.isInFlight()) return "skipped";
     bgSyncInFlightRef.current = true;
     try {
       const signals = await proxyFetchSyncSignals({ sessionToken: token, username });

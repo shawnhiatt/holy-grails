@@ -93,7 +93,12 @@ export const update = mutation({
 
     const updates: Record<string, unknown> = { last_modified: Date.now() };
     if (args.name !== undefined) updates.name = args.name;
-    if (args.album_ids !== undefined) updates.album_ids = args.album_ids;
+    // An auto session's membership is derived from its rule and never stored
+    // (see create). The client refuses to hand-add to one, but this is the
+    // server-side backstop: album_ids sent for an auto session are ignored
+    // rather than written as a stale second source of truth. freeze is the
+    // one path that turns an auto session into stored ids.
+    if (args.album_ids !== undefined && existing.kind !== "auto") updates.album_ids = args.album_ids;
     if (args.rule !== undefined) updates.rule = args.rule;
     if (args.excluded_ids !== undefined) updates.excluded_ids = args.excluded_ids;
     if (args.name_generated !== undefined) updates.name_generated = args.name_generated;
@@ -296,19 +301,14 @@ export const getShared = query({
         );
       }
 
-      // Market values are only loaded when the rule actually asks for them —
-      // it is the one input that needs a whole-table read, and almost no
-      // session is built on price.
-      const usesMarketValue = stack.rule.conditions.some(
-        (c) => c.field === "marketValue"
-      );
-      const marketByRelease = new Map<number, number | null>();
-      if (usesMarketValue) {
-        for (const mv of await ctx.db.query("market_values").collect()) {
-          if (mv.value !== undefined) marketByRelease.set(mv.releaseId, mv.value);
-        }
-      }
-
+      // Market values are deliberately NOT loaded here. The client's rule
+      // input (app-context's ruleAlbums) carries no market value — it lives in
+      // the lazily-loaded Insights query — so a marketValue condition matches
+      // nothing for the owner. Loading it here would make the share link show
+      // a different set than the owner sees, and it took an unindexed read of
+      // the whole shared market_values table on a public endpoint. The builder
+      // offers no price field today; wire market values into BOTH sides
+      // together if one is ever added.
       const ruleAlbums: RuleAlbum[] = rows.map((row) => ({
         releaseId: row.releaseId,
         artist: row.artist,
@@ -326,7 +326,6 @@ export const getShared = query({
         purgeTag: tagByRelease.get(row.releaseId) ?? null,
         lastPlayedAt: lastPlayedAt.get(row.releaseId) ?? null,
         playCount: playCount.get(row.releaseId) ?? 0,
-        marketValue: marketByRelease.get(row.releaseId),
       }));
 
       const result = evaluateStackRule(ruleAlbums, stack.rule as StackRule, {

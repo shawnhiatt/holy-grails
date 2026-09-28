@@ -130,6 +130,75 @@ describe("submit", () => {
   });
 });
 
+describe("submit hardening (bug hunt L3)", () => {
+  const storeScreenshot = (t: ReturnType<typeof convexTest>) =>
+    t.run(async (ctx) => ctx.storage.store(new Blob(["png"], { type: "image/png" })));
+
+  it("caps the diagnostics list and each line", async () => {
+    const t = newTest();
+    await seedUser(t, REPORTER, "tok");
+    await t.mutation(api.bugReports.submit, {
+      ...submitArgs("tok"),
+      diagnostics: Array.from({ length: 100 }, (_, i) => ({
+        label: `L${i}`.padEnd(500, "x"),
+        value: "v".repeat(5000),
+      })),
+    });
+    const [row] = await t.run(async (ctx) => ctx.db.query("bug_reports").collect());
+    expect(row.diagnostics).toHaveLength(40);
+    expect(row.diagnostics.every((d) => d.label.length <= 80 && d.value.length <= 500)).toBe(true);
+  });
+
+  it("rate-limits on recent reports only, however long the history", async () => {
+    const t = newTest();
+    await seedUser(t, REPORTER, "tok");
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 30; i++) {
+        await ctx.db.insert("bug_reports", {
+          discogs_username: REPORTER,
+          kind: "bug",
+          message: `old ${i}`,
+          status: "new",
+          created_at: twoHoursAgo,
+          diagnostics: [],
+        });
+      }
+    });
+    for (let i = 0; i < 5; i++) {
+      await t.mutation(api.bugReports.submit, submitArgs("tok", `fresh ${i}`));
+    }
+    await expect(
+      t.mutation(api.bugReports.submit, submitArgs("tok", "sixth"))
+    ).rejects.toThrow(/too many/i);
+  });
+
+  it("attaches a fresh screenshot the reporter just uploaded", async () => {
+    const t = newTest();
+    await seedUser(t, REPORTER, "tok");
+    const screenshotId = await storeScreenshot(t);
+    await t.mutation(api.bugReports.submit, { ...submitArgs("tok"), screenshotId });
+    const [row] = await t.run(async (ctx) => ctx.db.query("bug_reports").collect());
+    expect(row.screenshot_id).toBe(screenshotId);
+  });
+
+  it("refuses a screenshot already attached to someone else's report, and leaves it in place", async () => {
+    const t = newTest();
+    await seedUser(t, "someone_else", "tok-b");
+    await seedUser(t, REPORTER, "tok");
+    const theirs = await storeScreenshot(t);
+    await t.mutation(api.bugReports.submit, { ...submitArgs("tok-b", "theirs"), screenshotId: theirs });
+
+    // Attaching it to an empty report used to reach the "empty" rejection,
+    // which deleted the attached file — someone else's screenshot.
+    await expect(
+      t.mutation(api.bugReports.submit, { ...submitArgs("tok", "   "), screenshotId: theirs })
+    ).rejects.toThrow(/not accepted/i);
+    const stillThere = await t.run(async (ctx) => ctx.storage.getUrl(theirs));
+    expect(stillThere).not.toBeNull();
+  });
+});
+
 describe("listMine", () => {
   it("rejects an unauthenticated caller", async () => {
     const t = newTest();

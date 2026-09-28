@@ -2,6 +2,10 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
 
+/** Matches the Look It Up sheet's own cap on recent queries. */
+const MAX_RECENT_SEARCHES = 8;
+const MAX_RECENT_SEARCH_LENGTH = 200;
+
 export const getByUsername = query({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
@@ -37,6 +41,11 @@ export const upsert = mutation({
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
+    // The Look It Up sheet keeps 8 recent queries, but the mutation is
+    // callable directly, so the cap has to hold here too.
+    const recent_searches = args.recent_searches
+      ?.slice(0, MAX_RECENT_SEARCHES)
+      .map((q) => q.slice(0, MAX_RECENT_SEARCH_LENGTH));
     const existing = await ctx.db
       .query("preferences")
       .withIndex("by_username", (q) =>
@@ -55,7 +64,7 @@ export const upsert = mutation({
       if (args.want_view_mode !== undefined) updates.want_view_mode = args.want_view_mode;
       if (args.default_screen !== undefined) updates.default_screen = args.default_screen;
       if (args.default_collection_sort !== undefined) updates.default_collection_sort = args.default_collection_sort;
-      if (args.recent_searches !== undefined) updates.recent_searches = args.recent_searches;
+      if (recent_searches !== undefined) updates.recent_searches = recent_searches;
       if (args.format_scope !== undefined) updates.format_scope = args.format_scope;
       if (args.session_cap !== undefined) updates.session_cap = args.session_cap;
       if (args.session_rotation !== undefined) updates.session_rotation = args.session_rotation;
@@ -69,7 +78,7 @@ export const upsert = mutation({
       theme: args.theme ?? "system",
       hide_purge_indicators: args.hide_purge_indicators ?? false,
       shake_to_random: args.shake_to_random ?? false,
-      ...(args.recent_searches !== undefined ? { recent_searches: args.recent_searches } : {}),
+      ...(recent_searches !== undefined ? { recent_searches } : {}),
       ...(args.format_scope !== undefined ? { format_scope: args.format_scope } : {}),
       ...(args.session_cap !== undefined ? { session_cap: args.session_cap } : {}),
       ...(args.session_rotation !== undefined ? { session_rotation: args.session_rotation } : {}),

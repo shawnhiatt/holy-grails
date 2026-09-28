@@ -144,3 +144,59 @@ describe("syncFollowedUser wantlist handling", () => {
     expect(await cachedWants(t)).toEqual([777]);
   });
 });
+
+describe("syncFollowedUser page validation (bug hunt L10)", () => {
+  beforeEach(() => {
+    vi.stubEnv("DISCOGS_CONSUMER_KEY", "key");
+    vi.stubEnv("DISCOGS_CONSUMER_SECRET", "secret");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  const cachedCollection = (t: ReturnType<typeof convexTest>) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query("followed_items").collect()).filter((r) => r.kind === "collection").length
+    );
+
+  it("fails the sync on a page with no page count instead of stopping after it", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    // A previously cached 3-release collection.
+    await t.run(async (ctx) => {
+      for (const id of [1, 2, 3]) {
+        await ctx.db.insert("followed_items", {
+          follower_username: FOLLOWER,
+          followed_username: FOLLOWED,
+          kind: "collection",
+          release_id: id,
+          title: `T${id}`,
+          artist: "A",
+          year: 1990,
+          cover: "c",
+          label: "L",
+          dateAdded: "2023-01-01",
+        });
+      }
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        // 200 OK, but `pages` is missing: the loop used to read it as
+        // undefined, stop after this page, and replace the whole cache with
+        // this one release.
+        if (url.includes("/collection/folders/0/releases")) {
+          return json({ pagination: { page: 1, items: 300 }, releases: [release(1)] });
+        }
+        if (url.includes("/wants")) return json({ pagination: { pages: 1, page: 1, items: 0 }, wants: [] });
+        return json({ username: FOLLOWED, avatar_url: "" });
+      })
+    );
+    await expect(
+      t.action(api.discogs.syncFollowedUser, { sessionToken: TOKEN, username: FOLLOWED })
+    ).rejects.toThrow(/page/i);
+    expect(await cachedCollection(t)).toBe(3);
+  });
+});

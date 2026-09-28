@@ -82,7 +82,7 @@ describe("computeAlbumSavePlan", () => {
     expect(plan.needsFolderMove).toBe(false);
   });
 
-  it("detects a changed custom field by position, keyed to fieldId", () => {
+  it("detects a changed custom field, keyed to fieldId", () => {
     const album: SaveSourceAlbumInput = {
       ...baseAlbum,
       customFields: [{ name: "Price Paid", value: "10", fieldId: 5 }],
@@ -109,5 +109,99 @@ describe("computeAlbumSavePlan", () => {
     );
     expect(plan.customFieldsChanged).toBe(false);
     expect(plan.changedCustomFields).toEqual([]);
+  });
+
+  it("diffs correctly when a background sync reordered the original custom fields", () => {
+    // The album's custom-field list arrived in a different order than the
+    // form was seeded with — a positional diff would compare each edited
+    // value against the wrong original and misattribute the write.
+    const album: SaveSourceAlbumInput = {
+      ...baseAlbum,
+      customFields: [
+        { name: "Notes", value: "unchanged notes", fieldId: 7 },
+        { name: "Price Paid", value: "10", fieldId: 5 },
+      ],
+    };
+    const plan = computeAlbumSavePlan(
+      {
+        ...baseFields,
+        customFields: [
+          { name: "Price Paid", value: "15", fieldId: 5 },
+          { name: "Notes", value: "unchanged notes", fieldId: 7 },
+        ],
+      },
+      album,
+      folderOptions
+    );
+    expect(plan.changedCustomFields).toEqual([{ fieldId: 5, value: "15" }]);
+    expect(plan.customFieldsChanged).toBe(true);
+  });
+
+  it("does not misattribute a write when the custom-field list grew mid-edit", () => {
+    // A field was added to the collection's custom-field set (e.g. by a
+    // background sync) while the form was open — the new field lands at the
+    // end of the edited list with no original counterpart, and must not be
+    // diffed against whatever originally sat at that index.
+    const album: SaveSourceAlbumInput = {
+      ...baseAlbum,
+      customFields: [{ name: "Price Paid", value: "10", fieldId: 5 }],
+    };
+    const plan = computeAlbumSavePlan(
+      {
+        ...baseFields,
+        customFields: [
+          { name: "Price Paid", value: "10", fieldId: 5 }, // unchanged
+          { name: "New Field", value: "hello", fieldId: 9 }, // no original counterpart
+        ],
+      },
+      album,
+      folderOptions
+    );
+    expect(plan.changedCustomFields).toEqual([]);
+    expect(plan.customFieldsChanged).toBe(false);
+  });
+
+  it("does not misattribute a write when the custom-field list shrank mid-edit", () => {
+    // The original list had two fields; the edited list (seeded before a
+    // field was removed elsewhere) only carries one. A positional diff would
+    // compare the surviving field against the wrong original by index.
+    const album: SaveSourceAlbumInput = {
+      ...baseAlbum,
+      customFields: [
+        { name: "Notes", value: "unchanged notes", fieldId: 7 },
+        { name: "Price Paid", value: "10", fieldId: 5 },
+      ],
+    };
+    const plan = computeAlbumSavePlan(
+      { ...baseFields, customFields: [{ name: "Price Paid", value: "10", fieldId: 5 }] },
+      album,
+      folderOptions
+    );
+    expect(plan.changedCustomFields).toEqual([]);
+    expect(plan.customFieldsChanged).toBe(false);
+  });
+
+  it("produces no write when every custom field is unchanged, reordered or not", () => {
+    const album: SaveSourceAlbumInput = {
+      ...baseAlbum,
+      customFields: [
+        { name: "Price Paid", value: "10", fieldId: 5 },
+        { name: "Notes", value: "mint", fieldId: 7 },
+      ],
+    };
+    const plan = computeAlbumSavePlan(
+      {
+        ...baseFields,
+        customFields: [
+          { name: "Notes", value: "mint", fieldId: 7 },
+          { name: "Price Paid", value: "10", fieldId: 5 },
+        ],
+      },
+      album,
+      folderOptions
+    );
+    expect(plan.changedCustomFields).toEqual([]);
+    expect(plan.customFieldsChanged).toBe(false);
+    expect(plan.needsFieldWrite).toBe(false);
   });
 });

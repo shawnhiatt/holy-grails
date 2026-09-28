@@ -435,6 +435,23 @@ interface FolderInfo {
   count: number;
 }
 
+/**
+ * The page count and item list of a paginated Discogs response, or a thrown
+ * error if either is missing. A 200 without a usable `pagination.pages` used
+ * to end the loop after that page (`page <= undefined` is false), and the sync
+ * then treated everything on later pages as removed. Failing the sync keeps
+ * the cache as it was.
+ */
+function readDiscogsPage<T>(data: unknown, listKey: string, context: string): { pages: number; items: T[] } {
+  const body = data as { pagination?: { pages?: unknown }; [key: string]: unknown } | null;
+  const pages = body?.pagination?.pages;
+  const items = body?.[listKey];
+  if (typeof pages !== "number" || !Number.isFinite(pages) || pages < 0 || !Array.isArray(items)) {
+    throw new Error(`Unexpected Discogs page shape for ${context}`);
+  }
+  return { pages, items: items as T[] };
+}
+
 async function fetchFolderMapInternal(
   username: string,
   accessToken: string,
@@ -549,10 +566,15 @@ async function fetchCollectionInternal(
         );
       }
       const data: CollectionPage = await res.json();
-      totalPages = data.pagination.pages;
+      const { pages, items: releases } = readDiscogsPage<DiscogsRelease>(
+        data,
+        "releases",
+        `collection folder ${folderId} page ${page}`
+      );
+      totalPages = pages;
       if (skipPrivateFields && page === 1) totalItems = data.pagination.items;
 
-      for (const r of data.releases) {
+      for (const r of releases) {
         // Inject folder_id from the folder we're fetching — Discogs omits it
         r.folder_id = folderId;
         albums.push(mapRelease(r, folderMap, fieldMap));
@@ -630,10 +652,11 @@ async function fetchWantlistInternal(
         `Failed to fetch wantlist page ${page} (${res.status})`
       );
     const data: WantPage = await res.json();
-    totalPages = data.pagination.pages;
+    const { pages, items: pageWants } = readDiscogsPage<DiscogsWant>(data, "wants", `wantlist page ${page}`);
+    totalPages = pages;
     if (page === 1) totalItems = data.pagination.items;
 
-    for (const w of data.wants) {
+    for (const w of pageWants) {
       const bi = w.basic_information;
       const artist = bi.artists
         .map((a) => formatArtistName(a.anv || a.name))
@@ -1423,14 +1446,47 @@ export const proxyRemoveFromCollection = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.folderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
-    const res = await discogsFetch(
+    const user = encodeURIComponent(creds.username);
+    const instanceUrl = (folderId: number) =>
+      `${BASE}/users/${user}/collection/folders/${folderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
+    let res = await discogsFetch(
       "DELETE",
-      url,
+      instanceUrl(args.folderId),
       creds.access_token,
       creds.token_secret
     );
-    if (res.status === 404) return;
+    if (res.status === 404) {
+      // A 404 means either "already gone" or "not in that folder" — the
+      // client's folder_id can be stale (moved on another device or on
+      // discogs.com). Treating every 404 as removed dropped a release from
+      // the app that was still in the collection. Look up where this copy
+      // actually lives: gone → done; moved → delete it from its real folder.
+      const lookup = await discogsFetch(
+        "GET",
+        `${BASE}/users/${user}/collection/releases/${args.releaseId}`,
+        creds.access_token,
+        creds.token_secret
+      );
+      if (lookup.status === 404) return;
+      if (!lookup.ok) {
+        throw new Error(`Failed to verify removal of release ${args.releaseId} (${lookup.status})`);
+      }
+      const data = await lookup.json();
+      const copy = (data?.releases ?? []).find(
+        (r: { instance_id?: number }) => r.instance_id === args.instanceId
+      ) as { folder_id?: number } | undefined;
+      if (!copy) return;
+      if (typeof copy.folder_id !== "number" || copy.folder_id === args.folderId) {
+        throw new Error(`Failed to remove release ${args.releaseId} from collection (404)`);
+      }
+      res = await discogsFetch(
+        "DELETE",
+        instanceUrl(copy.folder_id),
+        creds.access_token,
+        creds.token_secret
+      );
+      if (res.status === 404) return;
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(
