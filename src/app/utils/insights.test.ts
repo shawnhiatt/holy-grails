@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   parseAddedYear,
   bucketAddsByYear,
@@ -136,5 +136,43 @@ describe("countAddedWithin", () => {
     const items = [{ dateAdded: "2026-06-01" }];
     expect(countAddedWithin(items, 30, now)).toBe(0);
     expect(countAddedWithin(items, 90, now)).toBe(1);
+  });
+});
+
+describe("countAddedWithin — local calendar days (west of UTC)", () => {
+  /* Pinned to a negative-offset zone, same technique as format.test.ts's
+     "date-only rendering west of UTC" block: in UTC the bug is invisible, so
+     an unpinned test would pass on a broken implementation. January avoids
+     DST entirely in America/New_York (EST, UTC-5 year-round through the
+     month), so the 30-day window below is exactly 30*86400000ms of wall
+     clock with no spring-forward/fall-back to launder the difference. */
+  const REAL_TZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "America/New_York";
+  });
+  afterAll(() => {
+    process.env.TZ = REAL_TZ;
+  });
+
+  it("measures the window in the user's local day, not UTC midnight", () => {
+    // "now" is local Jan 31 00:00 EST. A bare "YYYY-MM-DD" dateAdded of
+    // "2026-01-01" is the user's own local Jan 1 00:00 — exactly 30 days
+    // (to the millisecond) before "now", so it belongs on the inclusive edge
+    // of a 30-day window.
+    //
+    // Read as UTC midnight instead (the old `Date.parse` behavior), that same
+    // string lands 5 hours EARLIER — local Dec 31 19:00 — which falls just
+    // outside the window and would undercount by one. `parseDisplayDate`
+    // reads it as the local calendar day the string names, landing exactly
+    // on the boundary and counting it.
+    const now = new Date(2026, 0, 31, 0, 0, 0).getTime();
+    const items = [{ dateAdded: "2026-01-01" }];
+    expect(countAddedWithin(items, 30, now)).toBe(1);
+  });
+
+  it("still excludes a bare date one local day outside the window", () => {
+    const now = new Date(2026, 0, 31, 0, 0, 0).getTime();
+    const items = [{ dateAdded: "2025-12-31" }];
+    expect(countAddedWithin(items, 30, now)).toBe(0);
   });
 });

@@ -1,6 +1,7 @@
 import type { Album } from "../components/discogs-api";
 import { hasRating } from "../components/discogs-api";
 import type { StackRule } from "../../../convex/stackRules";
+import { parseDisplayDate } from "./format";
 
 /**
  * Session presets — the 80% of what people actually want from a session that
@@ -143,8 +144,13 @@ export function buildStackPresets(
       blurb: "Added in the last three months.",
       rule: rule([{ field: "dateAdded", op: "withinDays", value: 90 }], "added-new"),
     },
+    // parseDisplayDate, not new Date(): `dateAdded` is a bare "YYYY-MM-DD",
+    // and new Date() reads that as UTC midnight. This only decides which
+    // presets are OFFERED — the rule object above is unchanged — but it
+    // should still agree with the local-day boundary dateAddedBucket and
+    // countAddedWithin use.
     count((a) => {
-      const t = new Date(a.dateAdded).getTime();
+      const t = parseDisplayDate(a.dateAdded).getTime();
       return Number.isFinite(t) && now - t <= 90 * DAY;
     })
   );
