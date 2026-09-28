@@ -29,6 +29,7 @@ import type * as oauth from "../oauth.js";
 import type * as oauthCallback from "../oauthCallback.js";
 import type * as preferences from "../preferences.js";
 import type * as purge_tags from "../purge_tags.js";
+import type * as rateLimitLog from "../rateLimitLog.js";
 import type * as stackRules from "../stackRules.js";
 import type * as stacks from "../stacks.js";
 import type * as syncStatus from "../syncStatus.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   oauthCallback: typeof oauthCallback;
   preferences: typeof preferences;
   purge_tags: typeof purge_tags;
+  rateLimitLog: typeof rateLimitLog;
   stackRules: typeof stackRules;
   stacks: typeof stacks;
   syncStatus: typeof syncStatus;
