@@ -538,3 +538,28 @@ describe("update — auto sessions (bug hunt L5)", () => {
     expect((await storedStack(t))?.album_ids).toEqual([1, 2]);
   });
 });
+
+describe("getShared — market values (bug hunt L2)", () => {
+  it("evaluates a price condition the way the owner's client does: no data, no match", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedAlbum(t, "dj", 1, { genres: ["Jazz"], year: 1965 });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("market_values", { releaseId: 1, value: 250, fetchedAt: NOW_ISH });
+    });
+    await seedAutoStack(
+      t,
+      "dj",
+      "s1",
+      {
+        match: "all",
+        conditions: [{ field: "marketValue", op: "atLeast", value: 100 }],
+        sort: "artist-az",
+        rotation: "off",
+      },
+      "sharemv"
+    );
+    const shared = await t.query(api.stacks.getShared, { share_id: "sharemv" });
+    expect(shared?.albums).toEqual([]);
+  });
+});
