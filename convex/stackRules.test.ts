@@ -398,6 +398,26 @@ describe("evaluateStackRule", () => {
   });
 });
 
+describe("added-date sorts", () => {
+  const undated = album({ dateAdded: "" });
+  const older = album({ dateAdded: "2020-03-01" });
+  const newer = album({ dateAdded: "2024-06-15" });
+  const ids = (xs: RuleAlbum[]) => xs.map((a) => a.releaseId);
+  // A rule with no conditions matches nothing by design, so match everything
+  // with a condition every fixture passes.
+  const all = { field: "year", op: "after", value: 0 };
+
+  it("sinks an undated release in added-old instead of leading with it", () => {
+    const { albums } = evaluateStackRule([undated, newer, older], rule({ conditions: [all], sort: "added-old" }), { stackId: "s", now: NOW });
+    expect(ids(albums)).toEqual([older.releaseId, newer.releaseId, undated.releaseId]);
+  });
+
+  it("sinks an undated release in added-new too", () => {
+    const { albums } = evaluateStackRule([undated, older, newer], rule({ conditions: [all], sort: "added-new" }), { stackId: "s", now: NOW });
+    expect(ids(albums)).toEqual([newer.releaseId, older.releaseId, undated.releaseId]);
+  });
+});
+
 describe("cap tiers", () => {
   it("maps each stored value to its limit", () => {
     expect(capToLimit("10")).toBe(10);

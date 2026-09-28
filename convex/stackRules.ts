@@ -423,6 +423,12 @@ export const RULE_SORTS = [
   "last-played-oldest",
 ] as const;
 
+function ascendingNullsLast(a: number | null, b: number | null): number {
+  if (a === null) return b === null ? 0 : 1;
+  if (b === null) return -1;
+  return a - b;
+}
+
 function sortAlbums(albums: RuleAlbum[], sort: string): RuleAlbum[] {
   const out = [...albums];
   switch (sort) {
@@ -440,7 +446,10 @@ function sortAlbums(albums: RuleAlbum[], sort: string): RuleAlbum[] {
       out.sort((a, b) => (dateAddedMs(b) ?? 0) - (dateAddedMs(a) ?? 0));
       break;
     case "added-old":
-      out.sort((a, b) => (dateAddedMs(a) ?? 0) - (dateAddedMs(b) ?? 0));
+      // Undated sinks here too, matching added-new and the collection
+      // screen's own added-old sort: an unknown add date is not the oldest.
+      // (Mapping it to 0 led "oldest first" with every undated release.)
+      out.sort((a, b) => ascendingNullsLast(dateAddedMs(a), dateAddedMs(b)));
       break;
     case "rating-high":
       // Unrated sinks below one-star: unrated is not a zero-star record.
