@@ -345,6 +345,41 @@ export function useApp(): AppState {
   return ctx;
 }
 
+// ── Session ended mid-session (bug hunt L9) ──
+// Used by the root ErrorBoundary, which sits outside AppProvider and so can't
+// reach the context's helpers. They live here because this is the only file
+// permitted to touch hg_session_token / hg_accounts.
+
+/** The active account's stored session token, if any. */
+export function readActiveSessionToken(): string | null {
+  try {
+    return localStorage.getItem("hg_session_token");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Drop an account whose session the server no longer honors and reload:
+ * into the next stored account if one remains (the same promotion the boot-time
+ * restore does), else to the login screen. The dead token is gone before the
+ * reload, so this cannot loop.
+ */
+export function dropActiveSessionAndReload(sessionToken: string): void {
+  try {
+    const accounts = parseAccounts(localStorage.getItem("hg_accounts"));
+    const dead = accounts.find((a) => a.sessionToken === sessionToken);
+    const remaining = dead
+      ? removeAccount(accounts, dead.username)
+      : accounts.filter((a) => a.sessionToken !== sessionToken);
+    localStorage.setItem("hg_accounts", JSON.stringify(remaining));
+    const promote = dead ? nextAccount(accounts, dead.username) : remaining[0] ?? null;
+    if (promote) localStorage.setItem("hg_session_token", promote.sessionToken);
+    else localStorage.removeItem("hg_session_token");
+  } catch { /* storage unavailable — the reload still lands on login */ }
+  window.location.reload();
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Screen & view state ──
   const [screen, setScreenRaw] = useState<Screen>("feed");

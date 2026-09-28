@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, Component, la
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { Toaster, toast } from "sonner";
 import { Disc3 } from "./components/icons";
-import { AppProvider, useApp } from "./components/app-context";
+import { AppProvider, useApp, readActiveSessionToken, dropActiveSessionAndReload } from "./components/app-context";
 import { BottomTabBar, DesktopScreenTitle, DesktopSidebar, MobileHeader } from "./components/navigation";
 import { CrateBrowser } from "./components/crate-browser";
 import { PurgeTracker } from "./components/purge-tracker";
@@ -22,6 +22,7 @@ import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./components/motion-to
 import { initiateDiscogsOAuth, oauthInFlight } from "./components/oauth-helpers";
 import { reportError } from "./lib/report-error";
 import { isStaleBuildError } from "./lib/stale-build";
+import { isConvexQueryError, isSessionGone } from "./lib/session-check";
 import { hardReload, recoverFromStaleBuild } from "./lib/pwa-update";
 import { hasOpenDialogs } from "./lib/dialog-stack";
 import { InstallNudge } from "./components/install-nudge";
@@ -71,21 +72,46 @@ function ScreenLoadingFallback() {
  * PWA always "fixed" it — that let the waiting service worker take over. So
  * that case gets the service worker applied for the user instead of a trace,
  * and only falls back to a Reload card if no matching build shows up.
+ *
+ * The other non-bug is a session that ended while the tab was open (signed out
+ * or wiped from another device, or expired): every authenticated `useQuery`
+ * throws at once. A failed query therefore gets a quick check with the server
+ * ("checking"), and only a token the server positively no longer knows is
+ * dropped, promoting the next stored account or landing on login. Anything else
+ * falls through to the trace.
  */
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
-  { error: Error | null; phase: "ok" | "recovering" | "stale" | "fatal" }
+  { error: Error | null; phase: "ok" | "recovering" | "checking" | "stale" | "fatal" }
 > {
   private recovering = false;
+  private checking = false;
 
   constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { error: null, phase: "ok" };
   }
   static getDerivedStateFromError(error: Error) {
-    return { error, phase: isStaleBuildError(error) ? "recovering" as const : "fatal" as const };
+    if (isStaleBuildError(error)) return { error, phase: "recovering" as const };
+    if (isConvexQueryError(error)) return { error, phase: "checking" as const };
+    return { error, phase: "fatal" as const };
   }
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    if (!isStaleBuildError(error) && isConvexQueryError(error)) {
+      if (this.checking) return;
+      this.checking = true;
+      const token = readActiveSessionToken();
+      void (token ? isSessionGone(token) : Promise.resolve(false)).then((gone) => {
+        // A session that ended is not a bug, so it isn't reported.
+        if (gone && token) {
+          dropActiveSessionAndReload(token);
+          return;
+        }
+        reportError(error, { componentStack: errorInfo.componentStack });
+        this.setState({ phase: "fatal" });
+      });
+      return;
+    }
     reportError(error, { componentStack: errorInfo.componentStack });
     if (!isStaleBuildError(error) || this.recovering) return;
     this.recovering = true;
@@ -100,14 +126,14 @@ class ErrorBoundary extends Component<
     // Rendered outside the token cascade (getContentTokens is spread onto
     // <main>), so var(--c-*) would not resolve here — these two states use
     // colors that read on either theme, per the detached-component pattern.
-    if (phase === "recovering") {
+    if (phase === "recovering" || phase === "checking") {
       return (
         <div
           className="flex flex-col items-center justify-center gap-3"
           style={{ height: "100dvh", color: "#8A8F98" }}
         >
           <Disc3 size={28} className="disc-spinner" />
-          <p style={{ fontSize: 14, fontWeight: 500 }}>Updating</p>
+          <p style={{ fontSize: 14, fontWeight: 500 }}>{phase === "checking" ? "Loading" : "Updating"}</p>
         </div>
       );
     }
