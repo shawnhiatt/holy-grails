@@ -1166,11 +1166,25 @@ export const syncFollowedUser = action({
     }
 
     let wants: ProxyWant[] = [];
+    // False when the wantlist fetch failed for any reason other than privacy.
+    // The cached wantlist is then left alone: replacing it with the empty
+    // list a failed fetch leaves behind wiped the followed user's wantlist on
+    // any Discogs hiccup, and collection_synced_at below meant nothing
+    // retried it for 24h.
+    let wantsFetched = true;
     if (!isPrivate) {
       try {
         wants = await fetchWantlistInternal(creds, args.username);
-      } catch {
-        // Wantlist may be unavailable — collection alone is still useful
+      } catch (e: any) {
+        // A 403 is a private wantlist: empty is the truth, so it still
+        // replaces the cache. Anything else keeps what we already have.
+        if (!String(e?.message ?? "").includes("403")) {
+          wantsFetched = false;
+          console.warn(
+            `[Discogs] Wantlist fetch failed for followed @${args.username}; keeping cached wantlist:`,
+            e
+          );
+        }
       }
     }
 
@@ -1223,18 +1237,20 @@ export const syncFollowedUser = action({
         items: albums.slice(i, i + CHUNK).map(slim),
       });
     }
-    await ctx.runMutation(internal.followed_items.clearForUser, {
-      follower_username: creds.username,
-      followed_username: args.username,
-      kind: "want",
-    });
-    for (let i = 0; i < wants.length; i += CHUNK) {
-      await ctx.runMutation(internal.followed_items.appendItems, {
+    if (wantsFetched) {
+      await ctx.runMutation(internal.followed_items.clearForUser, {
         follower_username: creds.username,
         followed_username: args.username,
         kind: "want",
-        items: wants.slice(i, i + CHUNK).map(slim),
       });
+      for (let i = 0; i < wants.length; i += CHUNK) {
+        await ctx.runMutation(internal.followed_items.appendItems, {
+          follower_username: creds.username,
+          followed_username: args.username,
+          kind: "want",
+          items: wants.slice(i, i + CHUNK).map(slim),
+        });
+      }
     }
 
     await ctx.runMutation(internal.following.updateSyncMeta, {
