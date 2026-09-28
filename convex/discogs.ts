@@ -13,6 +13,7 @@ import {
   wantSignature,
 } from "./cacheRows";
 import { resolveUserProfileFetch } from "./userProfileOutcome";
+import { rateLimitLogEnabled, rateLimitLogLine } from "./rateLimitLog";
 
 // ─── Config ───
 
@@ -117,6 +118,19 @@ async function discogsFetch(
     };
     if (body) headers["Content-Type"] = "application/json";
     const res = await fetch(url, { method, headers, body });
+    // Temporary M3 instrumentation (see rateLimitLog.ts); off unless the
+    // HG_RATELIMIT_LOG env var is set on the deployment.
+    if (rateLimitLogEnabled(process.env.HG_RATELIMIT_LOG)) {
+      console.log(
+        rateLimitLogLine({
+          method,
+          url,
+          status: res.status,
+          tokenFingerprint: tokenFingerprint(accessToken),
+          headers: res.headers,
+        })
+      );
+    }
     const remaining = Number(res.headers.get("X-Discogs-Ratelimit-Remaining"));
     if (Number.isFinite(remaining)) rateLimitRemaining = remaining;
     if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
@@ -131,6 +145,14 @@ async function discogsFetch(
     );
     await sleep(waitMs);
   }
+}
+
+/**
+ * A short, non-reversible label for a token, so log lines can tell two users'
+ * requests apart without writing any part of an OAuth secret to the logs.
+ */
+function tokenFingerprint(accessToken: string): string {
+  return crypto.createHash("sha256").update(accessToken).digest("hex").slice(0, 8);
 }
 
 function sleep(ms: number): Promise<void> {
