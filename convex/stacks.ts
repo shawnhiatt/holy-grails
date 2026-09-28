@@ -93,7 +93,12 @@ export const update = mutation({
 
     const updates: Record<string, unknown> = { last_modified: Date.now() };
     if (args.name !== undefined) updates.name = args.name;
-    if (args.album_ids !== undefined) updates.album_ids = args.album_ids;
+    // An auto session's membership is derived from its rule and never stored
+    // (see create). The client refuses to hand-add to one, but this is the
+    // server-side backstop: album_ids sent for an auto session are ignored
+    // rather than written as a stale second source of truth. freeze is the
+    // one path that turns an auto session into stored ids.
+    if (args.album_ids !== undefined && existing.kind !== "auto") updates.album_ids = args.album_ids;
     if (args.rule !== undefined) updates.rule = args.rule;
     if (args.excluded_ids !== undefined) updates.excluded_ids = args.excluded_ids;
     if (args.name_generated !== undefined) updates.name_generated = args.name_generated;
