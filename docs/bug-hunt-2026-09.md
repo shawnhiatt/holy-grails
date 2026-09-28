@@ -38,11 +38,43 @@ to both deployments before the Vercel push.
 | M6 play history never reconciles | Fixed | `1d4f02c` |
 | M7 play writes fail silently | Fixed | `88062c4` |
 | M3 global rate-limit counter | **Open** | needs a live check (below) |
-| M10 manual sync races the background probe | Open | |
-| Low table | Open | |
+| M10 manual sync races the background probe | Fixed | `afc2228` |
+| L1 UTC date math in insights and presets | Fixed (client); rule engine kept UTC for share parity | `ef409d2` |
+| L2 dead `marketValue` rule field, full scan in `getShared` | Fixed (scan removed) | `03248c3` |
+| L3 bug-report diagnostics, rate-limit read, screenshot ownership | Fixed | `db3082f` |
+| L4 recent searches uncapped server-side | Fixed | `a1b90bd` |
+| L5 `stacks.update` writes `album_ids` onto auto sessions | Fixed | `b38cc1c` |
+| L6 stale folder 404 treated as removed | Fixed | `e9f674b` |
+| L7 custom-field diff by index | Fixed | `b301db7` |
+| L8 cache-write failures are console-only | Fixed | `5f177a6`, `f0c06c0` |
+| L9 token revoked mid-session | Fixed | `4420c9b` |
+| L10 pagination shape unchecked | Fixed | `48490ea` |
+| L11 `recoverFromStaleBuild` not re-entrant | Fixed | `f07de7c` |
 
 #192 was squash-merged as `eca2faf`, so its individual commit hashes are only
-reachable through the PR.
+reachable through the PR. The same goes for the M2 to M7 hashes (#193) and the
+M10 and Low hashes (this batch's PR) once they are squash-merged.
+
+Notes on the last batch:
+
+- **L1** fixed the client surfaces (the identity block's recent-adds delta and
+  the Recent pickups preset). The rule engine's `dateAdded` comparisons keep
+  their UTC parse on purpose: `stacks.getShared` evaluates the same rule
+  server-side, where the viewer's timezone is unknown, so the owner and a share
+  viewer would otherwise disagree about which releases a date rule matches.
+- **L2** removed the unindexed `market_values` scan from the public `getShared`.
+  The field stays in the engine as an unrecognized-on-share condition; nothing
+  can build it today.
+- **L3** adds a `by_screenshot` index on `bug_reports`, so it is a schema change.
+- **L8** toasts "Discogs updated. Sync to refresh." The Purge Cut batch loop
+  and `rateAlbum` were left alone: the loop would toast once per release.
+- **L9** keys on the `[CONVEX Q(fn)]` prefix, which survives prod's message
+  redaction, then asks the server whether the token is really gone before
+  signing anyone out. See `lib/session-check.ts`.
+- **L11** is unreachable today (one ErrorBoundary); fixed for correctness.
+- **M10:** a caller that joins an in-flight sync gets that run's result, but the
+  first caller's options win (a background run joined by Sync Now still reports
+  real counts to the Sync Now toast).
 
 Found while writing H5's round-trip test: Convex returns stored objects with
 their keys sorted, so the JSON signature of any row carrying custom fields
