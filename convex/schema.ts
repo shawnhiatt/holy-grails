@@ -328,6 +328,14 @@ export default defineSchema({
     .index("by_username", ["discogs_username"])
     .index("by_status", ["status"]),
 
+  // One row per cover scan that reached the Claude API — the rolling hourly
+  // budget for vision.identifyCover (see coverScans.ts). Rows older than the
+  // window are pruned as new scans are recorded.
+  cover_scans: defineTable({
+    discogs_username: v.string(),
+    at: v.number(),
+  }).index("by_username_at", ["discogs_username", "at"]),
+
   following_feed: defineTable({
     follower_username: v.string(),
     followed_username: v.string(),

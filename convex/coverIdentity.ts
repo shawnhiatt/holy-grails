@@ -62,3 +62,20 @@ export function parseCoverIdentity(raw: unknown): CoverIdentity | null {
   if (artist.length > MAX_FIELD_LENGTH || title.length > MAX_FIELD_LENGTH) return null;
   return { artist, title };
 }
+
+/**
+ * Cover scans are paid Claude vision calls on one shared API key, so each
+ * user gets a rolling hourly budget (enforced in coverScans.ts). Sixty covers
+ * an hour is a generous pass through a stack of new pickups, retries
+ * included, while a scripted loop hits the ceiling in a minute.
+ */
+export const COVER_SCAN_LIMIT_PER_HOUR = 60;
+export const COVER_SCAN_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * Largest accepted base64 image. The client sends a ≤1280px JPEG at quality
+ * 0.85, typically a few hundred KB (~1.33× that as base64). 3M characters
+ * leaves ample headroom for a busy cover and stays under the API's per-image
+ * limit, and an oversized payload is refused before any paid call.
+ */
+export const COVER_IMAGE_MAX_BASE64 = 3_000_000;
