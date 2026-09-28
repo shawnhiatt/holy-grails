@@ -34,6 +34,7 @@ import {
   removeAccount,
   nextAccount,
 } from "../utils/accounts";
+import { scopeAlbums } from "../utils/format-scope";
 
 // --- HMR-safe context singleton ---
 // During HMR, this module can be re-evaluated, creating a new context object.
@@ -100,6 +101,9 @@ interface AppState {
   wantViewMode: ViewMode;
   setWantViewMode: (v: ViewMode) => void;
   albums: Album[];
+  /** Unscoped collection — for rule evaluation and the Session Builder only.
+   *  Screens display `albums`, which honors format_scope. */
+  allAlbums: Album[];
   wants: WantItem[];
   stacks: Stack[];
   followedUsers: FollowedUser[];
@@ -515,6 +519,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Live progress doc written by the server-side sync loop (discogs.syncSelf)
   const convexSyncStatus = useQuery(api.syncStatus.get, authedArgs);
 
+  // Display-scoped collection. `albums` (state) is unscoped — every format,
+  // always — so session rule evaluation and the Session Builder agree with
+  // the server's share-link evaluation regardless of the owner's own
+  // format_scope preference (see the Session Builder / Formats sections in
+  // CLAUDE.md). Every other internal read of the collection, and the
+  // `albums` field this context exposes to screens, goes through this
+  // instead — it's what "scope is display-only" means in code.
+  const scopedAlbums = useMemo(
+    () => scopeAlbums(albums, formatScope),
+    [albums, formatScope]
+  );
+
   // Set once the boot path has finished deciding (cache hydrated, or the
   // first-ever sync settled). Distinct from albums.length so a user whose
   // collection is empty — or contains no vinyl at all — exits the loading
@@ -530,7 +546,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // existing user — before discogsUsername is known.
   const isRestoringSession = !discogsUsername && !!sessionToken && convexLatestUser === undefined;
   const isConvexUserGone = !sessionToken;
-  const isAuthLoading = (!!discogsUsername || isRestoringSession) && albums.length === 0 && !initialLoadDone && !isConvexUserGone && !syncFailed;
+  const isAuthLoading = (!!discogsUsername || isRestoringSession) && scopedAlbums.length === 0 && !initialLoadDone && !isConvexUserGone && !syncFailed;
 
   // ── Convex mutations ──
   const upsertPurgeTagMut = useMutation(api.purge_tags.upsert);
@@ -719,10 +735,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!discogsUsername) return;
     if (convexCollection === undefined) return; // subscription not resolved
     const tagMap = new Map((convexPurgeTags ?? []).map((t) => [t.release_id, t.tag as PurgeTag]));
+    // UNSCOPED: this `albums` state is the full collection, every format.
+    // format_scope is a display-only concern applied downstream via the
+    // `scopedAlbums` memo below — session rule evaluation (ruleAlbums /
+    // stackMembership / previewStackRule) and the Session Builder read this
+    // raw state directly so an owner and a share-link viewer (which
+    // evaluates rules over the sharer's full collection server-side)
+    // evaluate the same pool regardless of the owner's own display scope.
     const derived: Album[] = convexCollection
-      // All-formats: the data layer stores every format; scope is display-only.
-      // "all" (default) is a no-op; "vinyl" reproduces the old behavior.
-      .filter((row) => formatScope !== "vinyl" || mediaType(row.format) === "Vinyl")
       .map((row) => ({
         id: String(row.releaseId),
         release_id: row.releaseId,
@@ -759,14 +779,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAlbums((prev) => {
       // Never clobber a populated collection with an empty cache — protects
       // the window where a first-ever sync populated local state but the
-      // cache write hasn't landed yet. Tested against the RAW cache, not the
-      // filtered `derived` array: a legitimately empty filtered result (e.g.
-      // format_scope narrowed to Vinyl and the whole collection is CDs) must
-      // still clear the screen, not get mistaken for the race.
+      // cache write hasn't landed yet. Tested against the raw cache (see the
+      // H4 fix) rather than a filtered derive — `derived` carries no filter
+      // of its own any more, but the guard stays phrased this way since it's
+      // the raw cache that is authoritative.
       if (convexCollection.length === 0 && prev.length > 0) return prev;
       return derived;
     });
-  }, [convexCollection, convexPurgeTags, discogsUsername, formatScope]);
+  }, [convexCollection, convexPurgeTags, discogsUsername]);
 
   useEffect(() => {
     if (!discogsUsername) return;
@@ -1198,8 +1218,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Derived state ──
 
   const selectedAlbum = useMemo(
-    () => albums.find((a) => a.id === selectedAlbumId) || null,
-    [albums, selectedAlbumId]
+    () => scopedAlbums.find((a) => a.id === selectedAlbumId) || null,
+    [scopedAlbums, selectedAlbumId]
   );
 
   // Search state and collection filtering/sorting live in the screens that
@@ -1248,7 +1268,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   const rateAlbum = useCallback(async (albumId: string, rating: number): Promise<void> => {
     if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
-    const album = albums.find((a) => a.id === albumId);
+    const album = scopedAlbums.find((a) => a.id === albumId);
     if (!album) throw new Error("Album not found");
 
     await proxyUpdateInstance({
@@ -1270,7 +1290,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       releaseId: album.release_id,
       rating,
     }).catch((e) => console.warn("[Convex] Rating cache write failed:", e));
-  }, [albums, sessionToken, discogsUsername, proxyUpdateInstance, updateInstanceMut]);
+  }, [scopedAlbums, sessionToken, discogsUsername, proxyUpdateInstance, updateInstanceMut]);
 
   const updateAlbum = useCallback((albumId: string, fields: Partial<Album>) => {
     setAlbums((prev) =>
@@ -1453,7 +1473,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const removeFromCollection = useCallback(async (albumId: string): Promise<void> => {
     if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
-    const album = albums.find(a => a.id === albumId);
+    const album = scopedAlbums.find(a => a.id === albumId);
     if (!album) throw new Error("Album not found");
     await proxyRemoveFromCollection({
       sessionToken,
@@ -1465,7 +1485,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAlbums(prev => prev.filter(a => a.id !== albumId));
     removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
       .catch(e => console.warn("[Convex] Collection remove failed:", e));
-  }, [sessionToken, discogsUsername, albums, proxyRemoveFromCollection, removeCollectionItemMut]);
+  }, [sessionToken, discogsUsername, scopedAlbums, proxyRemoveFromCollection, removeCollectionItemMut]);
 
   const removeFromWantList = useCallback(async (releaseId: string | number): Promise<void> => {
     const rid = Number(releaseId);
@@ -1501,12 +1521,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const isInCollection = useCallback((releaseId: string | number, masterId?: number) => {
     const rid = Number(releaseId);
-    if (albums.some((a) => Number(a.release_id) === rid)) return true;
+    if (scopedAlbums.some((a) => Number(a.release_id) === rid)) return true;
     if (masterId && masterId > 0) {
-      return albums.some((a) => a.master_id && a.master_id === masterId);
+      return scopedAlbums.some((a) => a.master_id && a.master_id === masterId);
     }
     return false;
-  }, [albums]);
+  }, [scopedAlbums]);
 
   const dismissCrossover = useCallback((releaseId: number) => {
     setCollectionCrossoverQueue((prev) => prev.filter((w) => w.release_id !== releaseId));
@@ -2033,7 +2053,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const executePurgeCut = useCallback(async () => {
     if (!sessionToken || !discogsUsername || isSyncing) return;
 
-    const toDelete = albums.filter((a) => a.purgeTag === "cut");
+    const toDelete = scopedAlbums.filter((a) => a.purgeTag === "cut");
     if (toDelete.length === 0) return;
 
     setPurgeProgress({ running: true, current: 0, total: toDelete.length, failed: [] });
@@ -2077,7 +2097,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setScreen("crate");
     syncFromDiscogs().catch((err) => console.error("[PurgeCut] Re-sync failed:", err));
-  }, [sessionToken, discogsUsername, isSyncing, albums, deletePurgeTag, setScreen, syncFromDiscogs, proxyRemoveFromCollection, removeCollectionItemMut]);
+  }, [sessionToken, discogsUsername, isSyncing, scopedAlbums, deletePurgeTag, setScreen, syncFromDiscogs, proxyRemoveFromCollection, removeCollectionItemMut]);
 
   // ── OAuth login ──
 
@@ -2744,7 +2764,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setViewMode,
       wantViewMode,
       setWantViewMode,
-      albums,
+      albums: scopedAlbums,
+      allAlbums: albums,
       wants,
       stacks,
       followedUsers,
@@ -2921,7 +2942,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setOnUnfollowUser,
     }),
     [
-      screen, setScreen, viewMode, wantViewMode, albums, wants, stacks, followedUsers,
+      screen, setScreen, viewMode, wantViewMode, scopedAlbums, albums, wants, stacks, followedUsers,
       addFollowedUser, refreshFollowedUser, removeFollowedUser,
       selectedAlbumId, selectedAlbum,
       activeFolders, sortOption,
