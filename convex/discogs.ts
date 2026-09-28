@@ -5,7 +5,13 @@ import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import crypto from "crypto";
 import { MARKET_STALE_MS, MARKET_BATCH_SIZE, MARKET_CURRENCY } from "./marketValue";
-import { toCollectionRow, toWantRow } from "./cacheRows";
+import {
+  albumSignature,
+  syncCacheInChunks,
+  toCollectionRow,
+  toWantRow,
+  wantSignature,
+} from "./cacheRows";
 import { resolveUserProfileFetch } from "./userProfileOutcome";
 
 // ─── Config ───
@@ -991,16 +997,27 @@ export const syncSelf = action({
 
       await setStatus("caching");
       // Skip the diff write entirely when the collection is private/forbidden —
-      // applyDiff with an empty array would delete any existing cached rows.
+      // an empty fetch would delete every cached row.
       let collDiff: { added: number; removed: number; updated: number } = {
         added: 0,
         removed: 0,
         updated: 0,
       };
       if (!collectionPrivate)
-        collDiff = await ctx.runMutation(api.collection.applyDiff, {
-          sessionToken: args.sessionToken,
-          albums: albums.map(toCollectionRow),
+        collDiff = await syncCacheInChunks({
+          incoming: albums.map(toCollectionRow),
+          keyOf: (row) => row.releaseId,
+          signatureOf: albumSignature,
+          readPage: (cursor) =>
+            ctx.runQuery(internal.collection.syncSignaturesPage, {
+              username: creds.username,
+              cursor,
+            }),
+          writeChunk: (chunk) =>
+            ctx.runMutation(internal.collection.applySyncChunk, {
+              username: creds.username,
+              ...chunk,
+            }),
         });
 
       // Wantlist — same private/forbidden handling as the collection: a
@@ -1031,9 +1048,20 @@ export const syncSelf = action({
         updated: 0,
       };
       if (!wantlistPrivate)
-        wantDiff = await ctx.runMutation(api.wantlist.applyDiff, {
-          sessionToken: args.sessionToken,
-          items: wants.map(toWantRow),
+        wantDiff = await syncCacheInChunks({
+          incoming: wants.map(toWantRow),
+          keyOf: (row) => row.release_id,
+          signatureOf: wantSignature,
+          readPage: (cursor) =>
+            ctx.runQuery(internal.wantlist.syncSignaturesPage, {
+              username: creds.username,
+              cursor,
+            }),
+          writeChunk: (chunk) =>
+            ctx.runMutation(internal.wantlist.applySyncChunk, {
+              username: creds.username,
+              ...chunk,
+            }),
         });
 
       // Wantlist items that are now in the collection — drives the

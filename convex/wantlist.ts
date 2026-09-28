@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
-import { wantRowFields } from "./cacheRows";
+import { wantRowFields, wantSignature } from "./cacheRows";
 
 export const getByUsername = query({
   args: { sessionToken: v.string() },
@@ -62,95 +62,64 @@ export const replaceAll = mutation({
   },
 });
 
-type WantInput = {
-  release_id: number;
-  master_id?: number;
-  title: string;
-  artist: string;
-  year: number;
-  cover: string;
-  thumb?: string;
-  label: string;
-  format?: string;
-  genres?: string[];
-  styles?: string[];
-  discCount?: number;
-  artistIds?: number[];
-  dateAdded?: string;
-  priority: boolean;
-};
-
-function wantSignature(w: WantInput | Record<string, unknown>): string {
-  return JSON.stringify([
-    (w as WantInput).master_id ?? null,
-    (w as WantInput).title,
-    (w as WantInput).artist,
-    (w as WantInput).year,
-    (w as WantInput).cover,
-    (w as WantInput).thumb ?? null,
-    (w as WantInput).label,
-    (w as WantInput).format ?? null,
-    // In the signature so already-cached rows backfill: without these,
-    // applyDiff sees an unchanged row and never patches the new fields in.
-    (w as WantInput).genres ?? null,
-    (w as WantInput).styles ?? null,
-    (w as WantInput).discCount ?? null,
-    (w as WantInput).artistIds ?? null,
-    (w as WantInput).dateAdded ?? null,
-    (w as WantInput).priority,
-  ]);
-}
+/** Rows per page when the sync reads the cache's signatures. */
+const SIGNATURE_PAGE_SIZE = 500;
 
 /**
- * Incremental wantlist sync write — same insert / patch / delete reconciliation
- * as collection.applyDiff, keyed on release_id. Avoids the empty-state flash and
- * write churn of replaceAll during a background sync.
+ * The sync's read of the cache — same paged (id, release_id, signature) read
+ * as collection.syncSignaturesPage. Internal: the username comes from the
+ * action's own credential lookup.
  */
-export const applyDiff = mutation({
+export const syncSignaturesPage = internalQuery({
+  args: { username: v.string(), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("wantlist")
+      .withIndex("by_username", (q) => q.eq("discogs_username", args.username))
+      .paginate({ numItems: SIGNATURE_PAGE_SIZE, cursor: args.cursor });
+    return {
+      page: result.page.map((row) => ({
+        id: row._id,
+        key: row.release_id,
+        signature: wantSignature(row),
+      })),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
+  },
+});
+
+/** Apply one chunk of a planned wantlist sync diff — same re-checks as
+ *  collection.applySyncChunk. */
+export const applySyncChunk = internalMutation({
   args: {
-    sessionToken: v.string(),
-    items: v.array(
-      v.object(wantRowFields)
-    ),
+    username: v.string(),
+    inserts: v.array(v.object(wantRowFields)),
+    patches: v.array(v.object({ id: v.id("wantlist"), row: v.object(wantRowFields) })),
+    deletes: v.array(v.id("wantlist")),
   },
   handler: async (ctx, args) => {
-    const user = await authenticateUser(ctx, args.sessionToken);
-    const existing = await ctx.db
-      .query("wantlist")
-      .withIndex("by_username", (q) =>
-        q.eq("discogs_username", user.discogs_username)
-      )
-      .collect();
+    const upsert = async (row: (typeof args.inserts)[number]) => {
+      const existing = await ctx.db
+        .query("wantlist")
+        .withIndex("by_username_release", (q) =>
+          q.eq("discogs_username", args.username).eq("release_id", row.release_id)
+        )
+        .first();
+      if (existing) await ctx.db.patch(existing._id, row);
+      else await ctx.db.insert("wantlist", { discogs_username: args.username, ...row });
+    };
 
-    const existingByRelease = new Map(existing.map((row) => [row.release_id, row]));
-    const incomingIds = new Set<number>();
-    let added = 0;
-    let removed = 0;
-    let updated = 0;
-
-    for (const item of args.items) {
-      incomingIds.add(item.release_id);
-      const row = existingByRelease.get(item.release_id);
-      if (!row) {
-        await ctx.db.insert("wantlist", {
-          discogs_username: user.discogs_username,
-          ...item,
-        });
-        added++;
-      } else if (wantSignature(row as unknown as WantInput) !== wantSignature(item)) {
-        await ctx.db.patch(row._id, item);
-        updated++;
-      }
+    for (const row of args.inserts) await upsert(row);
+    for (const { id, row } of args.patches) {
+      const existing = await ctx.db.get(id);
+      if (existing && existing.discogs_username === args.username) await ctx.db.patch(id, row);
+      else await upsert(row);
     }
-
-    for (const row of existing) {
-      if (!incomingIds.has(row.release_id)) {
-        await ctx.db.delete(row._id);
-        removed++;
-      }
+    for (const id of args.deletes) {
+      const existing = await ctx.db.get(id);
+      if (existing && existing.discogs_username === args.username) await ctx.db.delete(id);
     }
-
-    return { added, removed, updated };
   },
 });
 

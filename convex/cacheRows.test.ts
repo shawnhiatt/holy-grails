@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  chunkCacheDiff,
   collectionRowFields,
+  planCacheDiff,
   toCollectionRow,
   toWantRow,
   wantRowFields,
@@ -90,5 +92,69 @@ describe("toWantRow", () => {
     const row = toWantRow({ ...fullWant, thumb: "", format: "" });
     expect(row.thumb).toBeUndefined();
     expect(row.format).toBeUndefined();
+  });
+});
+
+describe("planCacheDiff", () => {
+  type Row = { key: number; v: string };
+  const keyOf = (r: Row) => r.key;
+  const sigOf = (r: Row) => r.v;
+  const cached = (id: string, key: number, signature: string) => ({ id, key, signature });
+
+  it("inserts new keys, patches changed ones, skips unchanged, deletes missing", () => {
+    const plan = planCacheDiff(
+      [cached("a", 1, "same"), cached("b", 2, "old"), cached("c", 3, "gone")],
+      [
+        { key: 1, v: "same" },
+        { key: 2, v: "new" },
+        { key: 4, v: "fresh" },
+      ],
+      keyOf,
+      sigOf
+    );
+    expect(plan.inserts).toEqual([{ key: 4, v: "fresh" }]);
+    expect(plan.patches).toEqual([{ id: "b", row: { key: 2, v: "new" } }]);
+    expect(plan.deletes).toEqual(["c"]);
+  });
+
+  it("deletes duplicate cached rows for one key, keeping the first", () => {
+    const plan = planCacheDiff(
+      [cached("a", 1, "x"), cached("dup", 1, "x")],
+      [{ key: 1, v: "x" }],
+      keyOf,
+      sigOf
+    );
+    expect(plan).toEqual({ inserts: [], patches: [], deletes: ["dup"] });
+  });
+
+  it("keeps the first of two incoming rows with the same key", () => {
+    const plan = planCacheDiff<string, Row>([], [{ key: 1, v: "first" }, { key: 1, v: "second" }], keyOf, sigOf);
+    expect(plan.inserts).toEqual([{ key: 1, v: "first" }]);
+  });
+
+  it("an empty fetch plans deleting everything (callers must skip a failed fetch)", () => {
+    const plan = planCacheDiff([cached("a", 1, "x")], [] as Row[], keyOf, sigOf);
+    expect(plan.deletes).toEqual(["a"]);
+  });
+});
+
+describe("chunkCacheDiff", () => {
+  it("bounds every chunk and puts every upsert before any delete", () => {
+    const plan = {
+      inserts: Array.from({ length: 5 }, (_, i) => ({ n: i })),
+      patches: Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, row: { n: 100 + i } })),
+      deletes: ["d1", "d2", "d3"],
+    };
+    const chunks = chunkCacheDiff(plan, 3, 2);
+    expect(chunks.map((c) => c.inserts.length + c.patches.length + c.deletes.length)).toEqual([3, 3, 2, 2, 1]);
+    const firstDelete = chunks.findIndex((c) => c.deletes.length > 0);
+    expect(chunks.slice(firstDelete).every((c) => c.inserts.length + c.patches.length === 0)).toBe(true);
+    expect(chunks.flatMap((c) => c.inserts)).toEqual(plan.inserts);
+    expect(chunks.flatMap((c) => c.patches)).toEqual(plan.patches);
+    expect(chunks.flatMap((c) => c.deletes)).toEqual(plan.deletes);
+  });
+
+  it("an empty plan writes nothing", () => {
+    expect(chunkCacheDiff({ inserts: [], patches: [], deletes: [] })).toEqual([]);
   });
 });
