@@ -20,30 +20,51 @@ to both deployments before the Vercel push.
 
 ## Fix status
 
-| Finding | Status | Commit |
+| Finding | Status | Where |
 |---|---|---|
-| C1 collection free data never synced | Fixed | `aad03ff` |
-| H1 OAuth callback not validated | Fixed | `ebdebb0` |
-| H2 profile errors reported as success | Fixed | `3a62f8f` |
-| H4 empty-cache guard eats real empties | Fixed | `7519d9d` |
-| H3 format scope leaks into sessions | Fixed | `a098f7d` |
-| H5 unchunked sync write | Fixed | `b2be80c` |
-| **New:** custom-field rows re-patched every sync | Fixed with H5 | `b2be80c` |
-| M1 followed wantlist wiped on transient error | Fixed | `a62aa74` |
-| M8 added-old leads with undated releases | Fixed | `8037ac8` |
-| M9 reversed year bounds match nothing | Fixed | `b3d16e1` |
+| C1 collection free data never synced | Fixed | #192 |
+| H1 OAuth callback not validated | Fixed | #192 |
+| H2 profile errors reported as success | Fixed | #192 |
+| H4 empty-cache guard eats real empties | Fixed | #192 |
+| H3 format scope leaks into sessions | Fixed | #192 |
+| H5 unchunked sync write | Fixed | #192 |
+| **New:** custom-field rows re-patched every sync | Fixed with H5 | #192 |
+| M1 followed wantlist wiped on transient error | Fixed | #192 |
+| M8 added-old leads with undated releases | Fixed | #192 |
+| M9 reversed year bounds match nothing | Fixed | #192 |
+| M2 revoked token starves the market drip | Fixed | `c67d346` |
+| M4 cover scan has no rate limit or size cap | Fixed | `6134f6b` |
+| M5 album-detail save strands a folder move | Fixed | `8561e03` |
+| M6 play history never reconciles | Fixed | `1d4f02c` |
+| M7 play writes fail silently | Fixed | `88062c4` |
+| M3 global rate-limit counter | **Open** | needs a live check (below) |
+| M10 manual sync races the background probe | Open | |
+| Low table | Open | |
+
+#192 was squash-merged as `eca2faf`, so its individual commit hashes are only
+reachable through the PR.
 
 Found while writing H5's round-trip test: Convex returns stored objects with
 their keys sorted, so the JSON signature of any row carrying custom fields
 never matched the incoming row, and every such row was rewritten on every sync.
 Custom fields are now compared as positional tuples.
 
-All six fixes need `npx convex deploy` to both deployments except H3 and H4,
-which are client-only. H1 works without any env var (built-in origins); set
-`HG_ALLOWED_ORIGINS` only to allow another origin, such as a Vercel preview,
-and remember that setting it replaces the defaults.
+H1 works without any env var (built-in origins); set `HG_ALLOWED_ORIGINS` only
+to allow another origin, such as a Vercel preview, and remember that setting it
+replaces the defaults. M4 adds a table (`cover_scans`), so it is a schema
+change.
 
-The remaining Medium findings and all Low findings are open.
+**M3 is deliberately not changed yet.** The right fix depends on how Discogs
+budgets requests, and that could not be checked from here (the session's
+network policy blocks discogs.com). If Discogs throttles by source IP, as its
+docs are remembered to say, every user's requests from Convex share one budget.
+In that case today's single shared counter is close to right, a per-token
+counter would under-throttle, and the drip's "spread across tokens to protect
+each user's budget" premise is moot. If it throttles per token, the counter
+should be keyed by token. To check, log `X-Discogs-Ratelimit-Remaining` next to
+a short token prefix in `discogsFetch` for one sync after deploy. Two different
+users' requests seconds apart share one falling count if the budget is per IP,
+and show independent counts if it is per token.
 
 ---
 
