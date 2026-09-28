@@ -248,6 +248,15 @@ export function FollowingScreen() {
       // profile fills in reactively from the followed_items cache.
       const profile = await proxyFetchUserProfile({ sessionToken, username });
 
+      if (profile.degraded) {
+        // Couldn't reach Discogs to confirm the username exists — don't
+        // follow on a guess (see Bug H2: this used to "follow" typos during
+        // any Discogs hiccup).
+        setAddError("Couldn't reach Discogs. Try again.");
+        setAddProgress("");
+        return;
+      }
+
       const newUser: FollowedUser = {
         id: "f-" + Date.now(),
         username: profile.username,

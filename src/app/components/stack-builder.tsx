@@ -53,7 +53,11 @@ export function StackBuilder({
   onClose: () => void;
   onCreated: (stackId: string) => void;
 }) {
-  const { albums, lastPlayed, isDarkMode, createAutoStack, previewStackRule, sessionRuleDefaults } = useApp();
+  // allAlbums (unscoped) — presets, available fields, and rule preview must
+  // all agree with the server's share-link evaluation, which always runs
+  // over the sharer's full collection regardless of the owner's own
+  // format_scope preference. See "Formats (all-formats)" in CLAUDE.md.
+  const { allAlbums: albums, lastPlayed, isDarkMode, createAutoStack, previewStackRule, sessionRuleDefaults } = useApp();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [custom, setCustom] = useState(false);
 
@@ -246,7 +250,8 @@ function CountChip({ count, isDarkMode }: { count: number; isDarkMode: boolean }
    ═══════════════════════════════════════════════════════════ */
 
 function CustomRuleBuilder({ onCreated }: { onCreated: (stackId: string) => void }) {
-  const { albums, isDarkMode, createAutoStack, previewStackRule, sessionRuleDefaults } = useApp();
+  // allAlbums (unscoped) — see the note on the sibling StackBuilder component.
+  const { allAlbums: albums, isDarkMode, createAutoStack, previewStackRule, sessionRuleDefaults } = useApp();
   const [rule, setRule] = useState<StackRule>(() => emptyRule(sessionRuleDefaults));
   const [name, setName] = useState("");
   // The last title the generator produced. While `name` still equals it, the

@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { isAllowedCallbackUrl } from "./oauthCallback";
 
 const DISCOGS_BASE = "https://api.discogs.com";
 const USER_AGENT = "HolyGrails/1.0";
@@ -52,6 +53,12 @@ export const requestToken = action({
     callback_url: v.string(),
   },
   handler: async (_ctx, args) => {
+    // This action is public, so the callback must be pinned to our own
+    // origins — see oauthCallback.ts for the takeover this prevents.
+    if (!isAllowedCallbackUrl(args.callback_url)) {
+      throw new Error("Callback URL not allowed.");
+    }
+
     const consumerKey = getConsumerKey();
     const consumerSecret = getConsumerSecret();
     const timestamp = Math.floor(Date.now() / 1000).toString();

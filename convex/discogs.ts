@@ -5,6 +5,14 @@ import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import crypto from "crypto";
 import { MARKET_STALE_MS, MARKET_BATCH_SIZE, MARKET_CURRENCY } from "./marketValue";
+import {
+  albumSignature,
+  syncCacheInChunks,
+  toCollectionRow,
+  toWantRow,
+  wantSignature,
+} from "./cacheRows";
+import { resolveUserProfileFetch } from "./userProfileOutcome";
 
 // ─── Config ───
 
@@ -769,48 +777,24 @@ export const proxyFetchUserProfile = action({
       { sessionToken: args.sessionToken }
     );
     const url = `${BASE}/users/${encodeURIComponent(args.username)}`;
+
+    // Only a fetch-layer exception (a genuine network failure — the
+    // discogsFetch call itself throwing) may take the degraded path below.
+    // Any HTTP response, including error statuses, is handled outside this
+    // try/catch so a real Discogs error (404/500/503/403/429) always throws
+    // instead of being reported as success. See userProfileOutcome.ts.
+    let res: Response;
     try {
-      const res = await discogsFetch(
+      res = await discogsFetch(
         "GET",
         url,
         creds.access_token,
         creds.token_secret
       );
-      if (res.status === 404) {
-        throw new Error(
-          `User "${args.username}" not found on Discogs.`
-        );
-      }
-      if (!res.ok) {
-        throw new Error(
-          `Failed to fetch user profile (${res.status})`
-        );
-      }
-      const data = await res.json();
-      return {
-        username: data.username as string,
-        avatar: (data.avatar_url as string) || "",
-        profile: (data.profile as string) || "",
-        location: (data.location as string) || "",
-        registered: (data.registered as string) || "",
-        buyerRating: (data.buyer_rating as number) || 0,
-        buyerRatingStars: (data.buyer_rating_stars as number) || 0,
-        sellerRating: (data.seller_rating as number) || 0,
-        sellerRatingStars: (data.seller_rating_stars as number) || 0,
-        releasesContributed: (data.releases_contributed as number) || 0,
-        releasesRated: (data.releases_rated as number) || 0,
-        numLists: (data.num_lists as number) || 0,
-        rank: (data.rank as number) || 0,
-      };
-    } catch (err: any) {
-      if (
-        err instanceof Error &&
-        !err.message.includes("Failed to fetch")
-      ) {
-        throw err;
-      }
+    } catch (err) {
       console.warn(
-        "[Discogs] Profile fetch skipped (network unavailable)"
+        "[Discogs] Profile fetch skipped (network unavailable)",
+        err
       );
       return {
         username: args.username,
@@ -826,8 +810,32 @@ export const proxyFetchUserProfile = action({
         releasesRated: 0,
         numLists: 0,
         rank: 0,
+        degraded: true,
       };
     }
+
+    const outcome = resolveUserProfileFetch(res.status, res.ok, args.username);
+    if (outcome.kind !== "ok") {
+      throw new Error(outcome.message);
+    }
+
+    const data = await res.json();
+    return {
+      username: data.username as string,
+      avatar: (data.avatar_url as string) || "",
+      profile: (data.profile as string) || "",
+      location: (data.location as string) || "",
+      registered: (data.registered as string) || "",
+      buyerRating: (data.buyer_rating as number) || 0,
+      buyerRatingStars: (data.buyer_rating_stars as number) || 0,
+      sellerRating: (data.seller_rating as number) || 0,
+      sellerRatingStars: (data.seller_rating_stars as number) || 0,
+      releasesContributed: (data.releases_contributed as number) || 0,
+      releasesRated: (data.releases_rated as number) || 0,
+      numLists: (data.num_lists as number) || 0,
+      rank: (data.rank as number) || 0,
+      degraded: false,
+    };
   },
 });
 
@@ -989,35 +997,27 @@ export const syncSelf = action({
 
       await setStatus("caching");
       // Skip the diff write entirely when the collection is private/forbidden —
-      // applyDiff with an empty array would delete any existing cached rows.
+      // an empty fetch would delete every cached row.
       let collDiff: { added: number; removed: number; updated: number } = {
         added: 0,
         removed: 0,
         updated: 0,
       };
       if (!collectionPrivate)
-        collDiff = await ctx.runMutation(api.collection.applyDiff, {
-          sessionToken: args.sessionToken,
-          albums: albums.map((a) => ({
-            releaseId: a.release_id,
-            masterId: a.master_id || undefined,
-            instanceId: a.instance_id,
-            folderId: a.folder_id,
-            artist: a.artist,
-            title: a.title,
-            year: a.year,
-            thumb: a.thumb,
-            cover: a.cover,
-            folder: a.folder,
-            label: a.label,
-            catalogNumber: a.catalogNumber,
-            format: a.format,
-            mediaCondition: a.mediaCondition,
-            sleeveCondition: a.sleeveCondition,
-            notes: a.notes,
-            customFields: a.customFields,
-            dateAdded: a.dateAdded,
-          })),
+        collDiff = await syncCacheInChunks({
+          incoming: albums.map(toCollectionRow),
+          keyOf: (row) => row.releaseId,
+          signatureOf: albumSignature,
+          readPage: (cursor) =>
+            ctx.runQuery(internal.collection.syncSignaturesPage, {
+              username: creds.username,
+              cursor,
+            }),
+          writeChunk: (chunk) =>
+            ctx.runMutation(internal.collection.applySyncChunk, {
+              username: creds.username,
+              ...chunk,
+            }),
         });
 
       // Wantlist — same private/forbidden handling as the collection: a
@@ -1048,29 +1048,20 @@ export const syncSelf = action({
         updated: 0,
       };
       if (!wantlistPrivate)
-        wantDiff = await ctx.runMutation(api.wantlist.applyDiff, {
-          sessionToken: args.sessionToken,
-          items: wants.map((w) => ({
-            release_id: w.release_id,
-            master_id: w.master_id || undefined,
-            title: w.title,
-            artist: w.artist,
-            year: w.year,
-            cover: w.cover,
-            thumb: w.thumb || undefined,
-            label: w.label,
-            format: w.format || undefined,
-            // Free data + date added. These were mapped by
-            // fetchWantlistInternal but dropped by this projection, so they
-            // never reached the cache — the wantlist half of the free-data
-            // pass has been inert since it shipped.
-            genres: w.genres,
-            styles: w.styles,
-            discCount: w.discCount,
-            artistIds: w.artistIds,
-            dateAdded: w.dateAdded,
-            priority: w.priority,
-          })),
+        wantDiff = await syncCacheInChunks({
+          incoming: wants.map(toWantRow),
+          keyOf: (row) => row.release_id,
+          signatureOf: wantSignature,
+          readPage: (cursor) =>
+            ctx.runQuery(internal.wantlist.syncSignaturesPage, {
+              username: creds.username,
+              cursor,
+            }),
+          writeChunk: (chunk) =>
+            ctx.runMutation(internal.wantlist.applySyncChunk, {
+              username: creds.username,
+              ...chunk,
+            }),
         });
 
       // Wantlist items that are now in the collection — drives the
@@ -1175,11 +1166,25 @@ export const syncFollowedUser = action({
     }
 
     let wants: ProxyWant[] = [];
+    // False when the wantlist fetch failed for any reason other than privacy.
+    // The cached wantlist is then left alone: replacing it with the empty
+    // list a failed fetch leaves behind wiped the followed user's wantlist on
+    // any Discogs hiccup, and collection_synced_at below meant nothing
+    // retried it for 24h.
+    let wantsFetched = true;
     if (!isPrivate) {
       try {
         wants = await fetchWantlistInternal(creds, args.username);
-      } catch {
-        // Wantlist may be unavailable — collection alone is still useful
+      } catch (e: any) {
+        // A 403 is a private wantlist: empty is the truth, so it still
+        // replaces the cache. Anything else keeps what we already have.
+        if (!String(e?.message ?? "").includes("403")) {
+          wantsFetched = false;
+          console.warn(
+            `[Discogs] Wantlist fetch failed for followed @${args.username}; keeping cached wantlist:`,
+            e
+          );
+        }
       }
     }
 
@@ -1232,18 +1237,20 @@ export const syncFollowedUser = action({
         items: albums.slice(i, i + CHUNK).map(slim),
       });
     }
-    await ctx.runMutation(internal.followed_items.clearForUser, {
-      follower_username: creds.username,
-      followed_username: args.username,
-      kind: "want",
-    });
-    for (let i = 0; i < wants.length; i += CHUNK) {
-      await ctx.runMutation(internal.followed_items.appendItems, {
+    if (wantsFetched) {
+      await ctx.runMutation(internal.followed_items.clearForUser, {
         follower_username: creds.username,
         followed_username: args.username,
         kind: "want",
-        items: wants.slice(i, i + CHUNK).map(slim),
       });
+      for (let i = 0; i < wants.length; i += CHUNK) {
+        await ctx.runMutation(internal.followed_items.appendItems, {
+          follower_username: creds.username,
+          followed_username: args.username,
+          kind: "want",
+          items: wants.slice(i, i + CHUNK).map(slim),
+        });
+      }
     }
 
     await ctx.runMutation(internal.following.updateSyncMeta, {
