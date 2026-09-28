@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
+import { collectionRowFields } from "./cacheRows";
 
 export const getByUsername = query({
   args: { sessionToken: v.string() },
@@ -86,35 +87,7 @@ export const replaceAll = mutation({
   },
 });
 
-const albumFields = {
-  releaseId: v.number(),
-  masterId: v.optional(v.number()),
-  instanceId: v.number(),
-  folderId: v.optional(v.number()),
-  artist: v.string(),
-  title: v.string(),
-  year: v.number(),
-  thumb: v.optional(v.string()),
-  cover: v.string(),
-  folder: v.string(),
-  label: v.string(),
-  catalogNumber: v.string(),
-  format: v.string(),
-  mediaCondition: v.string(),
-  sleeveCondition: v.string(),
-  notes: v.string(),
-  customFields: v.optional(
-    v.array(v.object({
-      name: v.string(),
-      value: v.string(),
-      fieldId: v.optional(v.number()),
-      type: v.optional(v.string()),
-      options: v.optional(v.array(v.string())),
-    }))
-  ),
-  dateAdded: v.string(),
-  ...freeDataFields,
-};
+const albumFields = collectionRowFields;
 
 // Fields compared to decide whether an existing row needs patching during a
 // diff sync. Identity/display fields are included; releaseId is the key.

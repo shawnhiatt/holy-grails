@@ -5,6 +5,7 @@ import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import crypto from "crypto";
 import { MARKET_STALE_MS, MARKET_BATCH_SIZE, MARKET_CURRENCY } from "./marketValue";
+import { toCollectionRow, toWantRow } from "./cacheRows";
 
 // ─── Config ───
 
@@ -998,26 +999,7 @@ export const syncSelf = action({
       if (!collectionPrivate)
         collDiff = await ctx.runMutation(api.collection.applyDiff, {
           sessionToken: args.sessionToken,
-          albums: albums.map((a) => ({
-            releaseId: a.release_id,
-            masterId: a.master_id || undefined,
-            instanceId: a.instance_id,
-            folderId: a.folder_id,
-            artist: a.artist,
-            title: a.title,
-            year: a.year,
-            thumb: a.thumb,
-            cover: a.cover,
-            folder: a.folder,
-            label: a.label,
-            catalogNumber: a.catalogNumber,
-            format: a.format,
-            mediaCondition: a.mediaCondition,
-            sleeveCondition: a.sleeveCondition,
-            notes: a.notes,
-            customFields: a.customFields,
-            dateAdded: a.dateAdded,
-          })),
+          albums: albums.map(toCollectionRow),
         });
 
       // Wantlist — same private/forbidden handling as the collection: a
@@ -1050,27 +1032,7 @@ export const syncSelf = action({
       if (!wantlistPrivate)
         wantDiff = await ctx.runMutation(api.wantlist.applyDiff, {
           sessionToken: args.sessionToken,
-          items: wants.map((w) => ({
-            release_id: w.release_id,
-            master_id: w.master_id || undefined,
-            title: w.title,
-            artist: w.artist,
-            year: w.year,
-            cover: w.cover,
-            thumb: w.thumb || undefined,
-            label: w.label,
-            format: w.format || undefined,
-            // Free data + date added. These were mapped by
-            // fetchWantlistInternal but dropped by this projection, so they
-            // never reached the cache — the wantlist half of the free-data
-            // pass has been inert since it shipped.
-            genres: w.genres,
-            styles: w.styles,
-            discCount: w.discCount,
-            artistIds: w.artistIds,
-            dateAdded: w.dateAdded,
-            priority: w.priority,
-          })),
+          items: wants.map(toWantRow),
         });
 
       // Wantlist items that are now in the collection — drives the

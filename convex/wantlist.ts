@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
+import { wantRowFields } from "./cacheRows";
 
 export const getByUsername = query({
   args: { sessionToken: v.string() },
@@ -36,19 +37,7 @@ export const replaceAll = mutation({
   args: {
     sessionToken: v.string(),
     items: v.array(
-      v.object({
-        release_id: v.number(),
-        master_id: v.optional(v.number()),
-        title: v.string(),
-        artist: v.string(),
-        year: v.number(),
-        cover: v.string(),
-        thumb: v.optional(v.string()),
-        label: v.string(),
-        format: v.optional(v.string()),
-        ...freeDataFields,
-        priority: v.boolean(),
-      })
+      v.object(wantRowFields)
     ),
   },
   handler: async (ctx, args) => {
@@ -121,19 +110,7 @@ export const applyDiff = mutation({
   args: {
     sessionToken: v.string(),
     items: v.array(
-      v.object({
-        release_id: v.number(),
-        master_id: v.optional(v.number()),
-        title: v.string(),
-        artist: v.string(),
-        year: v.number(),
-        cover: v.string(),
-        thumb: v.optional(v.string()),
-        label: v.string(),
-        format: v.optional(v.string()),
-        ...freeDataFields,
-        priority: v.boolean(),
-      })
+      v.object(wantRowFields)
     ),
   },
   handler: async (ctx, args) => {
