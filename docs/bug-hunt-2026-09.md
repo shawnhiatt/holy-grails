@@ -29,6 +29,9 @@ to both deployments before the Vercel push.
 | H3 format scope leaks into sessions | Fixed | `a098f7d` |
 | H5 unchunked sync write | Fixed | `b2be80c` |
 | **New:** custom-field rows re-patched every sync | Fixed with H5 | `b2be80c` |
+| M1 followed wantlist wiped on transient error | Fixed | `a62aa74` |
+| M8 added-old leads with undated releases | Fixed | `8037ac8` |
+| M9 reversed year bounds match nothing | Fixed | `b3d16e1` |
 
 Found while writing H5's round-trip test: Convex returns stored objects with
 their keys sorted, so the JSON signature of any row carrying custom fields
@@ -40,7 +43,7 @@ which are client-only. H1 works without any env var (built-in origins); set
 `HG_ALLOWED_ORIGINS` only to allow another origin, such as a Vercel preview,
 and remember that setting it replaces the defaults.
 
-Medium and Low findings are open.
+The remaining Medium findings and all Low findings are open.
 
 ---
 
