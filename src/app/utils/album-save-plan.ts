@@ -76,12 +76,21 @@ export function computeAlbumSavePlan(
     conditionOrNotesChanged = true;
   }
 
-  const origCustomFields = selectedAlbum.customFields || [];
+  // Diff by fieldId, not by array position. If a background sync lands while
+  // the edit sheet is open, the album's custom-field list can reorder or
+  // change length under the form — a positional diff would then compare an
+  // edited value against the WRONG original field and attach it to the wrong
+  // fieldId, writing to the wrong Discogs field. A field with no fieldId (or
+  // no counterpart in the original list) is skipped, exactly as before.
+  const origByFieldId = new Map<number, { value: string }>();
+  for (const f of selectedAlbum.customFields || []) {
+    if (f.fieldId != null) origByFieldId.set(f.fieldId, f);
+  }
   const changedCustomFields: ChangedCustomField[] = [];
-  for (let i = 0; i < editFields.customFields.length; i++) {
-    const edited = editFields.customFields[i];
-    const orig = origCustomFields[i];
-    if (orig && edited.value !== orig.value && edited.fieldId) {
+  for (const edited of editFields.customFields) {
+    if (!edited.fieldId) continue;
+    const orig = origByFieldId.get(edited.fieldId);
+    if (orig && edited.value !== orig.value) {
       changedCustomFields.push({ fieldId: edited.fieldId, value: edited.value });
     }
   }
