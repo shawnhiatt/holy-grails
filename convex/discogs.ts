@@ -1423,14 +1423,47 @@ export const proxyRemoveFromCollection = action({
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
     );
-    const url = `${BASE}/users/${encodeURIComponent(creds.username)}/collection/folders/${args.folderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
-    const res = await discogsFetch(
+    const user = encodeURIComponent(creds.username);
+    const instanceUrl = (folderId: number) =>
+      `${BASE}/users/${user}/collection/folders/${folderId}/releases/${args.releaseId}/instances/${args.instanceId}`;
+    let res = await discogsFetch(
       "DELETE",
-      url,
+      instanceUrl(args.folderId),
       creds.access_token,
       creds.token_secret
     );
-    if (res.status === 404) return;
+    if (res.status === 404) {
+      // A 404 means either "already gone" or "not in that folder" — the
+      // client's folder_id can be stale (moved on another device or on
+      // discogs.com). Treating every 404 as removed dropped a release from
+      // the app that was still in the collection. Look up where this copy
+      // actually lives: gone → done; moved → delete it from its real folder.
+      const lookup = await discogsFetch(
+        "GET",
+        `${BASE}/users/${user}/collection/releases/${args.releaseId}`,
+        creds.access_token,
+        creds.token_secret
+      );
+      if (lookup.status === 404) return;
+      if (!lookup.ok) {
+        throw new Error(`Failed to verify removal of release ${args.releaseId} (${lookup.status})`);
+      }
+      const data = await lookup.json();
+      const copy = (data?.releases ?? []).find(
+        (r: { instance_id?: number }) => r.instance_id === args.instanceId
+      ) as { folder_id?: number } | undefined;
+      if (!copy) return;
+      if (typeof copy.folder_id !== "number" || copy.folder_id === args.folderId) {
+        throw new Error(`Failed to remove release ${args.releaseId} from collection (404)`);
+      }
+      res = await discogsFetch(
+        "DELETE",
+        instanceUrl(copy.folder_id),
+        creds.access_token,
+        creds.token_secret
+      );
+      if (res.status === 404) return;
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(
