@@ -135,7 +135,7 @@ Users can sign into more than one Discogs account (e.g. a 12″ account and a 45
 New `auth_sessions` table (`session_token`, `discogs_username`, `created_at`) with `by_token`/`by_username` indexes. The `session_token`/`session_created_at` fields on `users` are legacy, honored read-only. The table is deliberately NOT named `sessions` — an undeclared legacy `sessions` table from before the Sessions→Stacks rename still holds old rows in the deployments, and declaring that name fails Convex schema validation. (The same collision is why the Sessions feature's own table is still named `stacks` — see the Sessions naming note in Data Architecture.)
 
 **Exempt from auth guards:**
-`convex/oauth.ts` functions (`requestToken`, `completeLogin`) are intentionally public — they are the OAuth handshake and must remain unauthenticated. `completeLogin` is safe because the identity it mints a session for comes from the Discogs token exchange itself, not from the caller.
+`convex/oauth.ts` functions (`requestToken`, `completeLogin`) are intentionally public — they are the OAuth handshake and must remain unauthenticated. Because `requestToken` is public, it only accepts a `callback_url` on an allowlisted origin (`oauthCallback.ts`, `HG_ALLOWED_ORIGINS`) — otherwise anyone could route a victim's verifier to their own URL and redeem it through `completeLogin`. `completeLogin` is safe because the identity it mints a session for comes from the Discogs token exchange itself, not from the caller.
 
 **`discogsAuth` removed from AppState.** Components that previously used `discogsAuth` to make Discogs API calls now get `sessionToken` from `useApp()` and pass it to Convex proxy actions instead.
 
@@ -196,6 +196,7 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 - `DISCOGS_CONSUMER_KEY` — set on both `adventurous-crow-499` (dev) and `unique-sturgeon-566` (prod)
 - `DISCOGS_CONSUMER_SECRET` — set on both deployments
 - `ANTHROPIC_API_KEY` — Claude API key for the cover scan (`vision.identifyCover`); set on both deployments. Optional in the sense that the app runs without it — cover scan just reports itself unconfigured.
+- `HG_ALLOWED_ORIGINS` — optional comma-separated origins Discogs may send a login back to (`{origin}/auth/callback`), checked by `oauth.requestToken` via `convex/oauthCallback.ts`. Unset = the built-in public origins (holygrails.app, www, holy-grails.vercel.app, localhost:1234). Setting it **replaces** those defaults, so list every origin you need (e.g. to allow a Vercel preview). Any other origin is rejected: an unchecked callback on this public action is an account takeover.
 - `HG_ADMIN_USERNAMES` — comma-separated Discogs usernames allowed to read the bug-report inbox (see Bug Reports). Optional and **fails closed**: unset means no admins and the inbox row never appears, so set it on both deployments or you won't see reports. Deliberately an env var, not a code constant — the repo may go public.
 
 Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (Settings > Environment Variables) or `npx convex env set KEY value`.
@@ -348,6 +349,7 @@ convex/                  # Convex backend functions and schema
   cacheRows.ts         # Cache row validators (collectionRowFields/wantRowFields) + the sync's projections into them (toCollectionRow/toWantRow). Only imports convex/values; cacheRows.test.ts holds each projection against its validator.
   albumFields.ts       # Pure, no Convex deps: mediaType() format classifier, hasRating, CONDITION_GRADES, conditionRank. Moved here from discogs-api.ts (which re-exports all of it, so every import site is unchanged) because session rules must evaluate identically on the client and in stacks.getShared, and Convex cannot import from src/. One implementation — never copy it back.
   stackRules.ts        # Pure session rule engine: StackRule types, evaluateStackRule, seededShuffle (re-exported by utils/shuffle.ts), rotationBucket. See the Session Builder section.
+  oauthCallback.ts     # Pure OAuth callback allowlist (HG_ALLOWED_ORIGINS, built-in defaults when unset) — used by oauth.requestToken
   admin.ts             # Pure admin allowlist (HG_ADMIN_USERNAMES) for the bug-report inbox — fails closed when unset
   authHelper.ts        # Central session-token auth guard — used by all guarded queries/mutations
   bugReports.ts        # Bug reports/ideas: submit + listMine (reporter), listAll/newCount/setStatus/remove (admin-gated), generateUploadUrl (screenshots), deleteReportsForUser (called by users.deleteAllUserData)
