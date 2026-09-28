@@ -759,8 +759,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAlbums((prev) => {
       // Never clobber a populated collection with an empty cache — protects
       // the window where a first-ever sync populated local state but the
-      // cache write hasn't landed yet.
-      if (derived.length === 0 && prev.length > 0) return prev;
+      // cache write hasn't landed yet. Tested against the RAW cache, not the
+      // filtered `derived` array: a legitimately empty filtered result (e.g.
+      // format_scope narrowed to Vinyl and the whole collection is CDs) must
+      // still clear the screen, not get mistaken for the race.
+      if (convexCollection.length === 0 && prev.length > 0) return prev;
       return derived;
     });
   }, [convexCollection, convexPurgeTags, discogsUsername, formatScope]);
@@ -798,8 +801,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }));
     setWants((prev) => {
       // Same empty-cache guard as albums (covers the boot fallback fetch
-      // that populates local wants before the cache write lands).
-      if (derived.length === 0 && prev.length > 0) return prev;
+      // that populates local wants before the cache write lands) — tested
+      // against the raw cache so a legitimately empty filtered result (e.g.
+      // format_scope narrowed to Vinyl and the wantlist is all CDs) still
+      // clears the screen instead of being mistaken for the race.
+      if (convexWantlist.length === 0 && prev.length > 0) return prev;
       return derived;
     });
   }, [convexWantlist, convexWantPriorities, discogsUsername, formatScope]);
