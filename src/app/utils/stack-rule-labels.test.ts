@@ -19,6 +19,8 @@ describe("describeCondition", () => {
     expect(describeCondition({ field: "genre", op: "excludesAll", value: ["Rock"] })).toBe("not Rock");
     expect(describeCondition({ field: "year", op: "before", value: 1980 })).toBe("before 1980");
     expect(describeCondition({ field: "year", op: "between", value: [1970, 1979] })).toBe("1970–1979");
+    // Reversed bounds read the way the engine evaluates them (low to high).
+    expect(describeCondition({ field: "year", op: "between", value: [1990, 1980] })).toBe("1980–1990");
     expect(describeCondition({ field: "decade", op: "is", value: 1970 })).toBe("the 1970s");
     expect(describeCondition({ field: "rating", op: "atLeast", value: 4 })).toBe("4 stars and up");
     expect(describeCondition({ field: "rating", op: "unrated" })).toBe("unrated");

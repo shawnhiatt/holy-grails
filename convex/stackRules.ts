@@ -265,9 +265,12 @@ export function evaluateCondition(
       }
       if (op === "between") {
         const pair = Array.isArray(value) ? value : [];
-        const lo = asNumber(pair[0]);
-        const hi = asNumber(pair[1]);
-        return lo != null && hi != null && album.year >= lo && album.year <= hi;
+        const a = asNumber(pair[0]);
+        const b = asNumber(pair[1]);
+        if (a == null || b == null) return false;
+        // The builder's From/To are two free-typed inputs, so the bounds can
+        // arrive reversed. 1990 → 1980 means the 1980s, not "nothing".
+        return album.year >= Math.min(a, b) && album.year <= Math.max(a, b);
       }
       return null;
     }

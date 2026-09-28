@@ -77,6 +77,15 @@ describe("evaluateCondition — fields and operators", () => {
     expect(evaluateCondition(a, { field: "year", op: "is", value: 1975 }, NOW)).toBe(true);
   });
 
+  it("treats year between as a range whichever way round the bounds were typed", () => {
+    // The builder's From/To are two free-typed inputs; 1990 → 1980 used to
+    // match nothing at all.
+    const a = album({ year: 1985 });
+    expect(evaluateCondition(a, { field: "year", op: "between", value: [1990, 1980] }, NOW)).toBe(true);
+    expect(evaluateCondition(a, { field: "year", op: "between", value: [1979, 1970] }, NOW)).toBe(false);
+    expect(evaluateCondition(a, { field: "year", op: "between", value: [1985, 1985] }, NOW)).toBe(true);
+  });
+
   it("derives decade from year", () => {
     expect(evaluateCondition(album({ year: 1975 }), { field: "decade", op: "is", value: 1970 }, NOW)).toBe(true);
     expect(evaluateCondition(album({ year: 1980 }), { field: "decade", op: "is", value: 1970 }, NOW)).toBe(false);

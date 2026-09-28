@@ -215,7 +215,13 @@ export function describeCondition(cond: StackRuleCondition): string {
     case "year":
       if (op === "before") return `before ${v}`;
       if (op === "after") return `after ${v}`;
-      if (op === "between" && Array.isArray(value)) return `${value[0]}–${value[1]}`;
+      if (op === "between" && Array.isArray(value)) {
+        // The engine accepts the bounds either way round, so the chip shows
+        // them low to high rather than echoing a reversed "1990–1980".
+        const [a, b] = [Number(value[0]), Number(value[1])];
+        if (Number.isFinite(a) && Number.isFinite(b)) return `${Math.min(a, b)}–${Math.max(a, b)}`;
+        return `${value[0]}–${value[1]}`;
+      }
       return `${v}`;
     case "decade":
       return `the ${v}s`;
