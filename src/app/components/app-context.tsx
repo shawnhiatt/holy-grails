@@ -1013,6 +1013,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPlayLog((prev) => (rawLen === 0 && prev.length > 0 ? prev : log));
   }, [convexLastPlayed, discogsUsername]);
 
+  // Latest raw last_played rows, for the M7 rollback below — a ref rather
+  // than reading convexLastPlayed directly, because the rollback runs from
+  // inside a mutation's .catch, which can fire well after the render that
+  // queued it and must not read a stale closure of the subscription value.
+  const convexLastPlayedRef = useRef(convexLastPlayed);
+  useEffect(() => {
+    convexLastPlayedRef.current = convexLastPlayed;
+  }, [convexLastPlayed]);
+
+  // Force all four play states back to the server's last known truth —
+  // used when a logPlay/deletePlay mutation fails, so the optimistic local
+  // update that assumed it would succeed doesn't stick around silently
+  // diverged from Convex. Unlike the reactive derive above, this is
+  // deliberately unguarded: it's a correction to a known-bad local state,
+  // not a passive subscription update, so an empty server result here must
+  // win even if local state is currently populated.
+  const rebuildPlayStateFromServer = useCallback(() => {
+    const records = convexLastPlayedRef.current;
+    if (records === undefined) return; // subscription hasn't resolved yet
+    const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(records);
+    setLastPlayed(lastPlayedMap);
+    setPlayCounts(countMap);
+    setAllPlayTimestamps(allTimestamps);
+    setPlayLog(log);
+  }, []);
+
   // Hydrate preferences from Convex (one-time)
   useEffect(() => {
     if (!hydratedRef.current.preferences && convexPreferences) {
@@ -1568,9 +1594,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sessionToken,
         release_id: Number(albumId),
         played_at: now.getTime(),
+      }).catch((e) => {
+        console.warn("[Convex] Play log failed:", e);
+        toast.error("Couldn't log play.");
+        rebuildPlayStateFromServer();
       });
     }
-  }, [sessionToken, logPlayMut]);
+  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer]);
 
   const markPlayedAt = useCallback((albumId: string, date: Date) => {
     setLastPlayed((prev) => ({
@@ -1588,9 +1618,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sessionToken,
         release_id: Number(albumId),
         played_at: date.getTime(),
+      }).catch((e) => {
+        console.warn("[Convex] Play log failed:", e);
+        toast.error("Couldn't log play.");
+        rebuildPlayStateFromServer();
       });
     }
-  }, [sessionToken, logPlayMut]);
+  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer]);
 
   const removePlay = useCallback((playId: Id<"last_played">, albumId: string, playedAt: number) => {
     // Computed once up front so the playLog update and the lastPlayed
@@ -1636,9 +1670,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { ...prev, [albumId]: fallback };
     });
     if (sessionToken) {
-      deletePlayMut({ sessionToken, play_id: playId });
+      deletePlayMut({ sessionToken, play_id: playId }).catch((e) => {
+        console.warn("[Convex] Play delete failed:", e);
+        toast.error("Couldn't remove play.");
+        rebuildPlayStateFromServer();
+      });
     }
-  }, [playLog, sessionToken, deletePlayMut]);
+  }, [playLog, sessionToken, deletePlayMut, rebuildPlayStateFromServer]);
 
   // ── Stack operations ──
 
