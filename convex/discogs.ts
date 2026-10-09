@@ -13,7 +13,6 @@ import {
   wantSignature,
 } from "./cacheRows";
 import { resolveUserProfileFetch } from "./userProfileOutcome";
-import { rateLimitLogEnabled, rateLimitLogLine } from "./rateLimitLog";
 
 // ─── Config ───
 
@@ -99,6 +98,12 @@ const RATE_LIMIT_MAX_RETRIES = 2;
 // across concurrent actions in the same runtime, so parallel loops (own sync
 // + following feed) self-regulate against the same budget. The 429 retry
 // below remains as the backstop.
+//
+// One counter for every token is deliberate (bug hunt M3). Discogs documents
+// its limit as per source IP, and production logs agreed it is not per token:
+// a single token reported several independent counts at once, one per Convex
+// server its calls happened to run on. A counter keyed by token would track
+// the wrong thing; this one follows the budget of the server it runs on.
 let rateLimitRemaining = 60;
 
 async function discogsFetch(
@@ -118,19 +123,6 @@ async function discogsFetch(
     };
     if (body) headers["Content-Type"] = "application/json";
     const res = await fetch(url, { method, headers, body });
-    // Temporary M3 instrumentation (see rateLimitLog.ts); off unless the
-    // HG_RATELIMIT_LOG env var is set on the deployment.
-    if (rateLimitLogEnabled(process.env.HG_RATELIMIT_LOG)) {
-      console.log(
-        rateLimitLogLine({
-          method,
-          url,
-          status: res.status,
-          tokenFingerprint: tokenFingerprint(accessToken),
-          headers: res.headers,
-        })
-      );
-    }
     const remaining = Number(res.headers.get("X-Discogs-Ratelimit-Remaining"));
     if (Number.isFinite(remaining)) rateLimitRemaining = remaining;
     if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
@@ -145,14 +137,6 @@ async function discogsFetch(
     );
     await sleep(waitMs);
   }
-}
-
-/**
- * A short, non-reversible label for a token, so log lines can tell two users'
- * requests apart without writing any part of an OAuth secret to the logs.
- */
-function tokenFingerprint(accessToken: string): string {
-  return crypto.createHash("sha256").update(accessToken).digest("hex").slice(0, 8);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -2291,8 +2275,10 @@ export const proxyFetchMarketData = action({
 // same for everyone who owns it, so one fetch serves all owners. Each run:
 //   1. seed the shared set from all collections (picks up new releases, and
 //      migrates any values from the legacy per-user collection fields),
-//   2. fetch a batch of the stalest releases, spreading requests round-robin
-//      across users' tokens so no single 60/min budget is the bottleneck.
+//   2. fetch a batch of the stalest releases, rotating through users' tokens.
+//      The rotation is for resilience (a revoked token is dropped and its
+//      releases retried with the next), not extra throughput: Discogs budgets
+//      by source IP, so every token draws on the same per-IP 60/min (M3).
 // See docs/market-value-drip.md for the full write-up + scaling analysis.
 export const marketValueDrip = internalAction({
   args: {},

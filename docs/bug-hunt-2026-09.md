@@ -37,7 +37,7 @@ to both deployments before the Vercel push.
 | M5 album-detail save strands a folder move | Fixed | `8561e03` |
 | M6 play history never reconciles | Fixed | `1d4f02c` |
 | M7 play writes fail silently | Fixed | `88062c4` |
-| M3 global rate-limit counter | **Open** | logging to answer it is in (below) |
+| M3 global rate-limit counter | Resolved, no change needed | see below |
 | M10 manual sync races the background probe | Fixed | `afc2228` |
 | L1 UTC date math in insights and presets | Fixed (client); rule engine kept UTC for share parity | `ef409d2` |
 | L2 dead `marketValue` rule field, full scan in `getShared` | Fixed (scan removed) | `03248c3` |
@@ -86,35 +86,29 @@ to allow another origin, such as a Vercel preview, and remember that setting it
 replaces the defaults. M4 adds a table (`cover_scans`), so it is a schema
 change.
 
-**M3 is deliberately not changed yet.** The right fix depends on how Discogs
-budgets requests, and that could not be checked from here (the session's
-network policy blocks discogs.com). If Discogs throttles by source IP, as its
-docs are remembered to say, every user's requests from Convex share one budget.
-In that case today's single shared counter is close to right, a per-token
-counter would under-throttle, and the drip's "spread across tokens to protect
-each user's budget" premise is moot. If it throttles per token, the counter
-should be keyed by token.
+**M3 is resolved: the shared counter stays.** The open question was whether
+Discogs budgets requests per source IP or per token. Logging the
+`X-Discogs-Ratelimit-*` headers in production (October 9) settled the part that
+matters. A single token reported several independent counts at the same time:
+one `syncSelf` run counted cleanly from 6 to 25, while that token's concurrent
+profile fetches reported `used` values of 0, 1, 2 and 4 in parallel, one count
+per Convex server the calls ran on. The budget is therefore not per token,
+which matches Discogs' documentation that it throttles by source IP.
 
-**Checking it.** `discogsFetch` can now log every response's rate-limit headers
-beside a fingerprint of the token that made it (`convex/rateLimitLog.ts`). It
-is off unless the `HG_RATELIMIT_LOG` Convex env var is set, and Convex reads env
-vars per call, so it toggles without a redeploy. The fingerprint is the first 8
-hex characters of a SHA-256 of the token, so no part of a secret reaches the
-logs.
-
-1. Deploy, then `npx convex env set HG_RATELIMIT_LOG 1` on the deployment to
-   test (prod has the most users, so the most tokens in the drip's pool).
-2. Run the drip by hand: dashboard, Functions, `discogs:marketValueDrip`, Run.
-   It needs at least two users with tokens; it alternates tokens on every
-   request.
-3. Read the `[Discogs ratelimit]` lines in the dashboard logs:
-   - `remaining` falls by one per line **across** fingerprints: Discogs budgets
-     per IP. The shared counter stays, and the drip's per-user-budget comment
-     gets corrected.
-   - each fingerprint counts down **on its own**: Discogs budgets per token.
-     Key the counter by token.
-4. `npx convex env remove HG_RATELIMIT_LOG`. Delete `rateLimitLog.ts` and its
-   call with whichever fix M3 gets.
+- A per-token counter, the fix this finding first proposed, would have been
+  wrong. The module-level counter in `discogsFetch` follows the budget of the
+  server it runs on, which is the right shape. It now carries a comment
+  saying so.
+- The drip's premise that rotating tokens preserves "each user's own 60/min"
+  was wrong. The rotation still earns its place (a revoked token is dropped
+  and its release retried with the next, per M2), but it adds no throughput.
+  The comments in `discogs.ts` and `discogsHelpers.ts`,
+  `docs/market-value-drip.md`, and CLAUDE.md are corrected.
+- Not directly observed: whether two different tokens leaving the same server
+  share one count. Discogs documents that they do. Nothing here depends on it
+  either way.
+- The temporary logging (`convex/rateLimitLog.ts`, the `HG_RATELIMIT_LOG` env
+  var) has been removed.
 
 ---
 
@@ -301,6 +295,10 @@ is closer to right, and the drip's "each user's 60/min stays intact" premise is
 wrong. It's worth one live check of the header behavior across two tokens
 before choosing between a per-token counter and a shared one.
 
+**Outcome:** the live check showed the budget is not per token, so the shared
+counter stays and the drip's premise was the thing to correct. See "M3 is
+resolved" near the top.
+
 ### M4. `vision.identifyCover` has no rate limit or payload cap
 **Confirmed.** `convex/vision.ts:18-95`. Deploy.
 
@@ -445,5 +443,5 @@ no DOM layer).
 5. **M1, M8, M9:** small, contained. Deploy.
 6. **H5:** chunked `applyDiff`. Biggest change, and it touches a load-bearing
    file, so it goes after the small ones and is flagged per CLAUDE.md rule 8.
-7. **M2, M4, M5, M6, M7, M10**, then the Low table as appetite allows. M3 waits
-   on the live header check.
+7. **M2, M4, M5, M6, M7, M10**, then the Low table as appetite allows. M3 waited
+   on the live header check; it is now resolved with no code change.

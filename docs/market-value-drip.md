@@ -106,8 +106,11 @@ Every day at 09:00 UTC, Convex's scheduler calls `marketValueDrip`. It then:
 
 4. **Fetches each release's price, round-robin across tokens.**
    `GET /marketplace/stats/{releaseId}?curr_abbr=USD` through `discogsFetch`. The
-   request is signed with `tokens[i % tokens.length]` so the work spreads across
-   every user's independent 60/min budget instead of funnelling through one.
+   request is signed with `tokens[i % tokens.length]`. That rotation is for
+   resilience: a token Discogs rejects is dropped and its release retried with
+   the next. It does **not** multiply the budget. Discogs throttles by source
+   IP, not by token, so every token draws on the same per-IP 60/min (confirmed
+   in production during bug hunt M3).
    The stats endpoint returns `lowest_price` as `{ value, currency }` (or `null`
    if nobody's selling one).
 
@@ -245,10 +248,11 @@ are ceilings.
 - **Deduplicated fetches.** Total Discogs requests scale with the number of
   *unique* releases across all users, not the sum of collection sizes. With
   overlap, that grows sub-linearly in user count.
-- **Parallel budget preserved.** Fetching through **one** token would have
-  collapsed everything onto a single 60/min budget. The round-robin across all
-  users' tokens keeps the aggregate budget ≈ N × 60/min while still fetching
-  each release once.
+- **No single point of failure.** Fetching through **one** token would stall
+  the whole run whenever that token was revoked. Rotating through every
+  user's token keeps the drip going. (This section originally claimed the
+  rotation also raised the budget to ≈ N × 60/min. It doesn't: Discogs
+  budgets by source IP, not by token, as bug hunt M3 showed in production.)
 - **Simpler correctness.** No per-row invariant with the sync; no cursor.
 
 ### What still has ceilings
@@ -267,8 +271,8 @@ are ceilings.
    within Convex's per-action time limit, and because the set is now *shared*,
    40/run drains the global backlog faster than 40/user/day did. If the unique-
    release backlog ever needs more throughput, fan the fetch out into
-   per-chunk scheduled actions (the same pattern the old doc described), still
-   round-robining tokens.
+   per-chunk scheduled actions (the same pattern the old doc described). Adding
+   tokens does not raise the ceiling; the per-IP 60/min does (bug hunt M3).
 
 3. **`getForUser` scans two tables per call** (collection-by-username +
    `market_values`), joined in memory. It originally did one indexed lookup per
