@@ -14,6 +14,9 @@ export default defineSchema({
     session_token: v.string(),
     discogs_username: v.string(),
     created_at: v.number(),
+    // Last time the session was renewed by use (users.touchSession). Expiry
+    // counts from this, falling back to created_at for rows never renewed.
+    last_seen_at: v.optional(v.number()),
   })
     .index("by_token", ["session_token"])
     .index("by_username", ["discogs_username"]),

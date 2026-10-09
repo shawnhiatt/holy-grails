@@ -1,8 +1,8 @@
 // @vitest-environment edge-runtime
 /// <reference types="vite/client" />
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { convexTest } from "convex-test";
-import { api } from "./_generated/api";
+import { convexTest, type TestConvex } from "convex-test";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { SESSION_TTL_MS } from "./authHelper";
 
@@ -210,5 +210,81 @@ describe("per-device sessions", () => {
       const user = await t.query(api.users.getLatestUser, { sessionToken: tok });
       expect(user).toBeNull();
     }
+  });
+});
+
+describe("rolling sessions", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const sessionRow = (t: TestConvex<typeof schema>, token: string) =>
+    t.run((ctx) =>
+      ctx.db
+        .query("auth_sessions")
+        .withIndex("by_token", (q) => q.eq("session_token", token))
+        .first()
+    );
+
+  it("keeps a session used regularly alive past 90 days from login", async () => {
+    const t = newTest();
+    const token = await seedUser(t, "shawn");
+    // Opened every 30 days: each open renews the clock.
+    for (let day = 30; day <= 180; day += 30) {
+      vi.setSystemTime(NOW + day * DAY);
+      await t.mutation(api.users.touchSession, { sessionToken: token });
+    }
+    vi.setSystemTime(NOW + 200 * DAY);
+    const user = await t.query(api.users.getLatestUser, { sessionToken: token });
+    expect(user?.discogs_username).toBe("shawn");
+  });
+
+  it("still expires a session left unused for 90 days", async () => {
+    const t = newTest();
+    const token = await seedUser(t, "shawn");
+    vi.setSystemTime(NOW + 10 * DAY);
+    await t.mutation(api.users.touchSession, { sessionToken: token });
+    vi.setSystemTime(NOW + 100 * DAY);
+    expect(await t.query(api.users.getLatestUser, { sessionToken: token })).toBeNull();
+    await expect(t.query(api.users.getMe, { sessionToken: token })).rejects.toThrow("Unauthorized");
+  });
+
+  it("cannot revive a session that has already expired", async () => {
+    const t = newTest();
+    const token = await seedUser(t, "shawn", { sessionAge: SESSION_TTL_MS });
+    await expect(t.mutation(api.users.touchSession, { sessionToken: token })).rejects.toThrow("Unauthorized");
+    expect((await sessionRow(t, token))?.last_seen_at).toBeUndefined();
+    expect(await t.query(api.users.getLatestUser, { sessionToken: token })).toBeNull();
+  });
+
+  it("rejects an unknown or empty token", async () => {
+    const t = newTest();
+    await seedUser(t, "shawn");
+    await expect(t.mutation(api.users.touchSession, { sessionToken: "nope" })).rejects.toThrow("Unauthorized");
+    await expect(t.mutation(api.users.touchSession, { sessionToken: "" })).rejects.toThrow("Unauthorized");
+  });
+
+  it("writes at most once a day", async () => {
+    const t = newTest();
+    const token = await seedUser(t, "shawn");
+    vi.setSystemTime(NOW + 2 * DAY);
+    await t.mutation(api.users.touchSession, { sessionToken: token });
+    expect((await sessionRow(t, token))?.last_seen_at).toBe(NOW + 2 * DAY);
+    vi.setSystemTime(NOW + 2 * DAY + 60 * 60 * 1000);
+    await t.mutation(api.users.touchSession, { sessionToken: token });
+    expect((await sessionRow(t, token))?.last_seen_at).toBe(NOW + 2 * DAY);
+  });
+
+  it("a login on another device does not prune a session that is old but still in use", async () => {
+    const t = newTest();
+    const token = await seedUser(t, "shawn");
+    vi.setSystemTime(NOW + 80 * DAY);
+    await t.mutation(api.users.touchSession, { sessionToken: token });
+    vi.setSystemTime(NOW + 120 * DAY);
+    await t.mutation(internal.users.upsert, {
+      discogs_username: "shawn",
+      access_token: "new-access",
+      token_secret: "new-secret",
+    });
+    expect(await sessionRow(t, token)).not.toBeNull();
+    expect((await t.query(api.users.getLatestUser, { sessionToken: token }))?.discogs_username).toBe("shawn");
   });
 });

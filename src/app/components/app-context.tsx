@@ -734,6 +734,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [convexLatestUser, discogsUsername, sessionToken, setSessionToken, readAccounts, persistAccounts]);
 
+  // Rolling sessions: renew every account signed in on this device whenever
+  // the app opens or returns to the foreground, so a session's 90 days count
+  // from its last use instead of from login. Includes the accounts that aren't
+  // active — otherwise a second account you rarely switch to would still
+  // expire 90 days after it was added. The server writes at most once a day
+  // per session and refuses tokens that have already expired; those are left
+  // to the normal restore/promote path, so failures are ignored here.
+  const touchSessionMut = useMutation(api.users.touchSession);
+  const lastSessionTouchRef = useRef(0);
+  useEffect(() => {
+    if (!discogsUsername || !sessionToken) return;
+    const touchAll = () => {
+      const now = Date.now();
+      if (now - lastSessionTouchRef.current < 60 * 60 * 1000) return;
+      lastSessionTouchRef.current = now;
+      const tokens = new Set([sessionToken, ...readAccounts().map((a) => a.sessionToken)]);
+      for (const token of tokens) {
+        if (token) touchSessionMut({ sessionToken: token }).catch(() => {});
+      }
+    };
+    touchAll();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") touchAll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [discogsUsername, sessionToken, readAccounts, touchSessionMut]);
+
   // Seed / refresh the active account in hg_accounts. Covers pre-existing
   // signed-in users (who restore from hg_session_token and never call
   // loginWithOAuth) and keeps the active account's stored token/avatar current.

@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { authenticateUser, resolveSession, SESSION_TTL_MS } from "./authHelper";
+import {
+  authenticateUser,
+  isSessionRowExpired,
+  resolveSession,
+  SESSION_RENEW_AFTER_MS,
+  sessionLastActive,
+} from "./authHelper";
 import { deleteReportsForUser } from "./bugReports";
 
 /**
@@ -99,7 +105,7 @@ export const upsert = internalMutation({
       )
       .collect();
     for (const s of sessions) {
-      if (now - s.created_at >= SESSION_TTL_MS) await ctx.db.delete(s._id);
+      if (isSessionRowExpired(s, now)) await ctx.db.delete(s._id);
     }
 
     await ctx.db.insert("auth_sessions", {
@@ -175,6 +181,32 @@ export const updateCollectionValue = mutation({
       collection_value: args.collection_value,
       collection_value_synced_at: Date.now(),
     });
+  },
+});
+
+/**
+ * Renew the calling device's session, so its 90 days count from its last use
+ * rather than from login. The client calls this whenever the app opens or
+ * comes back to the foreground; it writes at most once a day per device.
+ *
+ * It cannot revive a session that has already expired: that one is
+ * rejected like any other bad token and the device signs in again. Legacy
+ * single-token sessions are not renewed; every one of them is past its 90
+ * days already.
+ */
+export const touchSession = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const session = args.sessionToken
+      ? await ctx.db
+          .query("auth_sessions")
+          .withIndex("by_token", (q) => q.eq("session_token", args.sessionToken))
+          .first()
+      : null;
+    if (!session || isSessionRowExpired(session, now)) throw new Error("Unauthorized");
+    if (now - sessionLastActive(session) < SESSION_RENEW_AFTER_MS) return;
+    await ctx.db.patch(session._id, { last_seen_at: now });
   },
 });
 

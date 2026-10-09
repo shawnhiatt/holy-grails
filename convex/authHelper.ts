@@ -1,11 +1,34 @@
 import { QueryCtx, MutationCtx } from "./_generated/server";
 
 /**
- * Sessions expire 90 days after the token is minted. Expired tokens are
- * rejected everywhere, which sends the client back through OAuth — a
- * painless re-login that mints a fresh token.
+ * Sessions expire after 90 days WITHOUT USE. Expired tokens are rejected
+ * everywhere, which sends the client back through OAuth to mint a fresh one.
+ *
+ * The clock used to run from mint, with nothing renewing it, so everyone who
+ * logged in during the same week was signed out together 90 days later,
+ * however often they had opened the app since. Each open now renews the
+ * session (users.touchSession), so only a device left unused for 90 days
+ * expires.
  */
 export const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+/**
+ * How stale a session must be before touchSession writes a renewal. Keeps
+ * renewals to about one write per device per day, however often the app is
+ * opened; a day of slack against a 90-day window costs nothing.
+ */
+export const SESSION_RENEW_AFTER_MS = 24 * 60 * 60 * 1000;
+
+type SessionRow = { created_at: number; last_seen_at?: number };
+
+/** When a sessions-table row was last renewed (or minted, if never). */
+export function sessionLastActive(session: SessionRow): number {
+  return session.last_seen_at ?? session.created_at;
+}
+
+export function isSessionRowExpired(session: SessionRow, now: number): boolean {
+  return now - sessionLastActive(session) >= SESSION_TTL_MS;
+}
 
 /** Validity check for the LEGACY single-token fields on the users table. */
 export function isSessionValid(user: {
@@ -36,7 +59,7 @@ export async function resolveSession(
     .withIndex("by_token", (q) => q.eq("session_token", sessionToken))
     .first();
   if (session) {
-    if (Date.now() - session.created_at >= SESSION_TTL_MS) return null;
+    if (isSessionRowExpired(session, Date.now())) return null;
     return await ctx.db
       .query("users")
       .withIndex("by_username", (q) =>
