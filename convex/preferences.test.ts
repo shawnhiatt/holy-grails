@@ -1,7 +1,7 @@
 // @vitest-environment edge-runtime
 /// <reference types="vite/client" />
 import { describe, expect, it } from "vitest";
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 import { api } from "./_generated/api";
 import schema from "./schema";
 
@@ -12,7 +12,7 @@ const modules = import.meta.glob("./**/*.ts");
  * the Look It Up sheet; the mutation stored whatever array it was handed.
  */
 
-async function seedUser(t: ReturnType<typeof convexTest>) {
+async function seedUser(t: TestConvex<typeof schema>) {
   await t.run(async (ctx) => {
     await ctx.db.insert("users", {
       discogs_username: "prefs_user",
@@ -28,7 +28,7 @@ async function seedUser(t: ReturnType<typeof convexTest>) {
   });
 }
 
-const stored = (t: ReturnType<typeof convexTest>) =>
+const stored = (t: TestConvex<typeof schema>) =>
   t.run(async (ctx) => (await ctx.db.query("preferences").first())?.recent_searches);
 
 const many = Array.from({ length: 50 }, (_, i) => `query ${i}`.padEnd(1000, "x"));

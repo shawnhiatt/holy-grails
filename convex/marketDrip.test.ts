@@ -133,7 +133,7 @@ describe("marketValueDrip rate-limit logging (bug hunt M3)", () => {
     vi.restoreAllMocks();
   });
 
-  const rateLimitLines = (spy: ReturnType<typeof vi.spyOn>) =>
+  const rateLimitLines = (spy: { mock: { calls: unknown[][] } }): string[] =>
     spy.mock.calls.map((c) => String(c[0])).filter((line) => line.startsWith("[Discogs ratelimit]"));
 
   it("logs nothing unless HG_RATELIMIT_LOG is set", async () => {

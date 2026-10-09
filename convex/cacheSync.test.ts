@@ -1,7 +1,7 @@
 // @vitest-environment edge-runtime
 /// <reference types="vite/client" />
 import { describe, expect, it } from "vitest";
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 import { internal } from "./_generated/api";
 import schema from "./schema";
 import {
@@ -59,7 +59,7 @@ const want = (releaseId: number, overrides: Partial<SyncedWant> = {}): SyncedWan
   ...overrides,
 });
 
-type T = ReturnType<typeof convexTest>;
+type T = TestConvex<typeof schema>;
 
 function syncCollection(t: T, username: string, albums: SyncedAlbum[]) {
   return syncCacheInChunks({
