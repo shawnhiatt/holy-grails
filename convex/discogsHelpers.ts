@@ -29,8 +29,9 @@ export const getUserCredentials = internalQuery({
  * The pool of usable OAuth credentials — every user with tokens. Internal-only.
  * The market-value drip (Spec 6A.1) rotates through these to fetch the *shared*
  * per-release prices: the lowest ask is the same regardless of which token
- * asks, so spreading the requests across users keeps each user's own 60/min
- * Discogs budget intact instead of funnelling everything through one token.
+ * asks, so any user's token will do, and rotating means one revoked token
+ * cannot stall the run. It does not add throughput: Discogs budgets requests
+ * by source IP, not by token (bug hunt M3).
  */
 export const listUsersForMarketDrip = internalQuery({
   args: {},
