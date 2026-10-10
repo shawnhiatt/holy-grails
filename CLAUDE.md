@@ -200,6 +200,8 @@ All authenticated Discogs API calls go through server-side Convex actions in `co
 - `HG_ALLOWED_ORIGINS` — optional comma-separated origins Discogs may send a login back to (`{origin}/auth/callback`), checked by `oauth.requestToken` via `convex/oauthCallback.ts`. Unset = the built-in public origins (holygrails.app, www, holy-grails.vercel.app, localhost:1234). Setting it **replaces** those defaults, so list every origin you need (e.g. to allow a Vercel preview). Any other origin is rejected: an unchecked callback on this public action is an account takeover.
 - `HG_ADMIN_USERNAMES` — comma-separated Discogs usernames allowed to read the bug-report inbox (see Bug Reports). Optional and **fails closed**: unset means no admins and the inbox row never appears, so set it on both deployments or you won't see reports. Deliberately an env var, not a code constant — the repo may go public.
 
+**Vercel environment variables:** `VITE_CONVEX_URL` (and `VITE_SENTRY_DSN` when monitoring is on) plus `CONVEX_DEPLOY_KEY` — the Convex production deploy key, Production scope only, used by the build command (see Rule 9 under Rules for Claude Code Sessions). Never add it to the Preview or Development scopes.
+
 Note: Convex env vars cannot be set via `.env` files. Use the Convex dashboard (Settings > Environment Variables) or `npx convex env set KEY value`.
 
 ---
@@ -1629,7 +1631,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
    - `App.tsx` — root layout and auth state routing
    - `loading-screen.tsx` — full-screen loading state
 
-9. **Convex deploy required.** Any changes to files in the `convex/` directory must be followed by `npx convex deploy` before pushing to Vercel. The dev and prod Convex deployments are separate — `npx convex dev` only updates dev. Failing to deploy will cause production errors.
+9. **Convex deploys with Vercel production builds.** `vercel.json`'s `buildCommand` runs `npx convex deploy --cmd 'npm run build'` when `VERCEL_ENV` is `production`, so every merge to `main` pushes the `convex/` functions to prod (`unique-sturgeon-566`) and then builds the frontend against it — functions and client ship together, and nobody has to remember a manual deploy. It authenticates with the `CONVEX_DEPLOY_KEY` Vercel env var (a **production** deploy key, Production scope only). Two load-bearing details: the gate is `VERCEL_ENV`, **not** whether the key is present — gating on the key would let a key accidentally added to the Preview scope deploy unmerged PR code to prod; and if the key is missing in production the build **fails** rather than silently shipping a frontend ahead of its functions. Preview builds skip the Convex step and keep using whatever `VITE_CONVEX_URL` their scope sets. `npx convex dev` still only updates the dev deployment. A manual `npx convex deploy` is only for out-of-band fixes; if Vercel ever goes away, move this step to a GitHub Action with the same key.
 
 ---
 

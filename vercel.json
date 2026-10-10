@@ -1,4 +1,5 @@
 {
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npx convex deploy --cmd 'npm run build'; else npm run build; fi",
   "rewrites": [
     { "source": "/img-proxy/:path*", "destination": "https://i.discogs.com/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
