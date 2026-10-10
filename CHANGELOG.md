@@ -6,7 +6,35 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ## [Unreleased]
 
+---
+
+## [0.8.0] — 2026-10-09
+
+The release that brings in the Session Builder, a desktop layout pass, and the
+September bug hunt. Also the first tagged release (`v0.8.0`; `v0.7.0` was
+tagged retroactively), so bug reports and the native app plan can name a
+version.
+
 ### Added
+- **Session Builder — sessions that fill themselves.** A session can define
+  itself by rules ("jazz, before 1980, four stars and up") instead of by
+  hand-picking, and stays current as the collection changes. Presets are
+  generated from your own collection, custom condition rows sit behind a
+  disclosure, and the title writes itself until you type your own. Sessions
+  cap at listening lengths (One sitting · An evening · A deep dig · No cap) and
+  rotate the overflow daily, always labeled "In rotation · 25 of 148". Shared
+  links evaluate the same rule on the server, so a viewer sees your set.
+- **Your star rating** — the Discogs rating on each copy now shows in album
+  detail (tap to rate), in the purge evaluator, as a sort, and as an Unrated
+  filter. Genres, styles, and disc counts that the sync already fetched are
+  now kept too.
+- **Format and genre filters in Look It Up** database search.
+- **Folders multi-select** in the collection filter, and the drawer's button
+  says how many releases it will show.
+- **Listening in Insights** gained a trend, a comparison, dated Top Played
+  rows, and when each streak ran.
+- **Ask before discarding an edit** — closing the copy editor with unsaved
+  changes now asks first.
 - **Recent-adds delta on the feed** — the In Collection and In Wantlist counts
   in the identity block now carry a `+N in 30 days` line, so the numbers read
   as moving rather than fixed. Adds only: nothing anywhere records a removal,
@@ -29,6 +57,20 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
   integration could do beyond the cover scan, and what it deliberately won't.
 
 ### Changed
+- **Desktop layout pass.** A left sidebar replaces the horizontal top nav, every
+  screen has a proper title, album grids run six across, and the content
+  gutters are symmetric.
+- **Editing your copy is a sheet** with a pinned Save, and the free-text fields
+  grow to fit what's typed (up to ten rows).
+- **Every filter surface is built from one shared module**, so the three
+  drawers, their triggers, and their chips look and behave the same.
+- **Search results and pressing rows** rank metadata over three lines, lead
+  with the variant instead of a repeated year, and let titles wrap.
+- **Date Added groups by recency**, not by calendar month.
+- **Sessions expire after 90 days without use**, not 90 days after login — an
+  app you open weekly no longer signs you out every quarter.
+- The two play filters are worded "No Plays Recorded" / "Plays Recorded"
+  everywhere.
 - **Missing Details (Insights)** is a fixed two-up grid instead of a horizontal
   scroller, with the count as the headline and the icon removed. There were
   only ever two categories, and two 240px tiles never fit on a phone.
@@ -48,6 +90,23 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
   display face a heading gets and why.
 
 ### Fixed
+- **September 2026 bug hunt** — one critical, five high, ten medium (one needed no change), and eleven
+  low findings fixed. The ones you'd notice: collection genres, styles, and
+  ratings were never actually saved by sync (so genre and rating rules matched
+  nothing); a vinyl-scoped view leaked into session rules; a failed fetch could
+  wipe a followed user's wantlist; failed play logs and cache writes now say
+  so instead of failing silently; a session that ends mid-use recovers instead
+  of erroring; and Sync Now and the background sync share one run. Also: the
+  OAuth callback only accepts allowlisted origins, cover scans are size-capped
+  and rate-limited, and large syncs write in bounded chunks.
+- **Stale build after a deploy** now recovers by reloading instead of showing a
+  stack trace.
+- **Header blur in the installed iOS 27 app — not fixed.** The status bar
+  change below did not remove it; it's a platform-level Liquid Glass effect
+  with no web switch. See CLAUDE.md.
+- Notes lost their line breaks in view mode.
+- Opening a pressing in someone else's collection opened yours.
+- The session picker and Add Albums drawer now close one layer per Escape.
 - **Theme color in browser chrome.** Dark mode showed brand yellow in Android and
   desktop browser chrome — the theme-color tags were inverted. It now follows
   the app's own light/dark setting rather than the phone's.
@@ -269,7 +328,7 @@ fit to put in front of invited testers, per `docs/BETA-PLAYBOOK.md`.
 
 ---
 
-## [0.5.5] — 2025-04-09
+## [0.5.5] — 2026-04-09
 
 ### Changed
 
@@ -532,7 +591,7 @@ fit to put in front of invited testers, per `docs/BETA-PLAYBOOK.md`.
 - **Collection folders not displaying** — all releases showed as "Uncategorized" regardless of actual Discogs folder assignment. Root cause: the Discogs API does not return `folder_id` on release objects fetched from the aggregate folder 0 ("All") endpoint. Fix: `proxyFetchCollection` now fetches releases per-folder (one paginated request per user folder, skipping folder 0), injecting the correct `folder_id` from the folder being fetched. Folder 0 is still used for followed users (`skipPrivateFields: true`) where folder names are irrelevant.
 
 ### Documented
-- **Vinyl-only filter** — the app is intentionally vinyl-only. The global filter on `formats[].name === "Vinyl"` is applied at the data layer during collection sync. This is a product decision, not a user setting. _(Superseded — see [Unreleased]: Holy Grails now syncs all formats; scope is a display-only Settings preference.)_
+- **Vinyl-only filter** — the app is intentionally vinyl-only. The global filter on `formats[].name === "Vinyl"` is applied at the data layer during collection sync. This is a product decision, not a user setting. _(Superseded — see [0.6.1]: Holy Grails now syncs all formats; scope is a display-only Settings preference.)_
 - **Folder sync architecture** — per-folder fetching pattern, `skipPrivateFields` fallback to folder 0, and rate limiting documented in CLAUDE.md.
 
 ---

@@ -50,6 +50,6 @@ npm run build       # production build
 
 ## Status
 
-v0.7.0 — Beta-ready, active development. GitHub: @shawnhiatt — Discogs: catxdad19
+v0.8.0 — Beta-ready, active development. GitHub: @shawnhiatt — Discogs: catxdad19
 
 Live at [holygrails.app](https://holygrails.app). See `docs/BETA-PLAYBOOK.md` for the road to inviting testers and `CHANGELOG.md` for history.

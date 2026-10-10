@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.7.0
+# CLAUDE.md — Holy Grails v0.8.0
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
