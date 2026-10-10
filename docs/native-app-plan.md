@@ -2,7 +2,7 @@
 
 **Status:** not started, by design — still waiting on PWA 1.0, or on an explicit decision to go earlier. The guardrail below holds until Shawn says otherwise. What *is* underway is toolchain and workspace setup (see Prerequisites), which is deliberately separable: none of it commits the project, and all of it has lead time worth spending early. The PWA remains the product and the canonical Holy Grails until a native version reaches daily-use parity. This document exists so that starting the native app is a *decision*, not a research project.
 
-**Last synced with the codebase:** 2026-08-17 (PWA v0.7.0, 15 Convex tables, 25 Discogs proxy actions). The original plan was written 2026-07-05 against v0.6.0; roughly six weeks of feature work landed in between and is folded in below.
+**Last synced with the codebase:** 2026-08-17 (PWA v0.7.0, 15 Convex tables, 25 Discogs proxy actions), with one correction on 2026-10-09 (PWA v0.8.0): session rules are **not** evaluated server-side for the owner — see *Shared pure logic* below. The original plan was written 2026-07-05 against v0.6.0; roughly six weeks of feature work landed in between and is folded in below.
 
 **Method:** the same one that built the PWA — designer describes intent, Claude Code writes the implementation, one focused session at a time. (Reference: Kris Puckett's *Permissionless* — a designer shipping a real SwiftUI app to the App Store through conversation with Claude. That's the proof of feasibility; this plan is the Holy Grails-specific version.)
 
@@ -31,11 +31,23 @@ This is why the project is weeks, not a year:
 4. **The product judgment.** All-formats scope (display-only, never a data-layer filter), purge workflow semantics, wantlist conventions, the out-of-scope list — every decision transfers.
 5. **The server-side intelligence, specifically.** Three things that look like client features are already actions, and therefore free:
    - `vision.identifyCover` — cover scan runs `claude-sonnet-5` inside a `"use node"` Convex action. Swift sends a downscaled JPEG and receives `{artist, title}`. **The Anthropic SDK never enters the app bundle**, exactly as it never enters the browser bundle.
-   - `stackRules` — rule-defined sessions are evaluated on the server, including for shared sessions. Swift renders the result; it does not reimplement the rule engine.
    - `market_values` — batched per-user lookups already exist (`getForUser`). The Value section is a read.
 6. **The mutation pattern.** The PWA deliberately does *not* use Convex's `withOptimisticUpdate` — it mirrors into local state on success and reconciles from the subscription. This matters more than it sounds: optimistic updates are an open feature request on convex-swift, and because the PWA never depended on them, that gap costs nothing. Port the same mirror-on-success pattern.
 
-What gets rebuilt: the view layer, in SwiftUI. That's the whole project.
+What gets rebuilt: the view layer, in SwiftUI — plus the two pure modules below, unless the backend grows to cover them first.
+
+### Shared pure logic — the one exception to "backend is free"
+
+Two modules in `convex/` are pure TypeScript that the **PWA client imports directly** and runs in the browser. They are not exposed as Convex functions an authenticated client can call, so a Swift client gets nothing from them for free:
+
+- **`convex/stackRules.ts`** (~545 lines) — the session rule engine. The PWA evaluates every auto session *locally* (`stackMembership` in `app-context.tsx`; `previewStackRule` is a client wrapper around the same evaluator). The only server-side evaluation is `stacks.getShared`, which is **unauthenticated, keyed by share id, and returns display fields only** — it cannot serve the owner's live view. An auto session stores `album_ids: []`, so a Swift client that just reads `stacks.getByUsername` will show every auto session the user built in the PWA as **empty**. This affects v1 even though the builder UI is deferred: the sessions *list* still contains them.
+- **`convex/albumFields.ts`** (~140 lines) — `mediaType()` (format badges, the vinyl display scope, the filter drawer), `hasRating`, condition ranking. Display logic, but every collection screen depends on it.
+
+**Decision for Phase 0 (recommended):**
+1. **Rules → add a server query, don't port.** Add an authenticated `stacks.getMembership` (or fold membership into `getByUsername`) that runs `evaluateStackRule` against the caller's own `collection` rows, reusing `getShared`'s existing evaluation path. One implementation stays the rule (CLAUDE.md: "one implementation — never copy it back"), and the PWA can adopt it later or keep evaluating locally — both call the same code. Add its auth-guard tests to `stacks.test.ts` in the same session. Caveat: rotation is clock-derived, and a Convex query only re-runs when its data changes, so a subscribed client won't see the early-morning rotation flip until something invalidates it. `getShared` already has this property today; the Swift app should re-subscribe on foreground.
+2. **`mediaType` → port to Swift with its test fixtures.** It is small, display-only, and called per row; a server round trip is the wrong shape. `discogs-api.test.ts` holds the fixtures — port them as XCTest cases so the two classifiers can't drift on what counts as a CD.
+
+If porting the rule engine is ever chosen instead, the sentinels most likely to be lost in translation are: `year: 0` and `rating: 0` mean *unset*; the evaluation order is fixed (filter → exclusions → rotate-or-sort-and-cap → display sort); rotation engages only at `pool >= limit * 1.5`; and a rule whose conditions are all unrecognized matches **nothing**, not everything. `stackRules.test.ts` is the fixture set.
 
 ---
 
@@ -105,7 +117,7 @@ Ship the decision-making core, not the whole app. Two of the PWA's five bottom-t
 **Changes from the original v1 table, all driven by features that shipped after 2026-07-05:**
 
 - **Album detail grew.** It now carries a live Value section (lowest ask, N-for-sale, VG/VG+/NM suggestions) and a star rating surfaced from collection sync. Both are reads against existing backend data, so both are cheap — keep them in v1; a purge verdict without the price is a worse decision tool.
-- **Sessions split in two.** "Create, add/remove, reorder" described the whole feature in July. Since then sessions can define themselves by rules, cap by listening duration with overflow rotation, generate their own titles, and evaluate server-side when shared. v1 ships the hand-picked half only. The rule engine is server-side and will still be there — the deferred piece is the *builder UI*, which is the most intricate screen in the app and the wrong place to learn SwiftUI.
+- **Sessions split in two.** "Create, add/remove, reorder" described the whole feature in July. Since then sessions can define themselves by rules, cap by listening duration with overflow rotation, generate their own titles, and evaluate server-side when shared. v1 ships the hand-picked half only — the deferred piece is the *builder UI*, which is the most intricate screen in the app and the wrong place to learn SwiftUI. v1 still has to *display* auto sessions the user built in the PWA, which needs the membership query from *Shared pure logic* above; without it they render empty.
 - **Look It Up gained cover scan.** It is now in v1 rather than unmentioned, because it is *cheaper* natively than in the browser (VisionKit + AVFoundation replacing zxing-wasm + getUserMedia hacks) and it is the feature most improved by native camera access. The server does the identification either way.
 - **Bug reports are deferred, which needs a plan.** The PWA's in-app reporter with screenshot and diagnostics is how beta feedback arrives. For a TestFlight build, TestFlight's own feedback (screenshot + tester note, built in) covers v1. Revisit only if TestFlight feedback proves too thin.
 
@@ -154,7 +166,7 @@ Explicitly **not** needed: Swift Playground (a learning app, not a build tool �
 
 ## Phases (each ≈ one or a few sessions)
 
-0. **Setup** — project scaffold, fonts, color assets, Phosphor icon set bundled and weight-mapped, ConvexClient wired against the *dev* deployment, convex-swift version re-verified against the table above, CLAUDE.md written.
+0. **Setup** — in *this* repo first: ship the authenticated session-membership query (see *Shared pure logic*) and `npx convex deploy` it. Then, in the Swift repo: project scaffold, `mediaType` ported with its fixtures, fonts, color assets, Phosphor icon set bundled and weight-mapped, ConvexClient wired against the *dev* deployment, convex-swift version re-verified against the table above, CLAUDE.md written.
 1. **Auth + boot** — OAuth round trip, Keychain session, collection subscription rendering a raw list. *The milestone that proves the whole architecture.* If auth misbehaves under launch/background cycling, check the known `authBridge` concurrency issue before suspecting Discogs.
 2. **Collection** — grid/list, search/filter, alphabet index, detail view (read-only + Value + star rating). Decide here whether cache-first boot is in v1; it is hand-built work, not a client feature.
 3. **Purge + Sessions** — verdict buttons with haptics, purge tracker, hand-picked session CRUD + reorder.
