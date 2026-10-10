@@ -1,4 +1,4 @@
-# CLAUDE.md — Holy Grails v0.7.0
+# CLAUDE.md — Holy Grails v0.8.0
 
 This file is read by Claude Code at the start of every session. Follow everything here before making any decisions about architecture, design, or implementation.
 
@@ -960,20 +960,33 @@ style={{ height: "100dvh" }}
 
 Do not move the app-root height back to an inline `100dvh` — that reintroduces the floating-nav bug in the installed PWA. Splash/loading screens keep plain `100dvh` (they have no fixed bottom nav, so the standalone quirk doesn't surface).
 
-### iOS Status Bar Style (do not restore `black-translucent`)
+### iOS Status Bar Style — and the unresolved header blur
 
-`index.html` sets `apple-mobile-web-app-status-bar-style` to **`default`**, and it must stay
-that way. `black-translucent` put page pixels under the status bar (the edge-to-edge look), but
-from Safari 26 the system fills that inset with a Liquid Glass blur wherever WebKit **cannot
-sample a solid colour at the page's top edge** — and the mobile header is transparent over the
-app's radial gradient, so it never can. iOS 26 painted that band faintly; iOS 27 turned it into
-a visible wash over the whole 58px header, in the installed PWA only (in a browser tab the
-chrome occupies that region, so nothing of ours is ever in the band). There is no CSS or meta
-switch to disable the effect, `env(safe-area-inset-*)` does not grow to account for it, and the
-`backdrop-filter` + negative-top overlay workaround stopped working in standalone web apps.
-Insetting the web view below an opaque bar is the only fix — it leaves no inset to fill.
+**Known, unresolved: in the installed iOS 27 PWA, the mobile header renders blurred.** A Liquid
+Glass band washes out roughly the top 100pt of the screen — the wordmark or screen title and
+the button cluster — while everything below it is crisp. It is platform-level: nothing in this
+codebase blurs the header (no `filter`, `backdrop-filter`, `text-shadow` or transform anywhere
+in the header path), it does not happen in a browser tab (the chrome occupies that region), and
+web apps have no CSS property or meta tag to switch it off. Native apps got
+`scrollEdgeEffectStyle`; web apps got nothing.
 
-Two consequences, both load-bearing:
+`index.html` sets `apple-mobile-web-app-status-bar-style` to **`default`** (it was
+`black-translucent`). That change followed reports that the band only lands on web apps
+rendering under a translucent status bar and that `default` removes it. **On the iOS 27 release,
+in this app, the header was still blurred after the change and a reinstall** (September 2026).
+It was never confirmed whether that install actually picked up the new tag — the meta is frozen
+at install, and the service worker precaches `index.html` and serves it for every navigation, so
+Safari can hand iOS the old tag at Add to Home Screen time. The cheap test: switch the app to
+light mode — a dark clock means `default` is live; a white clock lost against a white header
+means the install still carries `black-translucent`.
+
+`default` stays because it costs nothing visible (the sampler below colours the bar to match the
+top of the gradient). **Do not treat it as the fix, and do not spend a session re-deriving it.**
+The only known workaround left is padding the header down out of the band — about 45px of dead
+space across the whole app — which was judged not worth it for a platform bug Apple may still
+fix. Revisit when an iOS update changes the behaviour.
+
+Consequences of `default`, both load-bearing while it stays:
 - **`env(safe-area-inset-top)` is now 0 in standalone.** Every consumer is already
   `calc(env(safe-area-inset-top, 0px) + N)`, so they collapse to `N` and the header sits flush
   at the top of the (now inset) web view. Do not add a static top offset to compensate — that
@@ -1578,7 +1591,8 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 ### Backlog
 - **"3 releases joined Late Night Jazz"** — the deferred Session Builder follow-up. It is the only part of that feature that needs stored state (a membership snapshot to diff), and therefore the only part that wants a background job. Full shape in `docs/feature-opportunities.md` #13. The hard constraint: a snapshot may answer "what's new" and nothing else — `stackMembership` stays derived, or the drift the design avoids comes back.
-- ~~One-off gray text colors~~ — DONE (v0.6.x color audit): crate-browser's `#9BA4B2`/`#3D5C77` migrated to `var(--c-text-faint)`/`var(--c-text-secondary)`; purge-tracker's `#6B7B8E` corrected to the token value `#5E6E80`.
+- **Vinyl-scoped owners and non-vinyl session members** — open product question left by the September 2026 bug hunt (H3). Rules now evaluate over the unscoped collection (`allAlbums`), so pool counts and rotation match the share link; what's undecided is whether a `format_scope: "vinyl"` owner should *see* a CD that their own session matched. Either answer is fine as long as counts and rotation keep matching `getShared`.
+- **Followed-profile refill isn't atomic** (bug hunt M1, longer-term half). `syncFollowedUser` clears then re-appends `followed_items`, so an open profile can flash empty during a refresh and a mid-refill failure leaves it partial. The transient-error wipe is fixed; the durable fix is to diff `followed_items` the way `applyDiff` does for the user's own collection.
 - Empty state standardization — icon sizes, vertical padding, and icon-to-text spacing are inconsistent across screens. Needs a dedicated design pass with visual references before normalizing.
 - Purge Cut confirmation icon — Minus vs X icon flagged during Phase 7 QA for visual review.
 - Startup Convex auth errors — `Unauthorized` errors appear briefly in terminal/logs during app startup (race condition between proxy actions firing and sessionToken populating). Cosmetic, non-blocking. Queued for investigation.

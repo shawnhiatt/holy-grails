@@ -22,3 +22,6 @@ Thumbs.db
 # Working docs
 BUGS.md
 AUDIT-*.md
+
+# Claude Code per-machine settings
+.claude/settings.local.json

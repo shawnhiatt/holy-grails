@@ -44,7 +44,15 @@ Bump the version at the end of a Claude Code session or a logical group of sessi
 
 Don't overthink it. Going `0.2.4 → 0.2.5` after a round of QA fixes is completely appropriate. The number is for you, not an audience.
 
-The version lives in the About section of `settings-screen.tsx`. Update it there and commit with a message like `bump to 0.2.5`.
+## How to cut a release
+
+1. **`package.json` is the single source of truth.** Settings → About and the bug-report diagnostics both import `version` from it, so bumping it there updates the app. Run `npm install --package-lock-only` so the lockfile matches. Also update the version in the `CLAUDE.md` title and the README Status line.
+2. **Rename `## [Unreleased]` in `CHANGELOG.md`** to `## [X.Y.Z] — YYYY-MM-DD` and open a fresh empty `[Unreleased]` above it.
+3. **Merge to `main`, then tag the merge commit** with an annotated tag and push it:
+   ```bash
+   git tag -a vX.Y.Z -m "Holy Grails X.Y.Z" && git push origin vX.Y.Z
+   ```
+   Tags started at `v0.8.0` (`v0.7.0` was tagged retroactively on the commit that bumped it). Tag every release from here on — bug reports carry the version string, and a tag is what turns "0.8.0" back into a commit.
 
 ---
 
@@ -53,26 +61,19 @@ The version lives in the About section of `settings-screen.tsx`. Update it there
 | Version | What it represents |
 |---|---|
 | `0.2.4` | Post-deploy, all infrastructure phases complete |
-| `0.2.5` | QA round: loading screen, nav restructure, SlideOutPanel, iOS Safari polish, feed/following fixes, color mode |
-| `0.2.6` | Phase 5: collection caching, Purge Cut, album field editing, Insights redesign, Following screen performance |
-| `0.3.0` | Phase 6 — Wantlist writes ship |
-| `0.4.0` | Phase 7 — Security, performance & polish |
-| `0.5.0` | TBD |
-| `1.0.0` | App feels complete for daily use — no known bugs, all core phases done |
+| `0.3.0` | Wantlist writes ship |
+| `0.4.0` | Security, performance & polish |
+| `0.5.x` | Add/remove from collection, Insights rankings, Holy Grails social layer |
+| `0.6.0` | Strict TypeScript and CI |
+| `0.6.1` | All formats, cover scan, gray retheme |
+| `0.7.0` | In-app bug reports |
+| `0.8.0` | Session Builder, desktop layout pass, September bug hunt — first tagged release |
+| `1.0.0` | App feels complete for daily use, validated by the beta (see `docs/BETA-PLAYBOOK.md`). Also the gate for starting the native app (`docs/native-app-plan.md`). |
 
-Adjust as judgment dictates. If Phase 5 ships and it feels like a bigger deal than a minor bump, call it `1.0.0`. These are guidelines, not rules.
+These are guidelines, not rules. `CHANGELOG.md` is the full record.
 
 ---
 
-## Commit Message Convention
+## Commit Messages
 
-Keep it simple:
-
-```
-bump to 0.2.5
-fix: stuck connecting button on splash screen
-feat: color mode setting in appearance
-chore: wantlist copy audit
-```
-
-No rigid enforcement — just be consistent enough that the git log tells a story.
+Imperative sentence-case subject that says what changed and, where it fits, why ("Expire sessions after 90 days without use, not 90 days after login"), with a body that explains the reasoning. Version bumps ride in the release commit rather than a separate `bump to` commit.
