@@ -3,6 +3,7 @@ import {
   DEFAULT_ALLOWED_ORIGINS,
   isAllowedCallbackUrl,
   parseAllowedOrigins,
+  parseNativeCallbacks,
 } from "./oauthCallback";
 
 describe("isAllowedCallbackUrl with the default origins", () => {
@@ -74,5 +75,68 @@ describe("parseAllowedOrigins", () => {
     expect(parseAllowedOrigins("https://holygrails.app/some/path, not a url")).toEqual([
       "https://holygrails.app",
     ]);
+  });
+});
+
+describe("isAllowedCallbackUrl with native callbacks", () => {
+  const native = "holygrails://auth/callback";
+
+  it("accepts the scheme callback when HG_NATIVE_CALLBACKS lists it (dev)", () => {
+    expect(isAllowedCallbackUrl(native, undefined, native)).toBe(true);
+  });
+
+  it("rejects the scheme callback when HG_NATIVE_CALLBACKS is unset (prod)", () => {
+    expect(isAllowedCallbackUrl(native, undefined, undefined)).toBe(false);
+    expect(isAllowedCallbackUrl(native, undefined, "")).toBe(false);
+  });
+
+  it("matches the exact string only", () => {
+    for (const url of [
+      "holygrails://auth/callback/",
+      "holygrails://auth/callback?x=1",
+      "holygrails://auth/callback#x",
+      "holygrails://auth/other",
+      "holygrails://evil/callback",
+      "HOLYGRAILS://auth/callback",
+      "holygrails://AUTH/callback",
+      "holygrails://Auth/Callback",
+      " holygrails://auth/callback",
+      "holygrails:auth/callback",
+      "evilgrails://auth/callback",
+    ]) {
+      expect(isAllowedCallbackUrl(url, undefined, native)).toBe(false);
+    }
+  });
+
+  it("leaves the web callbacks unchanged when it is set", () => {
+    expect(isAllowedCallbackUrl("https://holygrails.app/auth/callback", undefined, native)).toBe(true);
+    expect(isAllowedCallbackUrl("https://evil.example/auth/callback", undefined, native)).toBe(false);
+  });
+
+  it("is not reachable through HG_ALLOWED_ORIGINS", () => {
+    expect(isAllowedCallbackUrl(native, native, undefined)).toBe(false);
+  });
+});
+
+describe("parseNativeCallbacks", () => {
+  it("returns an empty list when unset or blank, so it fails closed", () => {
+    expect(parseNativeCallbacks(undefined)).toEqual([]);
+    expect(parseNativeCallbacks("")).toEqual([]);
+    expect(parseNativeCallbacks(" , ")).toEqual([]);
+  });
+
+  it("trims entries and drops junk", () => {
+    expect(parseNativeCallbacks(" holygrails://auth/callback , not a url")).toEqual([
+      "holygrails://auth/callback",
+    ]);
+  });
+
+  it("drops http(s) entries, which must go through the origin allowlist", () => {
+    expect(
+      parseNativeCallbacks("https://evil.example/auth/callback, http://evil.example/x")
+    ).toEqual([]);
+    expect(
+      isAllowedCallbackUrl("https://evil.example/auth/callback", undefined, "https://evil.example/auth/callback")
+    ).toBe(false);
   });
 });

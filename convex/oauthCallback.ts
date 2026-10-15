@@ -17,6 +17,16 @@
  * either way. Set the env var to add a domain (a Vercel preview, a new custom
  * domain) — setting it REPLACES the defaults rather than adding to them.
  *
+ * Native app callbacks are a second, separate allowlist: the
+ * `HG_NATIVE_CALLBACKS` env var (comma-separated exact URLs, e.g.
+ * "holygrails://auth/callback"). A custom scheme has no web origin —
+ * `new URL("holygrails://auth/callback").origin` is "null" — so the origin
+ * check above can't express it, and the match is on the exact string instead.
+ * Unset fails closed (no native callbacks), and it is set on the dev
+ * deployment only: another app on the same phone could register the same
+ * scheme, which is acceptable for one person on dev and not for prod. Prod's
+ * native login gets an https callback instead (iOS SPEC §5.3).
+ *
  * Pure module, no Convex imports (admin.ts pattern), so it is unit-testable.
  */
 
@@ -47,16 +57,42 @@ export function parseAllowedOrigins(raw: string | undefined): string[] | null {
 }
 
 /**
+ * Exact callback URLs from `HG_NATIVE_CALLBACKS`, or an empty list when unset.
+ * Only custom-scheme entries are kept: an http(s) URL here would sidestep the
+ * origin allowlist, so web callbacks can only ever come from HG_ALLOWED_ORIGINS.
+ */
+export function parseNativeCallbacks(raw: string | undefined): string[] {
+  if (!raw) return [];
+  const callbacks: string[] = [];
+  for (const entry of raw.split(",")) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      continue;
+    }
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") continue;
+    callbacks.push(trimmed);
+  }
+  return callbacks;
+}
+
+/**
  * True only for exactly `{allowed origin}/auth/callback` — no query string,
  * no fragment, no credentials. The origin compare is on the parsed origin
  * (scheme + host + port), never a prefix or substring match, so
  * "https://holygrails.app.evil.example" and "https://evil.example/?https://holygrails.app"
- * are both rejected.
+ * are both rejected. A native callback must equal an `HG_NATIVE_CALLBACKS`
+ * entry character for character.
  */
 export function isAllowedCallbackUrl(
   url: string,
-  raw: string | undefined = process.env.HG_ALLOWED_ORIGINS
+  raw: string | undefined = process.env.HG_ALLOWED_ORIGINS,
+  nativeRaw: string | undefined = process.env.HG_NATIVE_CALLBACKS
 ): boolean {
+  if (parseNativeCallbacks(nativeRaw).includes(url)) return true;
   let parsed: URL;
   try {
     parsed = new URL(url);
