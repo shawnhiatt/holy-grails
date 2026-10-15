@@ -563,3 +563,128 @@ describe("getShared — market values (bug hunt L2)", () => {
     expect(shared?.albums).toEqual([]);
   });
 });
+
+describe("getMembership", () => {
+  it("rejects a bad session token", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await expect(
+      t.query(api.stacks.getMembership, { sessionToken: "nope" })
+    ).rejects.toThrow();
+    await expect(
+      t.query(api.stacks.getMembership, { sessionToken: "" })
+    ).rejects.toThrow();
+  });
+
+  it("returns the caller's auto sessions only, keyed by stack_id", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedUser(t, "other", "tok-other");
+    await seedAlbum(t, "dj", 1, { genres: ["Jazz"], year: 1965 });
+    await seedAlbum(t, "other", 2, { genres: ["Jazz"], year: 1965 });
+    await seedAutoStack(t, "dj", "mine", jazzBefore1980);
+    await seedAutoStack(t, "other", "theirs", jazzBefore1980);
+    // A hand-filled session is not an auto session, so it has no membership.
+    await seedStack(t, "dj", "manual", [1]);
+
+    const result = await t.query(api.stacks.getMembership, {
+      sessionToken: "tok-dj",
+    });
+    expect(Object.keys(result)).toEqual(["mine"]);
+    expect(result.mine.ids).toEqual([1]);
+  });
+
+  it("evaluates against the caller's own collection, not another user's", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedUser(t, "other", "tok-other");
+    await seedAlbum(t, "dj", 1, { genres: ["Jazz"], year: 1965 });
+    await seedAlbum(t, "other", 2, { genres: ["Jazz"], year: 1966 });
+    await seedAutoStack(t, "dj", "s1", jazzBefore1980);
+
+    const result = await t.query(api.stacks.getMembership, {
+      sessionToken: "tok-dj",
+    });
+    expect(result.s1.ids).toEqual([1]);
+    expect(result.s1.poolSize).toBe(1);
+  });
+
+  it("agrees with getShared for the same session in the same period", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    for (let i = 1; i <= 6; i++) {
+      await seedAlbum(t, "dj", i, { genres: ["Jazz"], year: 1960 + i });
+    }
+    await t.run(async (ctx) => {
+      await ctx.db.insert("purge_tags", {
+        discogs_username: "dj",
+        release_id: 3,
+        tag: "keep" as const,
+        tagged_at: NOW_ISH,
+      });
+    });
+    // Rotating: 6 in the pool against a cap of 2 clears the 1.5x threshold.
+    await seedAutoStack(
+      t,
+      "dj",
+      "s1",
+      { ...jazzBefore1980, limit: 2, rotation: "daily" },
+      "shareauto",
+      { excluded_ids: [6] }
+    );
+
+    const membership = await t.query(api.stacks.getMembership, {
+      sessionToken: "tok-dj",
+    });
+    const shared = await t.query(api.stacks.getShared, { share_id: "shareauto" });
+
+    expect(membership.s1.rotating).toBe(true);
+    expect(membership.s1.poolSize).toBe(5);
+    expect(membership.s1.ids).toHaveLength(2);
+    // getShared returns titles, and seedAlbum titles are "Title <releaseId>".
+    expect(membership.s1.ids.map((id) => `Title ${id}`)).toEqual(
+      shared!.albums.map((a) => a.title)
+    );
+  });
+
+  it("reports an uncapped session as not rotating, with the whole pool", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedAlbum(t, "dj", 1, { genres: ["Jazz"], year: 1965 });
+    await seedAlbum(t, "dj", 2, { genres: ["Jazz"], year: 1961 });
+    await seedAutoStack(t, "dj", "s1", jazzBefore1980);
+
+    const result = await t.query(api.stacks.getMembership, {
+      sessionToken: "tok-dj",
+    });
+    expect(result.s1).toEqual({ ids: [2, 1], poolSize: 2, rotating: false });
+  });
+
+  it("returns an empty list for a rule made only of unknown conditions", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedAlbum(t, "dj", 1);
+    await seedAutoStack(t, "dj", "s1", {
+      match: "all",
+      conditions: [{ field: "noSuchField", op: "noSuchOp", value: 1 }],
+      sort: "artist-az",
+      rotation: "off",
+    });
+
+    const result = await t.query(api.stacks.getMembership, {
+      sessionToken: "tok-dj",
+    });
+    expect(result.s1).toEqual({ ids: [], poolSize: 0, rotating: false });
+  });
+
+  it("returns an empty object when the caller has no auto sessions", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedStack(t, "dj", "manual", [1]);
+
+    const result = await t.query(api.stacks.getMembership, {
+      sessionToken: "tok-dj",
+    });
+    expect(result).toEqual({});
+  });
+});

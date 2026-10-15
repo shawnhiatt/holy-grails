@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
 import { evaluateStackRule, type RuleAlbum, type StackRule } from "./stackRules";
 
@@ -168,6 +168,76 @@ export const remove = mutation({
   },
 });
 
+/**
+ * Everything an auto session's rule can key on, loaded for one user: their
+ * collection rows plus the purge tags and play history folded in from their own
+ * tables. The single loading path behind both getShared (a viewer of a link)
+ * and getMembership (the owner, natively), so the two cannot disagree about
+ * what a rule sees.
+ */
+async function loadRuleAlbums(ctx: QueryCtx, username: string) {
+  const rows = await ctx.db
+    .query("collection")
+    .withIndex("by_username", (q) =>
+      q.eq("discogsUsername", username)
+    )
+    .collect();
+
+  // Purge tags and play history live in their own tables; a rule can key
+  // on either, so they are folded in the same way the client does.
+  const tags = await ctx.db
+    .query("purge_tags")
+    .withIndex("by_username", (q) =>
+      q.eq("discogs_username", username)
+    )
+    .collect();
+  const tagByRelease = new Map(tags.map((t) => [t.release_id, t.tag]));
+
+  const plays = await ctx.db
+    .query("last_played")
+    .withIndex("by_username", (q) =>
+      q.eq("discogs_username", username)
+    )
+    .collect();
+  const playCount = new Map<number, number>();
+  const lastPlayedAt = new Map<number, number>();
+  for (const p of plays) {
+    playCount.set(p.release_id, (playCount.get(p.release_id) ?? 0) + 1);
+    lastPlayedAt.set(
+      p.release_id,
+      Math.max(lastPlayedAt.get(p.release_id) ?? 0, p.played_at)
+    );
+  }
+
+  // Market values are deliberately NOT loaded here. The client's rule
+  // input (app-context's ruleAlbums) carries no market value — it lives in
+  // the lazily-loaded Insights query — so a marketValue condition matches
+  // nothing for the owner. Loading it here would make the share link show
+  // a different set than the owner sees, and it took an unindexed read of
+  // the whole shared market_values table on a public endpoint. The builder
+  // offers no price field today; wire market values into BOTH sides
+  // together if one is ever added.
+  const ruleAlbums: RuleAlbum[] = rows.map((row) => ({
+    releaseId: row.releaseId,
+    artist: row.artist,
+    artistIds: row.artistIds,
+    title: row.title,
+    label: row.label,
+    year: row.year,
+    genres: row.genres,
+    styles: row.styles,
+    format: row.format,
+    folder: row.folder,
+    mediaCondition: row.mediaCondition,
+    rating: row.rating,
+    dateAdded: row.dateAdded,
+    purgeTag: tagByRelease.get(row.releaseId) ?? null,
+    lastPlayedAt: lastPlayedAt.get(row.releaseId) ?? null,
+    playCount: playCount.get(row.releaseId) ?? 0,
+  }));
+  return { rows, ruleAlbums };
+}
+
 // ── Session sharing (capability-token share links) ──
 // See the Sessions naming note in CLAUDE.md: internal identifiers stay
 // stack*/share*; user-facing copy says "Session".
@@ -268,65 +338,7 @@ export const getShared = query({
     // the owner sees — including the same rotation roll, since the seeded
     // bucket is a function of the session id and the clock, not of state.
     if (stack.kind === "auto" && stack.rule) {
-      const rows = await ctx.db
-        .query("collection")
-        .withIndex("by_username", (q) =>
-          q.eq("discogsUsername", stack.discogs_username)
-        )
-        .collect();
-
-      // Purge tags and play history live in their own tables; a rule can key
-      // on either, so they are folded in the same way the client does.
-      const tags = await ctx.db
-        .query("purge_tags")
-        .withIndex("by_username", (q) =>
-          q.eq("discogs_username", stack.discogs_username)
-        )
-        .collect();
-      const tagByRelease = new Map(tags.map((t) => [t.release_id, t.tag]));
-
-      const plays = await ctx.db
-        .query("last_played")
-        .withIndex("by_username", (q) =>
-          q.eq("discogs_username", stack.discogs_username)
-        )
-        .collect();
-      const playCount = new Map<number, number>();
-      const lastPlayedAt = new Map<number, number>();
-      for (const p of plays) {
-        playCount.set(p.release_id, (playCount.get(p.release_id) ?? 0) + 1);
-        lastPlayedAt.set(
-          p.release_id,
-          Math.max(lastPlayedAt.get(p.release_id) ?? 0, p.played_at)
-        );
-      }
-
-      // Market values are deliberately NOT loaded here. The client's rule
-      // input (app-context's ruleAlbums) carries no market value — it lives in
-      // the lazily-loaded Insights query — so a marketValue condition matches
-      // nothing for the owner. Loading it here would make the share link show
-      // a different set than the owner sees, and it took an unindexed read of
-      // the whole shared market_values table on a public endpoint. The builder
-      // offers no price field today; wire market values into BOTH sides
-      // together if one is ever added.
-      const ruleAlbums: RuleAlbum[] = rows.map((row) => ({
-        releaseId: row.releaseId,
-        artist: row.artist,
-        artistIds: row.artistIds,
-        title: row.title,
-        label: row.label,
-        year: row.year,
-        genres: row.genres,
-        styles: row.styles,
-        format: row.format,
-        folder: row.folder,
-        mediaCondition: row.mediaCondition,
-        rating: row.rating,
-        dateAdded: row.dateAdded,
-        purgeTag: tagByRelease.get(row.releaseId) ?? null,
-        lastPlayedAt: lastPlayedAt.get(row.releaseId) ?? null,
-        playCount: playCount.get(row.releaseId) ?? 0,
-      }));
+      const { rows, ruleAlbums } = await loadRuleAlbums(ctx, stack.discogs_username);
 
       const result = evaluateStackRule(ruleAlbums, stack.rule as StackRule, {
         stackId: stack.stack_id,
@@ -365,5 +377,46 @@ export const getShared = query({
       last_modified: stack.last_modified,
       albums,
     };
+  },
+});
+
+/**
+ * What each of the caller's auto sessions plays right now, keyed by stack_id.
+ * The native app's twin of the PWA's client-side evaluation: rules don't run on
+ * a phone, so it subscribes to this instead. Same evaluator and the same
+ * loading path as getShared, so the owner and a link viewer see one set.
+ *
+ * Rotation is clock-derived and a query only re-runs when its data changes, so
+ * a client re-subscribes when it returns to the foreground to pick up the
+ * early-morning flip.
+ */
+export const getMembership = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const stacks = await ctx.db
+      .query("stacks")
+      .withIndex("by_username", (q) =>
+        q.eq("discogs_username", user.discogs_username)
+      )
+      .collect();
+
+    const out: Record<string, { ids: number[]; poolSize: number; rotating: boolean }> = {};
+    const autos = stacks.filter((s) => s.kind === "auto" && s.rule);
+    if (autos.length === 0) return out;
+
+    const { ruleAlbums } = await loadRuleAlbums(ctx, user.discogs_username);
+    for (const stack of autos) {
+      const result = evaluateStackRule(ruleAlbums, stack.rule as StackRule, {
+        stackId: stack.stack_id,
+        excludedIds: stack.excluded_ids,
+      });
+      out[stack.stack_id] = {
+        ids: result.albums.map((a) => a.releaseId),
+        poolSize: result.poolSize,
+        rotating: result.rotating,
+      };
+    }
+    return out;
   },
 });
