@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useApp, type SortOption } from "./app-context";
 import { hasRating } from "./discogs-api";
 import { SlideOutPanel } from "./slide-out-panel";
+import { hasActiveCollectionFilters } from "./use-filtered-albums";
 import {
   FilterApplyButton,
   FilterChipButton,
@@ -33,7 +34,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
  *  `searchQuery` (deliberately kept out of app context), and a count that
  *  ignored an active search would disagree with the grid behind the sheet. */
 export function FilterDrawer({ matchCount }: { matchCount: number }) {
-  const { setShowFilterDrawer, activeFolders, setActiveFolders, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, unratedFilter, setUnratedFilter, albums, formatFilter, setFormatFilter } = useApp();
+  const { setShowFilterDrawer, activeFolders, setActiveFolders, sortOption, setSortOption, isDarkMode, folders, neverPlayedFilter, setNeverPlayedFilter, playsRecordedFilter, setPlaysRecordedFilter, unratedFilter, setUnratedFilter, albums, formatFilter, setFormatFilter, defaultCollectionSort } = useApp();
 
   // The rating chips only make sense once something is rated — before the
   // free-data backfill reaches this user, every record reads unrated and an
@@ -43,11 +44,11 @@ export function FilterDrawer({ matchCount }: { matchCount: number }) {
   // The Format section hides entirely for a single-type (all-vinyl) collection.
   const formatTypes = useMemo(() => presentMediaTypes(albums), [albums]);
 
-  const hasActiveFilters = activeFolders.length > 0 || sortOption !== "artist-az" || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
+  const hasActiveFilters = hasActiveCollectionFilters({ activeFolders, sortOption, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter }, defaultCollectionSort);
 
   const handleReset = () => {
     setActiveFolders([]);
-    setSortOption("artist-az");
+    setSortOption(defaultCollectionSort);
     setNeverPlayedFilter(false);
     setPlaysRecordedFilter(false);
     setUnratedFilter(false);

@@ -29,6 +29,32 @@ export interface FilterAlbumsOptions {
   effectiveSortOption: SortOption;
 }
 
+/** Active-filter chip label for each sort. Typed over every SortOption so a
+ *  sort added later can't ship without one — "rating-high" was missing and
+ *  rendered a blank chip. */
+export const SORT_CHIP_LABELS: Record<SortOption, string> = {
+  "artist-az": "Artist A\u2192Z",
+  "artist-za": "Artist Z\u2192A",
+  "title-az": "Title A\u2192Z",
+  "year-new": "Newest",
+  "year-old": "Oldest",
+  "added-new": "Recently Added",
+  "added-old": "Oldest Added",
+  "label-az": "Label A\u2192Z",
+  "last-played-oldest": "Last Played",
+  "rating-high": "Rating: Highest First",
+};
+
+/** Whether anything differs from the resting state. The sort is judged
+ *  against the user's saved default, not Artist A→Z — the screen and the
+ *  drawer must agree, and the drawer's Reset returns to the same default. */
+export function hasActiveCollectionFilters(
+  f: Pick<FilterAlbumsOptions, "activeFolders" | "neverPlayedFilter" | "playsRecordedFilter" | "unratedFilter" | "formatFilter"> & { sortOption: SortOption },
+  defaultSort: SortOption,
+): boolean {
+  return f.activeFolders.length > 0 || f.sortOption !== defaultSort || f.neverPlayedFilter || f.playsRecordedFilter || !!f.unratedFilter || !!f.formatFilter;
+}
+
 /** Epoch ms an album was added, or 0 when the row carries no usable date.
  *  The sync writes "" when Discogs omits `date_added`. */
 function addedMs(a: Album): number {

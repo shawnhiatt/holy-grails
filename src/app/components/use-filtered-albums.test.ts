@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterAndSortAlbums, type FilterAlbumsOptions } from "./use-filtered-albums";
+import { filterAndSortAlbums, hasActiveCollectionFilters, SORT_CHIP_LABELS, type FilterAlbumsOptions } from "./use-filtered-albums";
 import { makeAlbum } from "../../test/factories";
 
 function run(overrides: Partial<FilterAlbumsOptions>) {
@@ -293,5 +293,39 @@ describe("rating filter and sort", () => {
     ];
     const out = run({ albums, unratedFilter: true, activeFolders: ["Jazz"] });
     expect(out.map((a) => a.artist)).toEqual(["A"]);
+  });
+});
+
+describe("SORT_CHIP_LABELS", () => {
+  it("gives every sort a non-empty chip label", () => {
+    for (const [sort, label] of Object.entries(SORT_CHIP_LABELS)) {
+      expect(label.trim(), sort).not.toBe("");
+    }
+    expect(SORT_CHIP_LABELS["rating-high"]).toBe("Rating: Highest First");
+  });
+});
+
+describe("hasActiveCollectionFilters", () => {
+  const resting = {
+    activeFolders: [],
+    sortOption: "added-new" as const,
+    neverPlayedFilter: false,
+    playsRecordedFilter: false,
+    unratedFilter: false,
+    formatFilter: null,
+  };
+
+  it("treats the user's default sort as resting, even when it isn't Artist A→Z", () => {
+    expect(hasActiveCollectionFilters(resting, "added-new")).toBe(false);
+  });
+
+  it("flags Artist A→Z as active when the default is something else", () => {
+    expect(hasActiveCollectionFilters({ ...resting, sortOption: "artist-az" }, "added-new")).toBe(true);
+  });
+
+  it("flags any filter", () => {
+    expect(hasActiveCollectionFilters({ ...resting, activeFolders: ["Jazz"] }, "added-new")).toBe(true);
+    expect(hasActiveCollectionFilters({ ...resting, unratedFilter: true }, "added-new")).toBe(true);
+    expect(hasActiveCollectionFilters({ ...resting, formatFilter: "CD" }, "added-new")).toBe(true);
   });
 });

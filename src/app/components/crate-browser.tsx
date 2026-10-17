@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { AnimatePresence } from "motion/react";
 import { Search, List, Grid2x2, Grid3x3 } from "./icons";
 import { useApp, type ViewMode } from "./app-context";
-import { useFilteredAlbums } from "./use-filtered-albums";
+import { useFilteredAlbums, hasActiveCollectionFilters, SORT_CHIP_LABELS } from "./use-filtered-albums";
 import { AlbumList } from "./album-list";
 import { AlbumGrid } from "./album-grid";
 
@@ -141,19 +141,7 @@ export function CrateBrowser() {
     }
   }, [viewMode, setViewMode, lastGridMode]);
 
-  const sortLabel: Record<string, string> = {
-    "artist-az": "Artist A\u2192Z",
-    "artist-za": "Artist Z\u2192A",
-    "title-az": "Title A\u2192Z",
-    "year-new": "Newest",
-    "year-old": "Oldest",
-    "added-new": "Recently Added",
-    "added-old": "Oldest Added",
-    "label-az": "Label A\u2192Z",
-    "last-played-oldest": "Last Played",
-  };
-
-  const hasActiveFilters = activeFolders.length > 0 || sortOption !== defaultCollectionSort || neverPlayedFilter || playsRecordedFilter || unratedFilter || !!formatFilter;
+  const hasActiveFilters = hasActiveCollectionFilters({ activeFolders, sortOption, neverPlayedFilter, playsRecordedFilter, unratedFilter, formatFilter }, defaultCollectionSort);
 
   return (
     <div className="flex flex-col h-full">
@@ -180,7 +168,7 @@ export function CrateBrowser() {
             {activeFolders.map((f) => (
               <ActiveFilterChip isDarkMode={isDarkMode} key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
             ))}
-            {sortOption !== defaultCollectionSort && <ActiveFilterChip isDarkMode={isDarkMode} label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
+            {sortOption !== defaultCollectionSort && <ActiveFilterChip isDarkMode={isDarkMode} label={SORT_CHIP_LABELS[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
             {playsRecordedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
             {unratedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Unrated" onClear={() => setUnratedFilter(false)} />}
@@ -227,7 +215,7 @@ export function CrateBrowser() {
             {activeFolders.map((f) => (
               <ActiveFilterChip isDarkMode={isDarkMode} key={f} label={f} onClear={() => setActiveFolders(activeFolders.filter((x) => x !== f))} />
             ))}
-            {sortOption !== defaultCollectionSort && <ActiveFilterChip isDarkMode={isDarkMode} label={sortLabel[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
+            {sortOption !== defaultCollectionSort && <ActiveFilterChip isDarkMode={isDarkMode} label={SORT_CHIP_LABELS[sortOption]} onClear={() => setSortOption(defaultCollectionSort)} />}
             {neverPlayedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="No Plays Recorded" onClear={() => setNeverPlayedFilter(false)} />}
             {playsRecordedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Plays Recorded" onClear={() => setPlaysRecordedFilter(false)} />}
             {unratedFilter && <ActiveFilterChip isDarkMode={isDarkMode} label="Unrated" onClear={() => setUnratedFilter(false)} />}
