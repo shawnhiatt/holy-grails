@@ -1,9 +1,10 @@
 // @vitest-environment edge-runtime
 /// <reference types="vite/client" />
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
 import { api } from "./_generated/api";
 import schema from "./schema";
+import { ROTATION_OFFSET_MS } from "./stackRules";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -675,6 +676,82 @@ describe("getMembership", () => {
       sessionToken: "tok-dj",
     });
     expect(result.s1).toEqual({ ids: [], poolSize: 0, rotating: false });
+  });
+
+  describe("the hour cache-buster", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const DAY_MS = 86_400_000;
+    // The first daily flip after NOW_ISH, so the seeded session stays fresh.
+    const FLIP =
+      Math.floor((NOW_ISH - ROTATION_OFFSET_MS) / DAY_MS) * DAY_MS +
+      ROTATION_OFFSET_MS +
+      DAY_MS;
+    const utcHour = (ms: number) => new Date(ms).toISOString().slice(0, 13);
+
+    async function seedRotating(t: ReturnType<typeof newTest>) {
+      await seedUser(t, "dj", "tok-dj");
+      for (let i = 1; i <= 20; i++) {
+        await seedAlbum(t, "dj", i, { genres: ["Jazz"], year: 1950 + i });
+      }
+      await seedAutoStack(t, "dj", "s1", {
+        ...jazzBefore1980,
+        limit: 2,
+        rotation: "daily",
+      });
+    }
+
+    it("lands every flip on a UTC hour boundary", () => {
+      expect(ROTATION_OFFSET_MS % 3_600_000).toBe(0);
+      expect(utcHour(FLIP)).not.toBe(utcHour(FLIP - 1));
+    });
+
+    it("works with and without the argument, agreeing within a period", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(FLIP - 30 * 60_000);
+      const t = newTest();
+      await seedRotating(t);
+
+      const without = await t.query(api.stacks.getMembership, {
+        sessionToken: "tok-dj",
+      });
+      const withHour = await t.query(api.stacks.getMembership, {
+        sessionToken: "tok-dj",
+        hour: utcHour(Date.now()),
+      });
+      expect(without.s1.rotating).toBe(true);
+      expect(withHour).toEqual(without);
+    });
+
+    it("never lets the value choose which releases rotate in", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(FLIP - 30 * 60_000);
+      const t = newTest();
+      await seedRotating(t);
+
+      const before = await t.query(api.stacks.getMembership, {
+        sessionToken: "tok-dj",
+      });
+      // Claiming to be past the flip, or sending junk, changes nothing.
+      for (const hour of [utcHour(FLIP), utcHour(FLIP + 7 * DAY_MS), "", "nope"]) {
+        const result = await t.query(api.stacks.getMembership, {
+          sessionToken: "tok-dj",
+          hour,
+        });
+        expect(result).toEqual(before);
+      }
+
+      // The server's own clock crossing the flip is what moves the set,
+      // even with a stale value from the previous period.
+      vi.setSystemTime(FLIP + 30 * 60_000);
+      const after = await t.query(api.stacks.getMembership, {
+        sessionToken: "tok-dj",
+        hour: utcHour(FLIP - 30 * 60_000),
+      });
+      expect(after.s1.ids).not.toEqual(before.s1.ids);
+    });
   });
 
   it("returns an empty object when the caller has no auto sessions", async () => {

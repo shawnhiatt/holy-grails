@@ -386,12 +386,26 @@ export const getShared = query({
  * a phone, so it subscribes to this instead. Same evaluator and the same
  * loading path as getShared, so the owner and a link viewer see one set.
  *
- * Rotation is clock-derived and a query only re-runs when its data changes, so
- * a client re-subscribes when it returns to the foreground to pick up the
- * early-morning flip.
+ * Rotation is clock-derived, and Convex re-runs a query when the data it read
+ * changes, not when time passes — a re-subscription can be handed the cached
+ * result from before the early-morning flip. `hour` exists only to defeat
+ * that: a new argument value is a new query, so it evaluates fresh.
+ *
+ * The contract: `hour` is the device's current UTC hour as "YYYY-MM-DDTHH"
+ * (e.g. "2026-10-17T10"), sent on every subscription. Every rotation flip
+ * lands on a UTC hour boundary — daily at 10:00 UTC (ROTATION_OFFSET_MS), and
+ * weekly at the same hour on Thursdays (the epoch fell on one) — so the value
+ * changes at or after every flip without the client porting rotationBucket.
+ * It costs one fresh evaluation per hour per subscriber.
+ *
+ * The value is never read. Which records rotate in is decided by the server's
+ * own clock, so a stale, skewed or invented value can only cost a cache miss.
+ * A device clock running fast can change the value before the server flips,
+ * caching the old set until the next hour; that is the accepted edge.
+ * Optional, because the shipped native build calls this without it.
  */
 export const getMembership = query({
-  args: { sessionToken: v.string() },
+  args: { sessionToken: v.string(), hour: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
     const stacks = await ctx.db
