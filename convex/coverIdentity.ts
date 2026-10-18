@@ -2,13 +2,13 @@
    own plain module (no Convex deps) so the "use node" vision action and the
    vitest suite can both import it — same pattern as marketValue.ts. */
 
-/** Model for cover identification. Sonnet 5 reads stylized/letterpress cover
+/** Model for cover identification. Sonnet 5.5 reads stylized/letterpress cover
     type and small hype-sticker text far better than Haiku did, and its
     high-resolution vision suits the OCR-fallback path — Haiku plateaued on
     exactly those covers. Cover scans are rare, deliberate shutter presses, so
     the per-scan cost of Sonnet over Haiku is negligible. Bump to
-    "claude-opus-4-8" if accuracy ever still disappoints. */
-export const COVER_MODEL = "claude-sonnet-5";
+    "claude-opus-5-5" if accuracy ever still disappoints. */
+export const COVER_MODEL = "claude-sonnet-5-5";
 
 /** What the model is asked to do. The structured-output schema does the
     shaping; the prompt sets the task and — critically — tells the model to
