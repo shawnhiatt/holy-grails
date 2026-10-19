@@ -2,7 +2,7 @@
 /// <reference types="vite/client" />
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -198,5 +198,98 @@ describe("syncFollowedUser page validation (bug hunt L10)", () => {
       t.action(api.discogs.syncFollowedUser, { sessionToken: TOKEN, username: FOLLOWED })
     ).rejects.toThrow(/page/i);
     expect(await cachedCollection(t)).toBe(3);
+  });
+});
+
+describe("syncFollowedUser vs. an unfollow mid-sync", () => {
+  beforeEach(() => {
+    vi.stubEnv("DISCOGS_CONSUMER_KEY", "key");
+    vi.stubEnv("DISCOGS_CONSUMER_SECRET", "secret");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  const allRows = (t: ReturnType<typeof convexTest>) =>
+    t.run(async (ctx) => await ctx.db.query("followed_items").collect());
+
+  /**
+   * Discogs answers normally, but `duringFetch` runs while the action is still
+   * fetching — after it started, before any of its writes land. The profile
+   * fetch is the last request before the writes.
+   */
+  function stubWithHook(duringFetch: () => Promise<void>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        if (url.includes("/collection/folders/0/releases")) {
+          return json({ pagination: { pages: 1, page: 1, items: 2 }, releases: [release(1), release(2)] });
+        }
+        if (url.includes("/wants")) {
+          return json({ pagination: { pages: 1, page: 1, items: 1 }, wants: [want(777)] });
+        }
+        if (url.endsWith(`/users/${FOLLOWED}`)) {
+          await duringFetch();
+          return json({ username: FOLLOWED, avatar_url: "a.jpg" });
+        }
+        return json({ message: "unexpected" }, 404);
+      })
+    );
+  }
+
+  it("leaves no rows when the follower unfollows while the sync is running", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    stubWithHook(async () => {
+      await t.mutation(api.following.remove, { sessionToken: TOKEN, following_username: FOLLOWED });
+    });
+    await t.action(api.discogs.syncFollowedUser, { sessionToken: TOKEN, username: FOLLOWED });
+    expect(await allRows(t)).toEqual([]);
+  });
+
+  it("still writes when the follow is in place throughout", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    stubWithHook(async () => {});
+    await t.action(api.discogs.syncFollowedUser, { sessionToken: TOKEN, username: FOLLOWED });
+    const rows = await allRows(t);
+    expect(rows.filter((r) => r.kind === "collection").map((r) => r.release_id).sort()).toEqual([1, 2]);
+    expect(rows.filter((r) => r.kind === "want").map((r) => r.release_id)).toEqual([777]);
+    expect(rows.every((r) => r.follower_username === FOLLOWER)).toBe(true);
+  });
+
+  it("still writes when the follower unfollows and re-follows before the writes land", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    stubWithHook(async () => {
+      await t.mutation(api.following.remove, { sessionToken: TOKEN, following_username: FOLLOWED });
+      await t.mutation(api.following.add, { sessionToken: TOKEN, following_username: FOLLOWED });
+    });
+    await t.action(api.discogs.syncFollowedUser, { sessionToken: TOKEN, username: FOLLOWED });
+    const rows = await allRows(t);
+    expect(rows.filter((r) => r.kind === "collection").map((r) => r.release_id).sort()).toEqual([1, 2]);
+    expect(rows.filter((r) => r.kind === "want").map((r) => r.release_id)).toEqual([777]);
+  });
+
+  it("drops a chunk that lands after the unfollow, and clears what earlier chunks wrote", async () => {
+    // The action writes in chunks; the check runs in each one. Simulate an
+    // earlier chunk's rows surviving (the unfollow raced it) and a later
+    // chunk arriving once the follow is gone.
+    const t = convexTest(schema, modules);
+    await seed(t);
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query("following").first();
+      await ctx.db.delete(row!._id);
+    });
+    await t.mutation(internal.followed_items.appendItems, {
+      follower_username: FOLLOWER,
+      followed_username: FOLLOWED,
+      kind: "collection",
+      items: [{ release_id: 9, title: "T", artist: "A", year: 1990, cover: "c", label: "L", dateAdded: "" }],
+    });
+    // The seeded want rows stood in for an earlier chunk's writes.
+    expect(await allRows(t)).toEqual([]);
   });
 });

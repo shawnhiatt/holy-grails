@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, internalMutation } from "./_generated/server";
+import { query, internalMutation, MutationCtx } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
 
 /**
@@ -76,7 +76,48 @@ export const getForUser = query({
   },
 });
 
-/** Delete all cached items of one kind for a followed user. */
+/**
+ * Whether `follower` still follows `followed`, read inside the writing
+ * mutation so the answer is atomic with the write. syncFollowedUser fetches
+ * from Discogs for seconds before it writes; an unfollow landing in that
+ * window used to be followed by the sync's writes, leaving cached rows under
+ * the follower for someone they no longer follow. Case-insensitive, matching
+ * getForUser, so a casing difference between the follow row and the sync's
+ * argument can never cost a legitimate write.
+ */
+async function stillFollowing(
+  ctx: MutationCtx,
+  follower: string,
+  followed: string
+): Promise<boolean> {
+  const rows = await ctx.db
+    .query("following")
+    .withIndex("by_username", (q) => q.eq("discogs_username", follower))
+    .collect();
+  const target = followed.toLowerCase();
+  return rows.some((f) => f.following_username.toLowerCase() === target);
+}
+
+/** Every cached row (both kinds) for one follower/followed pair. */
+async function deleteAllForPair(
+  ctx: MutationCtx,
+  follower: string,
+  followed: string
+) {
+  const rows = await ctx.db
+    .query("followed_items")
+    .withIndex("by_follower_followed", (q) =>
+      q.eq("follower_username", follower).eq("followed_username", followed)
+    )
+    .collect();
+  for (const row of rows) await ctx.db.delete(row._id);
+}
+
+/**
+ * Delete all cached items of one kind for a followed user. If the follow is
+ * gone by the time this lands, every row for the pair goes instead — nothing
+ * should be cached for someone no longer followed.
+ */
 export const clearForUser = internalMutation({
   args: {
     follower_username: v.string(),
@@ -84,6 +125,10 @@ export const clearForUser = internalMutation({
     kind: v.union(v.literal("collection"), v.literal("want")),
   },
   handler: async (ctx, args) => {
+    if (!(await stillFollowing(ctx, args.follower_username, args.followed_username))) {
+      await deleteAllForPair(ctx, args.follower_username, args.followed_username);
+      return;
+    }
     const rows = await ctx.db
       .query("followed_items")
       .withIndex("by_follower_followed", (q) =>
@@ -98,7 +143,12 @@ export const clearForUser = internalMutation({
   },
 });
 
-/** Insert a batch of cached items (sync action writes in chunks). */
+/**
+ * Insert a batch of cached items (sync action writes in chunks). Skipped —
+ * and any rows already written for the pair removed — when the follower
+ * unfollowed while the sync was running. Checked per chunk, so an unfollow
+ * between two chunks is caught by the next one.
+ */
 export const appendItems = internalMutation({
   args: {
     follower_username: v.string(),
@@ -107,6 +157,10 @@ export const appendItems = internalMutation({
     items: v.array(v.object(itemFields)),
   },
   handler: async (ctx, args) => {
+    if (!(await stillFollowing(ctx, args.follower_username, args.followed_username))) {
+      await deleteAllForPair(ctx, args.follower_username, args.followed_username);
+      return;
+    }
     for (const item of args.items) {
       await ctx.db.insert("followed_items", {
         follower_username: args.follower_username,
