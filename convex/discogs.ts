@@ -33,6 +33,22 @@ function getConsumerSecret(): string {
 
 // ─── HMAC-SHA1 OAuth 1.0a signing ───
 
+// RFC 3986 percent-encoding, which OAuth 1.0a requires. encodeURIComponent
+// leaves !'()* bare, so a search for "Don't" would sign differently from how
+// Discogs re-encodes it.
+function percentEncode(s: string): string {
+  return encodeURIComponent(s).replace(
+    /[!'()*]/g,
+    (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase()
+  );
+}
+
+// The URL's query parameters MUST go
+// into the signature base string (OAuth 1.0a §3.4.1.3). They used to be left
+// out, and Discogs does not reject a bad signature: it quietly serves the
+// request as anonymous — 200, but /database/search then returns "" for every
+// thumb and cover_image and no user_data, which is why Look It Up showed
+// placeholder art. Pinned by searchImages.test.ts.
 function buildOAuthHeader(
   method: string,
   url: string,
@@ -55,21 +71,26 @@ function buildOAuthHeader(
     ...extraParams,
   };
 
-  // Signature base string per OAuth 1.0a spec
-  const sortedParams = Object.entries(params)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(
-      ([k, val]) => `${encodeURIComponent(k)}=${encodeURIComponent(val)}`
+  // Signature base string per OAuth 1.0a spec: the oauth_* params plus every
+  // query parameter, encoded, then sorted by encoded key and value.
+  const [baseUrl, query = ""] = url.split("?");
+  const signed: [string, string][] = Object.entries(params);
+  new URLSearchParams(query).forEach((val, k) => signed.push([k, val]));
+  const sortedParams = signed
+    .map(([k, val]) => [percentEncode(k), percentEncode(val)])
+    .sort(([ak, av], [bk, bv]) =>
+      ak < bk ? -1 : ak > bk ? 1 : av < bv ? -1 : av > bv ? 1 : 0
     )
+    .map(([k, val]) => `${k}=${val}`)
     .join("&");
 
   const baseString = [
     method.toUpperCase(),
-    encodeURIComponent(url.split("?")[0]), // base URL without query string
-    encodeURIComponent(sortedParams),
+    percentEncode(baseUrl),
+    percentEncode(sortedParams),
   ].join("&");
 
-  const signingKey = `${encodeURIComponent(consumerSecret)}&${encodeURIComponent(tokenSecret)}`;
+  const signingKey = `${percentEncode(consumerSecret)}&${percentEncode(tokenSecret)}`;
   const signature = crypto
     .createHmac("sha1", signingKey)
     .update(baseString)
@@ -80,7 +101,7 @@ function buildOAuthHeader(
   return (
     "OAuth " +
     Object.entries(params)
-      .map(([k, val]) => `${k}="${encodeURIComponent(val)}"`)
+      .map(([k, val]) => `${k}="${percentEncode(val)}"`)
       .join(", ")
   );
 }
