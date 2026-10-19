@@ -434,3 +434,59 @@ export const getMembership = query({
     return out;
   },
 });
+
+/**
+ * What an unsaved rule would play, evaluated against the caller's own
+ * collection: the native Session Builder's live match count. The PWA runs the
+ * same evaluation client-side (app-context's previewStackRule); rules don't run
+ * on a phone, so the native app asks here. Same loading path and evaluator as
+ * getMembership and getShared, so the count can't disagree with what the saved
+ * session ends up holding.
+ *
+ * Rotation seed: an unsaved rule has no stack_id, so it seeds with "preview" —
+ * the PWA's previewStackRule does the same. `poolSize` and `rotating` never
+ * depend on the seed, so they always agree with the saved session; `ids` agree
+ * only when the rule doesn't rotate, or when `stackId` is passed. Pass
+ * `stackId` when editing an existing session (its excluded_ids are applied
+ * too, if it is the caller's), or with the id a new session is about to be
+ * created under — `create` takes a client-chosen stack_id — so the preview
+ * shows the exact rotation roll the session will open with. A stackId the
+ * caller doesn't own only changes the seed; nothing of another user's is read.
+ *
+ * `hour` is getMembership's cache-buster, same contract: the device's current
+ * UTC hour as "YYYY-MM-DDTHH", never read. Additive — the PWA never calls this.
+ */
+export const previewRule = query({
+  args: {
+    sessionToken: v.string(),
+    rule: ruleValidator,
+    hour: v.optional(v.string()),
+    stackId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+
+    let excludedIds: number[] | undefined;
+    if (args.stackId) {
+      const stack = await ctx.db
+        .query("stacks")
+        .withIndex("by_username", (q) =>
+          q.eq("discogs_username", user.discogs_username)
+        )
+        .filter((q) => q.eq(q.field("stack_id"), args.stackId))
+        .first();
+      excludedIds = stack?.excluded_ids;
+    }
+
+    const { ruleAlbums } = await loadRuleAlbums(ctx, user.discogs_username);
+    const result = evaluateStackRule(ruleAlbums, args.rule as StackRule, {
+      stackId: args.stackId || "preview",
+      excludedIds,
+    });
+    return {
+      poolSize: result.poolSize,
+      ids: result.albums.map((a) => a.releaseId),
+      rotating: result.rotating,
+    };
+  },
+});

@@ -765,3 +765,155 @@ describe("getMembership", () => {
     expect(result).toEqual({});
   });
 });
+
+describe("previewRule", () => {
+  it("rejects a bad session token", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    for (const sessionToken of ["nope", ""]) {
+      await expect(
+        t.query(api.stacks.previewRule, { sessionToken, rule: jazzBefore1980 })
+      ).rejects.toThrow();
+    }
+  });
+
+  it("evaluates against the caller's own collection, not another user's", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedUser(t, "other", "tok-other");
+    await seedAlbum(t, "dj", 1, { genres: ["Jazz"], year: 1965 });
+    await seedAlbum(t, "other", 2, { genres: ["Jazz"], year: 1966 });
+
+    const result = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: jazzBefore1980,
+    });
+    expect(result).toEqual({ poolSize: 1, ids: [1], rotating: false });
+  });
+
+  it("agrees with getMembership for the same rule once saved", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    for (let i = 1; i <= 6; i++) {
+      await seedAlbum(t, "dj", i, { genres: ["Jazz"], year: 1960 + i });
+    }
+    await t.run(async (ctx) => {
+      await ctx.db.insert("last_played", {
+        discogs_username: "dj",
+        release_id: 2,
+        played_at: NOW_ISH,
+      });
+    });
+    const plain = { ...jazzBefore1980, limit: 4 };
+    const rotating = { ...jazzBefore1980, limit: 2, rotation: "daily" as const };
+
+    const plainPreview = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: plain,
+    });
+    const rotatingPreview = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: rotating,
+      stackId: "s-rot",
+    });
+
+    await seedAutoStack(t, "dj", "s-plain", plain);
+    await seedAutoStack(t, "dj", "s-rot", rotating);
+    const membership = await t.query(api.stacks.getMembership, {
+      sessionToken: "tok-dj",
+    });
+
+    expect(plainPreview).toEqual(membership["s-plain"]);
+    // A pre-chosen stackId seeds the same rotation roll the saved session opens with.
+    expect(rotatingPreview.rotating).toBe(true);
+    expect(rotatingPreview).toEqual(membership["s-rot"]);
+
+    // Without a stackId the roll may differ, but the count and rotation flag can't.
+    const unseeded = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: rotating,
+    });
+    expect(unseeded.poolSize).toBe(membership["s-rot"].poolSize);
+    expect(unseeded.rotating).toBe(true);
+    expect(unseeded.ids).toHaveLength(2);
+  });
+
+  it("returns an empty list for a rule made only of unknown conditions", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedAlbum(t, "dj", 1);
+    const result = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: {
+        match: "all",
+        conditions: [{ field: "noSuchField", op: "noSuchOp", value: 1 }],
+        sort: "artist-az",
+        rotation: "off",
+      },
+    });
+    expect(result).toEqual({ poolSize: 0, ids: [], rotating: false });
+  });
+
+  it("applies the cap, and rotates only past the 1.5x threshold", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    for (let i = 1; i <= 5; i++) {
+      await seedAlbum(t, "dj", i, { genres: ["Jazz"], year: 1970 - i });
+    }
+
+    // Capped, rotation off: the first two in running order.
+    const capped = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: { ...jazzBefore1980, limit: 2 },
+    });
+    expect(capped).toEqual({ poolSize: 5, ids: [5, 4], rotating: false });
+
+    // 5 against a cap of 4 is under 1.5x, so a rotating rule doesn't rotate.
+    const under = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: { ...jazzBefore1980, limit: 4, rotation: "daily" },
+    });
+    expect(under).toEqual({ poolSize: 5, ids: [5, 4, 3, 2], rotating: false });
+
+    // 5 against 3 clears it: rotates, stable across reads, still played oldest first.
+    const rule = { ...jazzBefore1980, limit: 3, rotation: "daily" as const };
+    const a = await t.query(api.stacks.previewRule, { sessionToken: "tok-dj", rule });
+    const b = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule,
+      hour: "2026-10-18T09",
+    });
+    expect(a.rotating).toBe(true);
+    expect(a.ids).toHaveLength(3);
+    expect(b).toEqual(a);
+    expect([...a.ids].sort((x, y) => y - x)).toEqual(a.ids);
+  });
+
+  it("applies exclusions only from the caller's own session", async () => {
+    const t = newTest();
+    await seedUser(t, "dj", "tok-dj");
+    await seedUser(t, "other", "tok-other");
+    await seedAlbum(t, "dj", 1, { genres: ["Jazz"], year: 1965 });
+    await seedAlbum(t, "dj", 2, { genres: ["Jazz"], year: 1961 });
+    await seedAutoStack(t, "dj", "mine", jazzBefore1980, undefined, {
+      excluded_ids: [1],
+    });
+    await seedAutoStack(t, "other", "theirs", jazzBefore1980, undefined, {
+      excluded_ids: [2],
+    });
+
+    const editing = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: jazzBefore1980,
+      stackId: "mine",
+    });
+    expect(editing).toEqual({ poolSize: 1, ids: [2], rotating: false });
+
+    const foreign = await t.query(api.stacks.previewRule, {
+      sessionToken: "tok-dj",
+      rule: jazzBefore1980,
+      stackId: "theirs",
+    });
+    expect(foreign).toEqual({ poolSize: 2, ids: [2, 1], rotating: false });
+  });
+});
