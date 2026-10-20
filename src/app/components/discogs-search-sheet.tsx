@@ -113,7 +113,9 @@ const MEDIA_FORMAT_NAMES = new Set([
 const searchCache = new Map<string, ResolvedSearch>();
 
 // Barcode heuristic — a barcode uniquely identifies one release, so master
-// search is the wrong endpoint for it; route straight to release search.
+// search is the wrong endpoint for it; route straight to release search, as
+// Discogs' `barcode` filter rather than free text (free text matched a grocery
+// EAN against catalog numbers and returned an unrelated release).
 // Tuned for precision: long + almost-all-digits catches scanned/typed
 // barcodes while leaving short numeric album titles ("2112", "90125") and
 // letter-prefixed catalog numbers ("SKL 5025") to normal master search.
@@ -294,6 +296,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
             searchAction({
               sessionToken,
               query: step.q,
+              barcode: isPressingQuery(step.q) ? step.q : undefined,
               searchType: step.type,
               page: 1,
               format: searchFormat ?? undefined,
@@ -330,6 +333,7 @@ export function DiscogsSearchSheet({ onClose }: { onClose: () => void }) {
     searchAction({
       sessionToken,
       query: effSearch.query,
+      barcode: isPressingQuery(effSearch.query) ? effSearch.query : undefined,
       searchType: effSearch.type,
       page: page + 1,
       format: searchFormat ?? undefined,

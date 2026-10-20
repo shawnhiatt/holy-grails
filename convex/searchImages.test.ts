@@ -135,4 +135,33 @@ describe("proxySearchDatabase artwork", () => {
     expect(calls[0].signed).toBe(true);
     expect(res.results[0].thumb).toBe(THUMB);
   });
+
+  it("sends a barcode as Discogs' barcode filter instead of free text, signed", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const calls = stubDiscogs();
+    const res = await t.action(api.discogs.proxySearchDatabase, {
+      sessionToken: TOKEN, query: "00569408", barcode: "00569408", searchType: "release",
+    });
+    expect(calls).toHaveLength(1);
+    const params = new URL(calls[0].url).searchParams;
+    expect(params.get("barcode")).toBe("00569408");
+    expect(params.has("q")).toBe(false);
+    expect(params.get("type")).toBe("release");
+    expect(calls[0].signed).toBe(true);
+    // Return shape is the same as a free-text search.
+    expect(res.results[0]).toMatchObject({ id: 5460, thumb: THUMB, cover: COVER });
+    expect(res).toMatchObject({ page: 1, totalPages: 1, totalItems: 2 });
+  });
+
+  it("leaves a call without barcode exactly as before", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const calls = stubDiscogs();
+    await t.action(api.discogs.proxySearchDatabase, { sessionToken: TOKEN, query: "kind of blue" });
+    const u = new URL(calls[0].url);
+    expect(`${u.pathname}${u.search}`).toBe("/database/search?q=kind%20of%20blue&type=master&per_page=25&page=1");
+    expect(u.searchParams.has("barcode")).toBe(false);
+    expect(calls[0].signed).toBe(true);
+  });
 });

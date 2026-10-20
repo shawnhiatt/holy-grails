@@ -2104,6 +2104,13 @@ export const proxySearchDatabase = action({
        year and this cannot. */
     format: v.optional(v.string()),
     genre: v.optional(v.string()),
+    /* A scanned or typed barcode, sent as Discogs' own `barcode=` filter in
+       place of `q`. As free text a code matches any field — a grocery EAN-8
+       ("00569408") found a release by its catalog number — whereas `barcode`
+       only matches the Barcode identifier, so a code no release carries
+       comes back empty. When set, `query` is ignored (still required, so the
+       installed native build's calls validate unchanged). */
+    barcode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const creds = await ctx.runQuery(
@@ -2112,7 +2119,10 @@ export const proxySearchDatabase = action({
     );
     const type = args.searchType ?? "master";
     const page = args.page ?? 1;
-    let url = `${BASE}/database/search?q=${encodeURIComponent(args.query)}&type=${type}&per_page=25&page=${page}`;
+    const term = args.barcode
+      ? `barcode=${encodeURIComponent(args.barcode)}`
+      : `q=${encodeURIComponent(args.query)}`;
+    let url = `${BASE}/database/search?${term}&type=${type}&per_page=25&page=${page}`;
     if (args.format) url += `&format=${encodeURIComponent(args.format)}`;
     if (args.genre) url += `&genre=${encodeURIComponent(args.genre)}`;
     const res = await discogsFetch(
