@@ -27,10 +27,24 @@
  * scheme, which is acceptable for one person on dev and not for prod. Prod's
  * native login gets an https callback instead (iOS SPEC §5.3).
  *
+ * That https callback, `NATIVE_HTTPS_CALLBACK`, is built in rather than
+ * configured: it lives on our own domain, and an https URL can only be handed
+ * to the app that holds the Associated Domains entitlement for that domain
+ * (Apple checks the `apple-app-site-association` file on holygrails.app), so
+ * the scheme's hijack risk doesn't apply and prod can allow it with no env
+ * var. It is matched as an exact string, independent of HG_ALLOWED_ORIGINS, so
+ * setting that env var (which replaces the default origins) can't switch the
+ * iOS login off. Bare `holygrails.app` only: the app's entitlement names that
+ * host, and `www.` would need its own entitlement entry and AASA file. Its path
+ * is deliberately not `/auth/callback`, so the PWA's login is untouched.
+ *
  * Pure module, no Convex imports (admin.ts pattern), so it is unit-testable.
  */
 
 export const CALLBACK_PATH = "/auth/callback";
+
+/** The iOS app's prod login callback — exact string, always allowed. */
+export const NATIVE_HTTPS_CALLBACK = "https://holygrails.app/auth/native-callback";
 
 export const DEFAULT_ALLOWED_ORIGINS = [
   "https://holygrails.app",
@@ -84,14 +98,15 @@ export function parseNativeCallbacks(raw: string | undefined): string[] {
  * no fragment, no credentials. The origin compare is on the parsed origin
  * (scheme + host + port), never a prefix or substring match, so
  * "https://holygrails.app.evil.example" and "https://evil.example/?https://holygrails.app"
- * are both rejected. A native callback must equal an `HG_NATIVE_CALLBACKS`
- * entry character for character.
+ * are both rejected. A native callback must equal `NATIVE_HTTPS_CALLBACK` or
+ * an `HG_NATIVE_CALLBACKS` entry character for character.
  */
 export function isAllowedCallbackUrl(
   url: string,
   raw: string | undefined = process.env.HG_ALLOWED_ORIGINS,
   nativeRaw: string | undefined = process.env.HG_NATIVE_CALLBACKS
 ): boolean {
+  if (url === NATIVE_HTTPS_CALLBACK) return true;
   if (parseNativeCallbacks(nativeRaw).includes(url)) return true;
   let parsed: URL;
   try {

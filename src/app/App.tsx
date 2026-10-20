@@ -16,6 +16,7 @@ import { FeedScreen } from "./components/feed-screen";
 import { SplashScreen } from "./components/splash-screen";
 import { AuthCallback } from "./components/auth-callback";
 import { SharedSessionPage } from "./components/shared-session-page";
+import { NativeCallbackPage } from "./components/native-callback-page";
 import { LoadingScreen } from "./components/loading-screen";
 import { StackPickerSheet } from "./components/stack-picker-sheet";
 import { EASE_OUT, DURATION_FAST, DURATION_NORMAL } from "./components/motion-tokens";
@@ -755,6 +756,11 @@ export default function App() {
         <SharedSessionPage />
       </ErrorBoundary>
     );
+  }
+  // The iOS app's login callback, reached in a browser only when the app
+  // isn't there to receive it (see native-callback-page.tsx).
+  if (window.location.pathname === "/auth/native-callback") {
+    return <NativeCallbackPage />;
   }
   return (
     <ErrorBoundary>

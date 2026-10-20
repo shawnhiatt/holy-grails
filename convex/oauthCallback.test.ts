@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ALLOWED_ORIGINS,
+  NATIVE_HTTPS_CALLBACK,
   isAllowedCallbackUrl,
   parseAllowedOrigins,
   parseNativeCallbacks,
@@ -138,5 +139,57 @@ describe("parseNativeCallbacks", () => {
     expect(
       isAllowedCallbackUrl("https://evil.example/auth/callback", undefined, "https://evil.example/auth/callback")
     ).toBe(false);
+  });
+});
+
+describe("isAllowedCallbackUrl with the https native callback", () => {
+  const url = "https://holygrails.app/auth/native-callback";
+
+  it("is the URL the iOS app sends", () => {
+    expect(NATIVE_HTTPS_CALLBACK).toBe(url);
+  });
+
+  it("is accepted with no env vars set (prod)", () => {
+    expect(isAllowedCallbackUrl(url, undefined, undefined)).toBe(true);
+  });
+
+  it("is still accepted when HG_ALLOWED_ORIGINS replaces the defaults", () => {
+    expect(isAllowedCallbackUrl(url, "https://preview-123.vercel.app", undefined)).toBe(true);
+    expect(isAllowedCallbackUrl(url, undefined, "holygrails://auth/callback")).toBe(true);
+  });
+
+  it("matches the exact string only", () => {
+    for (const near of [
+      "https://holygrails.app/auth/native-callback/",
+      "https://holygrails.app/auth/native-callback?x=1",
+      "https://holygrails.app/auth/native-callback?",
+      "https://holygrails.app/auth/native-callback#x",
+      "https://holygrails.app/auth/native-callback/extra",
+      "https://holygrails.app/auth/native",
+      "https://holygrails.app/auth/Native-Callback",
+      "https://HOLYGRAILS.app/auth/native-callback",
+      "HTTPS://holygrails.app/auth/native-callback",
+      "http://holygrails.app/auth/native-callback",
+      "https://holygrails.app:443/auth/native-callback",
+      "https://holygrails.app:8443/auth/native-callback",
+      "https://www.holygrails.app/auth/native-callback",
+      "https://holy-grails.vercel.app/auth/native-callback",
+      "http://localhost:1234/auth/native-callback",
+      "https://holygrails.app.evil.example/auth/native-callback",
+      "https://evil.example/auth/native-callback",
+      "https://user:pw@holygrails.app/auth/native-callback",
+      " https://holygrails.app/auth/native-callback",
+      "https://holygrails.app/auth/native-callback ",
+    ]) {
+      expect(isAllowedCallbackUrl(near, undefined, undefined)).toBe(false);
+    }
+  });
+
+  it("leaves the PWA callbacks unchanged", () => {
+    for (const origin of DEFAULT_ALLOWED_ORIGINS) {
+      expect(isAllowedCallbackUrl(`${origin}/auth/callback`, undefined, undefined)).toBe(true);
+    }
+    expect(isAllowedCallbackUrl("https://evil.example/auth/callback", undefined, undefined)).toBe(false);
+    expect(isAllowedCallbackUrl("holygrails://auth/callback", undefined, undefined)).toBe(false);
   });
 });
