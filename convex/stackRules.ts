@@ -501,11 +501,21 @@ export interface EvaluateResult {
  * than no share link:
  *
  *   1. Filter by `conditions`, honoring `match`.
- *   2. Remove `excludedIds`.
- *   3. If rotating and the pool clears the threshold: seeded-shuffle by
- *      `stackId + period bucket` and take `limit`. Otherwise: sort, take
- *      `limit`.
+ *   2. Remove `excludedIds`. The remainder is the pool: `poolSize` and the
+ *      1.5x rotation threshold both count it, so "25 of 46" still means
+ *      matches minus exclusions.
+ *   3. If rotating and the pool clears the threshold: seeded-shuffle the
+ *      rule-matched records by `stackId + period bucket` — the excluded ones
+ *      included — then drop the excluded and take `limit`. Otherwise: sort,
+ *      take `limit`.
  *   4. Sort the resulting set for display.
+ *
+ * Step 3 shuffles before dropping exclusions on purpose. Shuffling the
+ * already-shrunk pool gave a different roll for every exclusion, so removing
+ * one release from a rotating "25 of 47" swapped out most of the other 24.
+ * With the roll taken over the matched set, an exclusion only vacates its own
+ * slot and the next release in line backfills it. (Adding to or removing from
+ * the collection still changes the roll — the shuffled list itself changed.)
  *
  * Step 4 runs in both branches, so rotation picks *which* records and the sort
  * rule always decides the *running order*. Keeping those independent is what
@@ -519,9 +529,8 @@ export function evaluateStackRule(
   const now = opts.now ?? Date.now();
   const excluded = new Set(opts.excludedIds || []);
 
-  const pool = albums.filter(
-    (a) => !excluded.has(a.releaseId) && matchesRule(a, rule, now)
-  );
+  const matched = albums.filter((a) => matchesRule(a, rule, now));
+  const pool = matched.filter((a) => !excluded.has(a.releaseId));
 
   const limit = rule.limit && rule.limit > 0 ? rule.limit : null;
   const rotating =
@@ -532,7 +541,9 @@ export function evaluateStackRule(
   let selected: RuleAlbum[];
   if (rotating && limit !== null) {
     const seed = `${opts.stackId}:${rotationBucket(rule.rotation, now)}`;
-    selected = seededShuffle(pool, seed).slice(0, limit);
+    selected = seededShuffle(matched, seed)
+      .filter((a) => !excluded.has(a.releaseId))
+      .slice(0, limit);
   } else {
     selected = limit !== null ? sortAlbums(pool, rule.sort).slice(0, limit) : pool;
   }

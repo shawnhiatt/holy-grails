@@ -334,6 +334,60 @@ describe("evaluateStackRule", () => {
     expect(tomorrow.albums.map((a) => a.releaseId)).not.toEqual(today.albums.map((a) => a.releaseId));
   });
 
+  it("changes only the excluded slot when a release is removed from a rotating set", () => {
+    // Shuffling the post-exclusion pool used to re-roll the whole set: one
+    // removal from "25 of 47" swapped out most of the other 24.
+    const albums = Array.from({ length: 47 }, (_, i) => jazz(i + 1, 1970 + (i % 30)));
+    const r = rule({
+      conditions: [{ field: "genre", op: "includesAny", value: ["jazz"] }],
+      limit: 25,
+      rotation: "daily",
+    });
+    const before = evaluateStackRule(albums, r, { stackId: "s1", now: NOW });
+    expect(before.rotating).toBe(true);
+    const beforeIds = before.albums.map((a) => a.releaseId);
+    for (const removed of beforeIds) {
+      const after = evaluateStackRule(albums, r, { stackId: "s1", excludedIds: [removed], now: NOW });
+      const afterIds = after.albums.map((a) => a.releaseId);
+      expect(after.rotating).toBe(true);
+      expect(after.poolSize).toBe(46);
+      expect(afterIds).toHaveLength(25);
+      expect(afterIds).not.toContain(removed);
+      // Every other release stays; exactly one newcomer backfills the slot.
+      expect(beforeIds.filter((id) => id !== removed).every((id) => afterIds.includes(id))).toBe(true);
+      expect(afterIds.filter((id) => !beforeIds.includes(id))).toHaveLength(1);
+    }
+  });
+
+  it("leaves a rotating set untouched when the excluded release wasn't in it", () => {
+    const albums = Array.from({ length: 47 }, (_, i) => jazz(i + 1, 1970));
+    const r = rule({
+      conditions: [{ field: "genre", op: "includesAny", value: ["jazz"] }],
+      limit: 25,
+      rotation: "daily",
+    });
+    const before = evaluateStackRule(albums, r, { stackId: "s1", now: NOW });
+    const inSet = new Set(before.albums.map((a) => a.releaseId));
+    const outside = albums.find((a) => !inSet.has(a.releaseId))!.releaseId;
+    const after = evaluateStackRule(albums, r, { stackId: "s1", excludedIds: [outside], now: NOW });
+    expect(after.albums.map((a) => a.releaseId)).toEqual(before.albums.map((a) => a.releaseId));
+    expect(after.poolSize).toBe(46);
+  });
+
+  it("counts the pool after exclusions for the 1.5x threshold", () => {
+    // 15 matches clears 1.5x of 10; excluding one drops the pool to 14, below it.
+    const albums = Array.from({ length: 15 }, (_, i) => jazz(i + 1, 1970 + i));
+    const r = rule({
+      conditions: [{ field: "genre", op: "includesAny", value: ["jazz"] }],
+      limit: 10,
+      rotation: "daily",
+    });
+    expect(evaluateStackRule(albums, r, { stackId: "s1", now: NOW }).rotating).toBe(true);
+    const out = evaluateStackRule(albums, r, { stackId: "s1", excludedIds: [1], now: NOW });
+    expect(out.rotating).toBe(false);
+    expect(out.poolSize).toBe(14);
+  });
+
   it("gives two sessions different rolls from the same pool", () => {
     const albums = Array.from({ length: 30 }, (_, i) => jazz(i + 1, 1970 + i));
     const r = rule({
