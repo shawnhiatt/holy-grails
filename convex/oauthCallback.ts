@@ -30,12 +30,13 @@
  * That https callback, `NATIVE_HTTPS_CALLBACK`, is built in rather than
  * configured: it lives on our own domain, and an https URL can only be handed
  * to the app that holds the Associated Domains entitlement for that domain
- * (Apple checks the `apple-app-site-association` file on holygrails.app), so
+ * (Apple checks the `apple-app-site-association` file on www.holygrails.app), so
  * the scheme's hijack risk doesn't apply and prod can allow it with no env
  * var. It is matched as an exact string, independent of HG_ALLOWED_ORIGINS, so
  * setting that env var (which replaces the default origins) can't switch the
- * iOS login off. Bare `holygrails.app` only: the app's entitlement names that
- * host, and `www.` would need its own entitlement entry and AASA file. Its path
+ * iOS login off. `www.holygrails.app` only: Vercel redirects the bare domain
+ * to www, and Apple won't read an AASA file behind a redirect, so the app's
+ * entitlement names www and the bare host is refused. Its path
  * is deliberately not `/auth/callback`, so the PWA's login is untouched.
  *
  * Pure module, no Convex imports (admin.ts pattern), so it is unit-testable.
@@ -44,7 +45,7 @@
 export const CALLBACK_PATH = "/auth/callback";
 
 /** The iOS app's prod login callback — exact string, always allowed. */
-export const NATIVE_HTTPS_CALLBACK = "https://holygrails.app/auth/native-callback";
+export const NATIVE_HTTPS_CALLBACK = "https://www.holygrails.app/auth/native-callback";
 
 export const DEFAULT_ALLOWED_ORIGINS = [
   "https://holygrails.app",

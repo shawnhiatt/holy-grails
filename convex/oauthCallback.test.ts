@@ -143,7 +143,7 @@ describe("parseNativeCallbacks", () => {
 });
 
 describe("isAllowedCallbackUrl with the https native callback", () => {
-  const url = "https://holygrails.app/auth/native-callback";
+  const url = "https://www.holygrails.app/auth/native-callback";
 
   it("is the URL the iOS app sends", () => {
     expect(NATIVE_HTTPS_CALLBACK).toBe(url);
@@ -160,26 +160,26 @@ describe("isAllowedCallbackUrl with the https native callback", () => {
 
   it("matches the exact string only", () => {
     for (const near of [
-      "https://holygrails.app/auth/native-callback/",
-      "https://holygrails.app/auth/native-callback?x=1",
-      "https://holygrails.app/auth/native-callback?",
-      "https://holygrails.app/auth/native-callback#x",
-      "https://holygrails.app/auth/native-callback/extra",
-      "https://holygrails.app/auth/native",
-      "https://holygrails.app/auth/Native-Callback",
-      "https://HOLYGRAILS.app/auth/native-callback",
-      "HTTPS://holygrails.app/auth/native-callback",
-      "http://holygrails.app/auth/native-callback",
-      "https://holygrails.app:443/auth/native-callback",
-      "https://holygrails.app:8443/auth/native-callback",
-      "https://www.holygrails.app/auth/native-callback",
+      "https://www.holygrails.app/auth/native-callback/",
+      "https://www.holygrails.app/auth/native-callback?x=1",
+      "https://www.holygrails.app/auth/native-callback?",
+      "https://www.holygrails.app/auth/native-callback#x",
+      "https://www.holygrails.app/auth/native-callback/extra",
+      "https://www.holygrails.app/auth/native",
+      "https://www.holygrails.app/auth/Native-Callback",
+      "https://www.HOLYGRAILS.app/auth/native-callback",
+      "HTTPS://www.holygrails.app/auth/native-callback",
+      "http://www.holygrails.app/auth/native-callback",
+      "https://www.holygrails.app:443/auth/native-callback",
+      "https://www.holygrails.app:8443/auth/native-callback",
+      "https://holygrails.app/auth/native-callback",
       "https://holy-grails.vercel.app/auth/native-callback",
       "http://localhost:1234/auth/native-callback",
-      "https://holygrails.app.evil.example/auth/native-callback",
+      "https://www.holygrails.app.evil.example/auth/native-callback",
       "https://evil.example/auth/native-callback",
-      "https://user:pw@holygrails.app/auth/native-callback",
-      " https://holygrails.app/auth/native-callback",
-      "https://holygrails.app/auth/native-callback ",
+      "https://user:pw@www.holygrails.app/auth/native-callback",
+      " https://www.holygrails.app/auth/native-callback",
+      "https://www.holygrails.app/auth/native-callback ",
     ]) {
       expect(isAllowedCallbackUrl(near, undefined, undefined)).toBe(false);
     }
