@@ -1656,6 +1656,35 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 
 9. **Convex deploys with Vercel production builds.** `vercel.json`'s `buildCommand` runs `npx convex deploy --cmd 'npm run build'` when `VERCEL_ENV` is `production`, so every merge to `main` ships the `convex/` functions to prod (`unique-sturgeon-566`) in the same build as the frontend, and nobody has to remember a manual deploy. The order (confirmed in the first build log) is: build the frontend with the prod URL injected → push the functions → Vercel puts the frontend live about a second later. New functions are therefore live before the client that calls them; a push that fails (schema validation, TypeScript) fails the whole build, so the frontend never goes out without its functions. It authenticates with the `CONVEX_DEPLOY_KEY` Vercel env var (a **production** deploy key, Production scope only). Two load-bearing details: the gate is `VERCEL_ENV`, **not** whether the key is present — gating on the key would let a key accidentally added to the Preview scope deploy unmerged PR code to prod; and if the key is missing in production the build **fails** rather than silently shipping a frontend ahead of its functions. Preview builds skip the Convex step and keep using whatever `VITE_CONVEX_URL` their scope sets. `npx convex dev` still only updates the dev deployment. A manual `npx convex deploy` is only for out-of-band fixes; if Vercel ever goes away, move this step to a GitHub Action with the same key.
 
+10. **Convex functions the iOS app calls change additively only, while native builds are in the field** (iOS SPEC §5.4). The PWA reloads onto new code; a TestFlight or App Store build cannot, and keeps calling the functions it was compiled against for weeks. Rule 9 ships every merge to prod, and Convex rejects a call that fails argument validation, so a change that's safe for the PWA can break every installed native build at once. For every function in the list below:
+    - **New arguments are `v.optional`.** Never add a required argument, and never tighten an existing validator (narrowing a `v.string()` to a union, making an optional argument required).
+    - **Return fields are only added.** Never remove, rename, or change the type of a field an old build reads. That includes making a field optional or `null`able that wasn't.
+    - **A renamed or removed function keeps its old name as an alias** (an export that calls the same handler) until the oldest supported build is retired.
+    - **The escape hatch is the minimum-build gate.** When a breaking change can't be avoided, ship the new native build first, raise `HG_MIN_NATIVE_BUILD` on prod (served by the unauthenticated `clientConfig.get`) so older builds show "Update needed" rather than erroring, and only then make the change. Raising the gate is also how a build is "retired" for the alias rule above.
+
+    The same discipline applies to the tables behind them where a function's return shape comes straight from a row (`getByUsername`-style reads return whole documents).
+
+    **Functions the iOS app calls** (from the iOS repo's `App/HolyGrails/Convex/ConvexFunctions.swift`, October 2026 — re-check that file when the app adds a call):
+    - `clientConfig`: `get`
+    - `oauth`: `requestToken`, `completeLogin`
+    - `users`: `getMe`, `touchSession`, `clearSession`, `deleteAllUserData`, `setShareActivity`, `getHolyGrailsUsers`
+    - `collection`: `getByUsername`, `addItem`, `removeItem`, `updateInstance`, `renameFolderInCache`
+    - `wantlist`: `getByUsername`, `addItem`, `removeItem`
+    - `discogs`: `syncSelf`, `syncFollowedUser`, `warm`, `proxyFetchSyncSignals`, `proxyFetchUserProfile`, `proxyFetchUserCollectionPage`, `proxyFetchUserWantlistPage`, `proxyFetchRelease`, `proxyFetchMarketData`, `proxySearchDatabase`, `proxyFetchMasterVersions`, `proxyAddToCollection`, `proxyRemoveFromCollection`, `proxyUpdateCollectionInstance`, `proxyMoveToFolder`, `proxyAddToWantlist`, `proxyRemoveFromWantlist`, `proxyFetchFolders`, `proxyCreateFolder`, `proxyRenameFolder`, `proxyDeleteFolder`
+    - `stacks`: `getByUsername`, `create`, `update`, `remove`, `freeze`, `enableShare`, `disableShare`, `getMembership`, `previewRule`
+    - `purge_tags`: `getByUsername`, `upsert`, `remove`
+    - `last_played`: `getByUsername`, `logPlay`, `deletePlay`, `clearAll`, `getPublicActivitySummary`
+    - `want_priorities`: `getByUsername`, `upsert`, `clearAll`
+    - `preferences`: `getByUsername`, `upsert`
+    - `following`: `getByUsername`, `add`, `remove`, `clearAll`
+    - `following_feed`: `getByFollower`, `upsert`, `deleteEntry`
+    - `followed_items`: `getForUser`
+    - `market_values`: `getForUser`
+    - `syncStatus`: `get`
+    - `vision`: `identifyCover`
+
+    Functions not on this list (`bugReports.*`, `stacks.getShared`, internal functions, the cron) still follow the PWA's normal rules. The oauth callback allowlist is part of this contract too: `https://holygrails.app/auth/native-callback` must stay accepted.
+
 ---
 
 ## Key UX Writing Rules
