@@ -1,7 +1,57 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
+import { internalMutation, internalQuery, mutation, query, type MutationCtx } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
 import { albumSignature, collectionRowFields } from "./cacheRows";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** The window `changeSummary` counts over. */
+export const CHANGE_WINDOW_DAYS = 30;
+/** How long a removal stays in the log; older rows are pruned on write. */
+export const REMOVAL_RETENTION_DAYS = 90;
+/** Old rows pruned per write. A steady trickle keeps up; the cap keeps a write cheap. */
+const PRUNE_BATCH = 50;
+
+/**
+ * Log one cached row leaving the collection, for `changeSummary`. Called only
+ * where a row is really deleted: the sync's diff and removeItem, never
+ * replaceAll (a full replace isn't a removal). A copy leaves once — Discogs
+ * gives a re-added copy a new instanceId — so a second log for the same
+ * (releaseId, instanceId) is a confirmation, not another removal.
+ */
+async function logRemoval(ctx: MutationCtx, row: Doc<"collection">) {
+  const now = Date.now();
+  const logged = await ctx.db
+    .query("collection_removals")
+    .withIndex("by_username_and_release", (q) =>
+      q.eq("discogsUsername", row.discogsUsername).eq("releaseId", row.releaseId)
+    )
+    .collect();
+  if (!logged.some((r) => r.instanceId === row.instanceId)) {
+    await ctx.db.insert("collection_removals", {
+      discogsUsername: row.discogsUsername,
+      releaseId: row.releaseId,
+      instanceId: row.instanceId,
+      removedAt: now,
+    });
+  }
+
+  const stale = await ctx.db
+    .query("collection_removals")
+    .withIndex("by_username_and_removedAt", (q) =>
+      q.eq("discogsUsername", row.discogsUsername).lt("removedAt", now - REMOVAL_RETENTION_DAYS * DAY_MS)
+    )
+    .take(PRUNE_BATCH);
+  for (const r of stale) await ctx.db.delete(r._id);
+}
+
+/**
+ * `dateAdded` in ms. Discogs sends a full ISO timestamp; a bare date reads as
+ * UTC midnight. NaN for anything unparseable, which never counts.
+ */
+function addedAt(dateAdded: string): number {
+  return Date.parse(dateAdded.trim());
+}
 
 export const getByUsername = query({
   args: { sessionToken: v.string() },
@@ -151,7 +201,10 @@ export const applySyncChunk = internalMutation({
     }
     for (const id of args.deletes) {
       const existing = await ctx.db.get(id);
-      if (existing && existing.discogsUsername === args.username) await ctx.db.delete(id);
+      if (existing && existing.discogsUsername === args.username) {
+        await ctx.db.delete(id);
+        await logRemoval(ctx, existing);
+      }
     }
   },
 });
@@ -263,6 +316,55 @@ export const removeItem = mutation({
       .first();
     if (!row) return;
     await ctx.db.delete(row._id);
+    await logRemoval(ctx, row);
+  },
+});
+
+/**
+ * The native Feed's 30-day change chips ("+6", "−2 in 30 days", "Last change
+ * Aug 2"). `added30` counts `dateAdded` in the window, as the app's
+ * RecentAdds does; `removed30` counts the removal log. `lastChangeAt` is the
+ * newest add or logged removal in ms, or null when there is neither. Removals
+ * are only known from when logging began, and for 90 days.
+ */
+export const changeSummary = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    const username = user.discogs_username;
+    const cutoff = Date.now() - CHANGE_WINDOW_DAYS * DAY_MS;
+
+    const rows = await ctx.db
+      .query("collection")
+      .withIndex("by_username", (q) => q.eq("discogsUsername", username))
+      .collect();
+    let added30 = 0;
+    let lastAdd: number | null = null;
+    for (const row of rows) {
+      const at = addedAt(row.dateAdded);
+      if (Number.isNaN(at)) continue;
+      if (at >= cutoff) added30++;
+      if (lastAdd === null || at > lastAdd) lastAdd = at;
+    }
+
+    const removed = await ctx.db
+      .query("collection_removals")
+      .withIndex("by_username_and_removedAt", (q) =>
+        q.eq("discogsUsername", username).gte("removedAt", cutoff)
+      )
+      .collect();
+    const lastRemoval = await ctx.db
+      .query("collection_removals")
+      .withIndex("by_username_and_removedAt", (q) => q.eq("discogsUsername", username))
+      .order("desc")
+      .first();
+
+    const candidates = [lastAdd, lastRemoval?.removedAt ?? null].filter((n): n is number => n !== null);
+    return {
+      added30,
+      removed30: removed.length,
+      lastChangeAt: candidates.length ? Math.max(...candidates) : null,
+    };
   },
 });
 

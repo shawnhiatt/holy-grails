@@ -223,6 +223,21 @@ export default defineSchema({
     .index("by_username", ["discogsUsername"])
     .index("by_username_and_release", ["discogsUsername", "releaseId"]),
 
+  // When a release left a collection, for the native Feed's "−2 in 30 days".
+  // One row per removed copy, written where a cached row is actually deleted
+  // (the sync's diff and removeItem), never by a full replace. A copy can
+  // leave only once — re-adding gives a new instanceId — so the
+  // (releaseId, instanceId) pair dedupes an app removal the next sync then
+  // confirms. Rows older than 90 days are pruned on write.
+  collection_removals: defineTable({
+    discogsUsername: v.string(),
+    releaseId: v.number(),
+    instanceId: v.number(),
+    removedAt: v.number(),
+  })
+    .index("by_username_and_removedAt", ["discogsUsername", "removedAt"])
+    .index("by_username_and_release", ["discogsUsername", "releaseId"]),
+
   // Shared per-release market value (Spec 6A.1). Keyed by Discogs `releaseId`
   // and shared across every user who owns that release — one row, one fetch.
   // `value`/`fetchedAt` are optional so a row can exist ("in the drip set")

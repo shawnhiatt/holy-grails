@@ -344,6 +344,13 @@ export const deleteAllUserData = mutation({
       .collect();
     for (const row of collection) await ctx.db.delete(row._id);
 
+    // Collection removal log
+    const removals = await ctx.db
+      .query("collection_removals")
+      .withIndex("by_username_and_removedAt", (q) => q.eq("discogsUsername", username))
+      .collect();
+    for (const row of removals) await ctx.db.delete(row._id);
+
     // Following feed
     const followingFeed = await ctx.db
       .query("following_feed")
