@@ -6,6 +6,16 @@ All notable changes to Holy Grails are documented here. Versions follow the guid
 
 ## [Unreleased]
 
+### Changed
+- **App icons match the iOS app.** The favicon, apple-touch-icon and manifest
+  icons move from the navy "GRAILS" tile to **Halo**, the iOS app icon: the hG
+  on a yellow-to-cyan ground, built from the iOS icon's own layers. The
+  manifest now lists separate `any` (rounded tile) and `maskable` (full bleed,
+  mark inside the safe zone) icons at 192 and 512; before, both sizes were
+  labeled maskable only. The manifest `background_color` moves from `#0A0B0C`
+  to `#0E1013`, the iOS launch background. A home screen app that's already
+  installed keeps its old icon until it's removed and added again.
+
 ---
 
 ## [0.8.0] — 2026-10-09
