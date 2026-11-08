@@ -6,9 +6,17 @@ daily cron collects prices; the Insights screen now reads them via
 the purge×value dollar upgrade, and a freshness line — all threshold-gated so a
 sparsely-filled drip renders nothing rather than a lopsided view.
 
-**One-line summary:** a nightly Convex cron collects the lowest asking price for
-each **Discogs release** any user owns and stores it **once per release** in a
-shared `market_values` table — cycling through the set about once a month.
+**One-line summary:** a nightly Convex cron collects the lowest asking price
+(and how many copies are listed) for each **Discogs release** any user owns or
+wants, and stores it **once per release** in a shared `market_values` table —
+re-pricing wanted releases weekly and everything else about once a month.
+
+> **Wantlist change (2026-11-08):** the set now includes wantlists, for the
+> native Wantlist's "~$18 · 6 for sale". Each row carries `wanted` (kept in sync
+> by the seed) and `numForSale` (`num_for_sale` from the same stats request, no
+> extra fetch). Wanted releases are re-priced every 7 days, ahead of the monthly
+> queue. The native app reads them through `market_values.getForWantlist`. See
+> "Refresh cycle" below for the budget.
 Nothing happens at app-open time; the app just reads what the drip has already
 collected.
 
@@ -60,21 +68,25 @@ The trigger is a clock.
 | Daily cron | `convex/crons.ts` | Fires `marketValueDrip` once a day at 09:00 UTC. |
 | Drip orchestrator | `convex/discogs.ts` → `marketValueDrip` (internalAction, `"use node"`) | Seeds the set, fetches a batch of prices round-robin across tokens. |
 | Token pool | `convex/discogsHelpers.ts` → `listUsersForMarketDrip` (internalQuery) | Every user with OAuth creds — used only for their tokens. |
-| Seed / migrate | `convex/market_values.ts` → `seedFromCollection` (internalMutation) | One shared row per owned release; migrates legacy per-user values. |
-| Batch selector | `convex/market_values.ts` → `getDripBatch` (internalQuery) | The stalest / never-fetched releases, ordered by `fetchedAt`. |
-| Price writer | `convex/market_values.ts` → `setValue` (internalMutation) | Advances `fetchedAt`; writes `value` on success. |
-| Client read | `convex/market_values.ts` → `getForUser` (public query) | The caller's priced releases — for the Session B Insights UI. |
-| Constants | `convex/marketValue.ts` | `MARKET_STALE_MS`, `MARKET_BATCH_SIZE`, `MARKET_CURRENCY`. |
+| Seed / migrate | `convex/market_values.ts` → `seedFromCollection` (internalMutation) | One shared row per owned or wanted release; keeps `wanted` in sync; migrates legacy per-user values. |
+| Batch selector | `convex/market_values.ts` → `getDripBatch` (internalQuery) | Week-stale wants first, then month-stale releases, each ordered by `fetchedAt`. |
+| Price writer | `convex/market_values.ts` → `setValue` (internalMutation) | Advances `fetchedAt`; writes `value` and `numForSale` on success. |
+| Client read | `convex/market_values.ts` → `getForUser` (public query) | The caller's priced owned releases — for the Session B Insights UI. |
+| Client read | `convex/market_values.ts` → `getForWantlist` (public query) | The caller's priced wants, with `numForSale` — for the native Wantlist. |
+| Constants | `convex/marketValue.ts` | `MARKET_STALE_MS`, `MARKET_WANTED_STALE_MS`, `MARKET_BATCH_SIZE`, `MARKET_CURRENCY`. |
 | Shared fetch | `convex/discogs.ts` → `discogsFetch` | Rate-limited, OAuth-signed Discogs request (same one the sync uses). |
 
-Everything except the cron and `getForUser` is **internal** — never exposed to a
+Everything except the cron, `getForUser` and `getForWantlist` is **internal** — never exposed to a
 client. The drip runs entirely server-side.
 
 ### Schema
 
-- **`market_values`** (new, shared): `{ releaseId, value?, fetchedAt? }` with
-  indexes `by_release` (point lookups / upserts) and `by_fetchedAt` (the drip's
-  stalest-first ordering). `value` is `v.union(number, null)`; both `value` and
+- **`market_values`** (new, shared): `{ releaseId, value?, fetchedAt?,
+  numForSale?, wanted? }` with indexes `by_release` (point lookups / upserts),
+  `by_fetchedAt` (the drip's stalest-first ordering) and `by_wanted_fetchedAt`
+  (the weekly wants queue). `numForSale` is absent on rows priced before it was
+  stored and fills in on their next refresh; `wanted` is true while any user
+  wants the release, false once nobody does. `value` is `v.union(number, null)`; both `value` and
   `fetchedAt` are optional so a row can exist ("in the set") before it's priced.
 - **Legacy, kept only for the migration:** `collection.marketValue` /
   `collection.marketValueFetchedAt` (the old per-user fields) and
@@ -93,16 +105,19 @@ Every day at 09:00 UTC, Convex's scheduler calls `marketValueDrip`. It then:
    as request credentials — the price fetched is the same regardless of whose
    token asks.
 
-2. **Seeds the shared set from collections.** `seedFromCollection` walks every
-   collection row and inserts a `market_values` row for any `releaseId` that
-   doesn't have one yet — carrying over a value already sitting on the legacy
-   per-user field (the one-time migration). This is how new releases (from
-   syncs) enter the set, with no changes to the sync write path.
+2. **Seeds the shared set from collections and wantlists.**
+   `seedFromCollection` walks every collection and wantlist row and inserts a
+   `market_values` row for any `releaseId` that doesn't have one yet — carrying
+   over a value already sitting on the legacy per-user field (the one-time
+   migration). It also sets `wanted` on rows whose wanted state changed, and
+   only those. This is how new releases (from syncs) enter the set, with no
+   changes to the sync write path; a new want is priced on the next run.
 
 3. **Selects the stalest batch.** `getDripBatch` returns up to
-   `MARKET_BATCH_SIZE` (40) releases whose value is missing or older than 30
-   days, ordered by `fetchedAt` ascending (never-fetched sort first, then
-   oldest).
+   `MARKET_BATCH_SIZE` (40) releases: first wanted releases never fetched or
+   older than 7 days, then any release never fetched or older than 30 days,
+   each ordered by `fetchedAt` ascending (never-fetched sort first, then
+   oldest), with no duplicates.
 
 4. **Fetches each release's price, round-robin across tokens.**
    `GET /marketplace/stats/{releaseId}?curr_abbr=USD` through `discogsFetch`. The
@@ -112,11 +127,12 @@ Every day at 09:00 UTC, Convex's scheduler calls `marketValueDrip`. It then:
    IP, not by token, so every token draws on the same per-IP 60/min (confirmed
    in production during bug hunt M3).
    The stats endpoint returns `lowest_price` as `{ value, currency }` (or `null`
-   if nobody's selling one).
+   if nobody's selling one) and `num_for_sale`, stored as `numForSale` (0 when
+   it's missing and there's no ask).
 
 5. **Writes the outcome.** `setValue` **always advances `fetchedAt`** (so a
-   release just handled moves to the back of the queue), and writes `value` only
-   on success — so a transient failure preserves any prior value while still
+   release just handled moves to the back of the queue), and writes `value` and
+   `numForSale` only on success — so a transient failure preserves any prior value while still
    preventing the release from clogging the batch.
 
 ---
@@ -142,6 +158,21 @@ release (e.g. a 404) is not re-hit every day; it simply gets another attempt on
 its next 30-day rotation.
 
 ---
+
+## Refresh cycle
+
+One run prices at most `MARKET_BATCH_SIZE` (40) releases, about 40 of the
+per-IP 60 requests a minute, once a day at 09:00 UTC. With `W` wanted and `O`
+other releases in the set, a steady state needs about `W / 7 + O / 30` fetches a
+day. While that stays under 40, wants refresh weekly and the rest monthly, and
+the drip idles once both queues are fresh. Past 40, wants still come first: they
+keep a weekly cycle until `W` reaches 280, and the monthly releases stretch to
+`O / (40 − W / 7)` days.
+
+At the dev numbers of 2026-11-08 (487 owned, 112 wanted, no overlap) that's
+about 16 + 16 = 32 a day, inside the batch, so `MARKET_BATCH_SIZE` stays 40.
+Raise it (or fan the fetch out, see Scaling) when the sum nears 40; each extra
+request still draws on the same per-IP budget the users' syncs share.
 
 ## The three states of a value
 
@@ -172,6 +203,10 @@ choice explicit.)
 ---
 
 ## How the app reads it
+
+The native Wantlist reads `market_values.getForWantlist(sessionToken)`: the
+priced releases on the caller's own wantlist, `{ releaseId, value, fetchedAt,
+numForSale? }[]`, with the same two-scan join as `getForUser` below.
 
 `market_values.getForUser(sessionToken)` returns the priced releases for the
 caller's own collection: `{ releaseId, value, fetchedAt }[]`. The Insights value
@@ -208,6 +243,14 @@ To migrate immediately after deploy instead of waiting for 09:00 UTC, run
   while preserving value on the failure path; no-ops for an unknown release.
 - `getForUser` — returns priced releases for the caller's collection only;
   rejects an unauthenticated caller.
+- Wantlists — the seed adds wanted releases, sets and clears `wanted`, and is
+  idempotent; the batch puts week-stale wants ahead of month-stale releases
+  without duplicates; `setValue` keeps `numForSale` on the failure path;
+  `getForWantlist` returns only the caller's priced wants (with `numForSale`,
+  null values passed through), rejects an unauthenticated caller, and keeps a
+  fixed query count on a 300-want list.
+- `marketDrip.test.ts` — the drip stores `num_for_sale`, 0 for no ask, and
+  seeds and prices a want nobody owns.
 
 (There is no longer an `applyDiff`-preservation test — see below.)
 

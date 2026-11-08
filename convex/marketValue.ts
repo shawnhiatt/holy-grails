@@ -5,6 +5,10 @@
 /** 30 days before a fetched value is considered stale and re-fetched. */
 export const MARKET_STALE_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** 7 days for a release someone wants: the Wantlist shows its ask for shopping,
+    so it goes stale faster than a collection value. */
+export const MARKET_WANTED_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** Max releases priced per daily run — a deliberate slow drip. */
 export const MARKET_BATCH_SIZE = 40;
 

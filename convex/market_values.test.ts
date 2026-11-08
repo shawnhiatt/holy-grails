@@ -14,6 +14,9 @@ const modules = import.meta.glob("./**/*.ts");
  *   - getDripBatch returns the stalest / never-fetched releases first
  *   - setValue advances fetchedAt always, writes value only when provided
  *   - getForUser returns priced releases for the caller's collection only
+ *   - wantlists: the seed adds wanted releases and keeps `wanted` in sync,
+ *     the batch re-prices wants weekly ahead of the monthly queue, and
+ *     getForWantlist returns the caller's priced wants with numForSale
  */
 
 const NOW = 1_780_000_000_000;
@@ -44,6 +47,19 @@ const collectionRow = (
   dateAdded: "2024-01-01T00:00:00-08:00",
   ...overrides,
 });
+
+const wantRow = (username: string, releaseId: number) => ({
+  discogs_username: username,
+  release_id: releaseId,
+  title: `Want ${releaseId}`,
+  artist: `Artist ${releaseId}`,
+  year: 1990,
+  cover: `cover-${releaseId}`,
+  label: "Label",
+  priority: false,
+});
+
+const DAY = 24 * 60 * 60 * 1000;
 
 const readValues = (t: ReturnType<typeof convexTest>) =>
   t.run(async (ctx) => ctx.db.query("market_values").collect());
@@ -119,6 +135,58 @@ describe("seedFromCollection", () => {
   });
 });
 
+describe("seedFromCollection with wantlists", () => {
+  it("adds wanted releases nobody owns, flagged wanted and never fetched", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("collection", collectionRow("a", 1));
+      await ctx.db.insert("wantlist", wantRow("a", 2));
+      await ctx.db.insert("wantlist", wantRow("b", 2)); // wanted twice, one row
+      await ctx.db.insert("wantlist", wantRow("b", 1)); // owned by a, wanted by b
+    });
+    const { added } = await t.mutation(internal.market_values.seedFromCollection, {});
+    expect(added).toBe(2);
+    const rows = (await readValues(t)).sort((x, y) => x.releaseId - y.releaseId);
+    expect(rows.map((r) => [r.releaseId, r.wanted, r.fetchedAt])).toEqual([
+      [1, true, undefined],
+      [2, true, undefined],
+    ]);
+  });
+
+  it("flags an existing row when it's wanted and clears it when nobody wants it", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("collection", collectionRow("a", 1));
+      await ctx.db.insert("market_values", { releaseId: 1, value: 10, fetchedAt: NOW });
+    });
+    const wantId = await t.run((ctx) => ctx.db.insert("wantlist", wantRow("b", 1)));
+
+    let result = await t.mutation(internal.market_values.seedFromCollection, {});
+    expect(result).toEqual({ added: 0, wantedChanged: 1 });
+    let [row] = await readValues(t);
+    expect(row.wanted).toBe(true);
+    expect(row.value).toBe(10); // price untouched
+
+    await t.run((ctx) => ctx.db.delete(wantId));
+    result = await t.mutation(internal.market_values.seedFromCollection, {});
+    expect(result).toEqual({ added: 0, wantedChanged: 1 });
+    [row] = await readValues(t);
+    expect(row.wanted).toBe(false);
+  });
+
+  it("is idempotent — a steady-state run adds and patches nothing", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("collection", collectionRow("a", 1));
+      await ctx.db.insert("wantlist", wantRow("a", 2));
+    });
+    await t.mutation(internal.market_values.seedFromCollection, {});
+    const second = await t.mutation(internal.market_values.seedFromCollection, {});
+    expect(second).toEqual({ added: 0, wantedChanged: 0 });
+    expect(await readValues(t)).toHaveLength(2);
+  });
+});
+
 describe("getDripBatch", () => {
   it("returns never-fetched and stale releases, stalest first, capped", async () => {
     const t = newTest();
@@ -152,6 +220,57 @@ describe("getDripBatch", () => {
   });
 });
 
+describe("getDripBatch with wanted releases", () => {
+  const batchArgs = (limit = 40) => ({
+    staleBefore: NOW - 30 * DAY,
+    wantedStaleBefore: NOW - 7 * DAY,
+    limit,
+  });
+
+  it("puts week-old wants ahead of month-old releases, with no duplicates", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("market_values", { releaseId: 1, fetchedAt: NOW - 60 * DAY });              // owned, a month+ stale
+      await ctx.db.insert("market_values", { releaseId: 2, fetchedAt: NOW - 10 * DAY, wanted: true }); // want, a week+ stale
+      await ctx.db.insert("market_values", { releaseId: 3, fetchedAt: NOW - 2 * DAY, wanted: true });  // want, fresh
+      await ctx.db.insert("market_values", { releaseId: 4, wanted: true });                            // want, never fetched
+      await ctx.db.insert("market_values", { releaseId: 5, fetchedAt: NOW - 90 * DAY, wanted: true }); // want, stale in both queues
+      await ctx.db.insert("market_values", { releaseId: 6, fetchedAt: NOW - 10 * DAY });              // owned, fresh for monthly
+      await ctx.db.insert("market_values", { releaseId: 7, fetchedAt: NOW - 20 * DAY, wanted: false });// no longer wanted: monthly
+    });
+    const batch = await t.query(internal.market_values.getDripBatch, batchArgs());
+    // Wants first (never fetched, then stalest), then the monthly queue minus
+    // release 5, already picked.
+    expect(batch.map((r) => r.releaseId)).toEqual([4, 5, 2, 1]);
+  });
+
+  it("fills the limit from the monthly queue after the wants", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("market_values", { releaseId: 1, fetchedAt: NOW - 90 * DAY, wanted: true });
+      await ctx.db.insert("market_values", { releaseId: 2, fetchedAt: NOW - 80 * DAY });
+      await ctx.db.insert("market_values", { releaseId: 3, fetchedAt: NOW - 70 * DAY });
+    });
+    const batch = await t.query(internal.market_values.getDripBatch, batchArgs(2));
+    // Release 1 is the stalest overall, picked as a want; it isn't counted
+    // twice, so the second slot goes to 2.
+    expect(batch.map((r) => r.releaseId)).toEqual([1, 2]);
+  });
+
+  it("caps the wants at the limit", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => {
+      for (let id = 1; id <= 5; id++) {
+        await ctx.db.insert("market_values", { releaseId: id, wanted: true });
+      }
+      await ctx.db.insert("market_values", { releaseId: 9, fetchedAt: NOW - 90 * DAY });
+    });
+    const batch = await t.query(internal.market_values.getDripBatch, batchArgs(3));
+    expect(batch).toHaveLength(3);
+    expect(batch.every((r) => r.releaseId <= 5)).toBe(true);
+  });
+});
+
 describe("setValue", () => {
   it("writes value + fetchedAt on success (incl. null for no listings)", async () => {
     const t = newTest();
@@ -176,6 +295,19 @@ describe("setValue", () => {
     const [row] = await readValues(t);
     expect(row.value).toBe(33); // preserved
     expect(row.fetchedAt).toBe(NOW + 5); // advanced (won't re-hit for 30d)
+  });
+
+  it("writes numForSale with the value, and keeps it on the failure path", async () => {
+    const t = newTest();
+    await t.run(async (ctx) => { await ctx.db.insert("market_values", { releaseId: 1 }); });
+    await t.mutation(internal.market_values.setValue, { releaseId: 1, fetchedAt: NOW, value: 18, numForSale: 6 });
+    let [row] = await readValues(t);
+    expect(row.numForSale).toBe(6);
+
+    await t.mutation(internal.market_values.setValue, { releaseId: 1, fetchedAt: NOW + 5 });
+    [row] = await readValues(t);
+    expect(row.value).toBe(18);
+    expect(row.numForSale).toBe(6);
   });
 
   it("no-ops for an unknown release", async () => {
@@ -243,5 +375,63 @@ describe("getForUser", () => {
     // fetched), which is excluded — the client's hasMarketValue guard needs
     // both to arrive as themselves.
     expect(result).toEqual([{ releaseId: 1, value: null, fetchedAt: NOW }]);
+  });
+});
+
+describe("getForWantlist", () => {
+  it("returns priced releases for the caller's wantlist only, with numForSale", async () => {
+    const t = newTest();
+    await seedUser(t, "a", "tok-a");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("wantlist", wantRow("a", 1));
+      await ctx.db.insert("wantlist", wantRow("a", 2)); // wanted but never fetched
+      await ctx.db.insert("wantlist", wantRow("a", 4)); // priced before numForSale existed
+      await ctx.db.insert("wantlist", wantRow("b", 3)); // someone else's want
+      await ctx.db.insert("collection", collectionRow("a", 5)); // owned, not wanted
+      await ctx.db.insert("market_values", { releaseId: 1, value: 18, fetchedAt: NOW, numForSale: 6, wanted: true });
+      await ctx.db.insert("market_values", { releaseId: 2, wanted: true });
+      await ctx.db.insert("market_values", { releaseId: 3, value: 99, fetchedAt: NOW, numForSale: 2, wanted: true });
+      await ctx.db.insert("market_values", { releaseId: 4, value: 7, fetchedAt: NOW, wanted: true });
+      await ctx.db.insert("market_values", { releaseId: 5, value: 50, fetchedAt: NOW, numForSale: 1 });
+    });
+    const result = await t.query(api.market_values.getForWantlist, { sessionToken: "tok-a" });
+    expect(result.sort((x, y) => x.releaseId - y.releaseId)).toEqual([
+      { releaseId: 1, value: 18, fetchedAt: NOW, numForSale: 6 },
+      { releaseId: 4, value: 7, fetchedAt: NOW },
+    ]);
+  });
+
+  it("passes through a no-listings null value with its zero count", async () => {
+    const t = newTest();
+    await seedUser(t, "a", "tok-a");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("wantlist", wantRow("a", 1));
+      await ctx.db.insert("market_values", { releaseId: 1, value: null, fetchedAt: NOW, numForSale: 0, wanted: true });
+    });
+    const result = await t.query(api.market_values.getForWantlist, { sessionToken: "tok-a" });
+    expect(result).toEqual([{ releaseId: 1, value: null, fetchedAt: NOW, numForSale: 0 }]);
+  });
+
+  it("rejects an unauthenticated caller", async () => {
+    const t = newTest();
+    await expect(
+      t.query(api.market_values.getForWantlist, { sessionToken: "bogus" })
+    ).rejects.toThrow("Unauthorized");
+  });
+
+  it("reads a large wantlist without one index range per release", async () => {
+    // Same guard as getForUser's: the join stays at a fixed handful of reads
+    // (session, user, wantlist, market_values) however long the wantlist is.
+    const SIZE = 300;
+    const t = convexTest({ schema, modules, transactionLimits: { databaseQueries: 8 } });
+    await seedUser(t, "a", "tok-a");
+    await t.run(async (ctx) => {
+      for (let releaseId = 1; releaseId <= SIZE; releaseId++) {
+        await ctx.db.insert("wantlist", wantRow("a", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: releaseId, fetchedAt: NOW, wanted: true });
+      }
+    });
+    const result = await t.query(api.market_values.getForWantlist, { sessionToken: "tok-a" });
+    expect(result).toHaveLength(SIZE);
   });
 });

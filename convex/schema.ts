@@ -248,9 +248,17 @@ export default defineSchema({
     releaseId: v.number(),
     value: v.optional(v.union(v.number(), v.null())),
     fetchedAt: v.optional(v.number()),
+    // Listings behind the lowest ask (`num_for_sale` from /marketplace/stats),
+    // for the native Wantlist's "6 for sale". Optional: rows priced before it
+    // existed fill in on their next refresh.
+    numForSale: v.optional(v.number()),
+    // True while any user wants this release. The seed keeps it in sync; the
+    // drip re-prices wanted releases weekly instead of monthly.
+    wanted: v.optional(v.boolean()),
   })
     .index("by_release", ["releaseId"])
-    .index("by_fetchedAt", ["fetchedAt"]),
+    .index("by_fetchedAt", ["fetchedAt"])
+    .index("by_wanted_fetchedAt", ["wanted", "fetchedAt"]),
 
   wantlist: defineTable({
     discogs_username: v.string(),

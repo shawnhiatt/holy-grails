@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import crypto from "crypto";
-import { MARKET_STALE_MS, MARKET_BATCH_SIZE, MARKET_CURRENCY } from "./marketValue";
+import { MARKET_STALE_MS, MARKET_WANTED_STALE_MS, MARKET_BATCH_SIZE, MARKET_CURRENCY } from "./marketValue";
 import {
   albumSignature,
   syncCacheInChunks,
@@ -2328,6 +2328,7 @@ export const marketValueDrip = internalAction({
     const staleBefore = Date.now() - MARKET_STALE_MS;
     const batch = await ctx.runQuery(internal.market_values.getDripBatch, {
       staleBefore,
+      wantedStaleBefore: Date.now() - MARKET_WANTED_STALE_MS,
       limit: MARKET_BATCH_SIZE,
     });
 
@@ -2374,10 +2375,15 @@ export const marketValueDrip = internalAction({
           // missing value) means no active listings.
           const lp = data?.lowest_price;
           const value = lp && typeof lp.value === "number" ? lp.value : null;
+          // num_for_sale backs the Wantlist's "6 for sale". Missing with no
+          // ask means none listed; missing beside an ask stays unknown.
+          const numForSale =
+            typeof data?.num_for_sale === "number" ? data.num_for_sale : value === null ? 0 : undefined;
           await ctx.runMutation(internal.market_values.setValue, {
             releaseId,
             fetchedAt: Date.now(),
             value,
+            ...(numForSale !== undefined ? { numForSale } : {}),
           });
         } catch (e) {
           i++;

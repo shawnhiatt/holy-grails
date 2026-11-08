@@ -121,3 +121,55 @@ describe("marketValueDrip token failures", () => {
     expect(row.value).toBeUndefined();
   });
 });
+
+describe("marketValueDrip numForSale and wants", () => {
+  beforeEach(() => {
+    vi.stubEnv("DISCOGS_CONSUMER_KEY", "key");
+    vi.stubEnv("DISCOGS_CONSUMER_SECRET", "secret");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("stores num_for_sale beside the lowest ask", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t, ["alice"], [1]);
+    stubDiscogs(new Set());
+    await t.action(internal.discogs.marketValueDrip, {});
+    const [row] = await marketRows(t);
+    expect(row.value).toBe(12.5);
+    expect(row.numForSale).toBe(3);
+  });
+
+  it("stores 0 for sale when there's no ask and no count", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t, ["alice"], [1]);
+    vi.stubGlobal("fetch", vi.fn(async () => json({ lowest_price: null })));
+    await t.action(internal.discogs.marketValueDrip, {});
+    const [row] = await marketRows(t);
+    expect(row.value).toBeNull();
+    expect(row.numForSale).toBe(0);
+  });
+
+  it("seeds and prices a wanted release nobody owns", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t, ["alice"], []);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("wantlist", {
+        discogs_username: "alice",
+        release_id: 77,
+        title: "W",
+        artist: "A",
+        year: 2001,
+        cover: "c",
+        label: "L",
+        priority: false,
+      });
+    });
+    stubDiscogs(new Set());
+    await t.action(internal.discogs.marketValueDrip, {});
+    const [row] = await marketRows(t);
+    expect(row).toMatchObject({ releaseId: 77, wanted: true, value: 12.5, numForSale: 3 });
+  });
+});
