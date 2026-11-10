@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, internalMutation, MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { authenticateUser } from "./authHelper";
 
 /**
@@ -98,48 +99,144 @@ async function stillFollowing(
   return rows.some((f) => f.following_username.toLowerCase() === target);
 }
 
-/** Every cached row (both kinds) for one follower/followed pair. */
-async function deleteAllForPair(
+// ─── Paged clears ───
+//
+// A followed user's cached collection can be tens of thousands of rows, more
+// than one Convex mutation may read or delete (32,000 read, 16,000 written).
+// Every clear here deletes at most FOLLOWED_DELETE_BATCH rows per transaction
+// and schedules the rest — the same reasoning as the chunked sync write in
+// cacheRows.ts and the paged Delete all data in users.ts.
+
+/** Rows one clear step may delete. Far under the per-mutation limits. */
+export const FOLLOWED_DELETE_BATCH = 1000;
+
+/**
+ * Delete every cached row (both kinds) for a pair the follower no longer
+ * follows: one batch now, the rest in scheduled steps. Each step re-checks the
+ * follow and stops if it is back — the re-follow's own sync clears the old
+ * rows (clearForUser), and this must not delete the rows that sync writes.
+ */
+export async function clearUnfollowedPair(
   ctx: MutationCtx,
   follower: string,
   followed: string
-) {
+): Promise<void> {
+  if (await stillFollowing(ctx, follower, followed)) return;
   const rows = await ctx.db
     .query("followed_items")
     .withIndex("by_follower_followed", (q) =>
       q.eq("follower_username", follower).eq("followed_username", followed)
     )
-    .collect();
+    .take(FOLLOWED_DELETE_BATCH);
   for (const row of rows) await ctx.db.delete(row._id);
+  if (rows.length === FOLLOWED_DELETE_BATCH) {
+    await ctx.scheduler.runAfter(0, internal.followed_items.continueClearUnfollowedPair, {
+      follower_username: follower,
+      followed_username: followed,
+    });
+  }
 }
+
+export const continueClearUnfollowedPair = internalMutation({
+  args: { follower_username: v.string(), followed_username: v.string() },
+  handler: async (ctx, args) => {
+    await clearUnfollowedPair(ctx, args.follower_username, args.followed_username);
+  },
+});
+
+/**
+ * One page of a sync's clear: rows of `kind` for the pair created no later
+ * than `upTo`, the newest row that existed when the clear started. The cutoff
+ * is what makes the scheduled rest safe — the sync action appends the fresh
+ * rows straight after clearForUser returns, and a later step must delete only
+ * the old ones. (Taken from the rows themselves rather than Date.now(), so
+ * the comparison never mixes two clocks.) The range is on the index's
+ * implicit _creationTime, and the page walks it with a cursor, so the other
+ * kind's rows are passed over once rather than re-read every step.
+ */
+async function clearKindStep(
+  ctx: MutationCtx,
+  args: {
+    follower_username: string;
+    followed_username: string;
+    kind: "collection" | "want";
+    upTo: number;
+    cursor: string | null;
+  }
+): Promise<void> {
+  const page = await ctx.db
+    .query("followed_items")
+    .withIndex("by_follower_followed", (q) =>
+      q
+        .eq("follower_username", args.follower_username)
+        .eq("followed_username", args.followed_username)
+        .lte("_creationTime", args.upTo)
+    )
+    .paginate({ cursor: args.cursor, numItems: FOLLOWED_DELETE_BATCH });
+  for (const row of page.page) {
+    if (row.kind === args.kind) await ctx.db.delete(row._id);
+  }
+  if (!page.isDone) {
+    await ctx.scheduler.runAfter(0, internal.followed_items.continueClearForUser, {
+      follower_username: args.follower_username,
+      followed_username: args.followed_username,
+      kind: args.kind,
+      upTo: args.upTo,
+      cursor: page.continueCursor,
+    });
+  }
+}
+
+const kindValidator = v.union(v.literal("collection"), v.literal("want"));
 
 /**
  * Delete all cached items of one kind for a followed user. If the follow is
  * gone by the time this lands, every row for the pair goes instead — nothing
  * should be cached for someone no longer followed.
+ *
+ * The first page is deleted here; a larger cache finishes in scheduled steps
+ * (see clearKindStep), so for a moment the profile can show old rows beside
+ * the new ones. That replaces failing the whole refresh.
  */
 export const clearForUser = internalMutation({
   args: {
     follower_username: v.string(),
     followed_username: v.string(),
-    kind: v.union(v.literal("collection"), v.literal("want")),
+    kind: kindValidator,
   },
   handler: async (ctx, args) => {
     if (!(await stillFollowing(ctx, args.follower_username, args.followed_username))) {
-      await deleteAllForPair(ctx, args.follower_username, args.followed_username);
+      await clearUnfollowedPair(ctx, args.follower_username, args.followed_username);
       return;
     }
-    const rows = await ctx.db
+    const newest = await ctx.db
       .query("followed_items")
       .withIndex("by_follower_followed", (q) =>
         q
           .eq("follower_username", args.follower_username)
           .eq("followed_username", args.followed_username)
       )
-      .collect();
-    for (const row of rows) {
-      if (row.kind === args.kind) await ctx.db.delete(row._id);
+      .order("desc")
+      .first();
+    if (!newest) return;
+    await clearKindStep(ctx, { ...args, upTo: newest._creationTime, cursor: null });
+  },
+});
+
+export const continueClearForUser = internalMutation({
+  args: {
+    follower_username: v.string(),
+    followed_username: v.string(),
+    kind: kindValidator,
+    upTo: v.number(),
+    cursor: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await stillFollowing(ctx, args.follower_username, args.followed_username))) {
+      await clearUnfollowedPair(ctx, args.follower_username, args.followed_username);
+      return;
     }
+    await clearKindStep(ctx, args);
   },
 });
 
@@ -158,7 +255,7 @@ export const appendItems = internalMutation({
   },
   handler: async (ctx, args) => {
     if (!(await stillFollowing(ctx, args.follower_username, args.followed_username))) {
-      await deleteAllForPair(ctx, args.follower_username, args.followed_username);
+      await clearUnfollowedPair(ctx, args.follower_username, args.followed_username);
       return;
     }
     for (const item of args.items) {

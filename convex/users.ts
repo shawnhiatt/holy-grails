@@ -1,5 +1,7 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { Id, TableNames } from "./_generated/dataModel";
 import {
   authenticateUser,
   isSessionRowExpired,
@@ -7,7 +9,6 @@ import {
   SESSION_RENEW_AFTER_MS,
   sessionLastActive,
 } from "./authHelper";
-import { deleteReportsForUser } from "./bugReports";
 
 /**
  * Bootstrap query for session restore on cold load.
@@ -276,123 +277,214 @@ export const getHolyGrailsUsers = query({
   },
 });
 
+// ─── Delete all data, in pages ───
+//
+// Delete all data used to remove everything in ONE transaction, which fails
+// outright once an account outgrows Convex's per-mutation limits (32,000
+// documents read, 16,000 written — and followed_items holds every followed
+// user's whole collection). It now deletes in steps of at most
+// USER_DELETE_BATCH documents; a step that runs out of budget schedules the
+// next one. The model is the chunked sync write (syncCacheInChunks in
+// cacheRows.ts) — do not fold this back into one mutation.
+//
+// Partial failure is safe because of the ORDER: every step walks the tables
+// from the top, and the sessions and the user row come last and are only
+// reached once every table above them has been seen empty in that same
+// transaction. A chain that stops partway leaves the account signed in, so
+// running Delete all data again picks up where it stopped. Every query is
+// keyed on the caller's own username; nothing else is read or deleted.
+
+/** Documents one step may delete. Far under the per-mutation limits. */
+export const USER_DELETE_BATCH = 1000;
+/** Tables whose rows are large (feed snapshots carry 50 albums, bug reports
+ *  carry diagnostics) take smaller bites so a step stays well under the 16 MiB
+ *  read limit. */
+const HEAVY_ROW_BATCH = 100;
+/** Safety valve: a chain this long means something keeps writing rows for
+ *  the account. It stops; the account is still signed in to re-run it. */
+const MAX_DELETE_STEPS = 1000;
+
+async function deleteRows(
+  ctx: MutationCtx,
+  rows: { _id: Id<TableNames> }[]
+): Promise<number> {
+  for (const row of rows) await ctx.db.delete(row._id);
+  return rows.length;
+}
+
+/** One entry per table, in deletion order. `take(n)` deletes up to n of the
+ *  user's rows and returns how many it deleted. auth_sessions is last. */
+const USER_DATA_TABLES: {
+  cap: number;
+  take: (ctx: MutationCtx, username: string, n: number) => Promise<number>;
+}[] = [
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("purge_tags").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    cap: HEAVY_ROW_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("stacks").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("last_played").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("want_priorities").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("following").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("wantlist").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("preferences").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    // camelCase field on this table
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("collection").withIndex("by_username", (q) => q.eq("discogsUsername", u)).take(n)),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(
+        ctx,
+        await ctx.db
+          .query("collection_removals")
+          .withIndex("by_username_and_removedAt", (q) => q.eq("discogsUsername", u))
+          .take(n)
+      ),
+  },
+  {
+    cap: HEAVY_ROW_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("following_feed").withIndex("by_follower", (q) => q.eq("follower_username", u)).take(n)),
+  },
+  {
+    // Every followed user's collection and wantlist: the big one.
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(
+        ctx,
+        await ctx.db
+          .query("followed_items")
+          .withIndex("by_follower_followed", (q) => q.eq("follower_username", u))
+          .take(n)
+      ),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("sync_status").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("cover_scans").withIndex("by_username_at", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
+    // Bug reports and their screenshots (Settings promises this removes
+    // everything on our side — reports carry the reporter's username).
+    cap: HEAVY_ROW_BATCH,
+    take: async (ctx, u, n) => {
+      const rows = await ctx.db
+        .query("bug_reports")
+        .withIndex("by_username", (q) => q.eq("discogs_username", u))
+        .take(n);
+      for (const row of rows) {
+        if (row.screenshot_id) await ctx.storage.delete(row.screenshot_id);
+        await ctx.db.delete(row._id);
+      }
+      return rows.length;
+    },
+  },
+  {
+    // Every device's session. Second to last, so an unfinished delete can
+    // still be re-run from the device that started it.
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("auth_sessions").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+];
+
 /**
- * Delete all user data across every Convex table.
- * Nuclear option — wipes purge tags, stacks, last played, want priorities,
- * following, following feed, collection cache, wantlist cache, preferences,
- * and the user record itself.
+ * Delete up to USER_DELETE_BATCH of the user's documents. Returns true once
+ * everything is gone, the user record included.
+ */
+async function deleteUserDataStep(ctx: MutationCtx, username: string): Promise<boolean> {
+  let budget = USER_DELETE_BATCH;
+  for (const table of USER_DATA_TABLES) {
+    const want = Math.min(budget, table.cap);
+    const deleted = await table.take(ctx, username, want);
+    budget -= deleted;
+    // A full bite means the table may hold more, or the budget is spent.
+    // Either way the next step starts again from the top.
+    if (deleted === want) return false;
+  }
+  // Every table above was seen empty in this transaction: the user record
+  // (which also carries the legacy single-token session fields) goes last.
+  const users = await ctx.db
+    .query("users")
+    .withIndex("by_username", (q) => q.eq("discogs_username", username))
+    .take(budget);
+  await deleteRows(ctx, users);
+  return users.length < budget;
+}
+
+/**
+ * Delete all user data across every Convex table — purge tags, sessions
+ * (`stacks`), plays, want priorities, following, the feed and followed
+ * collections caches, collection and wantlist caches, preferences, sync
+ * status, cover-scan quota, bug reports, every device's session, and the user
+ * record itself.
+ *
+ * Same name, arguments and (empty) return as before. A typical account is
+ * gone when this returns; a larger one finishes in scheduled steps a few
+ * seconds later (see the section comment above). The caller's session stays
+ * valid until the very last step, so calling this again resumes a run that
+ * stopped.
  */
 export const deleteAllUserData = mutation({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
     const username = user.discogs_username;
+    if (!(await deleteUserDataStep(ctx, username))) {
+      await ctx.scheduler.runAfter(0, internal.users.continueDeleteAllUserData, {
+        username,
+        step: 1,
+      });
+    }
+  },
+});
 
-    // Purge tags
-    const purgeTags = await ctx.db
-      .query("purge_tags")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of purgeTags) await ctx.db.delete(row._id);
-
-    // Stacks
-    const stacks = await ctx.db
-      .query("stacks")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of stacks) await ctx.db.delete(row._id);
-
-    // Last played
-    const lastPlayed = await ctx.db
-      .query("last_played")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of lastPlayed) await ctx.db.delete(row._id);
-
-    // Want priorities
-    const wantPriorities = await ctx.db
-      .query("want_priorities")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of wantPriorities) await ctx.db.delete(row._id);
-
-    // Following
-    const following = await ctx.db
-      .query("following")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of following) await ctx.db.delete(row._id);
-
-    // Wantlist
-    const wantlist = await ctx.db
-      .query("wantlist")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of wantlist) await ctx.db.delete(row._id);
-
-    // Preferences
-    const preferences = await ctx.db
-      .query("preferences")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of preferences) await ctx.db.delete(row._id);
-
-    // Collection (camelCase field)
-    const collection = await ctx.db
-      .query("collection")
-      .withIndex("by_username", (q) => q.eq("discogsUsername", username))
-      .collect();
-    for (const row of collection) await ctx.db.delete(row._id);
-
-    // Collection removal log
-    const removals = await ctx.db
-      .query("collection_removals")
-      .withIndex("by_username_and_removedAt", (q) => q.eq("discogsUsername", username))
-      .collect();
-    for (const row of removals) await ctx.db.delete(row._id);
-
-    // Following feed
-    const followingFeed = await ctx.db
-      .query("following_feed")
-      .withIndex("by_follower", (q) => q.eq("follower_username", username))
-      .collect();
-    for (const row of followingFeed) await ctx.db.delete(row._id);
-
-    // Followed collections cache
-    const followedItems = await ctx.db
-      .query("followed_items")
-      .withIndex("by_follower_followed", (q) =>
-        q.eq("follower_username", username)
-      )
-      .collect();
-    for (const row of followedItems) await ctx.db.delete(row._id);
-
-    // Sync status
-    const syncStatus = await ctx.db
-      .query("sync_status")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of syncStatus) await ctx.db.delete(row._id);
-
-    // Cover-scan quota rows
-    const coverScans = await ctx.db
-      .query("cover_scans")
-      .withIndex("by_username_at", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of coverScans) await ctx.db.delete(row._id);
-
-    // Bug reports + their screenshots (Settings promises this removes
-    // everything on our side — reports carry the reporter's username)
-    await deleteReportsForUser(ctx, username);
-
-    // All sessions (every device)
-    const sessions = await ctx.db
-      .query("auth_sessions")
-      .withIndex("by_username", (q) => q.eq("discogs_username", username))
-      .collect();
-    for (const row of sessions) await ctx.db.delete(row._id);
-
-    // Delete the user record itself
-    await ctx.db.delete(user._id);
+/** The scheduled rest of deleteAllUserData. Internal: it takes a username. */
+export const continueDeleteAllUserData = internalMutation({
+  args: { username: v.string(), step: v.number() },
+  handler: async (ctx, args) => {
+    if (await deleteUserDataStep(ctx, args.username)) return;
+    if (args.step >= MAX_DELETE_STEPS) {
+      console.error(`deleteAllUserData: stopped after ${args.step} steps`);
+      return;
+    }
+    await ctx.scheduler.runAfter(0, internal.users.continueDeleteAllUserData, {
+      username: args.username,
+      step: args.step + 1,
+    });
   },
 });
