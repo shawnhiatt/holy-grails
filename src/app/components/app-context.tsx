@@ -37,6 +37,7 @@ import {
 import { scopeAlbums } from "../utils/format-scope";
 import { lastPlayedAfterRemoval } from "../utils/play-log";
 import { singleFlight } from "../utils/single-flight";
+import { isOlderThan, shouldFullSync } from "../utils/sync-freshness";
 
 // --- HMR-safe context singleton ---
 // During HMR, this module can be re-evaluated, creating a new context object.
@@ -1002,7 +1003,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCollectionValueCache(JSON.parse(cachedValue) as CollectionValue);
         } catch { /* invalid JSON — the refresh below repopulates it */ }
       }
-      const valueIsFresh = !!cachedValue && !!valueSyncedAt && (Date.now() - valueSyncedAt) < TWENTY_FOUR_HOURS;
+      const valueIsFresh = !!cachedValue && !isOlderThan(valueSyncedAt, Date.now());
       if (!valueIsFresh) {
         proxyFetchCollectionValue({ sessionToken, username: discogsUsername }).then((val) => {
           setCollectionValueCache(val);
@@ -2142,9 +2143,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Background change-detection probe ──
   // One cheap request: compare the current Discogs collection/wantlist counts
-  // against the counts stored at the last sync. If they match, skip the sync
-  // entirely (the common "nothing changed" case). If they differ — or we've
-  // never recorded counts — run a real sync in the background. Guards against
+  // against the counts stored at the last sync. If they match and the last full
+  // sync is under 6 hours old, skip the sync entirely (the common "nothing
+  // changed" case). If they differ, we've never recorded counts, or the last
+  // sync is 6+ hours old (edits on discogs.com don't move the counts) — run a
+  // real sync in the background. Guards against
   // overlapping runs (boot probe vs sync-on-focus), and also defers to a sync
   // already in flight for any reason (e.g. a "Sync Now" tap) — no point
   // paying for the signals probe when performSync would just hand back that
@@ -2165,10 +2168,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const prevWant = convexUserRef.current?.last_wantlist_count
         ?? convexLatestUserRef.current?.last_wantlist_count ?? null;
 
-      const changed =
-        prevColl == null || prevWant == null ||
-        signals.num_collection !== prevColl ||
-        signals.num_wantlist !== prevWant;
+      // Counts alone miss edits made on discogs.com (a rating, a note, a folder
+      // move), and Discogs' terms cap how stale shown data may be at 6 hours —
+      // so a full sync is also due once the last one is that old.
+      const lastSyncedAtMs = convexUserRef.current?.last_synced_at
+        ?? convexLatestUserRef.current?.last_synced_at ?? null;
+
+      const changed = shouldFullSync({
+        lastSyncedAt: lastSyncedAtMs,
+        now: Date.now(),
+        prevCollectionCount: prevColl,
+        prevWantlistCount: prevWant,
+        collectionCount: signals.num_collection,
+        wantlistCount: signals.num_wantlist,
+      });
 
       if (!changed) return "unchanged"; // nothing changed — no sync needed
 
