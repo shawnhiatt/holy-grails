@@ -4,9 +4,9 @@ import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { isAllowedCallbackUrl } from "./oauthCallback";
+import { USER_AGENT } from "./userAgent";
 
 const DISCOGS_BASE = "https://api.discogs.com";
-const USER_AGENT = "HolyGrails/1.0";
 
 /**
  * Consumer credentials are read from Convex environment variables.

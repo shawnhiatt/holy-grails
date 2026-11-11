@@ -13,11 +13,11 @@ import {
   wantSignature,
 } from "./cacheRows";
 import { isDiscogsUnauthorized, resolveUserProfileFetch } from "./userProfileOutcome";
+import { USER_AGENT } from "./userAgent";
 
 // ─── Config ───
 
 const BASE = "https://api.discogs.com";
-const USER_AGENT = "HolyGrails/1.0";
 
 function getConsumerKey(): string {
   const k = process.env.DISCOGS_CONSUMER_KEY;
@@ -111,6 +111,38 @@ function buildOAuthHeader(
 // would be rejected.
 const RATE_LIMIT_MAX_RETRIES = 2;
 
+// Discogs answers 500/502/503/504 under load, usually for a moment. A GET is
+// safe to repeat, so it gets ONE more try after a short wait (also on a thrown
+// network error). A write never retries: if the first POST reached Discogs and
+// only the reply was lost, a second one could apply the change twice.
+const RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
+const SERVER_ERROR_RETRY_DELAY_MS = 2000;
+
+// Discogs' rate window is 60 seconds. If the last response that told us the
+// budget is older than that, the real budget has refilled and the number we
+// are holding is history.
+const RATE_WINDOW_MS = 60_000;
+
+/**
+ * A Discogs response that wasn't OK, carrying the HTTP status as a number so
+ * callers can branch on `status === 403` instead of looking for "403" in the
+ * message text (audit I-08). The message keeps the old "(403)" wording, so
+ * logs read the same.
+ */
+export class DiscogsHttpError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "DiscogsHttpError";
+    this.status = status;
+  }
+}
+
+/** True when `e` is a Discogs HTTP error with exactly this status. */
+function hasStatus(e: unknown, status: number): boolean {
+  return e instanceof DiscogsHttpError && e.status === status;
+}
+
 // Adaptive throttle driven by the X-Discogs-Ratelimit-Remaining header
 // (60 req/min rolling window, authenticated). Requests run at full speed
 // while there's headroom and back off progressively as the budget drains —
@@ -126,6 +158,38 @@ const RATE_LIMIT_MAX_RETRIES = 2;
 // server its calls happened to run on. A counter keyed by token would track
 // the wrong thing; this one follows the budget of the server it runs on.
 let rateLimitRemaining = 60;
+// When `rateLimitRemaining` was last set. Without it a low number stuck
+// around until the next response, so the first call after a quiet spell could
+// sleep up to 5 s for a budget that had already refilled (audit I-05).
+let rateLimitSetAt = 0;
+
+function setRateLimitRemaining(n: number): void {
+  rateLimitRemaining = n;
+  rateLimitSetAt = Date.now();
+}
+
+function currentRateLimitRemaining(): number {
+  return Date.now() - rateLimitSetAt > RATE_WINDOW_MS ? 60 : rateLimitRemaining;
+}
+
+/**
+ * Log the body of a 401 so a signing bug can be told from a revoked token
+ * (after Dec 1, 2026 Discogs answers a badly signed request with 401 instead
+ * of serving it anonymously). Only the response body is logged: the request
+ * carries the OAuth signature and token, so neither it nor its headers are
+ * ever printed, and the URL's query string is dropped.
+ */
+async function logUnauthorized(method: string, url: string, res: Response): Promise<void> {
+  let body = "";
+  try {
+    body = (await res.clone().text()).slice(0, 500);
+  } catch {
+    // Body unreadable — the status line below is still worth having.
+  }
+  console.warn(
+    `[Discogs] 401 on ${method} ${url.split("?")[0]} — response body: ${body || "(empty)"}`
+  );
+}
 
 async function discogsFetch(
   method: string,
@@ -134,30 +198,70 @@ async function discogsFetch(
   tokenSecret: string,
   body?: string
 ): Promise<Response> {
-  for (let attempt = 0; ; attempt++) {
-    if (rateLimitRemaining <= 3) await sleep(5000);
-    else if (rateLimitRemaining <= 8) await sleep(1500);
-    else if (rateLimitRemaining <= 15) await sleep(400);
+  const canRetryServerError = method === "GET";
+  let rateLimitAttempts = 0;
+  let serverErrorRetried = false;
+  for (;;) {
+    const remaining = currentRateLimitRemaining();
+    if (remaining <= 3) await sleep(5000);
+    else if (remaining <= 8) await sleep(1500);
+    else if (remaining <= 15) await sleep(400);
     const headers: Record<string, string> = {
       Authorization: buildOAuthHeader(method, url, accessToken, tokenSecret),
       "User-Agent": USER_AGENT,
     };
     if (body) headers["Content-Type"] = "application/json";
-    const res = await fetch(url, { method, headers, body });
-    const remaining = Number(res.headers.get("X-Discogs-Ratelimit-Remaining"));
-    if (Number.isFinite(remaining)) rateLimitRemaining = remaining;
-    if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
-    rateLimitRemaining = 0;
+    let res: Response;
+    try {
+      res = await fetch(url, { method, headers, body });
+    } catch (e) {
+      // A thrown fetch is a network failure — no response at all.
+      if (!canRetryServerError || serverErrorRetried) throw e;
+      serverErrorRetried = true;
+      console.warn(`[Discogs] Network error on ${method} ${url.split("?")[0]} — retrying in ${SERVER_ERROR_RETRY_DELAY_MS}ms`);
+      await sleep(SERVER_ERROR_RETRY_DELAY_MS);
+      continue;
+    }
+    const headerRemaining = Number(res.headers.get("X-Discogs-Ratelimit-Remaining"));
+    if (Number.isFinite(headerRemaining)) setRateLimitRemaining(headerRemaining);
+    if (res.status === 401) await logUnauthorized(method, url, res);
+    if (canRetryServerError && !serverErrorRetried && RETRYABLE_STATUSES.has(res.status)) {
+      serverErrorRetried = true;
+      console.warn(
+        `[Discogs] ${res.status} on GET ${url.split("?")[0]} — retrying in ${SERVER_ERROR_RETRY_DELAY_MS}ms`
+      );
+      await sleep(SERVER_ERROR_RETRY_DELAY_MS);
+      continue;
+    }
+    if (res.status !== 429 || rateLimitAttempts >= RATE_LIMIT_MAX_RETRIES) return res;
+    setRateLimitRemaining(0);
     const retryAfter = Number(res.headers.get("Retry-After"));
     const waitMs =
       Number.isFinite(retryAfter) && retryAfter > 0
         ? Math.min(retryAfter, 60) * 1000
-        : 5000 * (attempt + 1);
+        : 5000 * (rateLimitAttempts + 1);
+    rateLimitAttempts++;
     console.warn(
-      `[Discogs] 429 rate limited — retrying in ${waitMs}ms (attempt ${attempt + 1}/${RATE_LIMIT_MAX_RETRIES})`
+      `[Discogs] 429 rate limited — retrying in ${waitMs}ms (attempt ${rateLimitAttempts}/${RATE_LIMIT_MAX_RETRIES})`
     );
     await sleep(waitMs);
   }
+}
+
+/**
+ * The release's PRIMARY image, in the large form (~600px, `q:90`) — the same
+ * family of URL the sync stores from the collection endpoint's `cover_image`.
+ * `images[0]` is not always the primary one (Discogs lists images in upload
+ * order). Discogs image URLs are signed, so a size can't be rewritten in the
+ * string; this picks the right image rather than resizing one. Falls back to
+ * the first image with a URL when none is marked primary.
+ */
+export function primaryImageUrl(
+  images: { type?: string; uri?: string }[] | undefined
+): string {
+  if (!images?.length) return "";
+  const primary = images.find((i) => i.type === "primary" && i.uri);
+  return primary?.uri || images.find((i) => i.uri)?.uri || "";
 }
 
 function sleep(ms: number): Promise<void> {
@@ -588,8 +692,9 @@ async function fetchCollectionInternal(
           forbidden = true;
           break;
         }
-        throw new Error(
-          `Failed to fetch collection folder ${folderId} page ${page} (${res.status})`
+        throw new DiscogsHttpError(
+          `Failed to fetch collection folder ${folderId} page ${page} (${res.status})`,
+          res.status
         );
       }
       const data: CollectionPage = await res.json();
@@ -675,8 +780,9 @@ async function fetchWantlistInternal(
       creds.token_secret
     );
     if (!res.ok)
-      throw new Error(
-        `Failed to fetch wantlist page ${page} (${res.status})`
+      throw new DiscogsHttpError(
+        `Failed to fetch wantlist page ${page} (${res.status})`,
+        res.status
       );
     const data: WantPage = await res.json();
     const { pages, items: pageWants } = readDiscogsPage<DiscogsWant>(data, "wants", `wantlist page ${page}`);
@@ -1125,7 +1231,7 @@ export const syncSelf = action({
           (fetched, total) => setStatus("wantlist", fetched, total)
         );
       } catch (e: any) {
-        if (String(e?.message ?? "").includes("403")) {
+        if (hasStatus(e, 403)) {
           wantlistPrivate = true;
           console.warn(
             `[Discogs] Wantlist returned 403 for @${creds.username} — wantlist is private/forbidden; skipping wantlist sync`
@@ -1269,7 +1375,7 @@ export const syncFollowedUser = action({
       // change; scope is applied display-only at the viewer's client derive.
       albums = result.albums;
     } catch (e: any) {
-      if (String(e?.message ?? "").includes("403")) {
+      if (hasStatus(e, 403)) {
         isPrivate = true;
       } else {
         throw e;
@@ -1289,7 +1395,7 @@ export const syncFollowedUser = action({
       } catch (e: any) {
         // A 403 is a private wantlist: empty is the truth, so it still
         // replaces the cache. Anything else keeps what we already have.
-        if (!String(e?.message ?? "").includes("403")) {
+        if (!hasStatus(e, 403)) {
           wantsFetched = false;
           console.warn(
             `[Discogs] Wantlist fetch failed for followed @${args.username}; keeping cached wantlist:`,
@@ -1785,8 +1891,9 @@ export const proxyFetchUserCollectionPage = action({
       creds.token_secret
     );
     if (!res.ok) {
-      throw new Error(
-        `Failed to fetch collection page for @${args.username} (${res.status})`
+      throw new DiscogsHttpError(
+        `Failed to fetch collection page for @${args.username} (${res.status})`,
+        res.status
       );
     }
     const data: CollectionPage = await res.json();
@@ -1826,41 +1933,40 @@ export const proxyFetchUserWantlistPage = action({
     const pg = args.page ?? 1;
     const pp = args.perPage ?? 50;
     const url = `${BASE}/users/${encodeURIComponent(args.username)}/wants?page=${pg}&per_page=${pp}&sort=added&sort_order=desc`;
-    try {
-      const res = await discogsFetch(
-        "GET",
-        url,
-        creds.access_token,
-        creds.token_secret
+    const res = await discogsFetch(
+      "GET",
+      url,
+      creds.access_token,
+      creds.token_secret
+    );
+    // 403 is a private wantlist: empty is the truth. Anything else (429,
+    // 5xx, a network error) throws, so the caller doesn't write an empty
+    // list over the followed user's cached Feed wants (audit I-03).
+    if (res.status === 403) return [];
+    if (!res.ok) {
+      throw new DiscogsHttpError(
+        `Failed to fetch wantlist page for @${args.username} (${res.status})`,
+        res.status
       );
-      if (res.status === 403) return [];
-      if (!res.ok) {
-        throw new Error(
-          `Failed to fetch wantlist page for @${args.username} (${res.status})`
-        );
-      }
-      const data: WantPage = await res.json();
-      return data.wants.map((w) => {
-        const bi = w.basic_information;
-        return {
-          release_id: bi.id,
-          master_id: bi.master_id || undefined,
-          title: bi.title,
-          artist: bi.artists
-            .map((a) => formatArtistName(a.anv || a.name))
-            .join(", "),
-          year: bi.year || 0,
-          thumb: bi.thumb || "",
-          cover: bi.cover_image || bi.thumb || "",
-          label: bi.labels?.[0]?.name || "Unknown",
-          format: flattenFormats(bi.formats) || undefined,
-          dateAdded: w.date_added || "",
-        };
-      });
-    } catch (e) {
-      console.warn(`[Discogs] proxyFetchUserWantlistPage failed for @${args.username}:`, e);
-      return [];
     }
+    const data: WantPage = await res.json();
+    return data.wants.map((w) => {
+      const bi = w.basic_information;
+      return {
+        release_id: bi.id,
+        master_id: bi.master_id || undefined,
+        title: bi.title,
+        artist: bi.artists
+          .map((a) => formatArtistName(a.anv || a.name))
+          .join(", "),
+        year: bi.year || 0,
+        thumb: bi.thumb || "",
+        cover: bi.cover_image || bi.thumb || "",
+        label: bi.labels?.[0]?.name || "Unknown",
+        format: flattenFormats(bi.formats) || undefined,
+        dateAdded: w.date_added || "",
+      };
+    });
   },
 });
 
@@ -2116,7 +2222,7 @@ export const proxyAddToCollection = action({
       artist,
       year: rd.year ?? 0,
       thumb: rd.thumb || "",
-      cover: rd.images?.[0]?.uri || rd.thumb || "",
+      cover: primaryImageUrl(rd.images) || rd.thumb || "",
       label,
       catalogNumber: catno,
       format: formatParts.join(", "),
