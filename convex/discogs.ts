@@ -12,7 +12,7 @@ import {
   toWantRow,
   wantSignature,
 } from "./cacheRows";
-import { resolveUserProfileFetch } from "./userProfileOutcome";
+import { isDiscogsUnauthorized, resolveUserProfileFetch } from "./userProfileOutcome";
 
 // ─── Config ───
 
@@ -820,7 +820,17 @@ export const proxyFetchIdentity = action({
 
 // 2. Fetch user profile
 export const proxyFetchUserProfile = action({
-  args: { sessionToken: v.string(), username: v.string() },
+  args: {
+    sessionToken: v.string(),
+    username: v.string(),
+    /** Opt-in (WO-07). When true, a Discogs 404 RETURNS `notFound: true` (with
+     *  the otherwise-empty profile shape) instead of throwing "not found on
+     *  Discogs." — prod redacts thrown text to "Server Error", so a client
+     *  can't read it. Off by default on purpose: the PWA's Follow flow treats
+     *  a resolved profile as proof the user exists, so returning for a 404
+     *  without being asked would "follow" a mistyped username (bug H2). */
+    errorsAsValues: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const creds = await ctx.runQuery(
       internal.discogsHelpers.getUserCredentials,
@@ -861,10 +871,30 @@ export const proxyFetchUserProfile = action({
         numLists: 0,
         rank: 0,
         degraded: true,
+        notFound: false,
       };
     }
 
     const outcome = resolveUserProfileFetch(res.status, res.ok, args.username);
+    if (outcome.kind === "not_found" && args.errorsAsValues) {
+      return {
+        username: args.username,
+        avatar: "",
+        profile: "",
+        location: "",
+        registered: "",
+        buyerRating: 0,
+        buyerRatingStars: 0,
+        sellerRating: 0,
+        sellerRatingStars: 0,
+        releasesContributed: 0,
+        releasesRated: 0,
+        numLists: 0,
+        rank: 0,
+        degraded: false,
+        notFound: true,
+      };
+    }
     if (outcome.kind !== "ok") {
       throw new Error(outcome.message);
     }
@@ -885,6 +915,7 @@ export const proxyFetchUserProfile = action({
       numLists: (data.num_lists as number) || 0,
       rank: (data.rank as number) || 0,
       degraded: false,
+      notFound: false,
     };
   },
 });
@@ -965,7 +996,15 @@ export const proxyFetchCollectionValue = action({
 // subscribes to. The client receives the fresh data reactively through its
 // existing collection/wantlist cache subscriptions.
 export const syncSelf = action({
-  args: { sessionToken: v.string() },
+  args: {
+    sessionToken: v.string(),
+    /** Opt-in (WO-07). When true, a Discogs 401 (revoked or expired OAuth
+     *  token) RETURNS an empty result with `needsReconnect: true` instead of
+     *  throwing "Failed to fetch folders (401)" — prod redacts thrown text to
+     *  "Server Error", so a client can't read it. Off by default: the PWA and
+     *  shipped native builds treat a resolved sync as a good one. */
+    errorsAsValues: v.optional(v.boolean()),
+  },
   handler: async (
     ctx,
     args
@@ -1000,6 +1039,9 @@ export const syncSelf = action({
     } | null;
     collectionPrivate: boolean;
     wantlistPrivate: boolean;
+    /** True only when `errorsAsValues` was set and Discogs answered 401. The
+     *  rest of the result is then empty and must not be read as a sync. */
+    needsReconnect: boolean;
   }> => {
     const creds = await ctx.runQuery(
       internal.discogsHelpers.getUserCredentials,
@@ -1176,7 +1218,26 @@ export const syncSelf = action({
         // read — the client can surface a "this is private on Discogs" note.
         collectionPrivate,
         wantlistPrivate,
+        needsReconnect: false,
       };
+    } catch (e) {
+      if (args.errorsAsValues && isDiscogsUnauthorized(e)) {
+        console.warn(`[Discogs] Sync for @${creds.username} got a 401; asking the client to reconnect`);
+        return {
+          profile: null,
+          folders: [],
+          albumCount: 0,
+          wantCount: 0,
+          collDiff: { added: 0, removed: 0, updated: 0 },
+          wantDiff: { added: 0, removed: 0, updated: 0 },
+          crossovers: [],
+          collectionValue: null,
+          collectionPrivate: false,
+          wantlistPrivate: false,
+          needsReconnect: true,
+        };
+      }
+      throw e;
     } finally {
       await setStatus("idle");
     }
@@ -1336,7 +1397,7 @@ export const proxyUpdateCollectionInstance = action({
       value: v.string(),
     }))),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ skippedFields: string[] }> => {
     const creds = await ctx.runQuery(
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
@@ -1349,29 +1410,20 @@ export const proxyUpdateCollectionInstance = action({
     const fieldMap = buildFieldMap(fieldDefs);
 
     const updates: { fieldId: number; value: string }[] = [];
-    if (
-      args.fields.mediaCondition !== undefined &&
-      fieldMap.mediaConditionId != null
-    ) {
-      updates.push({
-        fieldId: fieldMap.mediaConditionId,
-        value: args.fields.mediaCondition,
-      });
-    }
-    if (
-      args.fields.sleeveCondition !== undefined &&
-      fieldMap.sleeveConditionId != null
-    ) {
-      updates.push({
-        fieldId: fieldMap.sleeveConditionId,
-        value: args.fields.sleeveCondition,
-      });
-    }
-    if (
-      args.fields.notes !== undefined &&
-      fieldMap.notesId != null
-    ) {
-      updates.push({ fieldId: fieldMap.notesId, value: args.fields.notes });
+    // Named fields whose Discogs custom field doesn't exist for this user
+    // (renamed or deleted on Discogs). They used to be dropped silently and the
+    // call still reported success, so the client wrote its cache and the next
+    // sync reverted the edit. The names go back to the caller (WO-07, A-22).
+    const skippedFields: string[] = [];
+    const named: [string, string | undefined, number | null | undefined][] = [
+      ["mediaCondition", args.fields.mediaCondition, fieldMap.mediaConditionId],
+      ["sleeveCondition", args.fields.sleeveCondition, fieldMap.sleeveConditionId],
+      ["notes", args.fields.notes, fieldMap.notesId],
+    ];
+    for (const [name, value, fieldId] of named) {
+      if (value === undefined) continue;
+      if (fieldId != null) updates.push({ fieldId, value });
+      else skippedFields.push(name);
     }
 
     if (args.customFields) {
@@ -1420,6 +1472,8 @@ export const proxyUpdateCollectionInstance = action({
         );
       }
     }
+
+    return { skippedFields };
   },
 });
 

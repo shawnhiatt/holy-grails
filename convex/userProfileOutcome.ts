@@ -42,3 +42,19 @@ export function resolveUserProfileFetch(
   }
   return { kind: "ok" };
 }
+
+/* Whether a thrown sync error is a Discogs 401 (revoked or expired OAuth
+   token). The fetch helpers in discogs.ts build their messages as
+   "Failed to fetch <thing> (<status>)", and they are matched here INSIDE the
+   Convex runtime, where the text is intact; only the client boundary redacts
+   it on prod. The "(401)" form is deliberate: a bare "401" would match page
+   numbers and ids. syncSelf turns this into the `needsReconnect` value. */
+export function isDiscogsUnauthorized(err: unknown): boolean {
+  const message =
+    typeof err === "string"
+      ? err
+      : err && typeof err === "object" && "message" in err
+        ? String((err as { message: unknown }).message)
+        : "";
+  return /\(401\)/.test(message);
+}
