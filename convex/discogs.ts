@@ -2360,16 +2360,27 @@ export const proxyFetchMarketData = action({
 // same for everyone who owns it, so one fetch serves all owners. Each run:
 //   1. seed the shared set from all collections (picks up new releases, and
 //      migrates any values from the legacy per-user collection fields),
-//   2. fetch a batch of the stalest releases, rotating through users' tokens.
-//      The rotation is for resilience (a revoked token is dropped and its
-//      releases retried with the next), not extra throughput: Discogs budgets
-//      by source IP, so every token draws on the same per-IP 60/min (M3).
+//   2. fetch a batch of the stalest releases with ONE designated account's
+//      token (the Discogs username in the HG_DRIP_USERNAME Convex env var).
+//      It is 40 calls a day, so one token is plenty, and it keeps us from
+//      borrowing other people's credentials (audit D-04). If the var is
+//      unset, the user is missing, or Discogs rejects the token (401/403), the
+//      run logs once and ends without touching any row's fetchedAt.
 // See docs/market-value-drip.md for the full write-up + scaling analysis.
 export const marketValueDrip = internalAction({
   args: {},
   handler: async (ctx) => {
-    const tokens = await ctx.runQuery(internal.discogsHelpers.listUsersForMarketDrip, {});
-    if (tokens.length === 0) return; // nobody to fetch with
+    // The designated account. Nothing runs without it: no seed, no fetch.
+    const username = process.env.HG_DRIP_USERNAME?.trim();
+    if (!username) {
+      console.warn("[marketDrip] HG_DRIP_USERNAME is not set; skipping the run");
+      return;
+    }
+    const creds = await ctx.runQuery(internal.discogsHelpers.getDripCredentials, { username });
+    if (!creds) {
+      console.warn("[marketDrip] HG_DRIP_USERNAME names no user with a stored token; skipping the run");
+      return;
+    }
 
     // 1. Keep the shared set current (also migrates legacy per-user values).
     try {
@@ -2386,77 +2397,55 @@ export const marketValueDrip = internalAction({
       limit: MARKET_BATCH_SIZE,
     });
 
-    // Tokens still usable this run. A revoked token fails every request routed
-    // to it, and treating that like a release-level failure advanced each of
-    // those releases' fetchedAt — "checked" for 30 days without ever being
-    // priced, every run, for as long as the token stayed in the pool. A 401/403
-    // now drops the token for the rest of the run and the same release is
-    // retried with the next one; fetchedAt only moves for failures that are
-    // about the release itself.
-    const pool = [...tokens];
-    let i = 0;
     for (const { releaseId } of batch) {
-      let priced = false;
-      while (!priced && pool.length > 0) {
-        const slot = i % pool.length;
-        const creds = pool[slot]; // round-robin across the live tokens
-        try {
-          const res = await discogsFetch(
-            "GET",
-            `${BASE}/marketplace/stats/${releaseId}?curr_abbr=${MARKET_CURRENCY}`,
-            creds.accessToken,
-            creds.tokenSecret
-          );
-          if (res.status === 401 || res.status === 403) {
-            console.warn(`[marketDrip] token rejected (${res.status}); dropping it for this run`);
-            pool.splice(slot, 1);
-            continue;
-          }
-          i++;
-          priced = true;
-          if (!res.ok) {
-            // Release-level/transient non-200 — advance fetchedAt only (value
-            // preserved) so a failing release moves to the back of the queue
-            // instead of clogging.
-            await ctx.runMutation(internal.market_values.setValue, {
-              releaseId,
-              fetchedAt: Date.now(),
-            });
-            continue;
-          }
-          const data = await res.json();
-          // Stats returns lowest_price as { value, currency } | null. null (or a
-          // missing value) means no active listings.
-          const lp = data?.lowest_price;
-          const value = lp && typeof lp.value === "number" ? lp.value : null;
-          // num_for_sale backs the Wantlist's "6 for sale". Missing with no
-          // ask means none listed; missing beside an ask stays unknown.
-          const numForSale =
-            typeof data?.num_for_sale === "number" ? data.num_for_sale : value === null ? 0 : undefined;
+      try {
+        const res = await discogsFetch(
+          "GET",
+          `${BASE}/marketplace/stats/${releaseId}?curr_abbr=${MARKET_CURRENCY}`,
+          creds.accessToken,
+          creds.tokenSecret
+        );
+        if (res.status === 401 || res.status === 403) {
+          // The token itself is the problem, not the release. Stop here and
+          // leave the rest of the batch (and this release) untouched, so
+          // nothing is marked "checked" without being priced.
+          console.warn(`[marketDrip] token for the designated account was rejected (${res.status}); ending the run`);
+          return;
+        }
+        if (!res.ok) {
+          // Release-level/transient non-200 — advance fetchedAt only (value
+          // preserved) so a failing release moves to the back of the queue
+          // instead of clogging.
           await ctx.runMutation(internal.market_values.setValue, {
             releaseId,
             fetchedAt: Date.now(),
-            value,
-            ...(numForSale !== undefined ? { numForSale } : {}),
           });
-        } catch (e) {
-          i++;
-          priced = true;
-          console.warn(`[marketDrip] stats fetch failed for ${releaseId}:`, e);
-          // Advance fetchedAt so we don't re-hit it every run (retries in 30d).
-          try {
-            await ctx.runMutation(internal.market_values.setValue, {
-              releaseId,
-              fetchedAt: Date.now(),
-            });
-          } catch { /* ignore */ }
+          continue;
         }
-      }
-      // Every token was rejected: stop, leaving the rest of the batch
-      // untouched (never-fetched rows stay first in line for the next run).
-      if (pool.length === 0) {
-        console.warn("[marketDrip] no usable tokens left; ending the run early");
-        break;
+        const data = await res.json();
+        // Stats returns lowest_price as { value, currency } | null. null (or a
+        // missing value) means no active listings.
+        const lp = data?.lowest_price;
+        const value = lp && typeof lp.value === "number" ? lp.value : null;
+        // num_for_sale backs the Wantlist's "6 for sale". Missing with no
+        // ask means none listed; missing beside an ask stays unknown.
+        const numForSale =
+          typeof data?.num_for_sale === "number" ? data.num_for_sale : value === null ? 0 : undefined;
+        await ctx.runMutation(internal.market_values.setValue, {
+          releaseId,
+          fetchedAt: Date.now(),
+          value,
+          ...(numForSale !== undefined ? { numForSale } : {}),
+        });
+      } catch (e) {
+        console.warn(`[marketDrip] stats fetch failed for ${releaseId}:`, e);
+        // Advance fetchedAt so we don't re-hit it every run (retries in 30d).
+        try {
+          await ctx.runMutation(internal.market_values.setValue, {
+            releaseId,
+            fetchedAt: Date.now(),
+          });
+        } catch { /* ignore */ }
       }
     }
   },

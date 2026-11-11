@@ -66,8 +66,8 @@ The trigger is a clock.
 | Piece | File | Role |
 |---|---|---|
 | Daily cron | `convex/crons.ts` | Fires `marketValueDrip` once a day at 09:00 UTC. |
-| Drip orchestrator | `convex/discogs.ts` → `marketValueDrip` (internalAction, `"use node"`) | Seeds the set, fetches a batch of prices round-robin across tokens. |
-| Token pool | `convex/discogsHelpers.ts` → `listUsersForMarketDrip` (internalQuery) | Every user with OAuth creds — used only for their tokens. |
+| Drip orchestrator | `convex/discogs.ts` → `marketValueDrip` (internalAction, `"use node"`) | Seeds the set, fetches a batch of prices with one designated account's token. |
+| Drip account | `convex/discogsHelpers.ts` → `getDripCredentials` (internalQuery) | The one user named by the `HG_DRIP_USERNAME` Convex env var; returns their token, or `null`. |
 | Seed / migrate | `convex/market_values.ts` → `seedFromCollection` (internalMutation) | One shared row per owned or wanted release; keeps `wanted` in sync; migrates legacy per-user values. |
 | Batch selector | `convex/market_values.ts` → `getDripBatch` (internalQuery) | Week-stale wants first, then month-stale releases, each ordered by `fetchedAt`. |
 | Price writer | `convex/market_values.ts` → `setValue` (internalMutation) | Advances `fetchedAt`; writes `value` and `numForSale` on success. |
@@ -100,10 +100,13 @@ client. The drip runs entirely server-side.
 
 Every day at 09:00 UTC, Convex's scheduler calls `marketValueDrip`. It then:
 
-1. **Gets the token pool.** `listUsersForMarketDrip` returns every user with
-   Discogs OAuth tokens. If nobody has tokens, it bails. These are used *only*
-   as request credentials — the price fetched is the same regardless of whose
-   token asks.
+1. **Gets the drip account's token.** The action reads the `HG_DRIP_USERNAME`
+   Convex env var (a Discogs username, not a secret) and `getDripCredentials`
+   returns that user's OAuth token. If the var is unset, or names no user with
+   a stored token, the run logs once and ends here — before the seed, before
+   any fetch, with no row changed. The price is the same whoever asks, so one
+   account is enough; the drip no longer borrows other people's credentials
+   (Discogs audit D-04).
 
 2. **Seeds the shared set from collections and wantlists.**
    `seedFromCollection` walks every collection and wantlist row and inserts a
@@ -119,13 +122,15 @@ Every day at 09:00 UTC, Convex's scheduler calls `marketValueDrip`. It then:
    each ordered by `fetchedAt` ascending (never-fetched sort first, then
    oldest), with no duplicates.
 
-4. **Fetches each release's price, round-robin across tokens.**
-   `GET /marketplace/stats/{releaseId}?curr_abbr=USD` through `discogsFetch`. The
-   request is signed with `tokens[i % tokens.length]`. That rotation is for
-   resilience: a token Discogs rejects is dropped and its release retried with
-   the next. It does **not** multiply the budget. Discogs throttles by source
-   IP, not by token, so every token draws on the same per-IP 60/min (confirmed
-   in production during bug hunt M3).
+4. **Fetches each release's price with that one token.**
+   `GET /marketplace/stats/{releaseId}?curr_abbr=USD` through `discogsFetch`,
+   signed with the drip account's token. If Discogs answers 401/403 the token
+   itself is the problem, so the run ends on the spot and leaves the rest of
+   the batch (including that release) untouched; those releases stay first in
+   line for the next run instead of being marked "checked" unpriced. (An earlier
+   version rotated through every user's token. Discogs throttles by source IP,
+   not by token, so that never added budget, and it used people's credentials
+   for work that wasn't theirs.)
    The stats endpoint returns `lowest_price` as `{ value, currency }` (or `null`
    if nobody's selling one) and `num_for_sale`, stored as `numForSale` (0 when
    it's missing and there's no ask).
@@ -193,7 +198,7 @@ like any other, so the drip doesn't re-hit a no-listings release daily.
 
 A shared value can only be **one** currency. Discogs otherwise localizes
 marketplace prices to the *requesting token owner's* currency — which, with
-round-robin tokens, would make the same release flip currencies run to run. So
+a changing token owner, would make the same release flip currencies run to run. So
 the drip forces `curr_abbr=USD` (`MARKET_CURRENCY` in `convex/marketValue.ts`).
 Everyone sees USD regardless of their Discogs locale. If the audience shifts,
 change the one constant. (This is the deliberate simplification the original
@@ -249,8 +254,11 @@ To migrate immediately after deploy instead of waiting for 09:00 UTC, run
   `getForWantlist` returns only the caller's priced wants (with `numForSale`,
   null values passed through), rejects an unauthenticated caller, and keeps a
   fixed query count on a 300-want list.
-- `marketDrip.test.ts` — the drip stores `num_for_sale`, 0 for no ask, and
-  seeds and prices a want nobody owns.
+- `marketDrip.test.ts` — the designated account: with `HG_DRIP_USERNAME` set the
+  batch is priced with that user's token and nobody else's; unset or an unknown
+  user does nothing and logs why; a 401/403 ends the run after one request with
+  no `fetchedAt` changed; a 404 still advances `fetchedAt`. Also: the drip
+  stores `num_for_sale`, 0 for no ask, and seeds and prices a want nobody owns.
 
 (There is no longer an `applyDiff`-preservation test — see below.)
 
@@ -291,11 +299,14 @@ are ceilings.
 - **Deduplicated fetches.** Total Discogs requests scale with the number of
   *unique* releases across all users, not the sum of collection sizes. With
   overlap, that grows sub-linearly in user count.
-- **No single point of failure.** Fetching through **one** token would stall
-  the whole run whenever that token was revoked. Rotating through every
-  user's token keeps the drip going. (This section originally claimed the
-  rotation also raised the budget to ≈ N × 60/min. It doesn't: Discogs
-  budgets by source IP, not by token, as bug hunt M3 showed in production.)
+- **One account, on purpose.** The drip runs on a single designated token
+  (`HG_DRIP_USERNAME`). The cost is a single point of failure: if that token is
+  revoked, or the account is deleted, prices stop refreshing until the var
+  points at a working account (the run logs why and changes nothing). That is
+  the trade Discogs asks for, and at 40 calls a day there is no throughput
+  reason for more tokens. (An earlier version claimed rotating tokens raised the
+  budget to ≈ N × 60/min. It never did: Discogs budgets by source IP, not by
+  token, as bug hunt M3 showed in production.)
 - **Simpler correctness.** No per-row invariant with the sync; no cursor.
 
 ### What still has ceilings
@@ -315,7 +326,7 @@ are ceilings.
    40/run drains the global backlog faster than 40/user/day did. If the unique-
    release backlog ever needs more throughput, fan the fetch out into
    per-chunk scheduled actions (the same pattern the old doc described). Adding
-   tokens does not raise the ceiling; the per-IP 60/min does (bug hunt M3).
+   tokens would not raise the ceiling; the per-IP 60/min does (bug hunt M3).
 
 3. **`getForUser` scans two tables per call** (collection-by-username +
    `market_values`), joined in memory. It originally did one indexed lookup per

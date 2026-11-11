@@ -8,11 +8,11 @@ import schema from "./schema";
 const modules = import.meta.glob("./**/*.ts");
 
 /**
- * discogs.marketValueDrip against a stubbed Discogs (bug hunt M2). The drip
- * round-robins releases across every user's token. A revoked token failed
- * every request routed to it, and each failure advanced that release's
- * fetchedAt — marking it checked for 30 days although it was never priced,
- * run after run, for as long as the bad token stayed in the pool.
+ * discogs.marketValueDrip against a stubbed Discogs. The drip fetches with ONE
+ * designated account's token, named by the HG_DRIP_USERNAME Convex env var
+ * (audit D-04) rather than round-robining over every user's token. Unset var,
+ * unknown user, or a token Discogs rejects (401/403) all end the run without
+ * changing any row's fetchedAt, so nothing is marked "checked" unpriced.
  */
 
 const json = (body: unknown, status = 200) =>
@@ -70,7 +70,15 @@ async function seed(t: ReturnType<typeof convexTest>, users: string[], releaseId
 const marketRows = (t: ReturnType<typeof convexTest>) =>
   t.run((ctx) => ctx.db.query("market_values").collect());
 
-describe("marketValueDrip token failures", () => {
+const tokensUsed = (fetchMock: ReturnType<typeof stubDiscogs>) =>
+  new Set(
+    fetchMock.mock.calls.map(
+      ([, init]) =>
+        /oauth_token="([^"]+)"/.exec(String((init?.headers as Record<string, string>)?.Authorization))?.[1] ?? ""
+    )
+  );
+
+describe("marketValueDrip designated account", () => {
   beforeEach(() => {
     vi.stubEnv("DISCOGS_CONSUMER_KEY", "key");
     vi.stubEnv("DISCOGS_CONSUMER_SECRET", "secret");
@@ -80,38 +88,80 @@ describe("marketValueDrip token failures", () => {
     vi.unstubAllEnvs();
   });
 
-  it("prices every release with the good token when another token is revoked", async () => {
+  it("prices the batch with the designated account's token and no one else's", async () => {
+    vi.stubEnv("HG_DRIP_USERNAME", "bob");
     const t = convexTest(schema, modules);
     await seed(t, ["alice", "bob"], [1, 2, 3, 4]);
-    stubDiscogs(new Set(["token-bob"]));
+    const fetchMock = stubDiscogs(new Set());
     await t.action(internal.discogs.marketValueDrip, {});
     const rows = await marketRows(t);
     expect(rows).toHaveLength(4);
-    expect(rows.every((r) => r.value === 12.5)).toBe(true);
+    expect(rows.every((r) => r.value === 12.5 && typeof r.fetchedAt === "number")).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(tokensUsed(fetchMock)).toEqual(new Set(["token-bob"]));
   });
 
-  it("stops the revoked token after its first failure instead of retrying it every release", async () => {
+  it("matches the username case-insensitively", async () => {
+    vi.stubEnv("HG_DRIP_USERNAME", "BOB");
     const t = convexTest(schema, modules);
-    await seed(t, ["alice", "bob"], [1, 2, 3, 4, 5, 6]);
-    const fetchMock = stubDiscogs(new Set(["token-bob"]));
+    await seed(t, ["alice", "bob"], [1]);
+    const fetchMock = stubDiscogs(new Set());
     await t.action(internal.discogs.marketValueDrip, {});
-    const bobCalls = fetchMock.mock.calls.filter(([, init]) =>
-      String((init?.headers as Record<string, string>)?.Authorization).includes('oauth_token="token-bob"')
-    );
-    expect(bobCalls).toHaveLength(1);
+    expect(tokensUsed(fetchMock)).toEqual(new Set(["token-bob"]));
   });
 
-  it("leaves releases unmarked when every token is revoked", async () => {
+  it("does nothing, and says so, when HG_DRIP_USERNAME is unset", async () => {
+    vi.stubEnv("HG_DRIP_USERNAME", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const t = convexTest(schema, modules);
-    await seed(t, ["alice", "bob"], [1, 2]);
-    stubDiscogs(new Set(["token-alice", "token-bob"]));
+    await seed(t, ["alice"], [1, 2]);
+    const fetchMock = stubDiscogs(new Set());
     await t.action(internal.discogs.marketValueDrip, {});
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await marketRows(t)).toHaveLength(0); // not even seeded
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("HG_DRIP_USERNAME is not set"));
+    warn.mockRestore();
+  });
+
+  it("does nothing, and says so, when the named user doesn't exist", async () => {
+    vi.stubEnv("HG_DRIP_USERNAME", "nobody");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const t = convexTest(schema, modules);
+    await seed(t, ["alice"], [1, 2]);
+    const fetchMock = stubDiscogs(new Set());
+    await t.action(internal.discogs.marketValueDrip, {});
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await marketRows(t)).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("names no user"));
+    warn.mockRestore();
+  });
+
+  it("ends the run on a 401 with no rows changed, after one request", async () => {
+    vi.stubEnv("HG_DRIP_USERNAME", "alice");
+    const t = convexTest(schema, modules);
+    await seed(t, ["alice", "bob"], [1, 2, 3]);
+    // bob's token works, but the drip must not fall back to it.
+    const fetchMock = stubDiscogs(new Set(["token-alice"]));
+    await t.action(internal.discogs.marketValueDrip, {});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const rows = await marketRows(t);
+    expect(rows).toHaveLength(3);
     // Never priced, so still "never fetched" and first in line next run.
     expect(rows.every((r) => r.fetchedAt === undefined && r.value === undefined)).toBe(true);
   });
 
+  it("ends the run on a 403 the same way", async () => {
+    vi.stubEnv("HG_DRIP_USERNAME", "alice");
+    const t = convexTest(schema, modules);
+    await seed(t, ["alice"], [1, 2]);
+    vi.stubGlobal("fetch", vi.fn(async () => json({ message: "Forbidden" }, 403)));
+    await t.action(internal.discogs.marketValueDrip, {});
+    const rows = await marketRows(t);
+    expect(rows.every((r) => r.fetchedAt === undefined && r.value === undefined)).toBe(true);
+  });
+
   it("still advances fetchedAt for a release-level failure (404)", async () => {
+    vi.stubEnv("HG_DRIP_USERNAME", "alice");
     const t = convexTest(schema, modules);
     await seed(t, ["alice"], [1]);
     vi.stubGlobal("fetch", vi.fn(async () => json({ message: "Release not found." }, 404)));
@@ -124,6 +174,7 @@ describe("marketValueDrip token failures", () => {
 
 describe("marketValueDrip numForSale and wants", () => {
   beforeEach(() => {
+    vi.stubEnv("HG_DRIP_USERNAME", "alice");
     vi.stubEnv("DISCOGS_CONSUMER_KEY", "key");
     vi.stubEnv("DISCOGS_CONSUMER_SECRET", "secret");
   });
