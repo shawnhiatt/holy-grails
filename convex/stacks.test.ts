@@ -658,7 +658,7 @@ describe("getMembership", () => {
     const result = await t.query(api.stacks.getMembership, {
       sessionToken: "tok-dj",
     });
-    expect(result.s1).toEqual({ ids: [2, 1], poolSize: 2, rotating: false });
+    expect(result.s1).toEqual({ ids: [2, 1], copyIds: [20, 10], poolSize: 2, rotating: false });
   });
 
   it("returns an empty list for a rule made only of unknown conditions", async () => {
@@ -675,7 +675,7 @@ describe("getMembership", () => {
     const result = await t.query(api.stacks.getMembership, {
       sessionToken: "tok-dj",
     });
-    expect(result.s1).toEqual({ ids: [], poolSize: 0, rotating: false });
+    expect(result.s1).toEqual({ ids: [], copyIds: [], poolSize: 0, rotating: false });
   });
 
   describe("the hour cache-buster", () => {
@@ -788,7 +788,7 @@ describe("previewRule", () => {
       sessionToken: "tok-dj",
       rule: jazzBefore1980,
     });
-    expect(result).toEqual({ poolSize: 1, ids: [1], rotating: false });
+    expect(result).toEqual({ poolSize: 1, ids: [1], copyIds: [10], rotating: false });
   });
 
   it("agrees with getMembership for the same rule once saved", async () => {
@@ -851,7 +851,7 @@ describe("previewRule", () => {
         rotation: "off",
       },
     });
-    expect(result).toEqual({ poolSize: 0, ids: [], rotating: false });
+    expect(result).toEqual({ poolSize: 0, ids: [], copyIds: [], rotating: false });
   });
 
   it("applies the cap, and rotates only past the 1.5x threshold", async () => {
@@ -866,14 +866,14 @@ describe("previewRule", () => {
       sessionToken: "tok-dj",
       rule: { ...jazzBefore1980, limit: 2 },
     });
-    expect(capped).toEqual({ poolSize: 5, ids: [5, 4], rotating: false });
+    expect(capped).toEqual({ poolSize: 5, ids: [5, 4], copyIds: [50, 40], rotating: false });
 
     // 5 against a cap of 4 is under 1.5x, so a rotating rule doesn't rotate.
     const under = await t.query(api.stacks.previewRule, {
       sessionToken: "tok-dj",
       rule: { ...jazzBefore1980, limit: 4, rotation: "daily" },
     });
-    expect(under).toEqual({ poolSize: 5, ids: [5, 4, 3, 2], rotating: false });
+    expect(under).toEqual({ poolSize: 5, ids: [5, 4, 3, 2], copyIds: [50, 40, 30, 20], rotating: false });
 
     // 5 against 3 clears it: rotates, stable across reads, still played oldest first.
     const rule = { ...jazzBefore1980, limit: 3, rotation: "daily" as const };
@@ -907,13 +907,13 @@ describe("previewRule", () => {
       rule: jazzBefore1980,
       stackId: "mine",
     });
-    expect(editing).toEqual({ poolSize: 1, ids: [2], rotating: false });
+    expect(editing).toEqual({ poolSize: 1, ids: [2], copyIds: [20], rotating: false });
 
     const foreign = await t.query(api.stacks.previewRule, {
       sessionToken: "tok-dj",
       rule: jazzBefore1980,
       stackId: "theirs",
     });
-    expect(foreign).toEqual({ poolSize: 2, ids: [2, 1], rotating: false });
+    expect(foreign).toEqual({ poolSize: 2, ids: [2, 1], copyIds: [20, 10], rotating: false });
   });
 });

@@ -1,11 +1,13 @@
 // @vitest-environment edge-runtime
 /// <reference types="vite/client" />
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convexTest, type TestConvex } from "convex-test";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import {
   albumSignature,
+  stickyCopies,
   syncCacheInChunks,
   toCollectionRow,
   toWantRow,
@@ -61,11 +63,13 @@ const want = (releaseId: number, overrides: Partial<SyncedWant> = {}): SyncedWan
 
 type T = TestConvex<typeof schema>;
 
+// Mirrors syncSelf, sticky dedupe included (DW-04).
 function syncCollection(t: T, username: string, albums: SyncedAlbum[]) {
-  return syncCacheInChunks({
+  return syncCacheInChunks<Id<"collection">, ReturnType<typeof toCollectionRow>>({
     incoming: albums.map(toCollectionRow),
     keyOf: (row) => row.releaseId,
     signatureOf: albumSignature,
+    prepare: stickyCopies,
     readPage: (cursor) => t.query(internal.collection.syncSignaturesPage, { username, cursor }),
     writeChunk: (chunk) => t.mutation(internal.collection.applySyncChunk, { username, ...chunk }),
   });
@@ -218,5 +222,165 @@ describe("chunked wantlist sync", () => {
     );
     expect(rows).toHaveLength(700);
     expect(rows.find((r) => r.release_id === 2)?.genres).toEqual(["Jazz"]);
+  });
+});
+
+describe("sticky dedupe: one copy per release, never a swap (DW-04)", () => {
+  // Two copies of release 1: instance 10 and instance 11, in different folders.
+  const copyLow = album(1, { instance_id: 10, folder_id: 2, folder: "Jazz" });
+  const copyHigh = album(1, { instance_id: 11, folder_id: 3, folder: "Shelf" });
+
+  it("with nothing cached, keeps the lowest instance id whatever the fetch order", async () => {
+    for (const order of [[copyLow, copyHigh], [copyHigh, copyLow]]) {
+      const t = convexTest(schema, modules);
+      await syncCollection(t, USER, order);
+      const rows = await collectionRows(t, USER);
+      expect(rows.map((r) => r.instanceId)).toEqual([10]);
+    }
+  });
+
+  it("keeps the copy already cached when the fetch order flips", async () => {
+    const t = convexTest(schema, modules);
+    // The app has been showing the higher copy (e.g. cached before the
+    // lower one was fetched first).
+    await syncCollection(t, USER, [copyHigh]);
+    expect(await syncCollection(t, USER, [copyLow, copyHigh])).toEqual({ added: 0, removed: 0, updated: 0 });
+    expect(await syncCollection(t, USER, [copyHigh, copyLow])).toEqual({ added: 0, removed: 0, updated: 0 });
+    const rows = await collectionRows(t, USER);
+    expect(rows.map((r) => [r.instanceId, r.folder])).toEqual([[11, "Shelf"]]);
+  });
+
+  it("moves to the other copy only when the cached copy is really gone", async () => {
+    const t = convexTest(schema, modules);
+    await syncCollection(t, USER, [copyHigh]);
+    expect(await syncCollection(t, USER, [copyLow])).toEqual({ added: 0, removed: 0, updated: 1 });
+    expect((await collectionRows(t, USER)).map((r) => r.instanceId)).toEqual([10]);
+  });
+
+  it("a cache holding two copies keeps the lowest and deletes the other, not the reverse", async () => {
+    const t = convexTest(schema, modules);
+    // An app add cached the higher copy first, then a sync cached the lower.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("collection", { discogsUsername: USER, ...toCollectionRow(copyHigh) });
+      await ctx.db.insert("collection", { discogsUsername: USER, ...toCollectionRow(copyLow) });
+    });
+    const [highRow, lowRow] = await collectionRows(t, USER);
+    expect(await syncCollection(t, USER, [copyHigh, copyLow])).toEqual({ added: 0, removed: 1, updated: 0 });
+    const rows = await collectionRows(t, USER);
+    // The lower copy's own row survives untouched; the higher one's is gone.
+    expect(rows.map((r) => r._id)).toEqual([lowRow._id]);
+    expect(rows[0].instanceId).toBe(10);
+    expect(rows.some((r) => r._id === highRow._id)).toBe(false);
+  });
+
+  it("releases with one copy sync exactly as before", async () => {
+    const t = convexTest(schema, modules);
+    await syncCollection(t, USER, [album(1), album(2), album(3)]);
+    expect(await syncCollection(t, USER, [album(3), album(2), album(1)])).toEqual({ added: 0, removed: 0, updated: 0 });
+  });
+
+  it("stickyCopies keeps each release at its first position", () => {
+    const rows = [album(5), copyHigh, album(6), copyLow].map(toCollectionRow);
+    const out = stickyCopies([], rows);
+    expect(out.incoming.map((r) => [r.releaseId, r.instanceId])).toEqual([[5, 50], [1, 10], [6, 60]]);
+  });
+});
+
+describe("syncSelf end to end: the sticky copy survives a folder reorder (DW-04)", () => {
+  const TOKEN = "tok-collector";
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json", "X-Discogs-Ratelimit-Remaining": "60" },
+    });
+  const release = (id: number, instance: number) => ({
+    id,
+    instance_id: instance,
+    rating: 0,
+    date_added: "2024-01-01T00:00:00-08:00",
+    basic_information: {
+      id,
+      title: `Title ${id}`,
+      year: 1990,
+      artists: [{ name: `Artist ${id}`, anv: "" }],
+      labels: [{ name: "Label", catno: "CAT" }],
+      formats: [{ name: "Vinyl", qty: "1" }],
+      cover_image: `cover-${id}`,
+      thumb: "",
+    },
+  });
+
+  /** Folders 2 and 3 each hold a copy of release 1; `order` is the folder
+   *  list order Discogs returns, which decides which copy is met first. */
+  function stubDiscogs(order: number[]) {
+    const byFolder: Record<number, unknown[]> = { 2: [release(1, 10), release(2, 20)], 3: [release(1, 11)] };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        if (url.endsWith("/collection/folders")) {
+          return json({
+            folders: [
+              { id: 0, name: "All", count: 3 },
+              ...order.map((id) => ({ id, name: `F${id}`, count: byFolder[id].length })),
+            ],
+          });
+        }
+        if (url.includes("/collection/fields")) return json({ fields: [] });
+        const m = url.match(/\/collection\/folders\/(\d+)\/releases/);
+        if (m) {
+          const items = byFolder[Number(m[1])] ?? [];
+          return json({ pagination: { pages: 1, page: 1, items: items.length }, releases: items });
+        }
+        if (url.includes("/wants")) return json({ pagination: { pages: 1, page: 1, items: 0 }, wants: [] });
+        if (url.includes("/collection/value")) return json({ minimum: "$1", median: "$2", maximum: "$3" });
+        if (url.endsWith(`/users/${USER}`)) return json({ username: USER, num_collection: 3, num_wantlist: 0 });
+        return json({ message: "unexpected" }, 404);
+      })
+    );
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("DISCOGS_CONSUMER_KEY", "key");
+    vi.stubEnv("DISCOGS_CONSUMER_SECRET", "secret");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function seed(t: T) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        discogs_username: USER,
+        access_token: "access",
+        token_secret: "secret",
+        created_at: Date.now(),
+      });
+      await ctx.db.insert("auth_sessions", { session_token: TOKEN, discogs_username: USER, created_at: Date.now() });
+    });
+  }
+
+  it("keeps the cached copy (11) when the folder holding the other copy comes first", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    stubDiscogs([3, 2]);
+    const first = await t.action(api.discogs.syncSelf, { sessionToken: TOKEN });
+    expect(first.albumCount).toBe(2);
+    // Nothing cached yet: the lowest copy wins, not the first one met.
+    expect((await collectionRows(t, USER)).find((r) => r.releaseId === 1)?.instanceId).toBe(10);
+
+    // Pretend the app had been showing copy 11 (cached before the sticky rule).
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query("collection").collect()).find((r) => r.releaseId === 1)!;
+      await ctx.db.patch(row._id, { instanceId: 11, folderId: 3, folder: "F3" });
+    });
+    for (const order of [[2, 3], [3, 2]]) {
+      stubDiscogs(order);
+      await t.action(api.discogs.syncSelf, { sessionToken: TOKEN });
+      const rows = await collectionRows(t, USER);
+      expect(rows.filter((r) => r.releaseId === 1).map((r) => r.instanceId)).toEqual([11]);
+      expect(rows).toHaveLength(2);
+    }
   });
 });

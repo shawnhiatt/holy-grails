@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { authenticateUser, resolveSession } from "./authHelper";
+import { assertInstanceId, copyInstanceFor } from "./copies";
 
 export const getByUsername = query({
   args: { sessionToken: v.string() },
@@ -41,6 +42,30 @@ export const getHistoryByRelease = query({
         q
           .eq("discogs_username", user.discogs_username)
           .eq("release_id", args.release_id)
+      )
+      .collect();
+    return records
+      .map((r) => ({ _id: r._id, played_at: r.played_at }))
+      .sort((a, b) => b.played_at - a.played_at);
+  },
+});
+
+/**
+ * One copy's play history, newest first: the per-copy twin of
+ * getHistoryByRelease, which stays for old clients. Only plays carrying this
+ * instance id — a release-only play isn't shown on any copy.
+ */
+export const getHistoryByCopy = query({
+  args: { sessionToken: v.string(), instance_id: v.number() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    assertInstanceId(args.instance_id);
+    const records = await ctx.db
+      .query("last_played")
+      .withIndex("by_instance", (q) =>
+        q
+          .eq("discogs_username", user.discogs_username)
+          .eq("instance_id", args.instance_id)
       )
       .collect();
     return records
@@ -106,18 +131,32 @@ export const getPublicActivitySummary = query({
   },
 });
 
+/**
+ * Log one play of a copy. `instance_id` names the copy (new clients). Without
+ * it (an old client, a Shortcut, the widget) the play goes on the release's
+ * default copy (copies.ts) and both ids are stored. A release the cache
+ * doesn't hold logs a release-only play, as before copies.
+ */
 export const logPlay = mutation({
   args: {
     sessionToken: v.string(),
     release_id: v.number(),
     played_at: v.number(),
+    instance_id: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
+    const instanceId = await copyInstanceFor(
+      ctx,
+      user.discogs_username,
+      args.release_id,
+      args.instance_id
+    );
     return await ctx.db.insert("last_played", {
       discogs_username: user.discogs_username,
       release_id: args.release_id,
       played_at: args.played_at,
+      ...(instanceId !== undefined && { instance_id: instanceId }),
     });
   },
 });

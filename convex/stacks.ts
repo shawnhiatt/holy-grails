@@ -1,6 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { authenticateUser } from "./authHelper";
+import {
+  assertInstanceIds,
+  findCopy,
+  foldByCopy,
+  loadDefaultCopies,
+  loadReleaseOfCopies,
+  rebuildCopyIds,
+  releaseIdsForCopies,
+} from "./copies";
 import { evaluateStackRule, type RuleAlbum, type StackRule } from "./stackRules";
 
 export const getByUsername = query({
@@ -35,6 +44,37 @@ const ruleValidator = v.object({
   rotation: v.union(v.literal("off"), v.literal("daily"), v.literal("weekly")),
 });
 
+/**
+ * A manual session's members, both ways (DW-04: sessions hold copies). Until
+ * the DW-04f cleanup every write stores `album_ids` (release ids, what old
+ * clients read) and `copy_ids` (instance ids) together, so an old build and a
+ * new one can't drift apart:
+ *   - sent `copy_ids` (a new client): store them, and set `album_ids` to their
+ *     releases in order of first appearance;
+ *   - sent only `album_ids` (an old client): keep the copies already held
+ *     whose release is still listed, and add the default copy of each newly
+ *     listed release (copies.ts rebuildCopyIds).
+ */
+async function membersFromCopies(ctx: QueryCtx, username: string, copyIds: number[]) {
+  assertInstanceIds(copyIds);
+  const releaseOf = await loadReleaseOfCopies(ctx, username, copyIds);
+  return { copy_ids: copyIds, album_ids: releaseIdsForCopies(copyIds, releaseOf) };
+}
+
+async function membersFromReleases(
+  ctx: QueryCtx,
+  username: string,
+  albumIds: number[],
+  existingCopyIds: number[]
+) {
+  const releaseOf = await loadReleaseOfCopies(ctx, username, existingCopyIds);
+  const defaults = await loadDefaultCopies(ctx, username, albumIds);
+  return {
+    album_ids: albumIds,
+    copy_ids: rebuildCopyIds(existingCopyIds, albumIds, releaseOf, defaults),
+  };
+}
+
 export const create = mutation({
   args: {
     sessionToken: v.string(),
@@ -46,18 +86,27 @@ export const create = mutation({
     kind: v.optional(v.union(v.literal("manual"), v.literal("auto"))),
     rule: v.optional(ruleValidator),
     name_generated: v.optional(v.string()),
+    // Every copy (DW-04): the members as copy instance ids. When sent it wins
+    // and album_ids is derived from it; old clients send album_ids only.
+    copy_ids: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
     const now = Date.now();
+    // An auto session stores no ids: membership is derived from the rule at
+    // read time, so a cached copy here would be a second source of truth
+    // that drifts the moment the collection changes.
+    const members =
+      args.kind === "auto"
+        ? { album_ids: [] as number[] }
+        : args.copy_ids !== undefined
+          ? await membersFromCopies(ctx, user.discogs_username, args.copy_ids)
+          : await membersFromReleases(ctx, user.discogs_username, args.album_ids, []);
     return await ctx.db.insert("stacks", {
       discogs_username: user.discogs_username,
       stack_id: args.stack_id,
       name: args.name,
-      // An auto session stores no ids: membership is derived from the rule at
-      // read time, so a cached copy here would be a second source of truth
-      // that drifts the moment the collection changes.
-      album_ids: args.kind === "auto" ? [] : args.album_ids,
+      ...members,
       created_at: now,
       last_modified: now,
       ...(args.kind && { kind: args.kind }),
@@ -76,6 +125,11 @@ export const update = mutation({
     rule: v.optional(ruleValidator),
     excluded_ids: v.optional(v.array(v.number())),
     name_generated: v.optional(v.string()),
+    // Every copy (DW-04). copy_ids: a manual session's members as copies
+    // (wins over album_ids). excluded_copy_ids: copies kicked out of an auto
+    // session (new removals; excluded_ids keeps its whole-release meaning).
+    copy_ids: v.optional(v.array(v.number())),
+    excluded_copy_ids: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -98,9 +152,22 @@ export const update = mutation({
     // server-side backstop: album_ids sent for an auto session are ignored
     // rather than written as a stale second source of truth. freeze is the
     // one path that turns an auto session into stored ids.
-    if (args.album_ids !== undefined && existing.kind !== "auto") updates.album_ids = args.album_ids;
+    if (existing.kind !== "auto") {
+      if (args.copy_ids !== undefined) {
+        Object.assign(updates, await membersFromCopies(ctx, user.discogs_username, args.copy_ids));
+      } else if (args.album_ids !== undefined) {
+        Object.assign(
+          updates,
+          await membersFromReleases(ctx, user.discogs_username, args.album_ids, existing.copy_ids ?? [])
+        );
+      }
+    }
     if (args.rule !== undefined) updates.rule = args.rule;
     if (args.excluded_ids !== undefined) updates.excluded_ids = args.excluded_ids;
+    if (args.excluded_copy_ids !== undefined) {
+      assertInstanceIds(args.excluded_copy_ids);
+      updates.excluded_copy_ids = args.excluded_copy_ids;
+    }
     if (args.name_generated !== undefined) updates.name_generated = args.name_generated;
 
     await ctx.db.patch(existing._id, updates);
@@ -124,6 +191,9 @@ export const freeze = mutation({
     sessionToken: v.string(),
     stack_id: v.string(),
     album_ids: v.array(v.number()),
+    // Every copy (DW-04): the evaluated set as copies. When sent it wins and
+    // album_ids is derived from it; without it each release's default copy.
+    copy_ids: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
@@ -139,11 +209,16 @@ export const freeze = mutation({
       throw new Error(`Stack ${args.stack_id} not found`);
     }
 
+    const members =
+      args.copy_ids !== undefined
+        ? await membersFromCopies(ctx, user.discogs_username, args.copy_ids)
+        : await membersFromReleases(ctx, user.discogs_username, args.album_ids, []);
     await ctx.db.patch(existing._id, {
-      album_ids: args.album_ids,
+      ...members,
       kind: "manual",
       rule: undefined,
       excluded_ids: undefined,
+      excluded_copy_ids: undefined,
       name_generated: undefined,
       last_modified: Date.now(),
     });
@@ -191,7 +266,6 @@ async function loadRuleAlbums(ctx: QueryCtx, username: string) {
       q.eq("discogs_username", username)
     )
     .collect();
-  const tagByRelease = new Map(tags.map((t) => [t.release_id, t.tag]));
 
   const plays = await ctx.db
     .query("last_played")
@@ -199,15 +273,10 @@ async function loadRuleAlbums(ctx: QueryCtx, username: string) {
       q.eq("discogs_username", username)
     )
     .collect();
-  const playCount = new Map<number, number>();
-  const lastPlayedAt = new Map<number, number>();
-  for (const p of plays) {
-    playCount.set(p.release_id, (playCount.get(p.release_id) ?? 0) + 1);
-    lastPlayedAt.set(
-      p.release_id,
-      Math.max(lastPlayedAt.get(p.release_id) ?? 0, p.played_at)
-    );
-  }
+  // Per copy (DW-04): a row with an instance id belongs to that copy, a
+  // release-only row to the release's default copy — identical to the old
+  // by-release fold while the cache holds one copy per release.
+  const fold = foldByCopy(rows, tags, plays);
 
   // Market values are deliberately NOT loaded here. The client's rule
   // input (app-context's ruleAlbums) carries no market value — it lives in
@@ -219,6 +288,7 @@ async function loadRuleAlbums(ctx: QueryCtx, username: string) {
   // together if one is ever added.
   const ruleAlbums: RuleAlbum[] = rows.map((row) => ({
     releaseId: row.releaseId,
+    instanceId: row.instanceId,
     artist: row.artist,
     artistIds: row.artistIds,
     title: row.title,
@@ -231,9 +301,9 @@ async function loadRuleAlbums(ctx: QueryCtx, username: string) {
     mediaCondition: row.mediaCondition,
     rating: row.rating,
     dateAdded: row.dateAdded,
-    purgeTag: tagByRelease.get(row.releaseId) ?? null,
-    lastPlayedAt: lastPlayedAt.get(row.releaseId) ?? null,
-    playCount: playCount.get(row.releaseId) ?? 0,
+    purgeTag: fold.get(row.instanceId)?.purgeTag ?? null,
+    lastPlayedAt: fold.get(row.instanceId)?.lastPlayedAt ?? null,
+    playCount: fold.get(row.instanceId)?.playCount ?? 0,
   }));
   return { rows, ruleAlbums };
 }
@@ -343,20 +413,37 @@ export const getShared = query({
       const result = evaluateStackRule(ruleAlbums, stack.rule as StackRule, {
         stackId: stack.stack_id,
         excludedIds: stack.excluded_ids,
+        excludedCopyIds: stack.excluded_copy_ids,
       });
 
-      const byRelease = new Map(rows.map((r) => [r.releaseId, r]));
+      const byInstance = new Map(rows.map((r) => [r.instanceId, r]));
       return {
         name: stack.name,
         last_modified: stack.last_modified,
         albums: result.albums
-          .map((a) => byRelease.get(a.releaseId))
+          .map((a) => byInstance.get(a.instanceId!))
           .filter((r): r is NonNullable<typeof r> => !!r)
           .map(display),
       };
     }
 
     const albums: ReturnType<typeof display>[] = [];
+
+    // A migrated manual session holds copies; one that isn't yet (copy_ids
+    // unset) is read by release, as before.
+    if (stack.copy_ids !== undefined) {
+      for (const instanceId of stack.copy_ids) {
+        const row = await findCopy(ctx, stack.discogs_username, instanceId);
+        // Silently skip copies that have left the collection since sharing.
+        if (!row) continue;
+        albums.push(display(row));
+      }
+      return {
+        name: stack.name,
+        last_modified: stack.last_modified,
+        albums,
+      };
+    }
 
     for (const releaseId of stack.album_ids) {
       const row = await ctx.db
@@ -415,7 +502,12 @@ export const getMembership = query({
       )
       .collect();
 
-    const out: Record<string, { ids: number[]; poolSize: number; rotating: boolean }> = {};
+    // `ids` are release ids (what shipped builds read, until DW-04f);
+    // `copyIds` are the same entries as copy instance ids, in the same order.
+    const out: Record<
+      string,
+      { ids: number[]; copyIds: number[]; poolSize: number; rotating: boolean }
+    > = {};
     const autos = stacks.filter((s) => s.kind === "auto" && s.rule);
     if (autos.length === 0) return out;
 
@@ -424,9 +516,11 @@ export const getMembership = query({
       const result = evaluateStackRule(ruleAlbums, stack.rule as StackRule, {
         stackId: stack.stack_id,
         excludedIds: stack.excluded_ids,
+        excludedCopyIds: stack.excluded_copy_ids,
       });
       out[stack.stack_id] = {
         ids: result.albums.map((a) => a.releaseId),
+        copyIds: result.albums.map((a) => a.instanceId!),
         poolSize: result.poolSize,
         rotating: result.rotating,
       };
@@ -467,6 +561,7 @@ export const previewRule = query({
     const user = await authenticateUser(ctx, args.sessionToken);
 
     let excludedIds: number[] | undefined;
+    let excludedCopyIds: number[] | undefined;
     if (args.stackId) {
       const stack = await ctx.db
         .query("stacks")
@@ -476,16 +571,19 @@ export const previewRule = query({
         .filter((q) => q.eq(q.field("stack_id"), args.stackId))
         .first();
       excludedIds = stack?.excluded_ids;
+      excludedCopyIds = stack?.excluded_copy_ids;
     }
 
     const { ruleAlbums } = await loadRuleAlbums(ctx, user.discogs_username);
     const result = evaluateStackRule(ruleAlbums, args.rule as StackRule, {
       stackId: args.stackId || "preview",
       excludedIds,
+      excludedCopyIds,
     });
     return {
       poolSize: result.poolSize,
       ids: result.albums.map((a) => a.releaseId),
+      copyIds: result.albums.map((a) => a.instanceId!),
       rotating: result.rotating,
     };
   },

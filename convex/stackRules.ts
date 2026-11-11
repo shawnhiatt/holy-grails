@@ -55,6 +55,12 @@ export interface StackRule {
  */
 export interface RuleAlbum {
   releaseId: number;
+  /**
+   * The copy (DW-04: every copy is its own item). Optional so a caller that
+   * still thinks in releases keeps compiling; without it, copy exclusions
+   * never match and the copy tie-break has nothing to separate.
+   */
+  instanceId?: number;
   artist: string;
   artistIds?: number[];
   title: string;
@@ -444,42 +450,54 @@ function ascendingNullsLast(a: number | null, b: number | null): number {
   return a - b;
 }
 
-function sortAlbums(albums: RuleAlbum[], sort: string): RuleAlbum[] {
-  const out = [...albums];
+/** The primary comparator for each sort. Ties (0, or NaN for two unknown
+ *  years — which Array.sort reads as 0) fall through to `sortAlbums`'
+ *  tie-break. */
+function primaryCompare(sort: string): (a: RuleAlbum, b: RuleAlbum) => number {
   switch (sort) {
     case "title-az":
-      out.sort((a, b) => a.title.localeCompare(b.title));
-      break;
+      return (a, b) => a.title.localeCompare(b.title);
     case "year-new":
-      out.sort((a, b) => b.year - a.year);
-      break;
+      return (a, b) => b.year - a.year;
     case "year-old":
       // Unknown year (0) sorts last rather than leading "oldest first".
-      out.sort((a, b) => (a.year || Infinity) - (b.year || Infinity));
-      break;
+      return (a, b) => (a.year || Infinity) - (b.year || Infinity);
     case "added-new":
-      out.sort((a, b) => (dateAddedMs(b) ?? 0) - (dateAddedMs(a) ?? 0));
-      break;
+      return (a, b) => (dateAddedMs(b) ?? 0) - (dateAddedMs(a) ?? 0);
     case "added-old":
       // Undated sinks here too, matching added-new and the collection
       // screen's own added-old sort: an unknown add date is not the oldest.
       // (Mapping it to 0 led "oldest first" with every undated release.)
-      out.sort((a, b) => ascendingNullsLast(dateAddedMs(a), dateAddedMs(b)));
-      break;
+      return (a, b) => ascendingNullsLast(dateAddedMs(a), dateAddedMs(b));
     case "rating-high":
       // Unrated sinks below one-star: unrated is not a zero-star record.
-      out.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
-      break;
+      return (a, b) => (b.rating ?? 0) - (a.rating ?? 0);
     case "last-played-oldest":
       // Never played leads — it is the oldest possible last play.
-      out.sort((a, b) => (a.lastPlayedAt ?? 0) - (b.lastPlayedAt ?? 0));
-      break;
+      return (a, b) => (a.lastPlayedAt ?? 0) - (b.lastPlayedAt ?? 0);
     case "artist-az":
     default:
-      out.sort((a, b) => a.artist.localeCompare(b.artist));
-      break;
+      return (a, b) => a.artist.localeCompare(b.artist);
   }
-  return out;
+}
+
+/**
+ * Sort for display. Ties keep input order — as the old stable sort did, so a
+ * one-copy collection sorts exactly as before — except that two copies of one
+ * release (which tie on nearly every key) sit together at the first copy's
+ * place, lowest instance id first. That makes their order explicit rather
+ * than an accident of input order, so client and server can't disagree on it.
+ */
+function sortAlbums(albums: RuleAlbum[], sort: string): RuleAlbum[] {
+  const firstIndex = new Map<number, number>();
+  albums.forEach((a, i) => {
+    if (!firstIndex.has(a.releaseId)) firstIndex.set(a.releaseId, i);
+  });
+  const primary = primaryCompare(sort);
+  const tieBreak = (a: RuleAlbum, b: RuleAlbum) =>
+    firstIndex.get(a.releaseId)! - firstIndex.get(b.releaseId)! ||
+    (a.instanceId ?? 0) - (b.instanceId ?? 0);
+  return [...albums].sort((a, b) => primary(a, b) || tieBreak(a, b));
 }
 
 // ─── The evaluator ───
@@ -501,7 +519,8 @@ export interface EvaluateResult {
  * than no share link:
  *
  *   1. Filter by `conditions`, honoring `match`.
- *   2. Remove `excludedIds`. The remainder is the pool: `poolSize` and the
+ *   2. Remove `excludedIds` (whole releases) and `excludedCopyIds` (single
+ *      copies). The remainder is the pool: `poolSize` and the
  *      1.5x rotation threshold both count it, so "25 of 46" still means
  *      matches minus exclusions.
  *   3. If rotating and the pool clears the threshold: seeded-shuffle the
@@ -524,13 +543,19 @@ export interface EvaluateResult {
 export function evaluateStackRule(
   albums: readonly RuleAlbum[],
   rule: StackRule,
-  opts: { stackId: string; excludedIds?: number[]; now?: number }
+  opts: { stackId: string; excludedIds?: number[]; excludedCopyIds?: number[]; now?: number }
 ): EvaluateResult {
   const now = opts.now ?? Date.now();
-  const excluded = new Set(opts.excludedIds || []);
+  // Release exclusions (excluded_ids, written before copies) drop every copy
+  // of the release; copy exclusions (excluded_copy_ids) drop just that copy.
+  const excludedReleases = new Set(opts.excludedIds || []);
+  const excludedCopies = new Set(opts.excludedCopyIds || []);
+  const isExcluded = (a: RuleAlbum) =>
+    excludedReleases.has(a.releaseId) ||
+    (a.instanceId !== undefined && excludedCopies.has(a.instanceId));
 
   const matched = albums.filter((a) => matchesRule(a, rule, now));
-  const pool = matched.filter((a) => !excluded.has(a.releaseId));
+  const pool = matched.filter((a) => !isExcluded(a));
 
   const limit = rule.limit && rule.limit > 0 ? rule.limit : null;
   const rotating =
@@ -542,7 +567,7 @@ export function evaluateStackRule(
   if (rotating && limit !== null) {
     const seed = `${opts.stackId}:${rotationBucket(rule.rotation, now)}`;
     selected = seededShuffle(matched, seed)
-      .filter((a) => !excluded.has(a.releaseId))
+      .filter((a) => !isExcluded(a))
       .slice(0, limit);
   } else {
     selected = limit !== null ? sortAlbums(pool, rule.sort).slice(0, limit) : pool;

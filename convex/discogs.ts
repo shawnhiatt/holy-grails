@@ -3,10 +3,12 @@
 import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import crypto from "crypto";
 import { MARKET_STALE_MS, MARKET_WANTED_STALE_MS, MARKET_BATCH_SIZE, MARKET_CURRENCY } from "./marketValue";
 import {
   albumSignature,
+  stickyCopies,
   syncCacheInChunks,
   toCollectionRow,
   toWantRow,
@@ -716,22 +718,28 @@ async function fetchCollectionInternal(
     }
   }
 
-  // Dedupe by release_id
-  const seen = new Set<number>();
-  const deduped: ProxyAlbum[] = [];
-  for (const a of albums) {
-    if (!seen.has(a.release_id)) {
-      seen.add(a.release_id);
-      deduped.push(a);
-    }
-  }
+  // Every copy (DW-04): no dedupe here any more. Each caller decides — syncSelf
+  // keeps one copy per release with the sticky rule (stickyCopies), and
+  // syncFollowedUser keeps one row per release (friends see releases).
 
   // Build rich folder list for client — "All" is a virtual folder (id 0)
   const folderObjects: FolderInfo[] = folderResult.list.length > 0
     ? folderResult.list
-    : [{ id: 0, name: "All", count: deduped.length }];
+    : [{ id: 0, name: "All", count: countReleases(albums) }];
 
-  return { albums: deduped, folders: folderObjects, forbidden };
+  return { albums, folders: folderObjects, forbidden };
+}
+
+/** Distinct releases among fetched copies — what the pre-DW-04 dedupe left. */
+function countReleases(albums: { release_id: number }[]): number {
+  return new Set(albums.map((a) => a.release_id)).size;
+}
+
+/** One row per release, first copy met — the followed-user view (DW-04 Q2:
+ *  friends' collections stay one row per release). */
+function onePerRelease<T extends { release_id: number }>(albums: T[]): T[] {
+  const seen = new Set<number>();
+  return albums.filter((a) => (seen.has(a.release_id) ? false : (seen.add(a.release_id), true)));
 }
 
 interface ProxyWant {
@@ -1202,10 +1210,12 @@ export const syncSelf = action({
         updated: 0,
       };
       if (!collectionPrivate)
-        collDiff = await syncCacheInChunks({
+        collDiff = await syncCacheInChunks<Id<"collection">, ReturnType<typeof toCollectionRow>>({
           incoming: albums.map(toCollectionRow),
           keyOf: (row) => row.releaseId,
           signatureOf: albumSignature,
+          // One copy per release, and the one already cached (DW-04).
+          prepare: stickyCopies,
           readPage: (cursor) =>
             ctx.runQuery(internal.collection.syncSignaturesPage, {
               username: creds.username,
@@ -1314,7 +1324,7 @@ export const syncSelf = action({
             }
           : null,
         folders,
-        albumCount: albums.length,
+        albumCount: countReleases(albums),
         wantCount: wants.length,
         collDiff,
         wantDiff,
@@ -1373,7 +1383,8 @@ export const syncFollowedUser = action({
       const result = await fetchCollectionInternal(creds, args.username, true);
       // All formats — the vinyl-only filter was removed with the all-formats
       // change; scope is applied display-only at the viewer's client derive.
-      albums = result.albums;
+      // One row per release: followed_items is per release (DW-04 Q2).
+      albums = onePerRelease(result.albums);
     } catch (e: any) {
       if (hasStatus(e, 403)) {
         isPrivate = true;

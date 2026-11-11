@@ -61,9 +61,16 @@ export default defineSchema({
     release_id: v.number(),
     tag: v.union(v.literal("keep"), v.literal("cut"), v.literal("maybe")),
     tagged_at: v.number(),
+    // Every copy (DW-04): the copy this verdict belongs to — the Discogs
+    // instance id of one cached `collection` row. Optional for good: a row
+    // without one is "release-only", a verdict on a release the user didn't
+    // own when the copy migration ran (copyMigration.ts). `release_id` stays
+    // required forever (friends' activity, old clients, history by release).
+    instance_id: v.optional(v.number()),
   })
     .index("by_username", ["discogs_username"])
-    .index("by_release", ["discogs_username", "release_id"]),
+    .index("by_release", ["discogs_username", "release_id"])
+    .index("by_instance", ["discogs_username", "instance_id"]),
 
   stacks: defineTable({
     discogs_username: v.string(),
@@ -108,8 +115,19 @@ export default defineSchema({
       })
     ),
     // Records kicked out of an auto session by hand. Keyed on release_id to
-    // match album_ids' semantics.
+    // match album_ids' semantics. A release listed here keeps excluding EVERY
+    // copy of it — that was its meaning when it was written.
     excluded_ids: v.optional(v.array(v.number())),
+
+    // ── Every copy (DW-04): sessions hold copies ──
+    // A manual session's members as copy instance ids, in running order.
+    // Unset = not migrated yet (read album_ids). Until the DW-04f cleanup the
+    // server keeps album_ids and copy_ids in step on every write, whichever
+    // one the client sent (see stacks.ts), so old and new clients agree.
+    copy_ids: v.optional(v.array(v.number())),
+    // Copies kicked out of an auto session by hand (new removals). The
+    // evaluator drops a copy if it is here OR its release is in excluded_ids.
+    excluded_copy_ids: v.optional(v.array(v.number())),
     // The last title the generator produced. While `name` still equals it the
     // title keeps regenerating as the rule is edited; the moment the user
     // types their own it diverges and freezes. Stored rather than recomputed
@@ -123,9 +141,14 @@ export default defineSchema({
     discogs_username: v.string(),
     release_id: v.number(),
     played_at: v.number(),
+    // Every copy (DW-04): the copy that was played. Optional for good, same
+    // meaning as purge_tags.instance_id — a release-only play still counts in
+    // totals, streaks and plays per month.
+    instance_id: v.optional(v.number()),
   })
     .index("by_username", ["discogs_username"])
-    .index("by_release", ["discogs_username", "release_id"]),
+    .index("by_release", ["discogs_username", "release_id"])
+    .index("by_instance", ["discogs_username", "instance_id"]),
 
   want_priorities: defineTable({
     discogs_username: v.string(),
@@ -221,7 +244,10 @@ export default defineSchema({
     marketValueFetchedAt: v.optional(v.number()),
   })
     .index("by_username", ["discogsUsername"])
-    .index("by_username_and_release", ["discogsUsername", "releaseId"]),
+    .index("by_username_and_release", ["discogsUsername", "releaseId"])
+    // Every copy (DW-04): a copy is (user, instanceId). Discogs keeps the id
+    // through a folder move and issues a new one for a re-added copy.
+    .index("by_username_and_instance", ["discogsUsername", "instanceId"]),
 
   // When a release left a collection, for the native Feed's "−2 in 30 days".
   // One row per removed copy, written where a cached row is actually deleted
@@ -354,6 +380,49 @@ export default defineSchema({
     .index("by_username", ["discogs_username"])
     .index("by_status", ["status"])
     .index("by_screenshot", ["screenshot_id"]),
+
+  // The copy migration's report (DW-04, copyMigration.ts): one doc per user,
+  // rewritten by each run. Counts are exact; the release id lists are capped
+  // (`*_truncated` says when). Diagnostic only — nothing in either app reads it.
+  copy_migration: defineTable({
+    discogs_username: v.string(),
+    // Which run wrote this doc. A step carrying another run's id stops, so two
+    // overlapping runs can't double-count.
+    run_id: v.string(),
+    status: v.union(v.literal("running"), v.literal("done")),
+    started_at: v.number(),
+    // When the run finished. Unset while it is still running.
+    ran_at: v.optional(v.number()),
+    purge_tags: v.object({
+      seen: v.number(),
+      moved: v.number(),
+      already: v.number(),
+      // Release-only rows left alone because the copy already has a verdict
+      // (two tag rows for one release: the newest moved, the rest stay).
+      duplicates: v.number(),
+      unresolved: v.number(),
+      unresolved_release_ids: v.array(v.number()),
+      unresolved_truncated: v.boolean(),
+    }),
+    plays: v.object({
+      seen: v.number(),
+      moved: v.number(),
+      already: v.number(),
+      unresolved: v.number(),
+      unresolved_release_ids: v.array(v.number()),
+      unresolved_truncated: v.boolean(),
+    }),
+    sessions: v.object({
+      seen: v.number(),
+      filled: v.number(),
+      already: v.number(),
+      auto: v.number(),
+      // Members (release ids in album_ids) with no copy in the cache.
+      unresolved: v.number(),
+      unresolved_release_ids: v.array(v.number()),
+      unresolved_truncated: v.boolean(),
+    }),
+  }).index("by_username", ["discogs_username"]),
 
   // One row per cover scan that reached the Claude API — the rolling hourly
   // budget for vision.identifyCover (see coverScans.ts). Rows older than the
