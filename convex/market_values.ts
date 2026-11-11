@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { query, internalMutation, internalQuery } from "./_generated/server";
+import { query, internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { authenticateUser } from "./authHelper";
 
 /* Shared per-release market value (Spec 6A.1). One row per Discogs `releaseId`,
@@ -7,6 +8,66 @@ import { authenticateUser } from "./authHelper";
    (convex/discogs.ts) seeds this set from collections and fills prices; the
    Insights UI (Session B) reads them via getForUser. See
    docs/market-value-drip.md. */
+
+/**
+ * Above this many distinct releases a read stops using one `by_release` lookup
+ * each and falls back to a single scan of the table. Each lookup is an index
+ * range and a query execution is capped at 4,096 of them (the session and user
+ * reads take a few more), so the lookup path has to stop well short. A
+ * wantlist almost never gets near it; a collection of a few thousand can.
+ */
+const LOOKUP_LIMIT = 1000;
+
+type PricedRow = { value: number | null; fetchedAt: number; numForSale?: number };
+
+/**
+ * Priced `market_values` rows for the given releases. Priced means both
+ * `value` and `fetchedAt` are set (`value: null` = fetched, no listings;
+ * never-fetched rows are left out). First row wins per releaseId, as the scan
+ * it replaced did.
+ *
+ * Normal path: one `by_release` lookup per distinct release, so a read touches
+ * only the rows it needs however large the shared table grows (it holds every
+ * user's releases, and the drip keeps adding to it). Lookups are the fix for
+ * the whole-table `.collect()` this used to do on every wantlist and
+ * collection change, for every connected user.
+ *
+ * Past LOOKUP_LIMIT releases it scans the table once instead: one index range
+ * rather than thousands. That is the old shape, kept only for the largest
+ * collections, where the user's own releases are a big share of the table
+ * anyway. Capping the list instead would silently drop prices.
+ */
+async function pricedByRelease(
+  ctx: QueryCtx,
+  releaseIds: Iterable<number>
+): Promise<Map<number, PricedRow>> {
+  const ids = [...new Set(releaseIds)];
+  const priced = new Map<number, PricedRow>();
+  const keep = (mv: Doc<"market_values">) => {
+    if (mv.value === undefined || mv.fetchedAt === undefined) return;
+    if (priced.has(mv.releaseId)) return;
+    priced.set(mv.releaseId, {
+      value: mv.value,
+      fetchedAt: mv.fetchedAt,
+      ...(mv.numForSale !== undefined ? { numForSale: mv.numForSale } : {}),
+    });
+  };
+
+  if (ids.length <= LOOKUP_LIMIT) {
+    const rows = await Promise.all(
+      ids.map((releaseId) =>
+        ctx.db
+          .query("market_values")
+          .withIndex("by_release", (q) => q.eq("releaseId", releaseId))
+          .first()
+      )
+    );
+    for (const mv of rows) if (mv) keep(mv);
+  } else {
+    for (const mv of await ctx.db.query("market_values").collect()) keep(mv);
+  }
+  return priced;
+}
 
 /**
  * Ensure a `market_values` row exists for every release any user owns or
@@ -167,14 +228,12 @@ export const setValue = internalMutation({
  * marketplace reference data (release → lowest ask), not user data — but this
  * is still scoped to the caller's own releases and requires auth.
  *
- * Two table scans, joined in memory — deliberately NOT one indexed lookup per
- * owned release. This is a reactive subscription that re-runs on every
- * collection change, and the point-lookup version issued one index range per
- * row: a 3,000-release collection spent 3,001 of Convex's 4,096 index ranges
- * per execution, so a large enough collection would have stopped resolving
- * rather than merely running slow. The join reads the same rows in 2 ranges.
- * (Scan-vs-lookup on `market_values` trades M point reads for the whole shared
- * table; see the scaling note in docs/market-value-drip.md for when that flips.)
+ * Looks the caller's releases up through `by_release` (see pricedByRelease),
+ * so the read scales with the collection, not with the shared table. Past
+ * LOOKUP_LIMIT releases it falls back to one table scan; this is a reactive
+ * subscription that re-runs on every collection change, and a lookup per
+ * release of a 3,000-release collection would spend most of Convex's 4,096
+ * index ranges per execution.
  */
 export const getForUser = query({
   args: { sessionToken: v.string() },
@@ -185,13 +244,10 @@ export const getForUser = query({
       .withIndex("by_username", (q) => q.eq("discogsUsername", user.discogs_username))
       .collect();
 
-    // First row wins per releaseId, matching the `.first()` this replaced.
-    const priced = new Map<number, { value: number | null; fetchedAt: number }>();
-    for (const mv of await ctx.db.query("market_values").collect()) {
-      if (mv.value === undefined || mv.fetchedAt === undefined) continue;
-      if (priced.has(mv.releaseId)) continue;
-      priced.set(mv.releaseId, { value: mv.value, fetchedAt: mv.fetchedAt });
-    }
+    const priced = await pricedByRelease(
+      ctx,
+      owned.map((row) => row.releaseId)
+    );
 
     const out: { releaseId: number; value: number | null; fetchedAt: number }[] = [];
     for (const row of owned) {
@@ -204,11 +260,10 @@ export const getForUser = query({
 
 /**
  * Market values for the authenticated user's wantlist, for the native
- * Wantlist's "~$18 · 6 for sale". Same shape and same two-scan join as
- * getForUser (see its note on index ranges), keyed off the caller's wantlist
- * instead of their collection. Only priced rows: never-fetched wants are left
- * out; `value: null` means fetched with no listings. `numForSale` is absent on
- * rows priced before it was stored.
+ * Wantlist's "~$18 · 6 for sale". Same lookup strategy as getForUser, keyed off
+ * the caller's wantlist instead of their collection. Only priced rows:
+ * never-fetched wants are left out; `value: null` means fetched with no
+ * listings. `numForSale` is absent on rows priced before it was stored.
  */
 export const getForWantlist = query({
   args: { sessionToken: v.string() },
@@ -219,19 +274,12 @@ export const getForWantlist = query({
       .withIndex("by_username", (q) => q.eq("discogs_username", user.discogs_username))
       .collect();
 
-    type Priced = { value: number | null; fetchedAt: number; numForSale?: number };
-    const priced = new Map<number, Priced>();
-    for (const mv of await ctx.db.query("market_values").collect()) {
-      if (mv.value === undefined || mv.fetchedAt === undefined) continue;
-      if (priced.has(mv.releaseId)) continue;
-      priced.set(mv.releaseId, {
-        value: mv.value,
-        fetchedAt: mv.fetchedAt,
-        ...(mv.numForSale !== undefined ? { numForSale: mv.numForSale } : {}),
-      });
-    }
+    const priced = await pricedByRelease(
+      ctx,
+      wants.map((want) => want.release_id)
+    );
 
-    const out: ({ releaseId: number } & Priced)[] = [];
+    const out: ({ releaseId: number } & PricedRow)[] = [];
     const seen = new Set<number>();
     for (const want of wants) {
       if (seen.has(want.release_id)) continue;
