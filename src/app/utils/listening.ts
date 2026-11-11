@@ -210,16 +210,21 @@ export function daysSinceLastPlay(
  * the older side of a comparison and inflates every delta drawn from it.
  */
 export function releasesPlayedInWindow(
-  albums: Array<{ id: string }>,
+  albums: Array<{ id: string; release_id: number }>,
   playLog: Array<{ albumId: string; playedAt: number }>,
   windowStart: number,
   windowEnd: number
 ): number {
-  const inCollection = new Set(albums.map((a) => a.id));
-  const seen = new Set<string>();
+  // Every copy (DW-04, Q6): plays belong to copies, but this counts distinct
+  // RELEASES — two copies of one record played are one release played, as
+  // the native app counts it. A play counts when its copy is in the passed
+  // collection.
+  const releaseOf = new Map(albums.map((a) => [a.id, a.release_id]));
+  const seen = new Set<number>();
   for (const play of playLog) {
     if (play.playedAt < windowStart || play.playedAt >= windowEnd) continue;
-    if (inCollection.has(play.albumId)) seen.add(play.albumId);
+    const release = releaseOf.get(play.albumId);
+    if (release !== undefined) seen.add(release);
   }
   return seen.size;
 }

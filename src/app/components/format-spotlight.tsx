@@ -162,7 +162,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
                 album={album}
                 onTap={handleTap}
                 dominantColor
-                playCount={playCounts[String(album.release_id)] ?? 0}
+                playCount={playCounts[album.id] ?? 0}
                 overlay={
                   <WantlistHeartButton
                     releaseId={album.release_id}
@@ -199,7 +199,7 @@ export function FormatSpotlight({ onAlbumTap }: FormatSpotlightProps) {
               onTap={handleTap}
               compact
               dominantColor
-              playCount={playCounts[String(album.release_id)] ?? 0}
+              playCount={playCounts[album.id] ?? 0}
               overlay={
                 <WantlistHeartButton
                   releaseId={album.release_id}

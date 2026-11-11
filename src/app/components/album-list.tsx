@@ -228,7 +228,7 @@ export function AlbumList({ albums, showPurgeIndicator = true, sortOption = "art
                 isDarkMode={isDarkMode}
                 showDot={showPurgeIndicator && !hidePurgeIndicators}
                 lastPlayedIso={lastPlayed[album.id]}
-                playCount={playCounts[String(album.release_id)] ?? 0}
+                playCount={playCounts[album.id] ?? 0}
                 onOpen={openAlbum}
               />
             );

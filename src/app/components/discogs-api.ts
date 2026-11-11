@@ -16,6 +16,9 @@ import type { StackRule } from "../../../convex/stackRules";
 export type PurgeTag = "keep" | "cut" | "maybe" | null;
 
 export interface Album {
+  /** One copy you own: "c-<instanceId>" (utils/copies.ts copyKey). Never a
+   *  release id; use `release_id` for that. A friend's album (Following) is
+   *  the exception: one row per release, id String(release_id). */
   id: string;
   release_id: number;
   master_id?: number;
@@ -89,8 +92,10 @@ export interface WantItem {
 export interface Stack {
   id: string;
   name: string;
-  /** Hand-picked members. Always `[]` for an auto session — its membership is
-   *  derived from `rule` at read time, never stored (see `stackMembership`). */
+  /** Hand-picked members as copy keys ("c-<instanceId>", the `Album.id` of
+   *  each copy; stored server-side as `copy_ids`). Always `[]` for an auto
+   *  session — its membership is derived from `rule` at read time, never
+   *  stored (see `stackMembership`). */
   albumIds: string[];
   createdAt: string;
   lastModified: string;
@@ -100,8 +105,11 @@ export interface Stack {
    *  session that predates the Session Builder is already correct. */
   kind?: "manual" | "auto";
   rule?: StackRule;
-  /** Records kicked out of an auto session by hand, keyed on release_id. */
+  /** Releases kicked out of an auto session before copies (release ids).
+   *  Kept as stored: each still drops every copy of its release. */
   excludedIds?: number[];
+  /** Copies kicked out of an auto session by hand (instance ids). */
+  excludedCopyIds?: number[];
   /** Last title the generator produced; see the title-freeze rule. */
   nameGenerated?: string;
 }

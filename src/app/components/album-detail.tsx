@@ -16,6 +16,7 @@ import { formatDateShort, isToday, lastPlayedLabel, playCountLabel, playMonthLab
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
 import { computeAlbumSavePlan } from "../utils/album-save-plan";
+import { defaultCopyOf } from "../utils/copies";
 import { useAction, useQuery } from "convex/react";
 import { SwipeToDelete } from "./swipe-to-delete";
 import { api } from "../../../convex/_generated/api";
@@ -310,10 +311,11 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
     }
   }, [selectedAlbum, isRating, rateAlbum]);
 
-  // Play history query — only fires when album is selected
+  // Play history query — only fires when album is selected. This copy's
+  // plays only (DW-04): a second copy of the release has its own history.
   const playHistory = useQuery(
-    api.last_played.getHistoryByRelease,
-    selectedAlbum && sessionToken ? { sessionToken, release_id: selectedAlbum.release_id } : "skip"
+    api.last_played.getHistoryByCopy,
+    selectedAlbum && sessionToken ? { sessionToken, instance_id: selectedAlbum.instance_id } : "skip"
   );
 
   // Inline stack list state
@@ -2708,9 +2710,13 @@ function WantItemDetailPanel({
           {alreadyInCollection ? (
             <button
               onClick={() => {
+                // View Your Copy opens the release's default copy (the
+                // oldest), the same one the server means by the release.
                 const rid = Number(item.release_id);
-                const match = albums.find((a) => Number(a.release_id) === rid) ||
-                  (item.master_id && item.master_id > 0 ? albums.find((a) => a.master_id === item.master_id) : undefined);
+                const masterMatch = !defaultCopyOf(albums, rid) && item.master_id && item.master_id > 0
+                  ? albums.find((a) => a.master_id === item.master_id)
+                  : undefined;
+                const match = defaultCopyOf(albums, masterMatch ? masterMatch.release_id : rid);
                 if (match) {
                   setSelectedWantItem(null);
                   setSelectedAlbumId(match.id);
@@ -3062,12 +3068,12 @@ function ReleaseDetailPanel({
     if (isAddingToCollection || alreadyInCollection) return;
     setIsAddingToCollection(true);
     try {
-      await addToCollection(album.release_id);
+      const newCopyId = await addToCollection(album.release_id);
       toast.info(`"${album.title}" added to collection.`);
       // Pivot the open panel to the new collection copy (same swap as View Your
       // Copy) so details and custom fields are editable without re-finding it
       setSelectedFeedAlbum(null);
-      setSelectedAlbumId(String(album.release_id));
+      setSelectedAlbumId(newCopyId);
     } catch (err: any) {
       console.error("[ReleaseDetail] Add to collection failed:", err);
       toast.error("Failed to add. Try again.");
@@ -3256,9 +3262,13 @@ function ReleaseDetailPanel({
           {alreadyInCollection ? (
             <button
               onClick={() => {
+                // View Your Copy opens the release's default copy (the
+                // oldest), the same one the server means by the release.
                 const rid = Number(album.release_id);
-                const match = albums.find((a) => Number(a.release_id) === rid) ||
-                  (album.master_id && album.master_id > 0 ? albums.find((a) => a.master_id === album.master_id) : undefined);
+                const masterMatch = !defaultCopyOf(albums, rid) && album.master_id && album.master_id > 0
+                  ? albums.find((a) => a.master_id === album.master_id)
+                  : undefined;
+                const match = defaultCopyOf(albums, masterMatch ? masterMatch.release_id : rid);
                 if (match) {
                   setSelectedFeedAlbum(null);
                   setSelectedAlbumId(match.id);

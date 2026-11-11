@@ -288,7 +288,7 @@ export function PurgeCutDialog({
           </p>
           <div className="flex flex-col gap-1">
             {cutAlbums.map((album) => (
-              <div key={album.release_id} className="flex items-center gap-2.5 py-1.5">
+              <div key={album.id} className="flex items-center gap-2.5 py-1.5">
                 <div className="w-8 h-8 rounded-[6px] overflow-hidden flex-shrink-0">
                   <img src={album.thumb || album.cover} alt={album.title} className="w-full h-full object-cover" />
                 </div>
