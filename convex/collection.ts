@@ -210,7 +210,36 @@ export const applySyncChunk = internalMutation({
 });
 
 /**
- * Patch a single album document by releaseId.
+ * The cached row a per-copy write should touch. A user can own two copies of
+ * one release, so the (user, release) index can hold two rows and `.first()`
+ * would pick whichever copy happens to sort first. With an instance id, take
+ * that copy. If the cache holds no row with it (the id went stale, e.g. a
+ * folder move re-issued it), fall back to the release's row only when it is
+ * the sole one — with two copies and no match there is no safe row, so none.
+ * Without an instance id this is the old behaviour: the first row.
+ */
+async function pickCopyRow(
+  ctx: MutationCtx,
+  username: string,
+  releaseId: number,
+  instanceId: number | undefined
+): Promise<Doc<"collection"> | null> {
+  const rows = await ctx.db
+    .query("collection")
+    .withIndex("by_username_and_release", (q) =>
+      q.eq("discogsUsername", username).eq("releaseId", releaseId)
+    )
+    .collect();
+  if (rows.length === 0) return null;
+  if (instanceId === undefined) return rows[0];
+  const exact = rows.find((r) => r.instanceId === instanceId);
+  if (exact) return exact;
+  return rows.length === 1 ? rows[0] : null;
+}
+
+/**
+ * Patch a single album document by releaseId (and `matchInstanceId` when the
+ * user owns two copies of it — see pickCopyRow).
  * Used after editing instance fields (condition, notes, folder) in the album detail panel.
  * Does not trigger a full re-sync — only updates the affected document.
  */
@@ -223,7 +252,11 @@ export const updateInstance = mutation({
     notes: v.optional(v.string()),
     folder: v.optional(v.string()),
     folderId: v.optional(v.number()),
+    // The instance id to STORE on the row (a folder move re-issues it).
     instanceId: v.optional(v.number()),
+    // Which copy to patch: the row's current instance id. Separate from
+    // `instanceId` because that one is a value to write, not a key to find by.
+    matchInstanceId: v.optional(v.number()),
     customFields: v.optional(v.array(v.object({
       name: v.string(),
       value: v.string(),
@@ -239,12 +272,12 @@ export const updateInstance = mutation({
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
-    const row = await ctx.db
-      .query("collection")
-      .withIndex("by_username_and_release", (q) =>
-        q.eq("discogsUsername", user.discogs_username).eq("releaseId", args.releaseId)
-      )
-      .first();
+    const row = await pickCopyRow(
+      ctx,
+      user.discogs_username,
+      args.releaseId,
+      args.matchInstanceId
+    );
 
     if (!row) return;
 
@@ -300,20 +333,19 @@ export const renameFolderInCache = mutation({
   },
 });
 
-/** Remove a single album from the collection cache by releaseId. */
+/**
+ * Remove a single album from the collection cache by releaseId. Pass
+ * `instanceId` to remove that copy when the user owns two of the release.
+ */
 export const removeItem = mutation({
   args: {
     sessionToken: v.string(),
     releaseId: v.number(),
+    instanceId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
-    const row = await ctx.db
-      .query("collection")
-      .withIndex("by_username_and_release", (q) =>
-        q.eq("discogsUsername", user.discogs_username).eq("releaseId", args.releaseId)
-      )
-      .first();
+    const row = await pickCopyRow(ctx, user.discogs_username, args.releaseId, args.instanceId);
     if (!row) return;
     await ctx.db.delete(row._id);
     await logRemoval(ctx, row);
