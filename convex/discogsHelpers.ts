@@ -26,22 +26,36 @@ export const getUserCredentials = internalQuery({
 });
 
 /**
- * The pool of usable OAuth credentials — every user with tokens. Internal-only.
- * The market-value drip (Spec 6A.1) rotates through these to fetch the *shared*
- * per-release prices: the lowest ask is the same regardless of which token
- * asks, so any user's token will do, and rotating means one revoked token
- * cannot stall the run. It does not add throughput: Discogs budgets requests
- * by source IP, not by token (bug hunt M3).
+ * The one account the market-value drip fetches with. Internal-only.
+ *
+ * The drip prices releases shared by every user, and the lowest ask is the same
+ * whichever token asks, so it runs on a single designated account instead of
+ * borrowing every user's credentials (audit D-04). `username` comes from the
+ * `HG_DRIP_USERNAME` Convex env var (a Discogs username, not a secret) and is
+ * read by the action, which passes it in. Returns null when the name is blank,
+ * the user doesn't exist, or the user has no stored token, so the caller can
+ * log once and end the run.
  */
-export const listUsersForMarketDrip = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const users = await ctx.db.query("users").collect();
-    return users
-      .filter((u) => u.access_token && u.token_secret)
-      .map((u) => ({
-        accessToken: u.access_token,
-        tokenSecret: u.token_secret,
-      }));
+export const getDripCredentials = internalQuery({
+  args: { username: v.string() },
+  handler: async (ctx, args) => {
+    const wanted = args.username.trim();
+    if (!wanted) return null;
+    // Exact match on the index first; fall back to a case-insensitive scan so a
+    // differently-cased env var still finds the account.
+    let user = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("discogs_username", wanted))
+      .first();
+    if (!user) {
+      const lower = wanted.toLowerCase();
+      const all = await ctx.db.query("users").collect();
+      user = all.find((u) => u.discogs_username.toLowerCase() === lower) ?? null;
+    }
+    if (!user || !user.access_token || !user.token_secret) return null;
+    return {
+      accessToken: user.access_token,
+      tokenSecret: user.token_secret,
+    };
   },
 });
