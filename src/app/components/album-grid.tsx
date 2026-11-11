@@ -392,7 +392,7 @@ export function AlbumGrid({ albums, sortOption = "artist-az", searchQuery = "", 
                 album={album}
                 isDarkMode={isDarkMode}
                 purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeColors[album.purgeTag] : undefined}
-                playCount={playCounts[String(album.release_id)] ?? 0}
+                playCount={playCounts[album.id] ?? 0}
                 onOpen={openAlbum}
               />
             </div>

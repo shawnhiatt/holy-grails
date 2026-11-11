@@ -735,7 +735,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 onTap={handleAlbumTap}
                 compact
                 dominantColor
-                playCount={playCounts[String(album.release_id)] ?? 0}
+                playCount={playCounts[album.id] ?? 0}
               />
             </motion.div>
           ))}
@@ -755,7 +755,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 onTap={handleAlbumTap}
                 compact
                 dominantColor
-                playCount={playCounts[String(album.release_id)] ?? 0}
+                playCount={playCounts[album.id] ?? 0}
               />
             </motion.div>
           ))}
@@ -829,7 +829,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
                 album={album}
                 onTap={handleAlbumTap}
                 dominantColor
-                playCount={playCounts[String(album.release_id)] ?? 0}
+                playCount={playCounts[album.id] ?? 0}
               />
             </div>
           ))}
@@ -850,7 +850,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
               onTap={handleAlbumTap}
               compact
               dominantColor
-              playCount={playCounts[String(album.release_id)] ?? 0}
+              playCount={playCounts[album.id] ?? 0}
             />
           ))}
         </div>
@@ -1420,7 +1420,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
       {/* Desktop: 6-column static grid */}
       <div className="hidden lg:grid grid-cols-6 gap-3">
         {recentlyAdded.slice(0, 6).map((album) => (
-          <RecentAlbumCard key={album.id} album={album} isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleAlbumTap} />
+          <RecentAlbumCard key={album.id} album={album} isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[album.id] ?? 0} onOpen={handleAlbumTap} />
         ))}
       </div>
 
@@ -1441,7 +1441,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           style={{ paddingRight: "16px" }}
         >
           {recentlyAdded.map((album) => (
-            <RecentAlbumCard key={album.id} album={album} width="145px" isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[String(album.release_id)] ?? 0} onOpen={handleAlbumTap} />
+            <RecentAlbumCard key={album.id} album={album} width="145px" isDarkMode={isDarkMode} purgeColor={!hidePurgeIndicators && album.purgeTag ? purgeIndicatorColor(album.purgeTag, isDarkMode) : undefined} playCount={playCounts[album.id] ?? 0} onOpen={handleAlbumTap} />
           ))}
         </div>
       </div>
@@ -2578,7 +2578,7 @@ export function FeedScreen({ onHeroVisibility }: { onHeroVisibility?: (visible: 
           <PickOneOverlay
             album={pickOne}
             pickKey={pickOneKey}
-            playCount={playCounts[String(pickOne.release_id)] ?? 0}
+            playCount={playCounts[pickOne.id] ?? 0}
             onAgain={pickAnother}
             onClose={() => setPickOne(null)}
             onOpenDetail={handlePickOpenDetail}

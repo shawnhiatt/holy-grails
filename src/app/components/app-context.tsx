@@ -36,6 +36,20 @@ import {
 } from "../utils/accounts";
 import { scopeAlbums } from "../utils/format-scope";
 import { lastPlayedAfterRemoval } from "../utils/play-log";
+import {
+  buildPlayMaps,
+  cacheMatchArgs,
+  cacheRemoveArgs,
+  copyArgs,
+  copyKey,
+  deriveAlbums,
+  instanceOfKey,
+  needsReleaseOnlyTagClear,
+  playKeyResolver,
+  sessionMemberArgs,
+  sessionMemberKeys,
+  type PlayLogEntry,
+} from "../utils/copies";
 import { singleFlight } from "../utils/single-flight";
 import { isOlderThan, shouldFullSync } from "../utils/sync-freshness";
 
@@ -56,7 +70,7 @@ function getOrCreateContext(): React.Context<AppState | null> {
 
 /** What a session currently contains, for both kinds of session. */
 export interface StackMembership {
-  /** Release ids as strings, matching `Stack.albumIds` and `Album.id`. */
+  /** Copy keys ("c-<instanceId>"), matching `Stack.albumIds` and `Album.id`. */
   albumIds: string[];
   /** How many records match before the cap — the "of M" in "25 of 148". */
   poolSize: number;
@@ -90,11 +104,8 @@ export interface FollowingFeedEntry {
   recent_wants?: FeedAlbum[];
 }
 
-/** One logged play: which release, and when. */
-export interface PlayLogEntry {
-  albumId: string;
-  playedAt: number;
-}
+/** One logged play: which copy, its release, and when (utils/copies.ts). */
+export type { PlayLogEntry };
 
 interface AppState {
   screen: Screen;
@@ -122,8 +133,10 @@ interface AppState {
   sortOption: SortOption;
   setSortOption: (s: SortOption) => void;
   setPurgeTag: (albumId: string, tag: PurgeTag) => void;
-  deletePurgeTag: (releaseId: number) => void;
+  /** Clear one copy's verdict. */
+  deletePurgeTag: (albumId: string) => void;
   executePurgeCut: () => Promise<void>;
+  /** `failed` holds the instance ids of the copies Purge Cut couldn't remove. */
   purgeProgress: { running: boolean; current: number; total: number; failed: number[] } | null;
   toggleWantPriority: (wantId: string) => void;
   addToWantList: (item: WantItem) => Promise<void>;
@@ -151,9 +164,10 @@ interface AppState {
   lastPlayed: Record<string, string>;
   playCounts: Record<string, number>;
   allPlayTimestamps: number[];
-  /** The same play rows, keeping the release each belongs to. `allPlayTimestamps`
-   *  drops it, which is fine for counting events but cannot answer "how many
-   *  distinct releases in an arbitrary window" — see releasesPlayedInWindow. */
+  /** The same play rows, keeping the copy and release each belongs to.
+   *  `allPlayTimestamps` drops them, which is fine for counting events but
+   *  cannot answer "how many distinct releases in an arbitrary window" — see
+   *  releasesPlayedInWindow. */
   playLog: PlayLogEntry[];
   markPlayed: (albumId: string) => void;
   markPlayedAt: (albumId: string, date: Date) => void;
@@ -238,7 +252,8 @@ interface AppState {
   stackMembership: Record<string, StackMembership>;
   createAutoStack: (name: string, rule: StackRule, nameGenerated?: string) => string;
   updateStackRule: (stackId: string, rule: StackRule, name?: string, nameGenerated?: string) => void;
-  excludeFromStack: (stackId: string, releaseId: number) => void;
+  /** Kick one copy out of an auto session (by its album id). */
+  excludeFromStack: (stackId: string, albumId: string) => void;
   /** Materialize an auto session's current contents and drop its rule. */
   freezeStack: (stackId: string) => void;
   /** Evaluate an unsaved rule — the builder's live match count. */
@@ -263,8 +278,8 @@ interface AppState {
   // One-shot deep-link intent for Following screen activity tab ("See all" from Feed)
   followingActivityTabIntent: "collection" | "wantlist" | null;
   setFollowingActivityTabIntent: (t: "collection" | "wantlist" | null) => void;
-  // Add to collection
-  addToCollection: (releaseId: number) => Promise<void>;
+  // Add to collection. Resolves to the new copy's album id.
+  addToCollection: (releaseId: number) => Promise<string>;
   // Wantlist crossover (wantlist items now in collection after sync)
   collectionCrossoverQueue: WantItem[];
   dismissCrossover: (releaseId: number) => void;
@@ -317,27 +332,7 @@ function formatSyncStatus(s: { phase: string; current?: number; total?: number }
   }
 }
 
-/** Build lastPlayed (most recent per release), playCounts, and allTimestamps from raw play records. */
-function buildPlayMaps(records: Array<{ release_id: number; played_at: number }>) {
-  const latestMs: Record<string, number> = {};
-  const countMap: Record<string, number> = {};
-  const allTimestamps: number[] = [];
-  const playLog: PlayLogEntry[] = [];
-  for (const lp of records) {
-    const key = String(lp.release_id);
-    countMap[key] = (countMap[key] || 0) + 1;
-    allTimestamps.push(lp.played_at);
-    playLog.push({ albumId: key, playedAt: lp.played_at });
-    if (!latestMs[key] || lp.played_at > latestMs[key]) {
-      latestMs[key] = lp.played_at;
-    }
-  }
-  const lastPlayedMap: Record<string, string> = {};
-  for (const [key, ms] of Object.entries(latestMs)) {
-    lastPlayedMap[key] = new Date(ms).toISOString();
-  }
-  return { lastPlayedMap, countMap, allTimestamps, playLog };
-}
+// buildPlayMaps (plays folded onto copies) lives in utils/copies.ts.
 
 /**
  * Several write paths save to Discogs first, then mirror the change into the
@@ -567,7 +562,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const convexWantPriorities = useQuery(api.want_priorities.getByUsername, authedArgs);
   const convexFollowing = useQuery(api.following.getByUsername, authedArgs);
   const convexPreferences = useQuery(api.preferences.getByUsername, authedArgs);
-  const convexCollection = useQuery(api.collection.getByUsername, authedArgs);
+  // Every copy (DW-04): getCopies, not getByUsername. Same rows today; the
+  // old query is deleted at the DW-04e switch so tabs still on old code are
+  // pushed through the stale-build reload before two copies can reach them.
+  const convexCollection = useQuery(api.collection.getCopies, authedArgs);
   const convexWantlist = useQuery(api.wantlist.getByUsername, authedArgs);
   const convexFollowingFeed = useQuery(api.following_feed.getByFollower, authedArgs);
   // Live progress doc written by the server-side sync loop (discogs.syncSelf)
@@ -584,6 +582,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => scopeAlbums(albums, formatScope),
     [albums, formatScope]
   );
+
+  // Latest unscoped albums, sessions and verdict rows, for the write paths
+  // below: each write looks its copy up by album id to send both the release
+  // id and the instance id (DW-04), without re-creating every callback on
+  // each collection change.
+  const albumsRef = useRef(albums);
+  useEffect(() => {
+    albumsRef.current = albums;
+  }, [albums]);
+  const stacksRef = useRef(stacks);
+  useEffect(() => {
+    stacksRef.current = stacks;
+  }, [stacks]);
+  const convexPurgeTagsRef = useRef(convexPurgeTags);
+  useEffect(() => {
+    convexPurgeTagsRef.current = convexPurgeTags;
+  }, [convexPurgeTags]);
+  /** The copy an album id names, or undefined (and a warning) when it isn't
+   *  one of ours — a write then sends nothing rather than a guessed id. */
+  const findCopy = useCallback((albumId: string, label: string): Album | undefined => {
+    const album = albumsRef.current.find((a) => a.id === albumId);
+    if (!album) console.warn(`[Copies] ${label}: no copy ${albumId}`);
+    return album;
+  }, []);
+  /** A manual session's members for a write, or null if an id isn't a copy
+   *  (logged; the write is skipped rather than storing a wrong id). */
+  const memberArgs = useCallback((albumIds: readonly string[]) => {
+    try {
+      return sessionMemberArgs(albumIds, albumsRef.current);
+    } catch (e) {
+      console.error("[Copies] Session write skipped:", e);
+      return null;
+    }
+  }, []);
 
   // Set once the boot path has finished deciding (cache hydrated, or the
   // first-ever sync settled). Distinct from albums.length so a user whose
@@ -819,7 +851,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!discogsUsername) return;
     if (convexCollection === undefined) return; // subscription not resolved
-    const tagMap = new Map((convexPurgeTags ?? []).map((t) => [t.release_id, t.tag as PurgeTag]));
     // UNSCOPED: this `albums` state is the full collection, every format.
     // format_scope is a display-only concern applied downstream via the
     // `scopedAlbums` memo below — session rule evaluation (ruleAlbums /
@@ -827,40 +858,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // raw state directly so an owner and a share-link viewer (which
     // evaluates rules over the sharer's full collection server-side)
     // evaluate the same pool regardless of the owner's own display scope.
-    const derived: Album[] = convexCollection
-      .map((row) => ({
-        id: String(row.releaseId),
-        release_id: row.releaseId,
-        master_id: (row as any).masterId || undefined,
-        instance_id: row.instanceId,
-        folder_id: row.folderId ?? 1,
-        title: row.title,
-        artist: row.artist,
-        year: row.year,
-        thumb: row.thumb ?? "",
-        cover: row.cover,
-        folder: row.folder,
-        label: row.label,
-        catalogNumber: row.catalogNumber,
-        format: row.format,
-        mediaCondition: row.mediaCondition,
-        sleeveCondition: row.sleeveCondition,
-        notes: row.notes,
-        customFields: row.customFields,
-        dateAdded: row.dateAdded,
-        // Free data off the collection response (Session Builder phase 1).
-        // Undefined until the user's next sync backfills the cached row.
-        genres: (row as any).genres || undefined,
-        styles: (row as any).styles || undefined,
-        rating: (row as any).rating || undefined,
-        discCount: (row as any).discCount || undefined,
-        artistIds: (row as any).artistIds || undefined,
-        // marketValue is no longer on the collection row — it lives once per
-        // release in `market_values` (Spec 6A.1) and is merged in by the
-        // Insights value sections (Session B) via market_values.getForUser.
-        discogsUrl: `https://www.discogs.com/release/${row.releaseId}`,
-        purgeTag: tagMap.get(row.releaseId) || null,
-      }));
+    //
+    // One album per copy (DW-04), each with its own verdict, folded the way
+    // the server folds them (utils/copies.ts deriveAlbums → foldByCopy).
+    const derived: Album[] = deriveAlbums(convexCollection, convexPurgeTags ?? []);
     setAlbums((prev) => {
       // Never clobber a populated collection with an empty cache — protects
       // the window where a first-ever sync populated local state but the
@@ -1044,26 +1045,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [discogsUsername, convexCollection, sessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hydrate stacks from Convex (one-time)
+  // Hydrate stacks from Convex (one-time). Waits for the collection too: a
+  // session not yet migrated to copies is read through the cached copies.
   useEffect(() => {
-    if (!hydratedRef.current.stacks && convexStacks !== undefined) {
+    if (!hydratedRef.current.stacks && convexStacks !== undefined && convexCollection !== undefined) {
       hydratedRef.current.stacks = true;
       if (convexStacks.length > 0) {
         setStacks(convexStacks.map(s => ({
           id: s.stack_id,
           name: s.name,
-          albumIds: s.album_ids.map(String),
+          // Copies (DW-04): copy_ids, or each release's default copy for a
+      // session the copy migration hasn't filled yet.
+      albumIds: s.kind === "auto" ? [] : sessionMemberKeys(s, convexCollection ?? []),
           createdAt: new Date(s.created_at).toISOString().split("T")[0],
           lastModified: new Date(s.last_modified).toISOString(),
           shareId: s.share_id,
           kind: s.kind,
           rule: s.rule as Stack["rule"],
           excludedIds: s.excluded_ids,
+          excludedCopyIds: s.excluded_copy_ids,
           nameGenerated: s.name_generated,
         })));
       }
     }
-  }, [convexStacks]);
+  }, [convexStacks, convexCollection]);
 
   // Reactive hydration: lastPlayed/playCounts/allPlayTimestamps/playLog
   // mirror the Convex last_played subscription, the same way albums/wants
@@ -1078,7 +1083,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!discogsUsername) return;
     if (convexLastPlayed === undefined) return; // subscription not resolved
-    const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(convexLastPlayed);
+    // Plays fold onto copies, and a release-only play needs the cached
+    // copies to find its release's default copy.
+    if (convexCollection === undefined) return;
+    const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(convexLastPlayed, convexCollection);
     const rawLen = convexLastPlayed.length;
     // Never clobber populated state with an empty raw result — the same
     // boot-race guard the albums/wants derives use, tested against the RAW
@@ -1092,7 +1100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPlayCounts((prev) => (rawLen === 0 && Object.keys(prev).length > 0 ? prev : countMap));
     setAllPlayTimestamps((prev) => (rawLen === 0 && prev.length > 0 ? prev : allTimestamps));
     setPlayLog((prev) => (rawLen === 0 && prev.length > 0 ? prev : log));
-  }, [convexLastPlayed, discogsUsername]);
+  }, [convexLastPlayed, convexCollection, discogsUsername]);
 
   // Latest raw last_played rows, for the M7 rollback below — a ref rather
   // than reading convexLastPlayed directly, because the rollback runs from
@@ -1102,6 +1110,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     convexLastPlayedRef.current = convexLastPlayed;
   }, [convexLastPlayed]);
+  const convexCollectionRef = useRef(convexCollection);
+  useEffect(() => {
+    convexCollectionRef.current = convexCollection;
+  }, [convexCollection]);
 
   // Force all four play states back to the server's last known truth —
   // used when a logPlay/deletePlay mutation fails, so the optimistic local
@@ -1113,7 +1125,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const rebuildPlayStateFromServer = useCallback(() => {
     const records = convexLastPlayedRef.current;
     if (records === undefined) return; // subscription hasn't resolved yet
-    const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(records);
+    const { lastPlayedMap, countMap, allTimestamps, playLog: log } = buildPlayMaps(
+      records,
+      convexCollectionRef.current ?? []
+    );
     setLastPlayed(lastPlayedMap);
     setPlayCounts(countMap);
     setAllPlayTimestamps(allTimestamps);
@@ -1354,34 +1369,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Data mutations (local state + Convex fire-and-forget) ──
 
+  /** Clear one copy's verdict on the server. A release-only verdict row the
+   *  fold shows on this copy is cleared too (utils/copies.ts
+   *  needsReleaseOnlyTagClear). Both removes go out synchronously, before any
+   *  later mutation from the same caller (Purge Cut's cache remove): Convex
+   *  runs one client's mutations in order, so the release-shaped remove still
+   *  resolves to this copy as the release's default copy. */
+  const clearCopyTagOnServer = useCallback((album: Album) => {
+    if (!sessionToken) return;
+    const alsoReleaseOnly = needsReleaseOnlyTagClear(
+      album,
+      albumsRef.current,
+      convexPurgeTagsRef.current ?? []
+    );
+    removePurgeTagMut({ sessionToken, ...copyArgs(album) });
+    if (alsoReleaseOnly) removePurgeTagMut({ sessionToken, release_id: album.release_id });
+  }, [sessionToken, removePurgeTagMut]);
+
   const setPurgeTag = useCallback((albumId: string, tag: PurgeTag) => {
+    const album = findCopy(albumId, "Verdict");
     setAlbums((prev) =>
       prev.map((a) => (a.id === albumId ? { ...a, purgeTag: tag } : a))
     );
-    if (sessionToken) {
+    if (sessionToken && album) {
       if (tag) {
         upsertPurgeTagMut({
           sessionToken,
-          release_id: Number(albumId),
+          ...copyArgs(album),
           tag,
         });
       } else {
-        removePurgeTagMut({
-          sessionToken,
-          release_id: Number(albumId),
-        });
+        clearCopyTagOnServer(album);
       }
     }
-  }, [sessionToken, upsertPurgeTagMut, removePurgeTagMut]);
+  }, [sessionToken, upsertPurgeTagMut, clearCopyTagOnServer, findCopy]);
 
-  const deletePurgeTag = useCallback((releaseId: number) => {
+  const deletePurgeTag = useCallback((albumId: string) => {
+    const album = findCopy(albumId, "Verdict clear");
     setAlbums((prev) =>
-      prev.map((a) => (a.release_id === releaseId ? { ...a, purgeTag: null } : a))
+      prev.map((a) => (a.id === albumId ? { ...a, purgeTag: null } : a))
     );
-    if (sessionToken) {
-      removePurgeTagMut({ sessionToken, release_id: releaseId });
-    }
-  }, [sessionToken, removePurgeTagMut]);
+    if (album) clearCopyTagOnServer(album);
+  }, [clearCopyTagOnServer, findCopy]);
 
   /**
    * Set (or clear) the user's own star rating on an owned copy.
@@ -1413,19 +1442,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
     updateInstanceMut({
       sessionToken,
-      releaseId: album.release_id,
+      ...cacheMatchArgs(album),
       rating,
     }).catch((e) => console.warn("[Convex] Rating cache write failed:", e));
   }, [scopedAlbums, sessionToken, discogsUsername, proxyUpdateInstance, updateInstanceMut]);
 
   const updateAlbum = useCallback((albumId: string, fields: Partial<Album>) => {
+    const album = findCopy(albumId, "Copy edit");
     setAlbums((prev) =>
       prev.map((a) => (a.id === albumId ? { ...a, ...fields } : a))
     );
-    if (sessionToken) {
+    if (sessionToken && album) {
       updateInstanceMut({
         sessionToken,
-        releaseId: Number(albumId),
+        ...cacheMatchArgs(album),
         ...(fields.mediaCondition !== undefined && { mediaCondition: fields.mediaCondition }),
         ...(fields.sleeveCondition !== undefined && { sleeveCondition: fields.sleeveCondition }),
         ...(fields.notes !== undefined && { notes: fields.notes }),
@@ -1435,7 +1465,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...(fields.customFields !== undefined && { customFields: fields.customFields }),
       }).catch((e) => warnCacheWriteFailed("Album update", e));
     }
-  }, [sessionToken, updateInstanceMut]);
+  }, [sessionToken, updateInstanceMut, findCopy]);
 
   // ── Folder management ──
 
@@ -1527,15 +1557,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }).catch((e) => warnCacheWriteFailed("Wantlist add", e));
   }, [sessionToken, discogsUsername, proxyAddToWantlist, addWantlistItemMut]);
 
-  const addToCollection = useCallback(async (releaseId: number): Promise<void> => {
+  const addToCollection = useCallback(async (releaseId: number): Promise<string> => {
     if (!sessionToken || !discogsUsername) throw new Error("Not authenticated");
     const result = await proxyAddToCollection({ sessionToken, username: discogsUsername, releaseId, folderId: 1 });
     // Build Album object from the returned data
     const folderName = folders.find(f => f.id === 1)?.name || "Uncategorized";
     const newAlbum: Album = {
-      // id matches the cache-derived scheme (String(releaseId)) so the album
+      // id matches the cache-derived scheme (copyKey(instanceId)) so the album
       // keeps its identity when the reactive hydration re-derives state.
-      id: String(result.release_id),
+      id: copyKey(result.instance_id),
       release_id: result.release_id,
       master_id: result.master_id,
       instance_id: result.instance_id,
@@ -1565,8 +1595,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       discogsUrl: result.discogsUrl ?? `https://www.discogs.com/release/${releaseId}`,
       purgeTag: null,
     };
+    // Dedupe by copy, not release: a second copy of a release is its own item.
     setAlbums((prev) => {
-      if (prev.some(a => a.release_id === result.release_id)) return prev;
+      if (prev.some(a => a.instance_id === result.instance_id)) return prev;
       return [...prev, newAlbum];
     });
     // Keep Convex collection cache in sync
@@ -1595,6 +1626,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       discCount: newAlbum.discCount,
       artistIds: newAlbum.artistIds,
     }).catch((e) => warnCacheWriteFailed("Collection add", e));
+    return newAlbum.id;
   }, [sessionToken, discogsUsername, proxyAddToCollection, addCollectionItemMut, folders]);
 
   const removeFromCollection = useCallback(async (albumId: string): Promise<void> => {
@@ -1609,7 +1641,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       instanceId: album.instance_id,
     });
     setAlbums(prev => prev.filter(a => a.id !== albumId));
-    removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
+    removeCollectionItemMut({ sessionToken, ...cacheRemoveArgs(album) })
       .catch(e => warnCacheWriteFailed("Collection remove", e));
   }, [sessionToken, discogsUsername, scopedAlbums, proxyRemoveFromCollection, removeCollectionItemMut]);
 
@@ -1659,6 +1691,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const markPlayed = useCallback((albumId: string) => {
+    const album = findCopy(albumId, "Play");
+    if (!album) return;
     const now = new Date();
     setLastPlayed((prev) => ({
       ...prev,
@@ -1669,11 +1703,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       [albumId]: (prev[albumId] || 0) + 1,
     }));
     setAllPlayTimestamps((prev) => [...prev, now.getTime()]);
-    setPlayLog((prev) => [...prev, { albumId, playedAt: now.getTime() }]);
+    setPlayLog((prev) => [...prev, { albumId, releaseId: album.release_id, playedAt: now.getTime() }]);
     if (sessionToken) {
       logPlayMut({
         sessionToken,
-        release_id: Number(albumId),
+        ...copyArgs(album),
         played_at: now.getTime(),
       }).catch((e) => {
         console.warn("[Convex] Play log failed:", e);
@@ -1681,9 +1715,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         rebuildPlayStateFromServer();
       });
     }
-  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer]);
+  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer, findCopy]);
 
   const markPlayedAt = useCallback((albumId: string, date: Date) => {
+    const album = findCopy(albumId, "Play");
+    if (!album) return;
     setLastPlayed((prev) => ({
       ...prev,
       [albumId]: date.toISOString(),
@@ -1693,11 +1729,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       [albumId]: (prev[albumId] || 0) + 1,
     }));
     setAllPlayTimestamps((prev) => [...prev, date.getTime()]);
-    setPlayLog((prev) => [...prev, { albumId, playedAt: date.getTime() }]);
+    setPlayLog((prev) => [...prev, { albumId, releaseId: album.release_id, playedAt: date.getTime() }]);
     if (sessionToken) {
       logPlayMut({
         sessionToken,
-        release_id: Number(albumId),
+        ...copyArgs(album),
         played_at: date.getTime(),
       }).catch((e) => {
         console.warn("[Convex] Play log failed:", e);
@@ -1705,7 +1741,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         rebuildPlayStateFromServer();
       });
     }
-  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer]);
+  }, [sessionToken, logPlayMut, rebuildPlayStateFromServer, findCopy]);
 
   const removePlay = useCallback((playId: Id<"last_played">, albumId: string, playedAt: number) => {
     // Computed once up front so the playLog update and the lastPlayed
@@ -1790,14 +1826,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev.slice(stackIndex + 1),
       ];
     });
-    if (sessionToken) {
+    const members = memberArgs(albumIds);
+    if (sessionToken && members) {
       updateStackMut({
         sessionToken,
         stack_id: stackId,
-        album_ids: albumIds.map(Number),
+        ...members,
       }).catch(console.error);
     }
-  }, [sessionToken, updateStackMut]);
+  }, [sessionToken, updateStackMut, memberArgs]);
 
   // Turn on sharing — returns the share URL. Idempotent server-side, so a
   // re-share of an already-shared session returns the same link.
@@ -2268,15 +2305,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           releaseId: album.release_id,
           instanceId: album.instance_id,
         });
-        deletePurgeTag(album.release_id);
+        // Per copy (DW-04): this copy's verdict and cache row only. A
+        // second copy of the same release keeps its own verdict and stays.
+        deletePurgeTag(album.id);
         // Update the Convex cache immediately — local albums state derives
         // from it reactively, so each cut disappears as it lands instead of
         // waiting for the full re-sync at the end.
-        removeCollectionItemMut({ sessionToken, releaseId: album.release_id })
+        removeCollectionItemMut({ sessionToken, ...cacheRemoveArgs(album) })
           .catch((e) => console.warn("[PurgeCut] Cache remove failed:", e));
       } catch (err) {
-        console.error("[PurgeCut] Failed to remove", album.release_id, err);
-        failedIds.push(album.release_id);
+        console.error("[PurgeCut] Failed to remove", album.release_id, album.instance_id, err);
+        failedIds.push(album.instance_id);
       }
       if (i < toDelete.length - 1) {
         await new Promise((r) => setTimeout(r, 1000));
@@ -2590,12 +2629,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
         setFirstStackJustCreated(true);
         // Persist to Convex
-        if (sessionToken) {
+        const members = memberArgs([albumId]);
+        if (sessionToken && members) {
           createStackMut({
             sessionToken,
             stack_id: stackId,
             name: "Saved for Later",
-            album_ids: [Number(albumId)],
+            ...members,
           });
         }
         return [newStack];
@@ -2603,7 +2643,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return prev;
     });
     setStackPickerAlbumId(albumId);
-  }, [sessionToken, createStackMut]);
+  }, [sessionToken, createStackMut, memberArgs]);
 
   const closeStackPicker = useCallback(() => {
     setStackPickerAlbumId(null);
@@ -2624,6 +2664,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () =>
       albums.map((a) => ({
         releaseId: a.release_id,
+        instanceId: a.instance_id,
         artist: a.artist,
         artistIds: a.artistIds,
         title: a.title,
@@ -2665,9 +2706,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const result = evaluateStackRule(ruleAlbums, stack.rule, {
         stackId: stack.id,
         excludedIds: stack.excludedIds,
+        excludedCopyIds: stack.excludedCopyIds,
       });
       out[stack.id] = {
-        albumIds: result.albums.map((a) => String(a.releaseId)),
+        // Every RuleAlbum here carries its instanceId (ruleAlbums above).
+        albumIds: result.albums.map((a) => copyKey(a.instanceId!)),
         poolSize: result.poolSize,
         rotating: result.rotating,
         isAuto: true,
@@ -2743,19 +2786,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [sessionToken, updateStackMut]
   );
 
-  /** Kick one record out of an auto session without touching its rule. */
+  /** Kick one copy out of an auto session without touching its rule. New
+   *  exclusions are per copy (excluded_copy_ids); the old release-wide
+   *  excluded_ids are left as they are and still drop every copy. */
   const excludeFromStack = useCallback(
-    (stackId: string, releaseId: number) => {
-      let next: number[] = [];
+    (stackId: string, albumId: string) => {
+      const instanceId = instanceOfKey(albumId);
+      if (!Number.isSafeInteger(instanceId) || instanceId <= 0) {
+        console.error("[Copies] Session exclusion skipped: not a copy", albumId);
+        return;
+      }
+      const current = stacksRef.current.find((s) => s.id === stackId);
+      if (!current) return;
+      const next = [...new Set([...(current.excludedCopyIds || []), instanceId])];
       setStacks((prev) =>
-        prev.map((s) => {
-          if (s.id !== stackId) return s;
-          next = [...new Set([...(s.excludedIds || []), releaseId])];
-          return { ...s, excludedIds: next, lastModified: new Date().toISOString() };
-        })
+        prev.map((s) =>
+          s.id === stackId
+            ? { ...s, excludedCopyIds: next, lastModified: new Date().toISOString() }
+            : s
+        )
       );
       if (sessionToken) {
-        updateStackMut({ sessionToken, stack_id: stackId, excluded_ids: next }).catch(console.error);
+        updateStackMut({ sessionToken, stack_id: stackId, excluded_copy_ids: next }).catch(console.error);
       }
     },
     [sessionToken, updateStackMut]
@@ -2768,16 +2820,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   const freezeStack = useCallback(
     (stackId: string) => {
-      const ids = (stackMembership[stackId]?.albumIds || []).map(Number);
+      const ids = stackMembership[stackId]?.albumIds || [];
+      const members = memberArgs(ids);
+      if (!members) return;
       setStacks((prev) =>
         prev.map((s) =>
           s.id === stackId
             ? {
                 ...s,
-                albumIds: ids.map(String),
+                albumIds: ids,
                 kind: "manual" as const,
                 rule: undefined,
                 excludedIds: undefined,
+                excludedCopyIds: undefined,
                 nameGenerated: undefined,
                 lastModified: new Date().toISOString(),
               }
@@ -2785,10 +2840,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         )
       );
       if (sessionToken) {
-        freezeStackMut({ sessionToken, stack_id: stackId, album_ids: ids }).catch(console.error);
+        freezeStackMut({ sessionToken, stack_id: stackId, ...members }).catch(console.error);
       }
     },
-    [sessionToken, freezeStackMut, stackMembership]
+    [sessionToken, freezeStackMut, stackMembership, memberArgs]
   );
 
   const isInStack = useCallback((albumId: string, stackId: string) => {
@@ -2818,11 +2873,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Persist to Convex
-      if (sessionToken) {
+      const members = memberArgs(newAlbumIds);
+      if (sessionToken && members) {
         updateStackMut({
           sessionToken,
           stack_id: stackId,
-          album_ids: newAlbumIds.map(Number),
+          ...members,
         });
       }
 
@@ -2840,7 +2896,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ];
       }
     });
-  }, [sessionToken, updateStackMut]);
+  }, [sessionToken, updateStackMut, memberArgs]);
 
   const createStackDirect = useCallback((name: string, initialAlbumIds?: string[]) => {
     const now = new Date().toISOString();
@@ -2854,16 +2910,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setStacks((prev) => [newStack, ...prev]);
     // Persist to Convex
-    if (sessionToken) {
+    const members = memberArgs(initialAlbumIds || []);
+    if (sessionToken && members) {
       createStackMut({
         sessionToken,
         stack_id: stackId,
         name,
-        album_ids: (initialAlbumIds || []).map(Number),
+        ...members,
       });
     }
     return stackId;
-  }, [sessionToken, createStackMut]);
+  }, [sessionToken, createStackMut, memberArgs]);
 
   const isAlbumInAnyStack = useCallback((albumId: string) => {
     return Object.values(stackMembership).some((m) => m.albumIds.includes(albumId));
@@ -2927,8 +2984,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // 7 & 8. Played / unplayed
     if (convexLastPlayed && convexLastPlayed.length > 0) {
-      const playedIds = new Set(convexLastPlayed.map((lp) => String(lp.release_id)));
-      const playedCount = cc.filter((r) => playedIds.has(String(r.releaseId))).length;
+      // Per copy, folded the same way as the play maps (utils/copies.ts).
+      const keyOf = playKeyResolver(cc);
+      const playedKeys = new Set(convexLastPlayed.map(keyOf));
+      const playedCount = cc.filter((r) => playedKeys.has(copyKey(r.instanceId))).length;
       if (playedCount > 0) stats.push(`${playedCount} albums played so far`);
       const unplayedCount = cc.length - playedCount;
       if (unplayedCount > 0 && playedCount > 0) stats.push(`${unplayedCount} albums still unplayed`);

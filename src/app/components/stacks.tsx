@@ -109,7 +109,7 @@ export function Stacks() {
             // Removing from an auto session can't un-add it — the rule would
             // just match it again. It records an exclusion instead.
             if (stackMembership[activeStack.id]?.isAuto) {
-              excludeFromStack(activeStack.id, Number(albumId));
+              excludeFromStack(activeStack.id, albumId);
             } else {
               toggleAlbumInStack(albumId, activeStack.id);
             }

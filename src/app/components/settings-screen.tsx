@@ -267,7 +267,7 @@ export function SettingsScreen() {
     if (!confirmAction) return;
     if (confirmAction === "Purge data") {
       for (const a of albums) {
-        if (a.purgeTag) deletePurgeTag(a.release_id);
+        if (a.purgeTag) deletePurgeTag(a.id);
       }
       toast.success("Purge data cleared.");
     } else if (confirmAction === "Sessions") {

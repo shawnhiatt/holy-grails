@@ -106,11 +106,20 @@ describe("daysSinceLastPlay", () => {
 
 describe("releasesPlayedInWindow", () => {
   const play = (albumId: string, ms: number) => ({ albumId, playedAt: ms });
+  const copy = (id: string, release_id: number) => ({ id, release_id });
 
   it("counts distinct releases, not play events", () => {
     const log = [play("a", daysAgo(1)), play("a", daysAgo(2)), play("b", daysAgo(3))];
     const start = windowStartMs(30, NOW);
-    expect(releasesPlayedInWindow([{ id: "a" }, { id: "b" }], log, start, NOW + 1)).toBe(2);
+    expect(releasesPlayedInWindow([copy("a", 1), copy("b", 2)], log, start, NOW + 1)).toBe(2);
+  });
+
+  /* Every copy (DW-04, Q6): plays belong to copies, but "releases played"
+     counts releases. Two copies of one release, both played, are one. */
+  it("counts two played copies of one release as one release", () => {
+    const log = [play("c-11", daysAgo(1)), play("c-12", daysAgo(2))];
+    const albums = [copy("c-11", 7), copy("c-12", 7)];
+    expect(releasesPlayedInWindow(albums, log, windowStartMs(30, NOW), NOW + 1)).toBe(1);
   });
 
   /* The whole reason this takes a play LOG rather than lastPlayed. A release
@@ -119,7 +128,7 @@ describe("releasesPlayedInWindow", () => {
      undercounting that side and inflating every delta drawn from it. */
   it("counts a release in an earlier window even when it was played again since", () => {
     const log = [play("a", daysAgo(45)), play("a", daysAgo(10))];
-    const albums = [{ id: "a" }];
+    const albums = [copy("a", 1)];
     const recentStart = windowStartMs(30, NOW);
     const priorStart = windowStartMs(60, NOW);
     expect(releasesPlayedInWindow(albums, log, recentStart, NOW + 1)).toBe(1);
@@ -129,7 +138,7 @@ describe("releasesPlayedInWindow", () => {
   it("excludes plays outside the window on either side", () => {
     const log = [play("a", daysAgo(45)), play("b", daysAgo(5))];
     const start = windowStartMs(30, NOW);
-    expect(releasesPlayedInWindow([{ id: "a" }, { id: "b" }], log, start, NOW + 1)).toBe(1);
+    expect(releasesPlayedInWindow([copy("a", 1), copy("b", 2)], log, start, NOW + 1)).toBe(1);
   });
 
   it("ignores plays for releases no longer in the collection", () => {
@@ -137,7 +146,7 @@ describe("releasesPlayedInWindow", () => {
   });
 
   it("returns zero for an empty log", () => {
-    expect(releasesPlayedInWindow([{ id: "a" }], [], windowStartMs(30, NOW), NOW + 1)).toBe(0);
+    expect(releasesPlayedInWindow([copy("a", 1)], [], windowStartMs(30, NOW), NOW + 1)).toBe(0);
   });
 });
 

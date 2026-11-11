@@ -2,16 +2,18 @@
    the "what's this release's lastPlayed after one row is gone" logic is
    testable without React or Convex. */
 
-/** One logged play: which release, and when. Mirrors PlayLogEntry in app-context.tsx. */
+/** One logged play: which copy (its album id), and when. The part of
+ *  PlayLogEntry (utils/copies.ts) this helper reads. */
 export interface PlayLogRow {
   albumId: string;
   playedAt: number;
 }
 
 /**
- * The `lastPlayed` ISO value for one release given the play log AFTER a
+ * The `lastPlayed` ISO value for one copy given the play log AFTER a
  * specific row has already been removed from it — the max `playedAt` still
- * on record for that release, or `undefined` if none remain.
+ * on record for that copy, or `undefined` if none remain. Per copy (DW-04):
+ * another copy of the same release keeps its own plays.
  *
  * Used by `removePlay` when the row being deleted was the release's most
  * recent play: falling back to the next-most-recent remaining play (rather
