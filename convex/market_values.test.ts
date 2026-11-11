@@ -342,15 +342,50 @@ describe("getForUser", () => {
     ).rejects.toThrow("Unauthorized");
   });
 
-  it("reads a large collection without one index range per release", async () => {
-    // The point-lookup version issued one indexed market_values read per owned
-    // release, so a 3,000-release collection burned 3,001 of Convex's 4,096
-    // index ranges in a single execution of a query that re-runs on every
-    // collection change. Capping databaseQueries well below the collection size
-    // fails loudly if that shape ever comes back: the batched join needs 4
-    // (session, user, collection, market_values) no matter how large the
-    // collection gets.
+  it("reads only the caller's releases, not the rest of the shared table", async () => {
+    // market_values holds every user's releases and only grows. Capping
+    // documentsRead far below the table size fails loudly if the whole-table
+    // scan ever comes back: the lookups need the session, the user, the
+    // collection rows and one price row per owned release, however many rows
+    // belong to other people.
+    const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 30 } });
+    await seedUser(t, "a", "tok-a");
+    await t.run(async (ctx) => {
+      for (const releaseId of [1, 2, 3]) {
+        await ctx.db.insert("collection", collectionRow("a", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: releaseId * 10, fetchedAt: NOW });
+      }
+      for (let releaseId = 1000; releaseId < 1200; releaseId++) {
+        await ctx.db.insert("collection", collectionRow("b", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: 99, fetchedAt: NOW });
+      }
+    });
+    const result = await t.query(api.market_values.getForUser, { sessionToken: "tok-a" });
+    expect(result.map((r) => r.releaseId).sort((x, y) => x - y)).toEqual([1, 2, 3]);
+  });
+
+  it("looks releases up by index, within Convex's index-range limit", async () => {
+    // One by_release range per distinct release plus the session, user and
+    // collection reads. Capping databaseQueries just above that proves the
+    // lookup path is the one in use for a mid-sized collection.
     const SIZE = 300;
+    const t = convexTest({ schema, modules, transactionLimits: { databaseQueries: SIZE + 10 } });
+    await seedUser(t, "a", "tok-a");
+    await t.run(async (ctx) => {
+      for (let releaseId = 1; releaseId <= SIZE; releaseId++) {
+        await ctx.db.insert("collection", collectionRow("a", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: releaseId, fetchedAt: NOW });
+      }
+    });
+    const result = await t.query(api.market_values.getForUser, { sessionToken: "tok-a" });
+    expect(result).toHaveLength(SIZE);
+  });
+
+  it("falls back to one scan for a collection past the lookup limit", async () => {
+    // 1,001 distinct releases would spend 1,001 index ranges; capping the
+    // ranges at a handful fails if the fallback ever stops being a single
+    // scan, and every price must still come back.
+    const SIZE = 1001;
     const t = convexTest({ schema, modules, transactionLimits: { databaseQueries: 8 } });
     await seedUser(t, "a", "tok-a");
     await t.run(async (ctx) => {
@@ -419,19 +454,60 @@ describe("getForWantlist", () => {
     ).rejects.toThrow("Unauthorized");
   });
 
-  it("reads a large wantlist without one index range per release", async () => {
-    // Same guard as getForUser's: the join stays at a fixed handful of reads
-    // (session, user, wantlist, market_values) however long the wantlist is.
-    const SIZE = 300;
-    const t = convexTest({ schema, modules, transactionLimits: { databaseQueries: 8 } });
+  it("reads only the caller's wants, not the rest of the shared table", async () => {
+    // Same guard as getForUser's: other users' releases (and their wants) sit
+    // in market_values but must not be read to answer this caller.
+    const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 30 } });
     await seedUser(t, "a", "tok-a");
     await t.run(async (ctx) => {
+      for (const releaseId of [1, 2, 3]) {
+        await ctx.db.insert("wantlist", wantRow("a", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: releaseId * 10, fetchedAt: NOW, numForSale: 2, wanted: true });
+      }
+      for (let releaseId = 1000; releaseId < 1200; releaseId++) {
+        await ctx.db.insert("wantlist", wantRow("b", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: 99, fetchedAt: NOW, numForSale: 5, wanted: true });
+      }
+    });
+    const result = await t.query(api.market_values.getForWantlist, { sessionToken: "tok-a" });
+    expect(result.map((r) => r.releaseId).sort((x, y) => x - y)).toEqual([1, 2, 3]);
+    expect(result.every((r) => r.numForSale === 2)).toBe(true);
+  });
+
+  it("returns the first row when a release has duplicate price rows", async () => {
+    // The scan kept the first row per release; the index lookup must too.
+    const t = newTest();
+    await seedUser(t, "a", "tok-a");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("wantlist", wantRow("a", 1));
+      await ctx.db.insert("market_values", { releaseId: 1, value: 10, fetchedAt: NOW, numForSale: 1, wanted: true });
+      await ctx.db.insert("market_values", { releaseId: 1, value: 20, fetchedAt: NOW, numForSale: 2, wanted: true });
+    });
+    const result = await t.query(api.market_values.getForWantlist, { sessionToken: "tok-a" });
+    expect(result).toEqual([{ releaseId: 1, value: 10, fetchedAt: NOW, numForSale: 1 }]);
+  });
+
+  it("looks wants up by index, and falls back to one scan past the lookup limit", async () => {
+    const SIZE = 300;
+    const t1 = convexTest({ schema, modules, transactionLimits: { databaseQueries: SIZE + 10 } });
+    await seedUser(t1, "a", "tok-a");
+    await t1.run(async (ctx) => {
       for (let releaseId = 1; releaseId <= SIZE; releaseId++) {
         await ctx.db.insert("wantlist", wantRow("a", releaseId));
         await ctx.db.insert("market_values", { releaseId, value: releaseId, fetchedAt: NOW, wanted: true });
       }
     });
-    const result = await t.query(api.market_values.getForWantlist, { sessionToken: "tok-a" });
-    expect(result).toHaveLength(SIZE);
+    expect(await t1.query(api.market_values.getForWantlist, { sessionToken: "tok-a" })).toHaveLength(SIZE);
+
+    const BIG = 1001;
+    const t2 = convexTest({ schema, modules, transactionLimits: { databaseQueries: 8 } });
+    await seedUser(t2, "a", "tok-a");
+    await t2.run(async (ctx) => {
+      for (let releaseId = 1; releaseId <= BIG; releaseId++) {
+        await ctx.db.insert("wantlist", wantRow("a", releaseId));
+        await ctx.db.insert("market_values", { releaseId, value: releaseId, fetchedAt: NOW, wanted: true });
+      }
+    });
+    expect(await t2.query(api.market_values.getForWantlist, { sessionToken: "tok-a" })).toHaveLength(BIG);
   });
 });
