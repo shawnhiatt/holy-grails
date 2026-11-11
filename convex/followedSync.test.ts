@@ -293,3 +293,40 @@ describe("syncFollowedUser vs. an unfollow mid-sync", () => {
     expect(await allRows(t)).toEqual([]);
   });
 });
+
+describe("syncFollowedUser keeps one row per release (DW-04 Q2)", () => {
+  beforeEach(() => {
+    vi.stubEnv("DISCOGS_CONSUMER_KEY", "key");
+    vi.stubEnv("DISCOGS_CONSUMER_SECRET", "secret");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("stores two copies of one release in a friend's collection as one row", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        if (url.includes("/collection/folders/0/releases")) {
+          // Release 1 twice (two copies, two instance ids), release 2 once.
+          return json({
+            pagination: { pages: 1, page: 1, items: 3 },
+            releases: [release(1), { ...release(1), instance_id: 11 }, release(2)],
+          });
+        }
+        if (url.includes("/wants")) return json({ pagination: { pages: 1, page: 1, items: 0 }, wants: [] });
+        return json({ username: FOLLOWED, avatar_url: "" });
+      })
+    );
+    const result = await t.action(api.discogs.syncFollowedUser, { sessionToken: TOKEN, username: FOLLOWED });
+    expect(result.albums).toBe(2);
+    const rows = await t.run(async (ctx) =>
+      (await ctx.db.query("followed_items").collect()).filter((r) => r.kind === "collection")
+    );
+    expect(rows.map((r) => r.release_id).sort()).toEqual([1, 2]);
+  });
+});

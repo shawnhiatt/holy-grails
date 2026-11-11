@@ -67,6 +67,26 @@ export const getByUsername = query({
 });
 
 /**
+ * Every copy (DW-04): the collection cache, one row per cached copy. The same
+ * body as getByUsername under its own name, so a new client can subscribe to
+ * it while getByUsername is kept for shipped builds — and deleted at the
+ * DW-04e switch, which pushes any still-open old PWA tab through the
+ * stale-build reload instead of letting it run against two-copy data.
+ */
+export const getCopies = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authenticateUser(ctx, args.sessionToken);
+    return await ctx.db
+      .query("collection")
+      .withIndex("by_username", (q) =>
+        q.eq("discogsUsername", user.discogs_username)
+      )
+      .collect();
+  },
+});
+
+/**
  * Free data (Session Builder phase 1): fields the Discogs collection response
  * already returns and the app used to discard. All optional — rows written
  * before this change read undefined and backfill on the user's next sync.
@@ -159,6 +179,8 @@ export const syncSignaturesPage = internalQuery({
       page: result.page.map((row) => ({
         id: row._id,
         key: row.releaseId,
+        // Which copy this row is — the sync's sticky dedupe keeps it (DW-04).
+        instanceId: row.instanceId,
         signature: albumSignature(row),
       })),
       isDone: result.isDone,
@@ -400,7 +422,11 @@ export const changeSummary = query({
   },
 });
 
-/** Insert a single album into the collection cache (after "Add to Collection" action). */
+/**
+ * Insert a single album into the collection cache (after "Add to Collection"
+ * action). Idempotent per copy: a second call for an instance id already
+ * cached patches that row instead of caching the copy twice.
+ */
 export const addItem = mutation({
   args: {
     sessionToken: v.string(),
@@ -434,7 +460,7 @@ export const addItem = mutation({
   },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
-    await ctx.db.insert("collection", {
+    const row = {
       discogsUsername: user.discogs_username,
       releaseId: args.releaseId,
       masterId: args.masterId,
@@ -459,6 +485,14 @@ export const addItem = mutation({
       rating: args.rating,
       discCount: args.discCount,
       artistIds: args.artistIds,
-    });
+    };
+    const existing = await ctx.db
+      .query("collection")
+      .withIndex("by_username_and_instance", (q) =>
+        q.eq("discogsUsername", user.discogs_username).eq("instanceId", args.instanceId)
+      )
+      .first();
+    if (existing) await ctx.db.patch(existing._id, row);
+    else await ctx.db.insert("collection", row);
   },
 });

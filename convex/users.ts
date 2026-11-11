@@ -398,6 +398,13 @@ const USER_DATA_TABLES: {
       deleteRows(ctx, await ctx.db.query("cover_scans").withIndex("by_username_at", (q) => q.eq("discogs_username", u)).take(n)),
   },
   {
+    // The copy migration's report (DW-04): counts and release ids, one doc
+    // per user. Its own table, so it has to be named here too.
+    cap: USER_DELETE_BATCH,
+    take: async (ctx, u, n) =>
+      deleteRows(ctx, await ctx.db.query("copy_migration").withIndex("by_username", (q) => q.eq("discogs_username", u)).take(n)),
+  },
+  {
     // Bug reports and their screenshots (Settings promises this removes
     // everything on our side — reports carry the reporter's username).
     cap: HEAVY_ROW_BATCH,
@@ -450,8 +457,8 @@ async function deleteUserDataStep(ctx: MutationCtx, username: string): Promise<b
  * Delete all user data across every Convex table — purge tags, sessions
  * (`stacks`), plays, want priorities, following, the feed and followed
  * collections caches, collection and wantlist caches, preferences, sync
- * status, cover-scan quota, bug reports, every device's session, and the user
- * record itself.
+ * status, cover-scan quota, bug reports, the copy-migration report, every
+ * device's session, and the user record itself.
  *
  * Same name, arguments and (empty) return as before. A typical account is
  * gone when this returns; a larger one finishes in scheduled steps a few

@@ -500,3 +500,152 @@ describe("cap tiers", () => {
     ]);
   });
 });
+
+// ─── Every copy (DW-04) ───
+
+/**
+ * The evaluator as it was before copies, verbatim apart from inlining
+ * dateAddedMs: the reference the one-copy results must match exactly.
+ */
+function legacyEvaluate(
+  albums: readonly RuleAlbum[],
+  r: StackRule,
+  opts: { stackId: string; excludedIds?: number[]; now: number }
+) {
+  const added = (a: RuleAlbum) => {
+    if (!a.dateAdded) return null;
+    const t = new Date(a.dateAdded).getTime();
+    return Number.isFinite(t) ? t : null;
+  };
+  const nullsLast = (a: number | null, b: number | null) =>
+    a === null ? (b === null ? 0 : 1) : b === null ? -1 : a - b;
+  const sortOld = (list: RuleAlbum[], sort: string) => {
+    const out = [...list];
+    switch (sort) {
+      case "title-az": out.sort((a, b) => a.title.localeCompare(b.title)); break;
+      case "year-new": out.sort((a, b) => b.year - a.year); break;
+      case "year-old": out.sort((a, b) => (a.year || Infinity) - (b.year || Infinity)); break;
+      case "added-new": out.sort((a, b) => (added(b) ?? 0) - (added(a) ?? 0)); break;
+      case "added-old": out.sort((a, b) => nullsLast(added(a), added(b))); break;
+      case "rating-high": out.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)); break;
+      case "last-played-oldest": out.sort((a, b) => (a.lastPlayedAt ?? 0) - (b.lastPlayedAt ?? 0)); break;
+      default: out.sort((a, b) => a.artist.localeCompare(b.artist)); break;
+    }
+    return out;
+  };
+  const excluded = new Set(opts.excludedIds || []);
+  const matched = albums.filter((a) => matchesRule(a, r, opts.now));
+  const pool = matched.filter((a) => !excluded.has(a.releaseId));
+  const limit = r.limit && r.limit > 0 ? r.limit : null;
+  const rotating = r.rotation !== "off" && limit !== null && pool.length >= limit * 1.5;
+  let selected: RuleAlbum[];
+  if (rotating && limit !== null) {
+    selected = seededShuffle(matched, `${opts.stackId}:${rotationBucket(r.rotation, opts.now)}`)
+      .filter((a) => !excluded.has(a.releaseId))
+      .slice(0, limit);
+  } else {
+    selected = limit !== null ? sortOld(pool, r.sort).slice(0, limit) : pool;
+  }
+  return { albums: sortOld(selected, r.sort), poolSize: pool.length, rotating };
+}
+
+describe("every copy — one-copy collections are unchanged", () => {
+  // Deliberately tie-heavy: repeated artists, titles, years, dates, ratings
+  // and play times, plus unknown years and undated rows, so every sort leans
+  // on its tie handling.
+  function oneCopyCollection(n: number, withInstances: boolean): RuleAlbum[] {
+    const out: RuleAlbum[] = [];
+    for (let i = 0; i < n; i++) {
+      out.push(
+        album({
+          releaseId: 5000 + i,
+          ...(withInstances && { instanceId: 900000 - i * 7 }),
+          artist: ["Ayler", "Brown", "Coltrane", "Brown"][i % 4],
+          title: ["A", "B", "A", "C", "B"][i % 5],
+          year: [1965, 0, 1972, 1965, 1980, 0][i % 6],
+          dateAdded: ["2024-01-01", "", "2023-06-01", "2024-01-01", "not a date"][i % 5],
+          rating: i % 3 === 0 ? undefined : (i % 5) + 1,
+          lastPlayedAt: i % 4 === 0 ? null : NOW - (i % 3) * DAY,
+          playCount: i % 4,
+          purgeTag: (["keep", "cut", null, "maybe"] as const)[i % 4],
+          genres: i % 2 ? ["Jazz"] : ["Rock"],
+        })
+      );
+    }
+    return out;
+  }
+
+  const sorts = [
+    "artist-az", "title-az", "year-new", "year-old", "added-new",
+    "added-old", "rating-high", "last-played-oldest", "unknown-sort",
+  ];
+  const variants: Partial<StackRule>[] = [
+    { conditions: [{ field: "genre", op: "includesAny", value: ["Jazz"] }] },
+    { conditions: [{ field: "genre", op: "includesAny", value: ["Jazz"] }], limit: 5 },
+    { conditions: [{ field: "genre", op: "includesAny", value: ["Jazz", "Rock"] }], match: "any", limit: 10, rotation: "daily" },
+    { conditions: [{ field: "purgeTag", op: "is", value: "keep" }], limit: 3, rotation: "weekly" },
+    { conditions: [{ field: "nope", op: "nope" }] },
+  ];
+
+  for (const withInstances of [false, true]) {
+    it(`matches the pre-copies evaluator exactly (${withInstances ? "with" : "without"} instance ids)`, () => {
+      const albums = oneCopyCollection(60, withInstances);
+      let nonEmpty = 0;
+      let rotated = 0;
+      for (const sort of sorts) {
+        for (const v of variants) {
+          for (const excludedIds of [undefined, [5003, 5010, 5021]]) {
+            const r = rule({ sort, ...v });
+            const now = NOW + 3 * DAY;
+            const before = legacyEvaluate(albums, r, { stackId: "s-1", excludedIds, now });
+            const after = evaluateStackRule(albums, r, { stackId: "s-1", excludedIds, now });
+            expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+            if (v.conditions![0].field !== "nope") nonEmpty++;
+            if (after.rotating) rotated++;
+            if (v.conditions![0].field !== "nope") expect(after.albums.length).toBeGreaterThan(0);
+          }
+        }
+      }
+      // The comparison has to cover real sets and the rotating branch.
+      expect(nonEmpty).toBeGreaterThan(0);
+      expect(rotated).toBeGreaterThan(0);
+    });
+  }
+});
+
+describe("every copy — two copies of one release", () => {
+  const jazz = rule({ conditions: [{ field: "genre", op: "includesAny", value: ["Jazz"] }] });
+
+  it("shows both copies when both match, the lower instance id first", () => {
+    const copyB = album({ releaseId: 77, instanceId: 702, artist: "Monk", genres: ["Jazz"] });
+    const other = album({ releaseId: 78, instanceId: 800, artist: "Monk", genres: ["Jazz"] });
+    const copyA = album({ releaseId: 77, instanceId: 701, artist: "Monk", genres: ["Jazz"] });
+    const result = evaluateStackRule([copyB, other, copyA], jazz, { stackId: "s", now: NOW });
+    // All three tie on artist. The two copies sit together at the first
+    // copy's place, lowest instance id first; the other release keeps its spot.
+    expect(result.albums.map((a) => a.instanceId)).toEqual([701, 702, 800]);
+    expect(result.poolSize).toBe(3);
+  });
+
+  it("a copy exclusion drops only that copy", () => {
+    const a = album({ releaseId: 77, instanceId: 701, genres: ["Jazz"] });
+    const b = album({ releaseId: 77, instanceId: 702, genres: ["Jazz"] });
+    const result = evaluateStackRule([a, b], jazz, { stackId: "s", excludedCopyIds: [702], now: NOW });
+    expect(result.albums.map((x) => x.instanceId)).toEqual([701]);
+    expect(result.poolSize).toBe(1);
+  });
+
+  it("an old release exclusion still drops every copy of the release", () => {
+    const a = album({ releaseId: 77, instanceId: 701, genres: ["Jazz"] });
+    const b = album({ releaseId: 77, instanceId: 702, genres: ["Jazz"] });
+    const c = album({ releaseId: 78, instanceId: 800, genres: ["Jazz"] });
+    const result = evaluateStackRule([a, b, c], jazz, { stackId: "s", excludedIds: [77], now: NOW });
+    expect(result.albums.map((x) => x.instanceId)).toEqual([800]);
+  });
+
+  it("a copy exclusion never matches a row without an instance id", () => {
+    const a = album({ releaseId: 77, genres: ["Jazz"] });
+    const result = evaluateStackRule([a], jazz, { stackId: "s", excludedCopyIds: [77], now: NOW });
+    expect(result.albums).toHaveLength(1);
+  });
+});

@@ -260,10 +260,13 @@ export function wantSignature(w: WantRowLike): string {
 // written. The sync action now reads the cache's signatures page by page,
 // plans the diff here, and applies it in bounded chunks.
 
-/** One cached row as the sync sees it: its id, its key, its signature. */
+/** One cached row as the sync sees it: its id, its key, its signature —
+ *  and, for the collection, which copy it is. */
 export interface CachedSignature<Id extends string> {
   id: Id;
   key: number;
+  /** Collection only (DW-04): the cached copy's instance id. */
+  instanceId?: number;
   signature: string;
 }
 
@@ -277,8 +280,9 @@ export interface CacheDiffPlan<Id extends string, Row> {
  * Decide what to write. New keys insert, changed signatures patch, unchanged
  * rows are left alone, and cached keys absent from the fetch delete. A key
  * cached more than once (a past race) keeps its first row and deletes the
- * rest. An incoming key seen twice keeps the first, matching the sync's own
- * dedupe-by-release rule.
+ * rest. An incoming key seen twice keeps the first. (The collection sync runs
+ * `stickyCopies` first, which leaves one copy per release and puts the cached
+ * row to keep first among its duplicates.)
  */
 export function planCacheDiff<Id extends string, Row>(
   cached: CachedSignature<Id>[],
@@ -309,6 +313,70 @@ export function planCacheDiff<Id extends string, Row>(
     if (!seen.has(key)) deletes.push(c.id);
   }
   return { inserts, patches, deletes };
+}
+
+/**
+ * The sticky dedupe (DW-04, until the DW-04e switch): one copy per release,
+ * and never a swap of which one.
+ *
+ * Discogs returns every copy you own; the cache still holds one per release.
+ * Keeping "the first copy met" let the kept copy flip whenever the fetch
+ * order did (move a copy to another folder and the next sync could keep the
+ * other one), patching the cached row onto a different copy. Harmless while
+ * verdicts and plays were keyed by release; once they belong to a copy, it
+ * would move them onto a copy the app isn't showing. So, per release:
+ *   - keep the copy whose instance id is already cached (the lowest, if the
+ *     cache somehow holds two — the same default-copy rule as copies.ts);
+ *   - with none cached, keep the lowest instance id.
+ * Releases keep their first-appearance position. Where the cache holds two
+ * rows for a release, the row of the kept copy goes first, so planCacheDiff
+ * patches that one and deletes the other rather than the reverse.
+ */
+export function stickyCopies<Id extends string, Row extends { releaseId: number; instanceId: number }>(
+  cached: CachedSignature<Id>[],
+  incoming: Row[]
+): { cached: CachedSignature<Id>[]; incoming: Row[] } {
+  const cachedInstances = new Map<number, Set<number>>();
+  for (const c of cached) {
+    if (c.instanceId === undefined) continue;
+    const set = cachedInstances.get(c.key) ?? new Set<number>();
+    set.add(c.instanceId);
+    cachedInstances.set(c.key, set);
+  }
+
+  const groups = new Map<number, Row[]>();
+  for (const row of incoming) {
+    const g = groups.get(row.releaseId);
+    if (g) g.push(row);
+    else groups.set(row.releaseId, [row]);
+  }
+
+  const kept: Row[] = [];
+  const keptInstance = new Map<number, number>();
+  for (const [releaseId, rows] of groups) {
+    const inCache = cachedInstances.get(releaseId);
+    const candidates = inCache ? rows.filter((r) => inCache.has(r.instanceId)) : [];
+    const pool = candidates.length ? candidates : rows;
+    let pick = pool[0];
+    for (const r of pool) if (r.instanceId < pick.instanceId) pick = r;
+    kept.push(pick);
+    keptInstance.set(releaseId, pick.instanceId);
+  }
+
+  const byKey = new Map<number, CachedSignature<Id>[]>();
+  for (const c of cached) {
+    const g = byKey.get(c.key);
+    if (g) g.push(c);
+    else byKey.set(c.key, [c]);
+  }
+  const orderedCached: CachedSignature<Id>[] = [];
+  for (const [key, rows] of byKey) {
+    const want = keptInstance.get(key);
+    const i = want === undefined ? -1 : rows.findIndex((c) => c.instanceId === want);
+    if (i > 0) orderedCached.push(rows[i], ...rows.slice(0, i), ...rows.slice(i + 1));
+    else orderedCached.push(...rows);
+  }
+  return { cached: orderedCached, incoming: kept };
 }
 
 /** Rows per write mutation. Rows carry custom fields and notes, so this is
@@ -364,6 +432,12 @@ export async function syncCacheInChunks<Id extends string, Row>(opts: {
     continueCursor: string;
   }>;
   writeChunk: (chunk: CacheDiffPlan<Id, Row>) => Promise<unknown>;
+  /** Runs on the full cached read and the incoming rows before planning
+   *  (the collection sync passes `stickyCopies`). */
+  prepare?: (
+    cached: CachedSignature<NoInfer<Id>>[],
+    incoming: NoInfer<Row>[]
+  ) => { cached: CachedSignature<NoInfer<Id>>[]; incoming: NoInfer<Row>[] };
 }): Promise<{ added: number; removed: number; updated: number }> {
   const cached: CachedSignature<Id>[] = [];
   let cursor: string | null = null;
@@ -373,7 +447,10 @@ export async function syncCacheInChunks<Id extends string, Row>(opts: {
     if (result.isDone) break;
     cursor = result.continueCursor;
   }
-  const plan = planCacheDiff(cached, opts.incoming, opts.keyOf, opts.signatureOf);
+  const prepared = opts.prepare
+    ? opts.prepare(cached, opts.incoming)
+    : { cached, incoming: opts.incoming };
+  const plan = planCacheDiff(prepared.cached, prepared.incoming, opts.keyOf, opts.signatureOf);
   for (const chunk of chunkCacheDiff(plan)) await opts.writeChunk(chunk);
   return {
     added: plan.inserts.length,
