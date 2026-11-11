@@ -66,3 +66,40 @@ describe("preferences.upsert recent_searches", () => {
     expect(await stored(t)).toEqual(["miles davis", "can"]);
   });
 });
+
+describe("preferences.upsert first write", () => {
+  const row = (t: TestConvex<typeof schema>) =>
+    t.run(async (ctx) => await ctx.db.query("preferences").first());
+
+  it("stores a lone default_screen on a first-ever upsert", async () => {
+    const t = convexTest(schema, modules);
+    await seedUser(t);
+    await t.mutation(api.preferences.upsert, { sessionToken: "tok", default_screen: "stacks" });
+    expect((await row(t))?.default_screen).toBe("stacks");
+  });
+
+  it("stores every field it was given on a first-ever upsert", async () => {
+    const t = convexTest(schema, modules);
+    await seedUser(t);
+    await t.mutation(api.preferences.upsert, {
+      sessionToken: "tok",
+      view_mode: "list",
+      want_view_mode: "grid",
+      default_screen: "crate",
+      default_collection_sort: "added-new",
+      format_scope: "vinyl",
+      session_cap: "25",
+      session_rotation: "daily",
+    });
+    expect(await row(t)).toMatchObject({
+      theme: "system",
+      view_mode: "list",
+      want_view_mode: "grid",
+      default_screen: "crate",
+      default_collection_sort: "added-new",
+      format_scope: "vinyl",
+      session_cap: "25",
+      session_rotation: "daily",
+    });
+  });
+});

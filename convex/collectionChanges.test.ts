@@ -236,6 +236,24 @@ describe("changeSummary", () => {
     expect(await summary(t)).toEqual({ added30: 0, removed30: 0, lastChangeAt: null });
   });
 
+  it("gives the same answer with or without the day argument, and moves with the clock", async () => {
+    const t = convexTest(schema, modules);
+    vi.setSystemTime(NOW);
+    await seed(t);
+    await sync(t, [album(1, { dateAdded: iso(NOW - 29 * DAY) }), album(2, { dateAdded: iso(NOW - 2 * DAY) })]);
+    const day = (ms: number) => iso(ms).slice(0, 10);
+    const withDay = (ms: number) => t.query(api.collection.changeSummary, { sessionToken: TOKEN, day: day(ms) });
+    const plain = await summary(t);
+    expect(plain.added30).toBe(2);
+    expect(await withDay(NOW)).toEqual(plain);
+    // Two days on, the 29-day-old add has left the window; the value sent is
+    // never read, so even a stale one gets the server clock's answer.
+    vi.setSystemTime(NOW + 2 * DAY);
+    expect((await withDay(NOW + 2 * DAY)).added30).toBe(1);
+    expect((await withDay(NOW)).added30).toBe(1);
+    expect((await summary(t)).added30).toBe(1);
+  });
+
   it("requires a session", async () => {
     const t = convexTest(schema, modules);
     await expect(t.query(api.collection.changeSummary, { sessionToken: "nope" })).rejects.toThrow();

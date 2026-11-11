@@ -380,9 +380,18 @@ export const removeItem = mutation({
  * RecentAdds does; `removed30` counts the removal log. `lastChangeAt` is the
  * newest add or logged removal in ms, or null when there is neither. Removals
  * are only known from when logging began, and for 90 days.
+ *
+ * The window is clock-derived, and Convex re-runs a query when the data it
+ * read changes, not when time passes, so a re-subscription can be handed a
+ * result from days ago. `day` exists only to defeat that (same idea as
+ * stacks.getMembership's `hour`): a new argument value is a new query. The
+ * contract: the device's current UTC date as "YYYY-MM-DD", sent on every
+ * subscription. It is never read — the cutoff comes from the server's own
+ * clock, so a stale or invented value can only cost a cache miss. Optional,
+ * because shipped native builds and the PWA call this without it.
  */
 export const changeSummary = query({
-  args: { sessionToken: v.string() },
+  args: { sessionToken: v.string(), day: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const user = await authenticateUser(ctx, args.sessionToken);
     const username = user.discogs_username;
