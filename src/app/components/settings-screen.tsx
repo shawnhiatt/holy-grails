@@ -16,6 +16,7 @@ import type { Screen, SortOption, FormatScope, SessionRotation } from "./app-con
 import { CAP_TIERS, type CapValue } from "../../../convex/stackRules";
 import { EASE_OUT, DURATION_NORMAL } from "./motion-tokens";
 import { version as APP_VERSION } from "../../../package.json";
+import { DISCOGS_NOTICE } from "./discogs-attribution";
 import { checkForUpdates } from "../lib/pwa-update";
 
 const COLOR_MODE_OPTIONS: { value: "light" | "dark" | "system"; label: string }[] = [
@@ -970,6 +971,10 @@ export function SettingsScreen() {
             <Info size={14} />
             <span style={{ fontSize: "12px", fontWeight: 400 }}>Holy Grails v{APP_VERSION}. A Discogs companion app.</span>
           </div>
+          {/* Required by Discogs' API terms (audit D-02), shown whole: same text as iOS. */}
+          <p className="mt-2" style={{ fontSize: "12px", fontWeight: 400, lineHeight: 1.4, color: "var(--c-text-muted)" }}>
+            {DISCOGS_NOTICE}
+          </p>
           <button
             onClick={handleCheckUpdates}
             disabled={checkingUpdate}

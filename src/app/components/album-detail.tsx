@@ -12,6 +12,7 @@ import { purgeTagColor as getPurgeColor, purgeToast, purgeClearToast } from "./p
 import { pushDialog, popDialog, isTopDialog } from "../lib/dialog-stack";
 import { PurgeVerdictButtons } from "./purge-verdict-buttons";
 import { StarRating } from "./star-rating";
+import { DiscogsAttribution } from "./discogs-attribution";
 import { formatDateShort, isToday, lastPlayedLabel, playCountLabel, playMonthLabel } from "./last-played-utils";
 import { EASE_OUT, EASE_IN_OUT, DURATION_FAST, DURATION_NORMAL, DURATION_SLOW } from "./motion-tokens";
 import { CONDITION_GRADES, CONDITION_SHORT, type WantItem, type FeedAlbum } from "./discogs-api";
@@ -1566,6 +1567,9 @@ export function AlbumDetailPanel({ hideHeader = false, hideImage = false }: { hi
                 </>
               );
             })()}
+
+            {/* ═══ Discogs attribution (bottom of the screen) ═══ */}
+            <DiscogsAttribution releaseId={selectedAlbum.release_id} />
           </div>
       </div>
     </div>
@@ -2910,6 +2914,9 @@ function WantItemDetailPanel({
               </>
             );
           })()}
+
+          {/* ═══ Discogs attribution (bottom of the screen) ═══ */}
+          <DiscogsAttribution releaseId={item.release_id} />
         </div>
 
       </div>
@@ -3509,6 +3516,9 @@ function ReleaseDetailPanel({
               </>
             );
           })()}
+
+          {/* ═══ Discogs attribution (bottom of the screen) ═══ */}
+          <DiscogsAttribution releaseId={album.release_id} />
         </div>
       </div>
     </div>
