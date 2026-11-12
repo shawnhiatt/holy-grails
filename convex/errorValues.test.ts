@@ -201,7 +201,7 @@ describe("proxyFetchUserProfile notFound", () => {
 });
 
 describe("proxyUpdateCollectionInstance skippedFields", () => {
-  const ARGS = { sessionToken: TOKEN, username: USER, folderId: 1, releaseId: 42, instanceId: 4200 };
+  const ARGS = { sessionToken: TOKEN, username: USER, folderId: 1, releaseId: 42, instanceId: 4200, errorsAsValues: true };
 
   function stubFields(fields: { id: number; name: string }[]) {
     return stub((method, url) => {
@@ -261,6 +261,24 @@ describe("proxyUpdateCollectionInstance skippedFields", () => {
       ...ARGS,
       fields: { notes: "" },
     });
-    expect(result.skippedFields).toEqual(["notes"]);
+    expect(result?.skippedFields).toEqual(["notes"]);
+  });
+
+  it("answers null to a caller that doesn't opt in, as before WO-07", async () => {
+    // Shipped native builds call this with convex-swift's no-result action,
+    // which throws on any non-null answer (2026-11-12 hotfix).
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const calls = stubFields([{ id: 1, name: "Media Condition" }]);
+    const { errorsAsValues: _optIn, ...legacy } = ARGS;
+    const result = await t.action(api.discogs.proxyUpdateCollectionInstance, {
+      ...legacy,
+      fields: { mediaCondition: "Mint (M)", notes: "hi" },
+    });
+    expect(result).toBeNull();
+    // The edit itself still goes through.
+    expect(calls.filter((c) => c.method === "POST").map((c) => c.url)).toEqual([
+      expect.stringContaining("/instances/4200/fields/1"),
+    ]);
   });
 });

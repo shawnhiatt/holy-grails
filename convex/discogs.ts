@@ -1513,8 +1513,13 @@ export const proxyUpdateCollectionInstance = action({
       fieldId: v.number(),
       value: v.string(),
     }))),
+    /** Opt-in for `{ skippedFields }`. Clients that don't send it get `null`, as
+     *  before WO-07: the shipped native builds call this with convex-swift's
+     *  no-result `action`, which throws on any answer but null, so returning the
+     *  object unconditionally made every edit look failed (2026-11-12 hotfix). */
+    errorsAsValues: v.optional(v.boolean()),
   },
-  handler: async (ctx, args): Promise<{ skippedFields: string[] }> => {
+  handler: async (ctx, args): Promise<{ skippedFields: string[] } | null> => {
     const creds = await ctx.runQuery(
       internal.discogsHelpers.getUserCredentials,
       { sessionToken: args.sessionToken }
@@ -1590,7 +1595,7 @@ export const proxyUpdateCollectionInstance = action({
       }
     }
 
-    return { skippedFields };
+    return args.errorsAsValues ? { skippedFields } : null;
   },
 });
 
