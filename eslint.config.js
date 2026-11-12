@@ -91,9 +91,16 @@ export default tseslint.config(
           message: "Web storage is restricted to the whitelisted files. See CLAUDE.md.",
         },
         // Outbound Discogs links: every redirect strategy failed in the
-        // installed iOS PWA. Absolute rule, no exceptions.
+        // installed iOS PWA. Absolute rule; the only exceptions are the two
+        // scoped overrides below (the splash "Sign up" link and the
+        // attribution component).
         {
           selector: 'JSXAttribute[name.name="href"] Literal[value=/discogs\\.com/]',
+          message: "No discogs.com hrefs anywhere in the app — the Discogs Universal Link strands installed-PWA users. See 'Outbound Discogs links' in CLAUDE.md.",
+        },
+        // Same ban for an href built as a template literal.
+        {
+          selector: 'JSXAttribute[name.name="href"] TemplateElement[value.raw=/discogs\\.com/]',
           message: "No discogs.com hrefs anywhere in the app — the Discogs Universal Link strands installed-PWA users. See 'Outbound Discogs links' in CLAUDE.md.",
         },
         // Biased shuffle: use shuffle()/pickRandom() from utils/shuffle.
@@ -140,6 +147,31 @@ export default tseslint.config(
     rules: {
       "no-restricted-syntax": [
         "error",
+        {
+          selector: 'CallExpression[callee.property.name="sort"] CallExpression[callee.object.name="Math"][callee.property.name="random"]',
+          message: "Math.random() in a sort comparator is a biased shuffle. Use shuffle() from src/app/utils/shuffle.ts.",
+        },
+        {
+          selector: "Literal[value=/\\bh-screen\\b/]",
+          message: "Never use h-screen — use 100dvh. See 'Full-Screen Viewport Height' in CLAUDE.md.",
+        },
+      ],
+    },
+  },
+  // The ONE post-auth exception to the no-discogs.com-hrefs rule: the
+  // "Data provided by Discogs" attribution link that Discogs' API Terms of Use
+  // require next to API data (audit D-01, Shawn 2026-11-12). This file alone,
+  // and nothing else — every other href keeps failing. Same block as above
+  // (the override replaces the rule list), minus the Discogs selectors.
+  {
+    files: ["src/app/components/discogs-attribution.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'MemberExpression[object.name="window"][property.name=/^(localStorage|sessionStorage)$/]',
+          message: "Web storage is restricted to the whitelisted files. See CLAUDE.md.",
+        },
         {
           selector: 'CallExpression[callee.property.name="sort"] CallExpression[callee.object.name="Math"][callee.property.name="random"]',
           message: "Math.random() in a sort comparator is a biased shuffle. Use shuffle() from src/app/utils/shuffle.ts.",
