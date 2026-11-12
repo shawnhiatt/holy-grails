@@ -1688,7 +1688,7 @@ Do not introduce new z-index values outside this hierarchy without checking for 
 - **Format-neutral always** — see the subsection immediately below. This is the rule most easily broken by accident.
 - No exclamation points, no emoji, no "Hey there!" energy
 - Avoid: "seamlessly," "powerful," "experience," "journey"
-- Toast notifications: under 4 words where possible, no punctuation except a period for emphasis. Album-specific toasts include the full title with no truncation: `"[Title]" kept.` / `"[Title]" added to Wantlist.` / `"[Title]" removed.` Error toasts, session toasts, sync toasts, and settings toasts remain generic.
+- Toast notifications: under 4 words where possible, no punctuation except a period for emphasis. Album-specific toasts include the full title with no truncation: `"[Title]" kept.` / `"[Title]" added to Wantlist.` / `"[Title]" removed.` Error toasts, session toasts, sync toasts, and settings toasts remain generic. Error toasts may add "Try again." after the short message (`Couldn't save. Try again.`); that's the one allowed exception to the word count (decided 2026-11-12, iOS app audit Q4).
 - The plural of vinyl is vinyl
 - "Wantlist" is one word — never "want list" or "want-list"
 - The two play filters are worded **"No Plays Recorded" / "Plays Recorded"** everywhere — chips (`filter-drawer`, `crate-browser`), the feed Listening card's rows, and the Insights stat. They drifted once ("Play Not Recorded" on the chips), which meant arriving at the collection from the feed showed a chip worded differently from the row that got you there. Any new surface for these filters reuses these strings verbatim.
